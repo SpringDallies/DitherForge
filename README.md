@@ -60,15 +60,24 @@ Stackable post-processing with a "+" add menu:
 
 ## 🚀 Quick Start & Launch
 
-### Instant Local Launch (Python Server)
-Run with Python (already installed on Windows):
+### Modern Web App (Vite + React + TypeScript)
+Run the development server on port 5173:
 
 ```powershell
-cd c:\Users\straightheart\Documents\Code\DitherForge
-python -m http.server 8080
+npm install
+npm run dev
 ```
 
-Open your browser at `http://localhost:8080` to interact with DitherForge immediately!
+Open `http://localhost:5173/app.html` in your browser.
+
+To build and serve the production bundle on port 8080:
+
+```powershell
+npm run build
+npm run serve
+```
+
+Open `http://localhost:8080/app.html` in your browser.
 
 ### Native Desktop App (Tauri 2 + Rust)
 To build the native desktop executable:

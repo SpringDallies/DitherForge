@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "serve": "python -m http.server 8080",
+    "serve": "npx vite preview --port 8080",
     "inventory:check": "node scripts/inventory-check.mjs",
     "engine:verify": "node scripts/engine-verify.mjs",
     "test:golden": "node tests/golden/run-golden-tests.mjs"

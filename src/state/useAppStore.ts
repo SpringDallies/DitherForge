@@ -216,10 +216,10 @@ const getStoredSidebarWidth = (): number => {
     const val = localStorage.getItem(STORAGE_KEY_SIDEBAR_WIDTH);
     if (val) {
       const num = parseInt(val, 10);
-      if (!isNaN(num) && num >= 260 && num <= 480) return num;
+      if (!isNaN(num) && num >= 300 && num <= 480) return num;
     }
   } catch {}
-  return 300;
+  return 340;
 };
 
 const getStoredSidebarCollapsed = (): boolean => {
@@ -482,7 +482,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isManualOpen: false,
 
   setSidebarWidth: (width) => set(() => {
-    const clamped = Math.max(260, Math.min(480, width));
+    const clamped = Math.max(300, Math.min(480, width));
     try { localStorage.setItem(STORAGE_KEY_SIDEBAR_WIDTH, String(clamped)); } catch {}
     return { sidebarWidth: clamped };
   }),

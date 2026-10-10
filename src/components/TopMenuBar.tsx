@@ -5,7 +5,6 @@ import {
   Sparkles, 
   Download, 
   RotateCcw, 
-  Palette,
   Maximize,
   Minimize
 } from 'lucide-react';
@@ -26,6 +25,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
   const loadSampleImage = useAppStore((state) => state.loadSampleImage);
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
   const clearImage = useAppStore((state) => state.clearImage);
+  const fitToViewport = useAppStore((state) => state.fitToViewport);
+  const resetZoom = useAppStore((state) => state.resetZoom);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -57,8 +58,16 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
-    // Reset input value so re-selecting same file triggers change
     e.target.value = '';
+  };
+
+  const handleFit = () => {
+    const canvasArea = document.querySelector('.canvas-area');
+    if (canvasArea) {
+      fitToViewport(canvasArea.clientWidth, canvasArea.clientHeight);
+    } else {
+      fitToViewport(window.innerWidth - 400, window.innerHeight - 100);
+    }
   };
 
   return (
@@ -72,124 +81,175 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
         onChange={handleFileChange}
       />
 
-      <div className="brand-section">
-        <div className="brand-logo">
-          <div className="brand-icon">▦</div>
-          <span>DitherForge</span>
-        </div>
-
-        <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
-          {/* File Menu */}
-          <div style={{ position: 'relative' }}>
-            <button 
-              className={`menu-btn ${activeMenu === 'file' ? 'active' : ''}`}
-              onClick={() => setActiveMenu(activeMenu === 'file' ? null : 'file')}
-              title="File operations"
-            >
-              File
-            </button>
-            {activeMenu === 'file' && (
-              <div className="dropdown-menu-popover">
-                <button 
-                  className="dropdown-menu-item"
-                  onClick={() => {
-                    handleOpenFileDialog();
-                    setActiveMenu(null);
-                  }}
-                >
-                  <FolderOpen size={13} /> Open Image... <span className="menu-shortcut">Ctrl+O</span>
-                </button>
-                <button 
-                  className="dropdown-menu-item"
-                  onClick={() => {
-                    loadSampleImage();
-                    setActiveMenu(null);
-                  }}
-                >
-                  <Sparkles size={13} /> Load Calibration Pattern
-                </button>
-                <div className="menu-divider" />
-                <button 
-                  className="dropdown-menu-item"
-                  onClick={() => {
-                    clearImage();
-                    setActiveMenu(null);
-                  }}
-                >
-                  Close Image
-                </button>
-                <div className="menu-divider" />
-                <button 
-                  className="dropdown-menu-item disabled"
-                  title="Coming in Phase 7"
-                >
-                  <Download size={13} /> Export... <span className="menu-shortcut">Phase 7</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <button className="menu-btn" title="Undo, redo & history (Coming in Phase 6)" style={{ cursor: 'default', opacity: 0.85 }}>Edit</button>
-          <button className="menu-btn" title="Curated presets (Coming in Phase 6)" style={{ cursor: 'default', opacity: 0.85 }}>Presets</button>
-          <button className="menu-btn" title="Extras & timeline (Coming in Phase 6)" style={{ cursor: 'default', opacity: 0.85 }}>Extras</button>
-          <button className="menu-btn" onClick={onOpenManual} title="Algorithm Reference Manual">
-            Help
-          </button>
-        </nav>
-      </div>
-
-      <div className="quick-actions">
-        <button 
-          className="action-btn" 
-          onClick={handleOpenFileDialog}
-          title="Open source image (Ctrl+O)"
-        >
-          <FolderOpen size={13} /> Open
-        </button>
-        <button 
-          className="action-btn" 
-          onClick={loadSampleImage}
-          title="Load built-in calibration pattern"
-        >
-          <Sparkles size={13} /> Sample
-        </button>
-        <button 
-          className="action-btn primary" 
-          disabled
-          title="Export frame (Coming in Phase 7)"
-          style={{ opacity: 0.5, cursor: 'not-allowed' }}
-        >
-          <Download size={13} /> Export
-        </button>
-        <button className="action-btn" onClick={resetAll} title="Reset all sliders and tweaks">
-          <RotateCcw size={13} /> Reset
-        </button>
-      </div>
-
-      <div className="top-right-controls">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Palette size={13} style={{ color: 'var(--text-muted)' }} />
-          <select 
-            className="control-select" 
-            value={activeTheme} 
-            onChange={(e) => setActiveTheme(e.target.value)}
-            title="Switch theme design tokens"
+      {/* Left-aligned plain-text menus only */}
+      <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
+        {/* File Menu */}
+        <div style={{ position: 'relative' }}>
+          <button 
+            className={`menu-btn ${activeMenu === 'file' ? 'active' : ''}`}
+            onClick={() => setActiveMenu(activeMenu === 'file' ? null : 'file')}
+            title="File operations"
           >
-            <option value="dark_pro">Dark Pro</option>
-            <option value="crt_green">CRT Phosphor</option>
-            <option value="cyberpunk_neon">Cyberpunk Neon</option>
-            <option value="gameboy_olive">GameBoy Olive</option>
-            <option value="retro_mac">Retro Mac OS</option>
-            <option value="vaporwave_pink">Vaporwave</option>
-          </select>
+            File
+          </button>
+          {activeMenu === 'file' && (
+            <div className="dropdown-menu-popover">
+              <button 
+                className="dropdown-menu-item"
+                onClick={() => {
+                  handleOpenFileDialog();
+                  setActiveMenu(null);
+                }}
+              >
+                <FolderOpen size={13} /> Open Image... <span className="menu-shortcut">Ctrl+O</span>
+              </button>
+              <button 
+                className="dropdown-menu-item"
+                onClick={() => {
+                  loadSampleImage();
+                  setActiveMenu(null);
+                }}
+              >
+                <Sparkles size={13} /> Load Calibration Pattern
+              </button>
+              <div className="dropdown-divider" />
+              <button 
+                className="dropdown-menu-item"
+                onClick={() => {
+                  clearImage();
+                  setActiveMenu(null);
+                }}
+              >
+                Close Image
+              </button>
+              <div className="dropdown-divider" />
+              <button 
+                className="dropdown-menu-item"
+                disabled
+                title="Coming in Phase 7"
+              >
+                <Download size={13} /> Export Image... <span className="menu-shortcut">Phase 7</span>
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Edit Menu */}
+        <div style={{ position: 'relative' }}>
+          <button 
+            className={`menu-btn ${activeMenu === 'edit' ? 'active' : ''}`}
+            onClick={() => setActiveMenu(activeMenu === 'edit' ? null : 'edit')}
+            title="Edit operations"
+          >
+            Edit
+          </button>
+          {activeMenu === 'edit' && (
+            <div className="dropdown-menu-popover">
+              <button 
+                className="dropdown-menu-item"
+                disabled
+                title="Coming in Phase 6"
+              >
+                Undo <span className="menu-shortcut">Ctrl+Z</span>
+              </button>
+              <button 
+                className="dropdown-menu-item"
+                disabled
+                title="Coming in Phase 6"
+              >
+                Redo <span className="menu-shortcut">Ctrl+Y</span>
+              </button>
+              <div className="dropdown-divider" />
+              <button 
+                className="dropdown-menu-item"
+                onClick={() => {
+                  resetAll();
+                  setActiveMenu(null);
+                }}
+              >
+                <RotateCcw size={13} /> Reset All Parameters
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* View Menu */}
+        <div style={{ position: 'relative' }}>
+          <button 
+            className={`menu-btn ${activeMenu === 'view' ? 'active' : ''}`}
+            onClick={() => setActiveMenu(activeMenu === 'view' ? null : 'view')}
+            title="View options"
+          >
+            View
+          </button>
+          {activeMenu === 'view' && (
+            <div className="dropdown-menu-popover">
+              <button 
+                className="dropdown-menu-item"
+                onClick={() => {
+                  handleFit();
+                  setActiveMenu(null);
+                }}
+              >
+                Fit to Viewport <span className="menu-shortcut">0</span>
+              </button>
+              <button 
+                className="dropdown-menu-item"
+                onClick={() => {
+                  resetZoom();
+                  setActiveMenu(null);
+                }}
+              >
+                1:1 Native Scale <span className="menu-shortcut">1</span>
+              </button>
+              <div className="dropdown-divider" />
+              <button 
+                className="dropdown-menu-item"
+                onClick={() => {
+                  toggleFullScreen();
+                  setActiveMenu(null);
+                }}
+              >
+                Toggle Fullscreen <span className="menu-shortcut">F11</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Help Menu */}
+        <button 
+          className="menu-btn" 
+          onClick={onOpenManual} 
+          title="Algorithm Reference Manual"
+        >
+          Help
+        </button>
+      </nav>
+
+      {/* Far-Right Compact Cluster: Theme selector + Fullscreen */}
+      <div className="top-right-controls">
+        <select 
+          className="control-select" 
+          value={activeTheme} 
+          onChange={(e) => setActiveTheme(e.target.value)}
+          title="Switch theme design tokens"
+          style={{ height: '22px', fontSize: '0.7rem' }}
+        >
+          <option value="dark_pro">Dark Pro</option>
+          <option value="crt_green">CRT Phosphor</option>
+          <option value="cyberpunk_neon">Cyberpunk Neon</option>
+          <option value="gameboy_olive">GameBoy Olive</option>
+          <option value="retro_mac">Retro Mac OS</option>
+          <option value="vaporwave_pink">Vaporwave</option>
+        </select>
 
         <button 
           className="tool-icon-btn" 
           onClick={toggleFullScreen}
           title={isFullScreen ? "Exit Fullscreen (F11)" : "Enter Fullscreen (F11)"}
+          style={{ height: '22px', width: '24px', padding: 0, justifyContent: 'center' }}
         >
-          {isFullScreen ? <Minimize size={14} /> : <Maximize size={14} />}
+          {isFullScreen ? <Minimize size={12} /> : <Maximize size={12} />}
         </button>
       </div>
     </header>

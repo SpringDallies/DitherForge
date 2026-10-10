@@ -211,6 +211,7 @@
 | Top-Bar Engine Dropdown: `Full` | `index.html:62` (`#perfModeSelector`) | Top bar dropdown | Bottom Strip segmented switch: `[ Precise ]` | [ ] Pending |
 | Top-Bar Engine Dropdown: `Live` | `index.html:63` (`#perfModeSelector`) | Top bar dropdown | Bottom Strip segmented switch: `[ Live ]` | [ ] Pending |
 | Top-Bar Engine Dropdown: `Still` | `index.html:64` (`#perfModeSelector`) | Top bar dropdown | Bottom Strip segmented switch: `[ Settle ]` (250ms debounce) | [ ] Pending |
+| Left Icon Rail Placeholder | *[NEW - placeholder; logo asset TBD by user]* | None | Left edge of viewport (32px icon rail) | [ ] Pending |
 
 ---
 

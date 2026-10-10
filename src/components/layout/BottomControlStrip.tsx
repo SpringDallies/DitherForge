@@ -1,11 +1,12 @@
 ﻿import React from 'react';
 import { useAppStore } from '../../state/useAppStore';
-import { Maximize2 } from 'lucide-react';
+import { Grid } from 'lucide-react';
 
 export const BottomControlStrip: React.FC = () => {
   const updateMode = useAppStore((state) => state.updateMode);
   const setUpdateMode = useAppStore((state) => state.setUpdateMode);
   const zoom = useAppStore((state) => state.zoom);
+  const setZoom = useAppStore((state) => state.setZoom);
   const fitToViewport = useAppStore((state) => state.fitToViewport);
   const resetZoom = useAppStore((state) => state.resetZoom);
   const imageWidth = useAppStore((state) => state.imageWidth);
@@ -21,57 +22,88 @@ export const BottomControlStrip: React.FC = () => {
     }
   };
 
+  const handleZoomIn = () => {
+    setZoom(Math.min(1000, zoom * 1.25));
+  };
+
+  const handleZoomOut = () => {
+    setZoom(Math.max(10, zoom * 0.8));
+  };
+
   return (
     <footer className="bottom-control-strip">
-      {/* Left: Segmented Switch [ Precise | Live | Settle ] */}
-      <div className="segmented-switch" role="group" aria-label="Update Mode">
-        <button
-          className={`switch-btn ${updateMode === 'precise' ? 'active' : ''}`}
-          onClick={() => setUpdateMode('precise')}
-          title="Precise Mode: Full-resolution render on every change"
-        >
-          Precise
-        </button>
-        <button
-          className={`switch-btn ${updateMode === 'live' ? 'active' : ''}`}
-          onClick={() => setUpdateMode('live')}
-          title="Live Mode: Responsive fast proxy during slider drags, full on release"
-        >
-          Live
-        </button>
-        <button
-          className={`switch-btn ${updateMode === 'settle' ? 'active' : ''}`}
-          onClick={() => setUpdateMode('settle')}
-          title="Settle Mode: Debounces slider movements (180ms), full-res on idle"
-        >
-          Settle
-        </button>
+      {/* Left: Status text */}
+      <div className="strip-status">
+        <span>{imageWidth > 0 ? `${imageWidth}×${imageHeight}` : 'Ready'}</span>
+        <span className="dot-sep">•</span>
+        <span>{lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)}ms` : '<1ms'}</span>
       </div>
 
-      {/* Center: Real Status Text "WxH • zoom% • last render ms" */}
-      <div className="status-text-center">
-        <span>{imageWidth > 0 ? `${imageWidth}x${imageHeight}` : 'No Image'}</span>
-        <span className="dot-sep">•</span>
-        <span>{Math.round(zoom)}%</span>
-        <span className="dot-sep">•</span>
-        <span>render: {lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)} ms` : '< 1 ms'}</span>
+      {/* Center: "VIEWPORT:" label + segmented switch [ Precise | Live | Settle ] */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span className="strip-viewport-label">VIEWPORT:</span>
+        <div className="segmented-switch" role="group" aria-label="Update Mode">
+          <button
+            className={`switch-btn ${updateMode === 'precise' ? 'active' : ''}`}
+            onClick={() => setUpdateMode('precise')}
+            title="Precise Mode: Full-resolution render on every change"
+          >
+            Precise
+          </button>
+          <button
+            className={`switch-btn ${updateMode === 'live' ? 'active' : ''}`}
+            onClick={() => setUpdateMode('live')}
+            title="Live Mode: Responsive fast proxy during slider drags, full on release"
+          >
+            Live
+          </button>
+          <button
+            className={`switch-btn ${updateMode === 'settle' ? 'active' : ''}`}
+            onClick={() => setUpdateMode('settle')}
+            title="Settle Mode: Debounces slider movements (180ms), full-res on idle"
+          >
+            Settle
+          </button>
+        </div>
       </div>
 
-      {/* Right: Zoom controls (Fit 0, 1:1 1) */}
-      <div className="zoom-controls-group">
+      {/* Right: Zoom controls (- 100% + ↻) and small placeholder icons */}
+      <div className="strip-actions">
         <button
           className="zoom-btn"
-          onClick={handleFit}
-          title="Fit view to viewport (Key: 0)"
+          onClick={handleZoomOut}
+          title="Zoom Out (-)"
         >
-          <Maximize2 size={12} /> Fit <span className="kbd-shortcut">0</span>
+          -
         </button>
         <button
           className="zoom-btn"
           onClick={resetZoom}
           title="1:1 Native Resolution (Key: 1)"
         >
-          1:1 <span className="kbd-shortcut">1</span>
+          {Math.round(zoom)}%
+        </button>
+        <button
+          className="zoom-btn"
+          onClick={handleZoomIn}
+          title="Zoom In (+)"
+        >
+          +
+        </button>
+        <button
+          className="zoom-btn"
+          onClick={handleFit}
+          title="Fit view to viewport (Key: 0)"
+        >
+          ↻
+        </button>
+        <button
+          className="zoom-btn"
+          disabled
+          title="Pixel grid overlay (Phase 7)"
+          style={{ opacity: 0.4, cursor: 'not-allowed', marginLeft: '4px' }}
+        >
+          <Grid size={11} />
         </button>
       </div>
     </footer>

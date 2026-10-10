@@ -566,15 +566,7 @@ export const CenterViewport: React.FC = () => {
           </div>
         )}
       </div>
-      {/* Slim Timeline Scrubber Strip (ALWAYS visible placeholder for Phase 6) */}
-      <div className="timeline-scrubber-strip" title="Timeline scrubber (Phase 6 animation placeholder)">
-        <div className="timeline-track-container">
-          <div className="timeline-track">
-            <div className="timeline-playhead" />
-          </div>
-        </div>
-        <div className="timeline-frame-counter">FRAME 001 / 001</div>
-      </div>
+
     </main>
   );
 };

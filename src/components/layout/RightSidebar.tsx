@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../state/useAppStore';
 // Import frozen registries UNCHANGED
 // @ts-ignore
@@ -8,21 +8,24 @@ import { BUILTIN_PALETTES } from '../../dither-engine/palettes.js';
 // @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 import { 
-  Cpu, 
-  Sliders, 
-  Palette, 
-  Layers, 
   ChevronLeft, 
   ChevronRight, 
+  Star, 
+  RotateCcw, 
+  Lock, 
+  Unlock, 
+  Search, 
+  X, 
+  SidebarClose, 
+  SidebarOpen,
   Plus, 
   Trash2, 
-  MoveVertical,
-  SidebarClose,
-  SidebarOpen
+  MoveVertical
 } from 'lucide-react';
 
 export const RightSidebar: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [showAddEffectMenu, setShowAddEffectMenu] = useState(false);
 
   // App store selectors
@@ -30,8 +33,14 @@ export const RightSidebar: React.FC = () => {
   const setAlgorithmId = useAppStore((state) => state.setAlgorithmId);
   const algoParams = useAppStore((state) => state.algoParams);
   const updateCurrentAlgoParam = useAppStore((state) => state.updateCurrentAlgoParam);
+  const resetCurrentAlgoParams = useAppStore((state) => state.resetCurrentAlgoParams);
+  const resetAlgoParamToDefault = useAppStore((state) => state.resetAlgoParamToDefault);
+  const favoriteAlgorithmIds = useAppStore((state) => state.favoriteAlgorithmIds);
+  const toggleFavoriteAlgorithm = useAppStore((state) => state.toggleFavoriteAlgorithm);
+
   const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
 
+  // Adjustments & Locks
   const brightness = useAppStore((state) => state.brightness);
   const contrast = useAppStore((state) => state.contrast);
   const saturation = useAppStore((state) => state.saturation);
@@ -43,13 +52,17 @@ export const RightSidebar: React.FC = () => {
   const setGamma = useAppStore((state) => state.setGamma);
   const setDepth = useAppStore((state) => state.setDepth);
 
+  const lockedAdjustments = useAppStore((state) => state.lockedAdjustments);
+  const toggleAdjustmentLock = useAppStore((state) => state.toggleAdjustmentLock);
+  const resetAdjustmentParam = useAppStore((state) => state.resetAdjustmentParam);
+  const resetAllAdjustments = useAppStore((state) => state.resetAllAdjustments);
+
+  // Palette & Effects
   const activePaletteId = useAppStore((state) => state.activePalette);
   const setActivePalette = useAppStore((state) => state.setActivePalette);
 
   const effects = useAppStore((state) => state.effects);
-  const toggleEffect = useAppStore((state) => state.toggleEffect);
   const addEffect = useAppStore((state) => state.addEffect);
-  const removeEffect = useAppStore((state) => state.removeEffect);
 
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const isCollapsed = useAppStore((state) => state.isSidebarCollapsed);
@@ -91,6 +104,81 @@ export const RightSidebar: React.FC = () => {
     onPointerUp: handleSliderPointerUp
   };
 
+  // Filtered algorithms (combining activeCategory + searchQuery)
+  const filteredAlgos = ALGORITHM_REGISTRY.filter((a: any) => {
+    const matchesCategory = activeCategory === 'all' || a.category === activeCategory;
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q || a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q);
+    return matchesCategory && matchesSearch;
+  });
+
+  const currentAlgo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId) || ALGORITHM_REGISTRY[0];
+  const currentIndex = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
+  const isCurrentFavorite = favoriteAlgorithmIds.includes(algorithmId);
+
+  const handlePrev = useCallback(() => {
+    if (filteredAlgos.length === 0) return;
+    const prevIdx = (currentIndex - 1 + filteredAlgos.length) % filteredAlgos.length;
+    setAlgorithmId(filteredAlgos[prevIdx].id);
+  }, [filteredAlgos, currentIndex, setAlgorithmId]);
+
+  const handleNext = useCallback(() => {
+    if (filteredAlgos.length === 0) return;
+    const nextIdx = (currentIndex + 1) % filteredAlgos.length;
+    setAlgorithmId(filteredAlgos[nextIdx].id);
+  }, [filteredAlgos, currentIndex, setAlgorithmId]);
+
+  // Up/Down keyboard stepping (only when no input, select, or textarea is focused)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const tagName = activeEl?.tagName?.toLowerCase() || '';
+      if (tagName === 'input' || tagName === 'select' || tagName === 'textarea' || (activeEl as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handlePrev, handleNext]);
+
+  // Progressive parameter disclosure based on algorithm category & id
+  const getVisibleParams = (id: string, cat: string) => {
+    if (id === 'bayer_2x2' || id === 'bayer_4x4' || id === 'bayer_8x8' || id === 'bayer_16x16') {
+      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
+    }
+    if (cat === 'error_diffusion') {
+      return { threshold: true, scale: false, diffusionStrength: true, serpentine: true, noiseAmount: false };
+    }
+    if (cat === 'glitch') {
+      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
+    }
+    if (cat === 'pattern') {
+      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
+    }
+    if (id === 'fixed_threshold') {
+      return { threshold: true, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: false };
+    }
+    if (id === 'random_threshold') {
+      return { threshold: true, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: true };
+    }
+    if (id === 'ignition_glow') {
+      return { threshold: true, scale: true, diffusionStrength: true, serpentine: false, noiseAmount: false };
+    }
+    if (id === 'temporal_kinetic') {
+      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
+    }
+    return { threshold: true, scale: true, diffusionStrength: true, serpentine: true, noiseAmount: false };
+  };
+
+  const visibleParams = getVisibleParams(currentAlgo.id, currentAlgo.category);
+
   // Per-algorithm parameters
   const currentParams = algoParams[algorithmId] ?? {
     threshold: 0.5,
@@ -98,25 +186,6 @@ export const RightSidebar: React.FC = () => {
     diffusionStrength: 1.0,
     serpentine: false,
     noiseAmount: 0.3
-  };
-
-  const filteredAlgos = activeCategory === 'all'
-    ? ALGORITHM_REGISTRY
-    : ALGORITHM_REGISTRY.filter((a: any) => a.category === activeCategory);
-
-  const currentAlgo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId) || ALGORITHM_REGISTRY[0];
-  const currentIndex = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
-
-  const handlePrev = () => {
-    if (filteredAlgos.length === 0) return;
-    const prevIdx = (currentIndex - 1 + filteredAlgos.length) % filteredAlgos.length;
-    setAlgorithmId(filteredAlgos[prevIdx].id);
-  };
-
-  const handleNext = () => {
-    if (filteredAlgos.length === 0) return;
-    const nextIdx = (currentIndex + 1) % filteredAlgos.length;
-    setAlgorithmId(filteredAlgos[nextIdx].id);
   };
 
   // Lookup palette strictly by ID
@@ -131,20 +200,20 @@ export const RightSidebar: React.FC = () => {
           onClick={toggleCollapsed}
           title="Expand Sidebar"
         >
-          <SidebarOpen size={18} />
+          <SidebarOpen size={16} />
         </button>
         <div className="rail-divider" />
         <button className="rail-btn" onClick={toggleCollapsed} title="Algorithm Section">
-          <Cpu size={16} />
+          <span style={{ fontSize: '10px', fontWeight: 700 }}>ALG</span>
         </button>
         <button className="rail-btn" onClick={toggleCollapsed} title="Adjustments Section">
-          <Sliders size={16} />
+          <span style={{ fontSize: '10px', fontWeight: 700 }}>ADJ</span>
         </button>
         <button className="rail-btn" onClick={toggleCollapsed} title="Palette Section">
-          <Palette size={16} />
+          <span style={{ fontSize: '10px', fontWeight: 700 }}>PAL</span>
         </button>
         <button className="rail-btn" onClick={toggleCollapsed} title="Effects Stack Section">
-          <Layers size={16} />
+          <span style={{ fontSize: '10px', fontWeight: 700 }}>FX</span>
         </button>
       </aside>
     );
@@ -154,16 +223,13 @@ export const RightSidebar: React.FC = () => {
     <aside className="right-sidebar" style={{ width: `${sidebarWidth}px` }}>
       {/* Sidebar Header */}
       <div className="sidebar-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Cpu size={15} style={{ color: 'var(--accent-cyan)' }} />
-          <span className="sidebar-title">Pipeline & Controls</span>
-        </div>
+        <span className="sidebar-title">Pipeline Controls</span>
         <button
           className="tool-icon-btn"
           onClick={toggleCollapsed}
-          title="Collapse Sidebar to Rail"
+          title="Collapse Sidebar"
         >
-          <SidebarClose size={15} />
+          <SidebarClose size={14} />
         </button>
       </div>
 
@@ -171,14 +237,75 @@ export const RightSidebar: React.FC = () => {
         {/* 1. ALGORITHM SECTION */}
         <section className="section-card">
           <div className="section-title">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Cpu size={14} style={{ color: 'var(--accent-cyan)' }} />
-              <span>1. Algorithm ({ALGORITHM_REGISTRY.length})</span>
+            <span>ALGORITHM ({ALGORITHM_REGISTRY.length})</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                className="reset-section-btn"
+                onClick={resetCurrentAlgoParams}
+                title="Reset algorithm parameters to default"
+              >
+                <RotateCcw size={10} /> Reset
+              </button>
+              <span className="section-badge">{activeCategory.toUpperCase()}</span>
             </div>
-            <span className="section-badge">{activeCategory.toUpperCase()}</span>
           </div>
 
-          {/* Category Chips */}
+          {/* Favourites Row (Starred Algorithms) */}
+          <div className="favorites-row" title="Favorite algorithms (click to select)">
+            <Star size={11} style={{ color: favoriteAlgorithmIds.length > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)' }} />
+            {favoriteAlgorithmIds.length === 0 ? (
+              <span className="fav-empty-hint">No favorites yet — star algorithms to pin here</span>
+            ) : (
+              favoriteAlgorithmIds.map((favId) => {
+                const favAlgo = ALGORITHM_REGISTRY.find((a: any) => a.id === favId);
+                if (!favAlgo) return null;
+                return (
+                  <span
+                    key={favId}
+                    className="fav-chip"
+                    onClick={() => setAlgorithmId(favId)}
+                    title={`Select ${favAlgo.name}`}
+                  >
+                    {favAlgo.name}
+                    <button
+                      className="fav-remove-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavoriteAlgorithm(favId);
+                      }}
+                      title="Unpin favorite"
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })
+            )}
+          </div>
+
+          {/* Search Input Box */}
+          <div className="search-input-box">
+            <Search size={12} style={{ position: 'absolute', left: '6px', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="search-input"
+              style={{ paddingLeft: '22px' }}
+              placeholder="Search 63 algorithms..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                className="search-clear-btn"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* Category Chips (Filter Row) */}
           <div className="chip-container">
             <button
               className={`category-chip ${activeCategory === 'all' ? 'active' : ''}`}
@@ -197,10 +324,10 @@ export const RightSidebar: React.FC = () => {
             ))}
           </div>
 
-          {/* Stepper + Dropdown */}
+          {/* Stepper + Dropdown + Star Toggle */}
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <button className="tool-icon-btn" onClick={handlePrev} title="Previous Algorithm">
-              <ChevronLeft size={16} />
+            <button className="tool-icon-btn" onClick={handlePrev} title="Previous Algorithm (Up Arrow)">
+              <ChevronLeft size={14} />
             </button>
             <select
               className="control-select"
@@ -214,8 +341,16 @@ export const RightSidebar: React.FC = () => {
                 </option>
               ))}
             </select>
-            <button className="tool-icon-btn" onClick={handleNext} title="Next Algorithm">
-              <ChevronRight size={16} />
+            <button className="tool-icon-btn" onClick={handleNext} title="Next Algorithm (Down Arrow)">
+              <ChevronRight size={14} />
+            </button>
+            <button
+              className="tool-icon-btn"
+              onClick={() => toggleFavoriteAlgorithm(algorithmId)}
+              title={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}
+              style={{ color: isCurrentFavorite ? 'var(--accent-cyan)' : 'var(--text-muted)' }}
+            >
+              <Star size={13} fill={isCurrentFavorite ? 'currentColor' : 'none'} />
             </button>
           </div>
 
@@ -223,104 +358,211 @@ export const RightSidebar: React.FC = () => {
             {currentAlgo.description}
           </p>
 
-          {/* Per-Algorithm Parameters */}
-          <div className="control-row">
-            <div className="control-label">
-              <span>Threshold / Bias</span>
-              <span>{currentParams.threshold.toFixed(2)}</span>
+          {/* Progressive Parameter Disclosure */}
+          {visibleParams.threshold && (
+            <div className="adj-control-row">
+              <div className="adj-header-row">
+                <span 
+                  className="adj-label-group"
+                  onDoubleClick={() => resetAlgoParamToDefault('threshold')}
+                  title="Threshold pivot bias (0.00 to 1.00). Double-click to reset."
+                >
+                  Threshold / Bias
+                </span>
+                <input
+                  type="number"
+                  className="control-num-input"
+                  min="0.0"
+                  max="1.0"
+                  step="0.02"
+                  value={currentParams.threshold}
+                  onChange={(e) => updateCurrentAlgoParam('threshold', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <input
+                type="range"
+                className="control-slider"
+                min="0.0"
+                max="1.0"
+                step="0.02"
+                value={currentParams.threshold}
+                {...sliderPointerProps}
+                onDoubleClick={() => resetAlgoParamToDefault('threshold')}
+                onChange={(e) => updateCurrentAlgoParam('threshold', Number(e.target.value))}
+                title="Threshold pivot bias. Double-click to reset."
+              />
             </div>
-            <input
-              type="range"
-              className="control-slider"
-              min="0.0"
-              max="1.0"
-              step="0.02"
-              value={currentParams.threshold}
-              {...sliderPointerProps}
-              onChange={(e) => updateCurrentAlgoParam('threshold', Number(e.target.value))}
-            />
-          </div>
+          )}
 
-          <div className="control-row">
-            <div className="control-label">
-              <span>Pattern Scale</span>
-              <span>{currentParams.scale.toFixed(1)}x</span>
+          {visibleParams.scale && (
+            <div className="adj-control-row">
+              <div className="adj-header-row">
+                <span 
+                  className="adj-label-group"
+                  onDoubleClick={() => resetAlgoParamToDefault('scale')}
+                  title="Pattern Scale multiplier (1.0x to 8.0x). Double-click to reset."
+                >
+                  Pattern Scale
+                </span>
+                <input
+                  type="number"
+                  className="control-num-input"
+                  min="1.0"
+                  max="8.0"
+                  step="0.5"
+                  value={currentParams.scale}
+                  onChange={(e) => updateCurrentAlgoParam('scale', parseFloat(e.target.value) || 1)}
+                />
+              </div>
+              <input
+                type="range"
+                className="control-slider"
+                min="1.0"
+                max="8.0"
+                step="0.5"
+                value={currentParams.scale}
+                {...sliderPointerProps}
+                onDoubleClick={() => resetAlgoParamToDefault('scale')}
+                onChange={(e) => updateCurrentAlgoParam('scale', Number(e.target.value))}
+                title="Pattern Scale multiplier. Double-click to reset."
+              />
             </div>
-            <input
-              type="range"
-              className="control-slider"
-              min="1.0"
-              max="8.0"
-              step="0.5"
-              value={currentParams.scale}
-              {...sliderPointerProps}
-              onChange={(e) => updateCurrentAlgoParam('scale', Number(e.target.value))}
-            />
-          </div>
+          )}
 
-          <div className="control-row">
-            <div className="control-label">
-              <span>Diffusion Strength</span>
-              <span>{(currentParams.diffusionStrength * 100).toFixed(0)}%</span>
+          {visibleParams.diffusionStrength && (
+            <div className="adj-control-row">
+              <div className="adj-header-row">
+                <span 
+                  className="adj-label-group"
+                  onDoubleClick={() => resetAlgoParamToDefault('diffusionStrength')}
+                  title="Diffusion Strength percentage (0.0 to 1.0). Double-click to reset."
+                >
+                  Diffusion Strength
+                </span>
+                <input
+                  type="number"
+                  className="control-num-input"
+                  min="0.0"
+                  max="1.0"
+                  step="0.05"
+                  value={currentParams.diffusionStrength}
+                  onChange={(e) => updateCurrentAlgoParam('diffusionStrength', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <input
+                type="range"
+                className="control-slider"
+                min="0.0"
+                max="1.0"
+                step="0.05"
+                value={currentParams.diffusionStrength}
+                {...sliderPointerProps}
+                onDoubleClick={() => resetAlgoParamToDefault('diffusionStrength')}
+                onChange={(e) => updateCurrentAlgoParam('diffusionStrength', Number(e.target.value))}
+                title="Diffusion Strength percentage. Double-click to reset."
+              />
             </div>
-            <input
-              type="range"
-              className="control-slider"
-              min="0.0"
-              max="1.0"
-              step="0.05"
-              value={currentParams.diffusionStrength}
-              {...sliderPointerProps}
-              onChange={(e) => updateCurrentAlgoParam('diffusionStrength', Number(e.target.value))}
-            />
-          </div>
+          )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem' }}>
-            <input
-              type="checkbox"
-              id="serpentineCheckbox"
-              checked={currentParams.serpentine}
-              onChange={(e) => updateCurrentAlgoParam('serpentine', e.target.checked)}
-              style={{ accentColor: 'var(--accent-cyan)' }}
-            />
-            <label htmlFor="serpentineCheckbox" style={{ cursor: 'pointer', color: 'var(--text-main)' }}>
-              Serpentine Scanline (Bi-directional)
-            </label>
-          </div>
-
-          {/* Noise Amount */}
-          <div className="control-row">
-            <div className="control-label">
-              <span>Noise Amount</span>
-              <span>{((currentParams.noiseAmount ?? 0.3) * 100).toFixed(0)}%</span>
+          {visibleParams.serpentine && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', padding: '3px 0' }}>
+              <input
+                type="checkbox"
+                id="serpentineCheckbox"
+                checked={currentParams.serpentine}
+                onChange={(e) => updateCurrentAlgoParam('serpentine', e.target.checked)}
+                style={{ accentColor: 'var(--accent-cyan)' }}
+              />
+              <label 
+                htmlFor="serpentineCheckbox" 
+                style={{ cursor: 'pointer', color: 'var(--text-main)', userSelect: 'none' }}
+                title="Alternates scan direction on odd rows to prevent diagonal artifacting"
+              >
+                Serpentine Scanline (Bi-directional)
+              </label>
             </div>
-            <input
-              type="range"
-              className="control-slider"
-              min="0.0"
-              max="1.0"
-              step="0.05"
-              value={currentParams.noiseAmount ?? 0.3}
-              {...sliderPointerProps}
-              onChange={(e) => updateCurrentAlgoParam('noiseAmount', Number(e.target.value))}
-            />
-          </div>
+          )}
+
+          {visibleParams.noiseAmount && (
+            <div className="adj-control-row">
+              <div className="adj-header-row">
+                <span 
+                  className="adj-label-group"
+                  onDoubleClick={() => resetAlgoParamToDefault('noiseAmount')}
+                  title="Noise Amount intensity (0.0 to 1.0). Double-click to reset."
+                >
+                  Noise Amount
+                </span>
+                <input
+                  type="number"
+                  className="control-num-input"
+                  min="0.0"
+                  max="1.0"
+                  step="0.05"
+                  value={currentParams.noiseAmount ?? 0.3}
+                  onChange={(e) => updateCurrentAlgoParam('noiseAmount', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <input
+                type="range"
+                className="control-slider"
+                min="0.0"
+                max="1.0"
+                step="0.05"
+                value={currentParams.noiseAmount ?? 0.3}
+                {...sliderPointerProps}
+                onDoubleClick={() => resetAlgoParamToDefault('noiseAmount')}
+                onChange={(e) => updateCurrentAlgoParam('noiseAmount', Number(e.target.value))}
+                title="Noise Amount intensity. Double-click to reset."
+              />
+            </div>
+          )}
         </section>
 
         {/* 2. ADJUSTMENTS SECTION */}
         <section className="section-card">
           <div className="section-title">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sliders size={14} style={{ color: 'var(--accent-amber)' }} />
-              <span>2. Adjustments</span>
+            <span>ADJUSTMENTS</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                className="reset-section-btn"
+                onClick={resetAllAdjustments}
+                title="Reset all unlocked adjustments to default"
+              >
+                <RotateCcw size={10} /> Reset
+              </button>
+              <span className="section-badge">PRE-FILTER</span>
             </div>
-            <span className="section-badge">PRE-FILTER</span>
           </div>
 
-          <div className="control-row">
-            <div className="control-label">
-              <span>Brightness</span>
-              <span>{brightness > 0 ? `+${brightness}` : brightness}</span>
+          {/* Brightness */}
+          <div className="adj-control-row">
+            <div className="adj-header-row">
+              <div className="adj-label-group">
+                <button
+                  className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
+                  onClick={() => toggleAdjustmentLock('brightness')}
+                  title={lockedAdjustments.brightness ? "Brightness locked (protected from reset)" : "Lock brightness"}
+                >
+                  {lockedAdjustments.brightness ? <Lock size={11} /> : <Unlock size={11} />}
+                </button>
+                <span 
+                  onDoubleClick={() => resetAdjustmentParam('brightness')}
+                  title="Brightness (-100 to +100). Double-click to reset."
+                >
+                  Brightness
+                </span>
+              </div>
+              <input
+                type="number"
+                className="control-num-input"
+                min="-100"
+                max="100"
+                step="1"
+                value={brightness}
+                disabled={lockedAdjustments.brightness}
+                onChange={(e) => setBrightness(parseInt(e.target.value, 10) || 0)}
+              />
             </div>
             <input
               type="range"
@@ -328,15 +570,42 @@ export const RightSidebar: React.FC = () => {
               min="-100"
               max="100"
               value={brightness}
+              disabled={lockedAdjustments.brightness}
               {...sliderPointerProps}
+              onDoubleClick={() => resetAdjustmentParam('brightness')}
               onChange={(e) => setBrightness(Number(e.target.value))}
+              title="Brightness. Double-click to reset."
             />
           </div>
 
-          <div className="control-row">
-            <div className="control-label">
-              <span>Contrast</span>
-              <span>{contrast > 0 ? `+${contrast}` : contrast}</span>
+          {/* Contrast */}
+          <div className="adj-control-row">
+            <div className="adj-header-row">
+              <div className="adj-label-group">
+                <button
+                  className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
+                  onClick={() => toggleAdjustmentLock('contrast')}
+                  title={lockedAdjustments.contrast ? "Contrast locked (protected from reset)" : "Lock contrast"}
+                >
+                  {lockedAdjustments.contrast ? <Lock size={11} /> : <Unlock size={11} />}
+                </button>
+                <span 
+                  onDoubleClick={() => resetAdjustmentParam('contrast')}
+                  title="Contrast (-100 to +100). Double-click to reset."
+                >
+                  Contrast
+                </span>
+              </div>
+              <input
+                type="number"
+                className="control-num-input"
+                min="-100"
+                max="100"
+                step="1"
+                value={contrast}
+                disabled={lockedAdjustments.contrast}
+                onChange={(e) => setContrast(parseInt(e.target.value, 10) || 0)}
+              />
             </div>
             <input
               type="range"
@@ -344,15 +613,42 @@ export const RightSidebar: React.FC = () => {
               min="-100"
               max="100"
               value={contrast}
+              disabled={lockedAdjustments.contrast}
               {...sliderPointerProps}
+              onDoubleClick={() => resetAdjustmentParam('contrast')}
               onChange={(e) => setContrast(Number(e.target.value))}
+              title="Contrast. Double-click to reset."
             />
           </div>
 
-          <div className="control-row">
-            <div className="control-label">
-              <span>Saturation</span>
-              <span>{saturation > 0 ? `+${saturation}` : saturation}</span>
+          {/* Saturation */}
+          <div className="adj-control-row">
+            <div className="adj-header-row">
+              <div className="adj-label-group">
+                <button
+                  className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
+                  onClick={() => toggleAdjustmentLock('saturation')}
+                  title={lockedAdjustments.saturation ? "Saturation locked (protected from reset)" : "Lock saturation"}
+                >
+                  {lockedAdjustments.saturation ? <Lock size={11} /> : <Unlock size={11} />}
+                </button>
+                <span 
+                  onDoubleClick={() => resetAdjustmentParam('saturation')}
+                  title="Saturation (-100 to +100). Double-click to reset."
+                >
+                  Saturation
+                </span>
+              </div>
+              <input
+                type="number"
+                className="control-num-input"
+                min="-100"
+                max="100"
+                step="1"
+                value={saturation}
+                disabled={lockedAdjustments.saturation}
+                onChange={(e) => setSaturation(parseInt(e.target.value, 10) || 0)}
+              />
             </div>
             <input
               type="range"
@@ -360,15 +656,42 @@ export const RightSidebar: React.FC = () => {
               min="-100"
               max="100"
               value={saturation}
+              disabled={lockedAdjustments.saturation}
               {...sliderPointerProps}
+              onDoubleClick={() => resetAdjustmentParam('saturation')}
               onChange={(e) => setSaturation(Number(e.target.value))}
+              title="Saturation. Double-click to reset."
             />
           </div>
 
-          <div className="control-row">
-            <div className="control-label">
-              <span>Gamma</span>
-              <span>{gamma.toFixed(2)}</span>
+          {/* Gamma */}
+          <div className="adj-control-row">
+            <div className="adj-header-row">
+              <div className="adj-label-group">
+                <button
+                  className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
+                  onClick={() => toggleAdjustmentLock('gamma')}
+                  title={lockedAdjustments.gamma ? "Gamma locked (protected from reset)" : "Lock gamma"}
+                >
+                  {lockedAdjustments.gamma ? <Lock size={11} /> : <Unlock size={11} />}
+                </button>
+                <span 
+                  onDoubleClick={() => resetAdjustmentParam('gamma')}
+                  title="Gamma curve exponent (0.10 to 3.00). Double-click to reset."
+                >
+                  Gamma
+                </span>
+              </div>
+              <input
+                type="number"
+                className="control-num-input"
+                min="0.1"
+                max="3.0"
+                step="0.05"
+                value={gamma}
+                disabled={lockedAdjustments.gamma}
+                onChange={(e) => setGamma(parseFloat(e.target.value) || 1.0)}
+              />
             </div>
             <input
               type="range"
@@ -377,15 +700,42 @@ export const RightSidebar: React.FC = () => {
               max="3.0"
               step="0.05"
               value={gamma}
+              disabled={lockedAdjustments.gamma}
               {...sliderPointerProps}
+              onDoubleClick={() => resetAdjustmentParam('gamma')}
               onChange={(e) => setGamma(Number(e.target.value))}
+              title="Gamma curve exponent. Double-click to reset."
             />
           </div>
 
-          <div className="control-row">
-            <div className="control-label">
-              <span>Color Depth</span>
-              <span>{depth}-bit</span>
+          {/* Color Depth */}
+          <div className="adj-control-row">
+            <div className="adj-header-row">
+              <div className="adj-label-group">
+                <button
+                  className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
+                  onClick={() => toggleAdjustmentLock('depth')}
+                  title={lockedAdjustments.depth ? "Color depth locked (protected from reset)" : "Lock color depth"}
+                >
+                  {lockedAdjustments.depth ? <Lock size={11} /> : <Unlock size={11} />}
+                </button>
+                <span 
+                  onDoubleClick={() => resetAdjustmentParam('depth')}
+                  title="Color quantization depth (1 to 32 bit). Double-click to reset."
+                >
+                  Color Depth
+                </span>
+              </div>
+              <input
+                type="number"
+                className="control-num-input"
+                min="1"
+                max="32"
+                step="1"
+                value={depth}
+                disabled={lockedAdjustments.depth}
+                onChange={(e) => setDepth(parseInt(e.target.value, 10) || 8)}
+              />
             </div>
             <input
               type="range"
@@ -393,8 +743,11 @@ export const RightSidebar: React.FC = () => {
               min="1"
               max="32"
               value={depth}
+              disabled={lockedAdjustments.depth}
               {...sliderPointerProps}
+              onDoubleClick={() => resetAdjustmentParam('depth')}
               onChange={(e) => setDepth(Number(e.target.value))}
+              title="Color quantization depth. Double-click to reset."
             />
           </div>
         </section>
@@ -402,11 +755,8 @@ export const RightSidebar: React.FC = () => {
         {/* 3. PALETTE SECTION */}
         <section className="section-card">
           <div className="section-title">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Palette size={14} style={{ color: 'var(--accent-pink)' }} />
-              <span>3. Palette ({BUILTIN_PALETTES.length})</span>
-            </div>
-            <span className="section-badge">{currentPalette.colors.length} COLORS (PHASE 4 EDITABLE)</span>
+            <span>PALETTE ({BUILTIN_PALETTES.length})</span>
+            <span className="section-badge">{currentPalette.colors.length} COLORS</span>
           </div>
 
           <select
@@ -433,12 +783,12 @@ export const RightSidebar: React.FC = () => {
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
             <button
               className="action-btn"
               disabled
               title="Median Cut palette extraction (Coming in Phase 4)"
-              style={{ flex: 1, justifyContent: 'center', opacity: 0.5, cursor: 'not-allowed' }}
+              style={{ opacity: 0.5, cursor: 'not-allowed' }}
             >
               Median Cut
             </button>
@@ -446,7 +796,7 @@ export const RightSidebar: React.FC = () => {
               className="action-btn"
               disabled
               title="K-Means palette extraction (Coming in Phase 4)"
-              style={{ flex: 1, justifyContent: 'center', opacity: 0.5, cursor: 'not-allowed' }}
+              style={{ opacity: 0.5, cursor: 'not-allowed' }}
             >
               K-Means
             </button>
@@ -456,18 +806,15 @@ export const RightSidebar: React.FC = () => {
         {/* 4. EFFECTS STACK SECTION */}
         <section className="section-card">
           <div className="section-title">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Layers size={14} style={{ color: 'var(--accent-blue)' }} />
-              <span>4. Effects Stack ({effects.length})</span>
-            </div>
+            <span>EFFECTS STACK ({effects.length})</span>
             <div style={{ position: 'relative' }}>
               <button
                 className="action-btn primary"
                 disabled
                 title="Add post-effect to stack (Coming in Phase 5)"
-                style={{ padding: '2px 8px', fontSize: '0.72rem', opacity: 0.5, cursor: 'not-allowed' }}
+                style={{ padding: '2px 8px', fontSize: '0.68rem', opacity: 0.5, cursor: 'not-allowed' }}
               >
-                <Plus size={12} /> Add Effect
+                <Plus size={11} /> Add Effect
               </button>
 
               {showAddEffectMenu && (
@@ -490,7 +837,7 @@ export const RightSidebar: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {effects.map((eff, index) => (
+            {effects.map((eff) => (
               <div key={eff.id} className="effect-card" style={{ opacity: 0.75 }}>
                 <div className="effect-info">
                   <input
@@ -512,9 +859,9 @@ export const RightSidebar: React.FC = () => {
                     title="Remove effect (Coming in Phase 5)"
                     style={{ opacity: 0.5, cursor: 'not-allowed' }}
                   >
-                    <Trash2 size={13} style={{ color: 'var(--text-muted)' }} />
+                    <Trash2 size={12} style={{ color: 'var(--text-muted)' }} />
                   </button>
-                  <MoveVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'not-allowed' }} title="Drag-reorder effects (Coming in Phase 5)" />
+                  <MoveVertical size={12} style={{ color: 'var(--text-muted)', cursor: 'not-allowed' }} title="Drag-reorder effects (Coming in Phase 5)" />
                 </div>
               </div>
             ))}

@@ -18,6 +18,14 @@ export default defineConfig({
           }
           next();
         });
+      },
+      configurePreviewServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          if (req.url === '/' || req.url === '/index.html') {
+            req.url = '/app.html';
+          }
+          next();
+        });
       }
     }
   ],

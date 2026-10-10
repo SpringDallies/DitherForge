@@ -1,11 +1,12 @@
 ﻿import { create } from 'zustand';
-// Import frozen registries UNCHANGED
+// Import frozen registries UNCHANGED via allowJs
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 // @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../dither-engine/effect-stack.js';
+import { createCalibrationPattern } from '../utils/samplePattern';
 
 export type UpdateMode = 'precise' | 'live' | 'settle';
 
@@ -27,52 +28,53 @@ export interface EffectItem {
 // Table of default parameters per algorithm / category
 const DEFAULT_ALGO_PARAMS_TABLE: Record<string, Partial<AlgoParams>> = {
   // Error diffusion defaults
-  floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  atkinson: { threshold: 0.5, scale: 1.0, diffusionStrength: 0.75, serpentine: true },
-  jarvis_judice_ninke: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  stucki: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  burkes: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  sierra_3: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  sierra_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  sierra_lite: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  stevenson_arce: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  shiau_fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  shiau_fan_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  false_floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  minimized_avg_error: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
-  dynamic_serpentine: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true },
+  floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  atkinson: { threshold: 0.5, scale: 1.0, diffusionStrength: 0.75, serpentine: true, noiseAmount: 0.3 },
+  jarvis_judice_ninke: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  stucki: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  burkes: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  sierra_3: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  sierra_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  sierra_lite: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  stevenson_arce: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  shiau_fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  shiau_fan_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  false_floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  minimized_avg_error: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
+  dynamic_serpentine: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
 
   // Ordered dithers
-  bayer_2x2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  bayer_4x4: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  bayer_8x8: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  bayer_16x16: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  clustered_dot: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
+  bayer_2x2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  bayer_4x4: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  bayer_8x8: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  bayer_16x16: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  clustered_dot: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
 
   // Pattern dithers
-  checkered: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  horizontal_lines: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
-  vertical_lines: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
-  crosshatch: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
-  diagonal_hatch: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
-  concentric_diamond: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
-  woven_basket: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
-  hex_stipple: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
+  checkered: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  horizontal_lines: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  vertical_lines: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  crosshatch: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  diagonal_hatch: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  concentric_diamond: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  woven_basket: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  hex_stipple: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
 
   // Glitch
-  scanline_jitter: { threshold: 0.45, scale: 1.0, diffusionStrength: 0.8, serpentine: false },
-  chromatic_offset: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  pixel_sorting: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  digital_artifacts: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false },
-  interlacing_tear: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  crt_bloom: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  bit_crush: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  vhs_tracking: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
+  scanline_jitter: { threshold: 0.45, scale: 1.0, diffusionStrength: 0.8, serpentine: false, noiseAmount: 0.3 },
+  chromatic_offset: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  pixel_sorting: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  digital_artifacts: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  interlacing_tear: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  crt_bloom: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  bit_crush: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  vhs_tracking: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  static_snow: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
 
   // Bespoke & Temporal
-  ignition_glow: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false },
-  temporal_kinetic: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false }
+  ignition_glow: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
+  temporal_kinetic: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 }
 };
 
 export const getInitialAlgoParams = (id: string): AlgoParams => {
@@ -106,13 +108,23 @@ const buildInitialEffects = (): EffectItem[] => {
 };
 
 interface AppState {
+  // Source Image State
+  hasImage: boolean;
+  imageName: string;
+  imageWidth: number;
+  imageHeight: number;
+  sourceImageData: ImageData | null;
+  loadImageFromData: (imageData: ImageData, name?: string) => void;
+  loadSampleImage: () => void;
+  clearImage: () => void;
+
   // Algorithm selection & per-algorithm parameters
   algorithmId: string;
   algoParams: Record<string, AlgoParams>;
   setAlgorithmId: (id: string) => void;
   updateCurrentAlgoParam: <K extends keyof AlgoParams>(key: K, value: AlgoParams[K]) => void;
 
-  // Global Image Adjustments
+  // Global Image Adjustments (Pre-Filter, non-destructive)
   brightness: number;
   contrast: number;
   saturation: number;
@@ -124,22 +136,28 @@ interface AppState {
   setGamma: (v: number) => void;
   setDepth: (v: number) => void;
 
-  // Color & Palette
+  // Color & Palette (STORED BY ID, not display name)
   activePalette: string;
   lockedSwatches: number[];
-  setActivePalette: (paletteName: string) => void;
+  setActivePalette: (paletteId: string) => void;
   toggleLockSwatch: (index: number) => void;
 
-  // Post-Effects Stack
+  // Post-Effects Stack (Phase 5 static chrome)
   effects: EffectItem[];
   toggleEffect: (id: string) => void;
   reorderEffects: (startIndex: number, endIndex: number) => void;
   addEffect: (effectType: string) => void;
   removeEffect: (index: number) => void;
 
-  // Render & Viewport State
+  // Render & Playback Modes
   updateMode: UpdateMode;
   setUpdateMode: (mode: UpdateMode) => void;
+  isDraggingSlider: boolean;
+  setIsDraggingSlider: (dragging: boolean) => void;
+  lastRenderMs: number;
+  setLastRenderMs: (ms: number) => void;
+
+  // Viewport Navigation & Compare
   zoom: number;
   panX: number;
   panY: number;
@@ -147,10 +165,11 @@ interface AppState {
   showBeforeAfter: boolean;
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
+  fitToViewport: (containerWidth: number, containerHeight: number) => void;
+  resetZoom: () => void;
   setSplitRatio: (ratio: number) => void;
   setShowBeforeAfter: (show: boolean) => void;
-  lastRenderMs: number;
-  setLastRenderMs: (ms: number) => void;
+  toggleBeforeAfter: () => void;
 
   // Shell Layout & UI State (persisted to localStorage)
   sidebarWidth: number;
@@ -169,6 +188,7 @@ interface AppState {
 const STORAGE_KEY_SIDEBAR_WIDTH = 'ditherforge_sidebar_width';
 const STORAGE_KEY_SIDEBAR_COLLAPSED = 'ditherforge_sidebar_collapsed';
 const STORAGE_KEY_THEME = 'ditherforge_theme';
+const STORAGE_KEY_UPDATE_MODE = 'ditherforge_update_mode';
 
 const getStoredSidebarWidth = (): number => {
   try {
@@ -213,12 +233,59 @@ const getStoredAlgorithm = (): string => {
   return 'floyd_steinberg';
 };
 
-export const useAppStore = create<AppState>((set) => ({
+const getStoredUpdateMode = (): UpdateMode => {
+  try {
+    const mode = localStorage.getItem(STORAGE_KEY_UPDATE_MODE) as UpdateMode;
+    if (mode === 'precise' || mode === 'live' || mode === 'settle') {
+      return mode;
+    }
+  } catch {}
+  return 'precise';
+};
+
+export const useAppStore = create<AppState>((set, get) => ({
+  // Image State (initialize with clean calibration pattern)
+  hasImage: true,
+  imageName: 'calibration_pattern.png',
+  imageWidth: 400,
+  imageHeight: 300,
+  sourceImageData: typeof window !== 'undefined' ? createCalibrationPattern(400, 300) : null,
+
+  loadImageFromData: (imageData, name = 'uploaded_image.png') => set({
+    hasImage: true,
+    imageName: name,
+    imageWidth: imageData.width,
+    imageHeight: imageData.height,
+    sourceImageData: imageData,
+    panX: 0,
+    panY: 0
+  }),
+
+  loadSampleImage: () => {
+    const sample = createCalibrationPattern(400, 300);
+    set({
+      hasImage: true,
+      imageName: 'calibration_pattern.png',
+      imageWidth: 400,
+      imageHeight: 300,
+      sourceImageData: sample,
+      panX: 0,
+      panY: 0
+    });
+  },
+
+  clearImage: () => set({
+    hasImage: false,
+    imageName: '',
+    imageWidth: 0,
+    imageHeight: 0,
+    sourceImageData: null
+  }),
+
   // Algorithm selection
   algorithmId: getStoredAlgorithm(),
   algoParams: buildInitialAlgoParamsMap(),
   setAlgorithmId: (id: string) => set((state) => {
-    // If not yet instantiated, generate its default entry
     const existing = state.algoParams[id] ?? getInitialAlgoParams(id);
     return {
       algorithmId: id,
@@ -248,8 +315,8 @@ export const useAppStore = create<AppState>((set) => ({
   setGamma: (gamma) => set({ gamma }),
   setDepth: (depth) => set({ depth }),
 
-  // Palette
-  activePalette: BUILTIN_PALETTES[0]?.name || 'Monochrome 1-Bit',
+  // Palette (STORED BY ID: 'monochrome_1bit', etc.)
+  activePalette: BUILTIN_PALETTES[0]?.id || 'monochrome_1bit',
   lockedSwatches: [],
   setActivePalette: (activePalette) => set({ activePalette }),
   toggleLockSwatch: (index) => set((state) => {
@@ -287,20 +354,38 @@ export const useAppStore = create<AppState>((set) => ({
     effects: state.effects.filter((_, i) => i !== index)
   })),
 
-  // Viewport / Render Mode
-  updateMode: 'precise',
-  setUpdateMode: (updateMode) => set({ updateMode }),
+  // Render & Playback Modes
+  updateMode: getStoredUpdateMode(),
+  setUpdateMode: (updateMode) => {
+    try { localStorage.setItem(STORAGE_KEY_UPDATE_MODE, updateMode); } catch {}
+    set({ updateMode });
+  },
+  isDraggingSlider: false,
+  setIsDraggingSlider: (isDraggingSlider) => set({ isDraggingSlider }),
+  lastRenderMs: 0,
+  setLastRenderMs: (lastRenderMs) => set({ lastRenderMs }),
+
+  // Viewport Navigation & Compare
   zoom: 100,
   panX: 0,
   panY: 0,
   splitRatio: 0.5,
-  showBeforeAfter: false,
-  setZoom: (zoom) => set({ zoom }),
+  showBeforeAfter: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare') === 'true',
+  setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(1000, zoom)) }),
   setPan: (panX, panY) => set({ panX, panY }),
-  setSplitRatio: (splitRatio) => set({ splitRatio }),
+  fitToViewport: (containerWidth, containerHeight) => {
+    const { imageWidth, imageHeight } = get();
+    if (!imageWidth || !imageHeight) return;
+    const availableW = Math.max(100, containerWidth - 40);
+    const availableH = Math.max(100, containerHeight - 40);
+    const scale = Math.min(availableW / imageWidth, availableH / imageHeight, 1.0);
+    const fitZoom = Math.max(25, Math.round(scale * 100));
+    set({ zoom: fitZoom, panX: 0, panY: 0 });
+  },
+  resetZoom: () => set({ zoom: 100, panX: 0, panY: 0 }),
+  setSplitRatio: (splitRatio) => set({ splitRatio: Math.max(0.05, Math.min(0.95, splitRatio)) }),
   setShowBeforeAfter: (showBeforeAfter) => set({ showBeforeAfter }),
-  lastRenderMs: 0,
-  setLastRenderMs: (lastRenderMs) => set({ lastRenderMs }),
+  toggleBeforeAfter: () => set((state) => ({ showBeforeAfter: !state.showBeforeAfter })),
 
   // Shell Layout & UI
   sidebarWidth: getStoredSidebarWidth(),

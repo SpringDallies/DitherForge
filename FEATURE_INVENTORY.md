@@ -121,21 +121,21 @@
 
 ### 1.4 Color & Palette System
 
-| Feature | Source (File & Function / Line) | Current Location | New Location | Status |
-|---|---|---|---|---|
-| 14 Built-in Palettes (Monochrome, GameBoy, Amber CRT, Cyberpunk, CGA, C64, PICO, Nordic, Vaporwave, Solar, EGA, Sepia, Spectrum, Mac 1984) | `src/dither-engine/palettes.js:4-200` | Left Panel > Palettes dropdown | Right Panel B > Palette Dropdown (categorized) | [ ] Pending |
-| Live Palette Preview on Hover + Mouse Wheel | *[NEW Ergonomic Addition]* | Dropdown change only | Right Panel B > Palette Dropdown hover/wheel live preview | [ ] Pending |
-| Median Cut Palette Extraction ("From Image") | `palettes.js:239` (`extractPaletteMedianCut`) | Left Panel button | Right Panel B > "From Image" > Median Cut | [ ] Pending |
-| K-Means Clustering Extraction ("From Image") | `palettes.js:319` (`extractPaletteKMeans`) | Left Panel button | Right Panel B > "From Image" > K-Means | [ ] Pending |
-| Swatch Strip Preview | `index.html:151` (`#palettePreviewStrip`) | Left Panel swatch strip | Right Panel B > Swatch Strip (interactive) | [ ] Pending |
-| Live Swatch Click-to-Edit & Remap | `main.js:284-300` | Left Panel native color picker | Right Panel B > Click swatch opens color editor; live remap | [ ] Pending |
-| Per-Swatch Lock Toggle | `main.js:302-309` (`state.lockedSwatches`) | Left Panel lock button | Right Panel B > Swatch strip lock icon per color | [ ] Pending |
-| Palette Shuffle (Unlocked Swatches) | `index.html:170` (`#btnShufflePalette`) | Left Panel `🔀` button | Right Panel B > Palette Shuffle button | [ ] Pending |
-| Depth Iterations Slider (1 to 32) | `index.html:178` (`#sliderPaletteDepth`) | Left Panel Depth slider | Right Panel B > Depth Slider (up to 32 iterations) | [ ] Pending |
-| Add Swatch Color Button | `index.html:187` (`#btnAddColorSwatch`) | Left Panel `+ Add Color` | Right Panel B > Swatch strip `+` button | [ ] Pending |
-| Delete Swatch Color Button | `main.js:312-321` (`.btn-del-swatch`) | Left Panel `✕` button | Right Panel B > Swatch popover delete button | [ ] Pending |
-| Export Palette JSON | `index.html:190` (`#btnExportPaletteJson`) | Left Panel `📤` button | Right Panel B > Overflow menu `...` > Export Palette JSON | [ ] Pending |
-| Import Palette JSON | `index.html:193` (`#btnImportPaletteJson`) | Left Panel `📥` button | Right Panel B > Overflow menu `...` > Import Palette JSON | [ ] Pending |
+| Feature | Source (File & Function / Line) | Current Location | New Location | Phase 1 State | Status |
+|---|---|---|---|---|---|
+| 14 Built-in Palettes (Monochrome, GameBoy, Amber CRT, Cyberpunk, CGA, C64, PICO, Nordic, Vaporwave, Solar, EGA, Sepia, Spectrum, Mac 1984) | `src/dither-engine/palettes.js:4-200` | Left Panel > Palettes dropdown | Right Panel B > Palette Dropdown (categorized) | Active in dropdown (lookup by ID) | [ ] Pending |
+| Live Palette Preview on Hover + Mouse Wheel | *[NEW Ergonomic Addition]* | Dropdown change only | Right Panel B > Palette Dropdown hover/wheel live preview | Unimplemented; targets Phase 4 | [ ] Pending |
+| Median Cut Palette Extraction ("From Image") | `palettes.js:239` (`extractPaletteMedianCut`) | Left Panel button | Right Panel B > "From Image" > Median Cut | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| K-Means Clustering Extraction ("From Image") | `palettes.js:319` (`extractPaletteKMeans`) | Left Panel button | Right Panel B > "From Image" > K-Means | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| Swatch Strip Preview | `index.html:151` (`#palettePreviewStrip`) | Left Panel swatch strip | Right Panel B > Swatch Strip (interactive) | Static preview; targets Phase 4 | [ ] Pending |
+| Live Swatch Click-to-Edit & Remap | `main.js:284-300` | Left Panel native color picker | Right Panel B > Click swatch opens color editor; live remap | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| Per-Swatch Lock Toggle | `main.js:302-309` (`state.lockedSwatches`) | Left Panel lock button | Right Panel B > Swatch strip lock icon per color | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| Palette Shuffle (Unlocked Swatches) | `index.html:170` (`#btnShufflePalette`) | Left Panel button | Right Panel B > Palette Shuffle button | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| Depth Iterations Slider (1 to 32) | `index.html:178` (`#sliderPaletteDepth`) | Left Panel Depth slider | Right Panel B > Depth Slider (up to 32 iterations) | Active slider in Adjustments | [ ] Pending |
+| Add Swatch Color Button | `index.html:187` (`#btnAddColorSwatch`) | Left Panel `+ Add Color` | Right Panel B > Swatch strip `+` button | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| Delete Swatch Color Button | `main.js:312-321` (`.btn-del-swatch`) | Left Panel button | Right Panel B > Swatch popover delete button | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| Export Palette JSON | `index.html:190` (`#btnExportPaletteJson`) | Left Panel button | Right Panel B > Overflow menu `...` > Export Palette JSON | Temporarily disabled; targets Phase 4 | [ ] Pending |
+| Import Palette JSON | `index.html:193` (`#btnImportPaletteJson`) | Left Panel button | Right Panel B > Overflow menu `...` > Import Palette JSON | Temporarily disabled; targets Phase 4 | [ ] Pending |
 
 #### Proposed Additions (Not in Current Engine):
 - *Octree Quantization Extraction:* Proposed addition for future phase; not in audited codebase today.

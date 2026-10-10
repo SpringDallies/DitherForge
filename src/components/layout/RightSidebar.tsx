@@ -16,48 +16,44 @@ import {
   ChevronRight, 
   Plus, 
   Trash2, 
-  MoveVertical, 
-  Lock, 
-  Unlock,
-  ChevronDown,
+  MoveVertical,
   SidebarClose,
   SidebarOpen
 } from 'lucide-react';
 
 export const RightSidebar: React.FC = () => {
-  const isCollapsed = useAppStore((state) => state.isSidebarCollapsed);
-  const toggleCollapsed = useAppStore((state) => state.toggleSidebarCollapsed);
-  const sidebarWidth = useAppStore((state) => state.sidebarWidth);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [showAddEffectMenu, setShowAddEffectMenu] = useState(false);
 
-  // Store state & selectors
+  // App store selectors
   const algorithmId = useAppStore((state) => state.algorithmId);
   const setAlgorithmId = useAppStore((state) => state.setAlgorithmId);
   const algoParams = useAppStore((state) => state.algoParams);
   const updateCurrentAlgoParam = useAppStore((state) => state.updateCurrentAlgoParam);
+  const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
 
   const brightness = useAppStore((state) => state.brightness);
-  const setBrightness = useAppStore((state) => state.setBrightness);
   const contrast = useAppStore((state) => state.contrast);
-  const setContrast = useAppStore((state) => state.setContrast);
   const saturation = useAppStore((state) => state.saturation);
-  const setSaturation = useAppStore((state) => state.setSaturation);
   const gamma = useAppStore((state) => state.gamma);
-  const setGamma = useAppStore((state) => state.setGamma);
   const depth = useAppStore((state) => state.depth);
+  const setBrightness = useAppStore((state) => state.setBrightness);
+  const setContrast = useAppStore((state) => state.setContrast);
+  const setSaturation = useAppStore((state) => state.setSaturation);
+  const setGamma = useAppStore((state) => state.setGamma);
   const setDepth = useAppStore((state) => state.setDepth);
 
-  const activePaletteName = useAppStore((state) => state.activePalette);
+  const activePaletteId = useAppStore((state) => state.activePalette);
   const setActivePalette = useAppStore((state) => state.setActivePalette);
-  const lockedSwatches = useAppStore((state) => state.lockedSwatches);
-  const toggleLockSwatch = useAppStore((state) => state.toggleLockSwatch);
 
   const effects = useAppStore((state) => state.effects);
   const toggleEffect = useAppStore((state) => state.toggleEffect);
   const addEffect = useAppStore((state) => state.addEffect);
   const removeEffect = useAppStore((state) => state.removeEffect);
 
-  const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [showAddEffectMenu, setShowAddEffectMenu] = useState<boolean>(false);
+  const sidebarWidth = useAppStore((state) => state.sidebarWidth);
+  const isCollapsed = useAppStore((state) => state.isSidebarCollapsed);
+  const toggleCollapsed = useAppStore((state) => state.toggleSidebarCollapsed);
 
   // Per-algorithm parameters
   const currentParams = algoParams[algorithmId] ?? {
@@ -87,7 +83,13 @@ export const RightSidebar: React.FC = () => {
     setAlgorithmId(filteredAlgos[nextIdx].id);
   };
 
-  const currentPalette = BUILTIN_PALETTES.find((p: any) => p.name === activePaletteName) || BUILTIN_PALETTES[0];
+  // Lookup palette strictly by ID
+  const currentPalette = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || BUILTIN_PALETTES[0];
+
+  const sliderPointerProps = {
+    onPointerDown: () => setIsDraggingSlider(true),
+    onPointerUp: () => setIsDraggingSlider(false)
+  };
 
   // Collapsed 44px Rail view
   if (isCollapsed) {
@@ -203,6 +205,7 @@ export const RightSidebar: React.FC = () => {
               max="1.0"
               step="0.02"
               value={currentParams.threshold}
+              {...sliderPointerProps}
               onChange={(e) => updateCurrentAlgoParam('threshold', Number(e.target.value))}
             />
           </div>
@@ -219,6 +222,7 @@ export const RightSidebar: React.FC = () => {
               max="8.0"
               step="0.5"
               value={currentParams.scale}
+              {...sliderPointerProps}
               onChange={(e) => updateCurrentAlgoParam('scale', Number(e.target.value))}
             />
           </div>
@@ -235,6 +239,7 @@ export const RightSidebar: React.FC = () => {
               max="1.0"
               step="0.05"
               value={currentParams.diffusionStrength}
+              {...sliderPointerProps}
               onChange={(e) => updateCurrentAlgoParam('diffusionStrength', Number(e.target.value))}
             />
           </div>
@@ -265,6 +270,7 @@ export const RightSidebar: React.FC = () => {
               max="1.0"
               step="0.05"
               value={currentParams.noiseAmount ?? 0.3}
+              {...sliderPointerProps}
               onChange={(e) => updateCurrentAlgoParam('noiseAmount', Number(e.target.value))}
             />
           </div>
@@ -291,6 +297,7 @@ export const RightSidebar: React.FC = () => {
               min="-100"
               max="100"
               value={brightness}
+              {...sliderPointerProps}
               onChange={(e) => setBrightness(Number(e.target.value))}
             />
           </div>
@@ -306,6 +313,7 @@ export const RightSidebar: React.FC = () => {
               min="-100"
               max="100"
               value={contrast}
+              {...sliderPointerProps}
               onChange={(e) => setContrast(Number(e.target.value))}
             />
           </div>
@@ -321,6 +329,7 @@ export const RightSidebar: React.FC = () => {
               min="-100"
               max="100"
               value={saturation}
+              {...sliderPointerProps}
               onChange={(e) => setSaturation(Number(e.target.value))}
             />
           </div>
@@ -337,6 +346,7 @@ export const RightSidebar: React.FC = () => {
               max="3.0"
               step="0.05"
               value={gamma}
+              {...sliderPointerProps}
               onChange={(e) => setGamma(Number(e.target.value))}
             />
           </div>
@@ -352,6 +362,7 @@ export const RightSidebar: React.FC = () => {
               min="1"
               max="32"
               value={depth}
+              {...sliderPointerProps}
               onChange={(e) => setDepth(Number(e.target.value))}
             />
           </div>
@@ -370,11 +381,11 @@ export const RightSidebar: React.FC = () => {
           <select
             className="control-select"
             style={{ width: '100%' }}
-            value={activePaletteName}
+            value={activePaletteId}
             onChange={(e) => setActivePalette(e.target.value)}
           >
             {BUILTIN_PALETTES.map((pal: any) => (
-              <option key={pal.name} value={pal.name}>
+              <option key={pal.id} value={pal.id}>
                 {pal.name} ({pal.colors.length} colors)
               </option>
             ))}

@@ -14,9 +14,19 @@
     "engine:verify": "node scripts/engine-verify.mjs",
     "test:golden": "node tests/golden/run-golden-tests.mjs"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "lucide-react": "^1.55.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^7.0.2",
+    "zustand": "^5.0.15"
+  },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
+    "@types/node": "^26.6.5",
     "vite": "^5.0.0"
   }
 }

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../state/useAppStore';
 // Import frozen registries UNCHANGED
 // @ts-ignore
@@ -55,6 +55,42 @@ export const RightSidebar: React.FC = () => {
   const isCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const toggleCollapsed = useAppStore((state) => state.toggleSidebarCollapsed);
 
+  // Window-level safety listener to guarantee isDraggingSlider is always cleared
+  useEffect(() => {
+    const handlePointerEnd = () => {
+      setIsDraggingSlider(false);
+    };
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('mouseup', handlePointerEnd);
+    return () => {
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('mouseup', handlePointerEnd);
+    };
+  }, [setIsDraggingSlider]);
+
+  const handleSliderPointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+    setIsDraggingSlider(true);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handleSliderPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
+    setIsDraggingSlider(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {}
+  };
+
+  const sliderPointerProps = {
+    onPointerDown: handleSliderPointerDown,
+    onPointerUp: handleSliderPointerUp
+  };
+
   // Per-algorithm parameters
   const currentParams = algoParams[algorithmId] ?? {
     threshold: 0.5,
@@ -85,11 +121,6 @@ export const RightSidebar: React.FC = () => {
 
   // Lookup palette strictly by ID
   const currentPalette = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || BUILTIN_PALETTES[0];
-
-  const sliderPointerProps = {
-    onPointerDown: () => setIsDraggingSlider(true),
-    onPointerUp: () => setIsDraggingSlider(false)
-  };
 
   // Collapsed 44px Rail view
   if (isCollapsed) {

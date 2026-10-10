@@ -22,6 +22,7 @@ export const CenterViewport: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const rafIdRef = useRef<number | null>(null);
 
   // Store state
   const hasImage = useAppStore((state) => state.hasImage);
@@ -72,7 +73,6 @@ export const CenterViewport: React.FC = () => {
   // Keyboard Navigation: 0 (Fit), 1 (1:1), \ (Compare), Space (Pan)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input field
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
@@ -114,6 +114,67 @@ export const CenterViewport: React.FC = () => {
     };
   }, [zoom, fitToViewport, resetZoom, toggleBeforeAfter, setZoom]);
 
+  // Window-level Split Divider Dragging (prevents losing pointer off-canvas)
+  useEffect(() => {
+    if (!isDraggingSplitter) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      if (!canvasRef.current) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const relativeX = (e.clientX - rect.left) / rect.width;
+      setSplitRatio(Math.max(0.02, Math.min(0.98, relativeX)));
+    };
+
+    const handleWindowMouseUp = () => {
+      setIsDraggingSplitter(false);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [isDraggingSplitter, setSplitRatio]);
+
+  // Pointer-Centered Wheel Zoom with Native Listener ({ passive: false } stops page scroll)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.preventDefault(); // Guaranteed to work with { passive: false }
+
+      const factor = e.deltaY < 0 ? 1.15 : 0.85;
+      const currentZoom = useAppStore.getState().zoom;
+      const currentPanX = useAppStore.getState().panX;
+      const currentPanY = useAppStore.getState().panY;
+      const newZoom = Math.max(10, Math.min(1000, Math.round(currentZoom * factor)));
+
+      if (newZoom === currentZoom) return;
+
+      // Pointer-centered zoom math:
+      // Point under cursor relative to container center
+      const rect = container.getBoundingClientRect();
+      const cursorX = e.clientX - (rect.left + rect.width / 2);
+      const cursorY = e.clientY - (rect.top + rect.height / 2);
+
+      // Adjust pan so the image point under the cursor remains invariant:
+      const zoomRatio = newZoom / currentZoom;
+      const newPanX = Math.round(cursorX - (cursorX - currentPanX) * zoomRatio);
+      const newPanY = Math.round(cursorY - (cursorY - currentPanY) * zoomRatio);
+
+      setZoom(newZoom);
+      setPan(newPanX, newPanY);
+    };
+
+    container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, [setZoom, setPan]);
+
   // Handle Image File Loading
   const processImageFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -128,7 +189,6 @@ export const CenterViewport: React.FC = () => {
         const imgData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
         loadImageFromData(imgData, file.name);
 
-        // Auto-fit newly loaded image to viewport
         const container = containerRef.current;
         if (container) {
           fitToViewport(container.clientWidth, container.clientHeight);
@@ -164,13 +224,13 @@ export const CenterViewport: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Determine whether to use fast proxy during slider dragging in Live Mode
+    // In Live Mode during active slider dragging, downsample to fast proxy
     let renderSource = sourceImageData;
-    let isProxy = false;
+    let proxyOriginalSource = sourceImageData;
     if (updateMode === 'live' && isDraggingSlider) {
       const proxyResult = createProxyImageData(sourceImageData, 450);
       renderSource = proxyResult.data;
-      isProxy = proxyResult.scale < 1.0;
+      proxyOriginalSource = proxyResult.data;
     }
 
     const width = renderSource.width;
@@ -212,12 +272,12 @@ export const CenterViewport: React.FC = () => {
     setLastRenderMs(elapsed);
 
     // Step 5: Render to canvas (Before/After split or full output)
-    if (showBeforeAfter && !isProxy) {
+    if (showBeforeAfter) {
       const splitX = Math.round(width * splitRatio);
       const compositeData = new ImageData(new Uint8ClampedArray(ditherImageData.data), width, height);
       
-      // Left side: Pristine sourceImageData BEFORE any tweaks
-      const originalData = sourceImageData.data;
+      // Left side: Pristine source data BEFORE any tweaks
+      const originalData = proxyOriginalSource.data;
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < splitX; x++) {
           const idx = (y * width + x) * 4;
@@ -226,7 +286,7 @@ export const CenterViewport: React.FC = () => {
           compositeData.data[idx + 2] = originalData[idx + 2];
           compositeData.data[idx + 3] = originalData[idx + 3];
         }
-        // Crisp 1px split indicator
+        // Crisp 1px split line
         if (splitX >= 0 && splitX < width) {
           const splitIdx = (y * width + splitX) * 4;
           compositeData.data[splitIdx] = 0;
@@ -264,13 +324,27 @@ export const CenterViewport: React.FC = () => {
     if (!sourceImageData) return;
 
     if (updateMode === 'settle') {
-      // Settle Mode: Debounce 180ms on interactive changes
+      // Settle Mode: Debounce 180ms on interactive slider adjustments
       const timer = setTimeout(() => {
         executeRenderPipeline();
       }, 180);
       return () => clearTimeout(timer);
+    } else if (updateMode === 'live' && isDraggingSlider) {
+      // Live Mode during drag: Coalesce rapid slider input events to 1 render per display refresh frame
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      rafIdRef.current = requestAnimationFrame(() => {
+        executeRenderPipeline();
+        rafIdRef.current = null;
+      });
+      return () => {
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+        }
+      };
     } else {
-      // Precise Mode (immediate) and Live Mode (proxy during drag, full on release)
+      // Precise Mode (immediate) and Live Mode upon release
       executeRenderPipeline();
     }
   }, [
@@ -293,16 +367,8 @@ export const CenterViewport: React.FC = () => {
     isDraggingSlider
   ]);
 
-  // Wheel Zoom handler
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    setZoom(Math.round(zoom * factor));
-  };
-
   // Pan Mouse Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    // If middle click or space key held, initiate pan
     if (e.button === 1 || isSpacePressed || e.button === 0) {
       if (isDraggingSplitter) return;
       setIsPanning(true);
@@ -316,13 +382,6 @@ export const CenterViewport: React.FC = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDraggingSplitter && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const relativeX = (e.clientX - rect.left) / rect.width;
-      setSplitRatio(Math.max(0.05, Math.min(0.95, relativeX)));
-      return;
-    }
-
     if (isPanning) {
       const dx = e.clientX - panStart.x;
       const dy = e.clientY - panStart.y;
@@ -332,10 +391,9 @@ export const CenterViewport: React.FC = () => {
 
   const handleMouseUp = () => {
     setIsPanning(false);
-    setIsDraggingSplitter(false);
   };
 
-  // Split Divider Dragging
+  // Split Divider Dragging Trigger
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsDraggingSplitter(true);
@@ -425,7 +483,6 @@ export const CenterViewport: React.FC = () => {
       <div 
         ref={containerRef}
         className="canvas-area"
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

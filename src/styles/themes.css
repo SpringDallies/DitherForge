@@ -1,0 +1,386 @@
+/* ═══════════════════════════════════════════════════════════════
+   DitherForge Theme Tokens
+   Every theme declares the same set of variables.
+   To add a token, add it to all six blocks.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─── Group 7: Spacing (identical across themes, listed once) ─── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* ─── Group 8: Typography (identical across themes) ─── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --text-xs: 0.68rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.85rem;
+  --text-lg: 1rem;
+  --text-xl: 1.15rem;
+  --line-tight: 1.2;
+  --line-normal: 1.5;
+
+  /* ─── Group 9: Radii (identical across themes) ─── */
+  --radius-xs: 3px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-pill: 100px;
+
+  /* ─── Group 10: Motion (identical across themes) ─── */
+  --transition-fast: 120ms ease;
+  --transition-mid: 180ms ease;
+
+  /* Default theme fallbacks (dark_pro) */
+  --bg-primary: #0a0a0b;
+  --bg-secondary: #0d0d0f;
+  --bg-tertiary: #121214;
+  --bg-hover: #1c1c20;
+  --bg-active: #26262b;
+  --bg-panel: #0d0d0f;
+
+  --border-color: rgba(140, 170, 205, 0.12);
+  --border-focus: rgba(138, 171, 204, 0.50);
+  --border-hover: rgba(140, 170, 205, 0.22);
+  --border-secondary: rgba(140, 170, 205, 0.06);
+
+  --text-main: rgba(215, 225, 235, 0.92);
+  --text-muted: rgba(185, 195, 210, 0.68);
+  --text-dim: rgba(155, 165, 180, 0.44);
+  --text-disabled: rgba(135, 145, 160, 0.26);
+  --text-secondary: rgba(185, 195, 210, 0.68);
+
+  --accent-primary: #8aabcc;
+  --accent-hover: #a3c2e0;
+  --accent-secondary: #6e8fad;
+  --accent-cyan: #8aabcc;
+  --accent-amber: #8aabcc;
+  --accent-pink: #8aabcc;
+  --accent-blue: #8aabcc;
+  --accent-glow: transparent;
+
+  --canvas-bg: #060608;
+  --canvas-checker-1: #0a0a0c;
+  --canvas-checker-2: #141416;
+
+  --status-info: #8aabcc;
+  --status-warning: #e5c07b;
+  --status-error: #e06c75;
+  --status-ok: #98c379;
+
+  --scrollbar-thumb: rgba(140, 170, 205, 0.14);
+  --scrollbar-thumb-hover: rgba(140, 170, 205, 0.25);
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME 1: DARK PRO (Default Workstation)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="dark_pro"] {
+  /* ─── Group 1: Backgrounds ─── */
+  --bg-primary: #0a0a0b;
+  --bg-secondary: #0d0d0f;
+  --bg-tertiary: #121214;
+  --bg-hover: #1c1c20;
+  --bg-active: #26262b;
+  --bg-panel: #0d0d0f;
+
+  /* ─── Group 2: Borders ─── */
+  --border-color: rgba(140, 170, 205, 0.12);
+  --border-focus: rgba(138, 171, 204, 0.50);
+  --border-hover: rgba(140, 170, 205, 0.22);
+  --border-secondary: rgba(140, 170, 205, 0.06);
+
+  /* ─── Group 3: Text ─── */
+  --text-main: rgba(215, 225, 235, 0.92);
+  --text-muted: rgba(185, 195, 210, 0.68);
+  --text-dim: rgba(155, 165, 180, 0.44);
+  --text-disabled: rgba(135, 145, 160, 0.26);
+  --text-secondary: rgba(185, 195, 210, 0.68);
+
+  /* ─── Group 4: Accent ─── */
+  --accent-primary: #8aabcc;
+  --accent-hover: #a3c2e0;
+  --accent-secondary: #6e8fad;
+  --accent-cyan: #8aabcc;
+  --accent-amber: #8aabcc;
+  --accent-pink: #8aabcc;
+  --accent-blue: #8aabcc;
+  --accent-glow: transparent;
+
+  /* ─── Group 5: Canvas ─── */
+  --canvas-bg: #060608;
+  --canvas-checker-1: #0a0a0c;
+  --canvas-checker-2: #141416;
+
+  /* ─── Group 6: Semantic ─── */
+  --status-info: #8aabcc;
+  --status-warning: #e5c07b;
+  --status-error: #e06c75;
+  --status-ok: #98c379;
+
+  --scrollbar-thumb: rgba(140, 170, 205, 0.14);
+  --scrollbar-thumb-hover: rgba(140, 170, 205, 0.25);
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME 2: CRT GREEN (Monochrome Phosphor)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="crt_green"] {
+  /* ─── Group 1: Backgrounds ─── */
+  --bg-primary: #041008;
+  --bg-secondary: #081a0e;
+  --bg-tertiary: #0e2b17;
+  --bg-hover: #164024;
+  --bg-active: #1f5933;
+  --bg-panel: #081a0e;
+
+  /* ─── Group 2: Borders ─── */
+  --border-color: #1a4f2c;
+  --border-focus: #33ff66;
+  --border-hover: #267340;
+  --border-secondary: #12381f;
+
+  /* ─── Group 3: Text ─── */
+  --text-main: #33ff66;
+  --text-muted: #1f993d;
+  --text-dim: #16732e;
+  --text-disabled: #0f4d1f;
+  --text-secondary: #26bf4c;
+
+  /* ─── Group 4: Accent ─── */
+  --accent-primary: #33ff66;
+  --accent-hover: #5cff85;
+  --accent-secondary: #22aa44;
+  --accent-cyan: #33ff66;
+  --accent-amber: #66ff88;
+  --accent-pink: #99ffaa;
+  --accent-blue: #22aa44;
+  --accent-glow: transparent;
+
+  /* ─── Group 5: Canvas ─── */
+  --canvas-bg: #020804;
+  --canvas-checker-1: #040d06;
+  --canvas-checker-2: #081a0e;
+
+  /* ─── Group 6: Semantic ─── */
+  --status-info: #33ff66;
+  --status-warning: #66ff88;
+  --status-error: #ff3344;
+  --status-ok: #33ff66;
+
+  --scrollbar-thumb: #1a4f2c;
+  --scrollbar-thumb-hover: #267340;
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME 3: CYBERPUNK NEON (High-Contrast Night City)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="cyberpunk_neon"] {
+  /* ─── Group 1: Backgrounds ─── */
+  --bg-primary: #0f051d;
+  --bg-secondary: #1a0933;
+  --bg-tertiary: #2a0f52;
+  --bg-hover: #3d1775;
+  --bg-active: #4e1e94;
+  --bg-panel: #1a0933;
+
+  /* ─── Group 2: Borders ─── */
+  --border-color: #531ea3;
+  --border-focus: #ff007f;
+  --border-hover: #6d27d6;
+  --border-secondary: #3b1575;
+
+  /* ─── Group 3: Text ─── */
+  --text-main: #ffffff;
+  --text-muted: #b98bf7;
+  --text-dim: #8b5dbd;
+  --text-disabled: #5f3d87;
+  --text-secondary: #d8bfff;
+
+  /* ─── Group 4: Accent ─── */
+  --accent-primary: #00f0ff;
+  --accent-hover: #4df5ff;
+  --accent-secondary: #7000ff;
+  --accent-cyan: #00f0ff;
+  --accent-amber: #ffe600;
+  --accent-pink: #ff007f;
+  --accent-blue: #7000ff;
+  --accent-glow: transparent;
+
+  /* ─── Group 5: Canvas ─── */
+  --canvas-bg: #080210;
+  --canvas-checker-1: #0c0418;
+  --canvas-checker-2: #160829;
+
+  /* ─── Group 6: Semantic ─── */
+  --status-info: #00f0ff;
+  --status-warning: #ffe600;
+  --status-error: #ff007f;
+  --status-ok: #00ff9f;
+
+  --scrollbar-thumb: #531ea3;
+  --scrollbar-thumb-hover: #6d27d6;
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME 4: GAMEBOY OLIVE (4-Shade Dot Matrix)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="gameboy_olive"] {
+  /* ─── Group 1: Backgrounds ─── */
+  --bg-primary: #2b3d26;
+  --bg-secondary: #364d30;
+  --bg-tertiary: #435e3c;
+  --bg-hover: #507047;
+  --bg-active: #5e8354;
+  --bg-panel: #364d30;
+
+  /* ─── Group 2: Borders ─── */
+  --border-color: #5c8052;
+  --border-focus: #9bbc0f;
+  --border-hover: #739f67;
+  --border-secondary: #47633f;
+
+  /* ─── Group 3: Text ─── */
+  --text-main: #d0f08f;
+  --text-muted: #8bac0f;
+  --text-dim: #6b8c0f;
+  --text-disabled: #4e660b;
+  --text-secondary: #a8cc3f;
+
+  /* ─── Group 4: Accent ─── */
+  --accent-primary: #9bbc0f;
+  --accent-hover: #b4d912;
+  --accent-secondary: #8bac0f;
+  --accent-cyan: #9bbc0f;
+  --accent-amber: #8bac0f;
+  --accent-pink: #306230;
+  --accent-blue: #8bac0f;
+  --accent-glow: transparent;
+
+  /* ─── Group 5: Canvas ─── */
+  --canvas-bg: #1c2819;
+  --canvas-checker-1: #22311e;
+  --canvas-checker-2: #2b3d26;
+
+  /* ─── Group 6: Semantic ─── */
+  --status-info: #9bbc0f;
+  --status-warning: #d0f08f;
+  --status-error: #8b1c1c;
+  --status-ok: #9bbc0f;
+
+  --scrollbar-thumb: #5c8052;
+  --scrollbar-thumb-hover: #739f67;
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME 5: RETRO MAC (Classic 1984 Platinum)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="retro_mac"] {
+  /* ─── Group 1: Backgrounds ─── */
+  --bg-primary: #dddddd;
+  --bg-secondary: #cccccc;
+  --bg-tertiary: #bbbbbb;
+  --bg-hover: #aaaaaa;
+  --bg-active: #999999;
+  --bg-panel: #cccccc;
+
+  /* ─── Group 2: Borders ─── */
+  --border-color: #888888;
+  --border-focus: #000000;
+  --border-hover: #666666;
+  --border-secondary: #aaaaaa;
+
+  /* ─── Group 3: Text ─── */
+  --text-main: #111111;
+  --text-muted: #555555;
+  --text-dim: #777777;
+  --text-disabled: #999999;
+  --text-secondary: #333333;
+
+  /* ─── Group 4: Accent ─── */
+  --accent-primary: #000000;
+  --accent-hover: #333333;
+  --accent-secondary: #555555;
+  --accent-cyan: #000000;
+  --accent-amber: #333333;
+  --accent-pink: #666666;
+  --accent-blue: #000000;
+  --accent-glow: transparent;
+
+  /* ─── Group 5: Canvas ─── */
+  --canvas-bg: #ffffff;
+  --canvas-checker-1: #eeeeee;
+  --canvas-checker-2: #dddddd;
+
+  /* ─── Group 6: Semantic ─── */
+  --status-info: #000000;
+  --status-warning: #666666;
+  --status-error: #cc0000;
+  --status-ok: #008800;
+
+  --scrollbar-thumb: #888888;
+  --scrollbar-thumb-hover: #666666;
+  color-scheme: light;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME 6: VAPORWAVE PINK (Outrun Synthwave)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="vaporwave_pink"] {
+  /* ─── Group 1: Backgrounds ─── */
+  --bg-primary: #190e24;
+  --bg-secondary: #261637;
+  --bg-tertiary: #3a2254;
+  --bg-hover: #523175;
+  --bg-active: #633b8e;
+  --bg-panel: #261637;
+
+  /* ─── Group 2: Borders ─── */
+  --border-color: #6a3e97;
+  --border-focus: #f55a9b;
+  --border-hover: #854ebd;
+  --border-secondary: #4e2e70;
+
+  /* ─── Group 3: Text ─── */
+  --text-main: #fde2f0;
+  --text-muted: #b790cb;
+  --text-dim: #8a65a3;
+  --text-disabled: #634778;
+  --text-secondary: #dcb1e8;
+
+  /* ─── Group 4: Accent ─── */
+  --accent-primary: #f55a9b;
+  --accent-hover: #ff7db5;
+  --accent-secondary: #9b5de5;
+  --accent-cyan: #4ecdc4;
+  --accent-amber: #ffe66d;
+  --accent-pink: #f55a9b;
+  --accent-blue: #9b5de5;
+  --accent-glow: transparent;
+
+  /* ─── Group 5: Canvas ─── */
+  --canvas-bg: #0f0817;
+  --canvas-checker-1: #140b1e;
+  --canvas-checker-2: #201230;
+
+  /* ─── Group 6: Semantic ─── */
+  --status-info: #4ecdc4;
+  --status-warning: #ffe66d;
+  --status-error: #f55a9b;
+  --status-ok: #4ecdc4;
+
+  --scrollbar-thumb: #6a3e97;
+  --scrollbar-thumb-hover: #854ebd;
+  color-scheme: dark;
+}

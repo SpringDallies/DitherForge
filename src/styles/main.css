@@ -2,141 +2,7 @@
    Clean-Room Retro-Modern Desktop UI */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&display=swap');
-
-:root, [data-theme="dark_pro"] {
-  --bg-primary: #0a0a0b;
-  --bg-secondary: #0d0d0f;
-  --bg-tertiary: #121214;
-  --bg-panel: rgba(13, 13, 15, 0.96);
-  --bg-hover: rgba(200, 220, 245, 0.04);
-  --border-color: rgba(140, 170, 205, 0.10);
-  --border-secondary: rgba(140, 170, 205, 0.06);
-  --border-hover: rgba(140, 170, 205, 0.18);
-  --border-focus: rgba(138, 171, 204, 0.45);
-  --text-main: rgba(215, 225, 235, 0.92);
-  --text-secondary: rgba(185, 195, 210, 0.68);
-  --text-muted: rgba(185, 195, 210, 0.68);
-  --text-dim: rgba(155, 165, 180, 0.44);
-  --text-disabled: rgba(135, 145, 160, 0.26);
-  --accent-cyan: #8aabcc;
-  --accent-amber: #8aabcc;
-  --accent-pink: #8aabcc;
-  --accent-blue: #8aabcc;
-  --accent-secondary: #6e8fad;
-  --accent-glow: transparent;
-  --canvas-bg: #060608;
-  --scrollbar-thumb: rgba(140, 170, 205, 0.14);
-  --scrollbar-thumb-hover: rgba(140, 170, 205, 0.25);
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
-  --radius-pill: 100px;
-}
-
-[data-theme="crt_green"] {
-  --bg-primary: #041008;
-  --bg-secondary: #081a0e;
-  --bg-tertiary: #0e2b17;
-  --bg-panel: rgba(10, 28, 16, 0.9);
-  --bg-hover: #164024;
-  --border-color: #1a4f2c;
-  --border-focus: #33ff66;
-  --text-main: #33ff66;
-  --text-muted: #1f993d;
-  --accent-cyan: #33ff66;
-  --accent-amber: #66ff88;
-  --accent-pink: #99ffaa;
-  --accent-blue: #22aa44;
-  --accent-glow: rgba(51, 255, 102, 0.3);
-  --canvas-bg: #020804;
-  --scrollbar-thumb: #1a4f2c;
-  --text-dim: #1f993d;
-}
-
-[data-theme="cyberpunk_neon"] {
-  --bg-primary: #0f051d;
-  --bg-secondary: #1a0933;
-  --bg-tertiary: #2a0f52;
-  --bg-panel: rgba(30, 11, 58, 0.88);
-  --bg-hover: #3d1775;
-  --border-color: #531ea3;
-  --border-focus: #ff007f;
-  --text-main: #ffffff;
-  --text-muted: #b98bf7;
-  --accent-cyan: #00f0ff;
-  --accent-amber: #ffe600;
-  --accent-pink: #ff007f;
-  --accent-blue: #7000ff;
-  --accent-glow: rgba(255, 0, 127, 0.35);
-  --canvas-bg: #080210;
-  --scrollbar-thumb: #531ea3;
-  --text-dim: #8b5dbd;
-}
-
-[data-theme="gameboy_olive"] {
-  --bg-primary: #2b3d26;
-  --bg-secondary: #364d30;
-  --bg-tertiary: #435e3c;
-  --bg-panel: rgba(54, 77, 48, 0.9);
-  --bg-hover: #507047;
-  --border-color: #5c8052;
-  --border-focus: #9bbc0f;
-  --text-main: #d0f08f;
-  --text-muted: #8bac0f;
-  --accent-cyan: #9bbc0f;
-  --accent-amber: #8bac0f;
-  --accent-pink: #306230;
-  --accent-blue: #8bac0f;
-  --accent-glow: rgba(155, 188, 15, 0.3);
-  --canvas-bg: #1c2819;
-  --scrollbar-thumb: #5c8052;
-  --text-dim: #6b8c0f;
-}
-
-[data-theme="retro_mac"] {
-  --bg-primary: #dddddd;
-  --bg-secondary: #cccccc;
-  --bg-tertiary: #bbbbbb;
-  --bg-panel: rgba(240, 240, 240, 0.95);
-  --bg-hover: #aaaaaa;
-  --border-color: #888888;
-  --border-focus: #000000;
-  --text-main: #111111;
-  --text-muted: #555555;
-  --accent-cyan: #000000;
-  --accent-amber: #333333;
-  --accent-pink: #666666;
-  --accent-blue: #000000;
-  --accent-glow: rgba(0, 0, 0, 0.2);
-  --canvas-bg: #ffffff;
-  --scrollbar-thumb: #888888;
-  --text-dim: #777777;
-}
-
-[data-theme="vaporwave_pink"] {
-  --bg-primary: #190e24;
-  --bg-secondary: #261637;
-  --bg-tertiary: #3a2254;
-  --bg-panel: rgba(43, 25, 62, 0.88);
-  --bg-hover: #523175;
-  --border-color: #6a3e97;
-  --border-focus: #f55a9b;
-  --text-main: #fde2f0;
-  --text-muted: #b790cb;
-  --accent-cyan: #4ecdc4;
-  --accent-amber: #ffe66d;
-  --accent-pink: #f55a9b;
-  --accent-blue: #9b5de5;
-  --accent-glow: rgba(245, 90, 155, 0.35);
-  --canvas-bg: #0f0817;
-  --scrollbar-thumb: #6a3e97;
-  --text-dim: #8a65a3;
-}
+@import './themes.css';
 
 * {
   box-sizing: border-box;
@@ -240,8 +106,8 @@ body {
 }
 
 .btn-menu.primary {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-  color: #050b14;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
+  color: var(--bg-primary);
   font-weight: 700;
   border: none;
 }
@@ -374,7 +240,7 @@ body {
 }
 .cat-pill.active {
   background: var(--accent-cyan);
-  color: #070e17;
+  color: var(--bg-primary);
   border-color: var(--accent-cyan);
   font-weight: 600;
 }
@@ -403,7 +269,7 @@ body {
 }
 
 .algo-item-card.active {
-  background: rgba(0, 255, 204, 0.08);
+  background: var(--bg-hover);
   border-color: var(--accent-cyan);
   /* box-shadow removed for perf */
 }
@@ -467,7 +333,7 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-color);
   cursor: pointer;
 }
 
@@ -573,7 +439,7 @@ body {
 }
 .btn-icon.active {
   background: var(--accent-cyan);
-  color: #000;
+  color: var(--bg-primary);
   font-weight: 700;
 }
 
@@ -595,10 +461,10 @@ body {
   align-items: center;
   justify-content: center;
   background-image: 
-    linear-gradient(45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.02) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.02) 75%);
+    linear-gradient(45deg, var(--canvas-checker-2) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--canvas-checker-2) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--canvas-checker-2) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--canvas-checker-2) 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
@@ -610,9 +476,9 @@ body {
 .canvas-stage-wrapper {
   position: absolute;
   transform-origin: center center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7); /* hardcoded intentionally */
   border: 1px solid var(--border-color);
-  background: #000;
+  background: var(--canvas-bg);
 }
 
 canvas#mainViewportCanvas {
@@ -641,12 +507,12 @@ canvas#mainViewportCanvas {
   height: 24px;
   border-radius: 50%;
   background: var(--accent-cyan);
-  border: 2px solid #000;
+  border: 2px solid var(--bg-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  color: #000;
+  color: var(--text-main); /* hardcoded intentionally */
   font-weight: bold;
 }
 
@@ -654,7 +520,7 @@ canvas#mainViewportCanvas {
 .dropzone-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(10, 12, 18, 0.85);
+  background: var(--bg-panel);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -762,7 +628,7 @@ canvas#mainViewportCanvas {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.75); /* hardcoded intentionally */
   /* backdrop-filter removed for perf */
   display: flex;
   align-items: center;
@@ -779,7 +645,7 @@ canvas#mainViewportCanvas {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8); /* hardcoded intentionally */
   overflow: hidden;
 }
 

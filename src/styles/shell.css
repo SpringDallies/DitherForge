@@ -1,42 +1,7 @@
 /* DitherForge Phase 3 Shell & Layout Styles
    Performance-Optimized Clean Desktop Workstation Aesthetic */
+@import './themes.css';
 @import './main.css';
-
-/* Override dark_pro tokens explicitly */
-:root, [data-theme="dark_pro"] {
-  --bg-primary: #0a0a0b;
-  --bg-secondary: #0d0d0f;
-  --bg-tertiary: #121214;
-  --bg-panel: #0d0d0f;
-  --bg-hover: #1c1c20;
-  --border-color: rgba(140, 170, 205, 0.12);
-  --border-secondary: rgba(140, 170, 205, 0.06);
-  --border-hover: rgba(140, 170, 205, 0.22);
-  --border-focus: rgba(138, 171, 204, 0.50);
-  --text-main: rgba(215, 225, 235, 0.92);
-  --text-secondary: rgba(185, 195, 210, 0.68);
-  --text-muted: rgba(185, 195, 210, 0.68);
-  --text-dim: rgba(155, 165, 180, 0.44);
-  --text-disabled: rgba(135, 145, 160, 0.26);
-  --accent-cyan: #8aabcc;
-  --accent-amber: #8aabcc;
-  --accent-pink: #8aabcc;
-  --accent-blue: #8aabcc;
-  --accent-secondary: #6e8fad;
-  --accent-glow: transparent;
-  --canvas-bg: #060608;
-  --scrollbar-thumb: rgba(140, 170, 205, 0.14);
-  --scrollbar-thumb-hover: rgba(140, 170, 205, 0.25);
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-pill: 100px;
-  color-scheme: dark;
-}
 
 * {
   box-sizing: border-box;
@@ -99,7 +64,7 @@ body {
   border-bottom-right-radius: 2px;
   cursor: pointer;
   opacity: 0.85;
-  transition: opacity 120ms ease;
+  transition: opacity var(--transition-fast);
 }
 
 .fullscreen-peek-tab:hover {
@@ -118,7 +83,7 @@ body {
   padding: 0 10px;
   flex-shrink: 0;
   z-index: 10;
-  transition: opacity 120ms ease;
+  transition: opacity var(--transition-fast);
 }
 
 .app-container.fullscreen .top-menu-bar {
@@ -166,7 +131,7 @@ body {
   border-radius: 4px;
   cursor: pointer;
   text-decoration: none;
-  transition: color 120ms ease, background-color 120ms ease;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .menu-btn:hover,
@@ -203,7 +168,7 @@ select,
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 14px 14px;
-  transition: border-color 120ms ease, background-color 120ms ease;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
   color-scheme: dark;
 }
 
@@ -249,7 +214,7 @@ select option,
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 14px 14px;
-  transition: border-color 120ms ease, background-color 120ms ease;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .algo-listbox-trigger:hover {
@@ -278,7 +243,7 @@ select option,
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); /* hardcoded intentionally */
   z-index: 200;
 }
 
@@ -292,7 +257,7 @@ select option,
   font-size: 0.85rem;
   cursor: pointer;
   user-select: none;
-  transition: background-color 120ms ease;
+  transition: background-color var(--transition-fast);
 }
 
 .algo-listbox-item:hover,
@@ -390,7 +355,7 @@ select option,
   color: var(--text-dim);
   opacity: 0.5;
   cursor: not-allowed;
-  transition: color 120ms ease;
+  transition: color var(--transition-fast);
 }
 
 .rail-icon-btn:disabled {
@@ -440,7 +405,7 @@ select option,
   gap: 4px;
   font-size: 0.73rem;
   font-family: var(--font-mono);
-  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .tool-icon-btn:hover {
@@ -469,10 +434,10 @@ select option,
   position: relative;
   overflow: hidden;
   background: 
-    linear-gradient(45deg, #141416 25%, transparent 25%), 
-    linear-gradient(-45deg, #141416 25%, transparent 25%), 
-    linear-gradient(45deg, transparent 75%, #141416 75%), 
-    linear-gradient(-45deg, transparent 75%, #141416 75%);
+    linear-gradient(45deg, var(--canvas-checker-2) 25%, transparent 25%), 
+    linear-gradient(-45deg, var(--canvas-checker-2) 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, var(--canvas-checker-2) 75%), 
+    linear-gradient(-45deg, transparent 75%, var(--canvas-checker-2) 75%);
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
   background-color: var(--canvas-bg);
@@ -491,13 +456,13 @@ select option,
   background-color: transparent;
   cursor: ew-resize;
   flex-shrink: 0;
-  transition: background-color 120ms ease;
+  transition: background-color var(--transition-fast);
   z-index: 5;
 }
 
 .splitter:hover,
 .splitter.dragging {
-  background-color: rgba(138, 171, 204, 0.4);
+  background-color: var(--border-focus);
 }
 
 /* Right Sidebar Panel (Bug 2: Open Spacing, Default 380px, Clamp 340-520) */
@@ -667,7 +632,7 @@ select option,
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .stepper-btn:hover:not(:disabled) {
@@ -708,7 +673,7 @@ select option,
   align-items: center;
   gap: 4px;
   margin-bottom: 16px;
-  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .reset-section-btn:hover {
@@ -771,7 +736,7 @@ select option,
   border: none;
   cursor: pointer;
   box-shadow: none;
-  transition: background-color 120ms ease;
+  transition: background-color var(--transition-fast);
 }
 
 .control-slider::-moz-range-thumb {
@@ -782,7 +747,7 @@ select option,
   border: none;
   cursor: pointer;
   box-shadow: none;
-  transition: background-color 120ms ease;
+  transition: background-color var(--transition-fast);
 }
 
 .control-num-input {
@@ -798,7 +763,7 @@ select option,
   border-radius: 4px;
   padding: 0 4px;
   outline: none;
-  transition: border-color 120ms ease, background-color 120ms ease;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .control-num-input:hover {
@@ -826,7 +791,7 @@ select option,
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .action-btn:hover:not(:disabled) {
@@ -861,7 +826,7 @@ select option,
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .lock-button:hover {
@@ -884,7 +849,7 @@ select option,
   align-items: center;
   justify-content: center;
   padding: 2px 4px;
-  transition: color 120ms ease;
+  transition: color var(--transition-fast);
 }
 
 .favorite-btn:hover {
@@ -922,7 +887,7 @@ select option,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: background-color 120ms ease;
+  transition: background-color var(--transition-fast);
 }
 
 .effect-card:hover {
@@ -981,7 +946,7 @@ select option,
   font-size: 0.68rem;
   padding: 3px 8px;
   cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .strip-viewport-btn:hover {
@@ -1015,7 +980,7 @@ select option,
   justify-content: center;
   height: 22px;
   min-width: 22px;
-  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .zoom-btn:hover:not(:disabled) {
@@ -1056,7 +1021,7 @@ select option,
   display: flex;
   flex-direction: column;
   padding: 4px 0;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); /* hardcoded intentionally */
 }
 
 .dropdown-menu-item {
@@ -1071,7 +1036,7 @@ select option,
   cursor: pointer;
   width: 100%;
   text-align: left;
-  transition: background-color 120ms ease;
+  transition: background-color var(--transition-fast);
 }
 
 .dropdown-menu-item:hover {

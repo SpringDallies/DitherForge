@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAppStore } from '../../state/useAppStore';
 // Import frozen registries UNCHANGED
 // @ts-ignore
@@ -59,8 +59,10 @@ export const RightSidebar: React.FC = () => {
   const updateCurrentAlgoParam = useAppStore((state) => state.updateCurrentAlgoParam);
   const resetCurrentAlgoParams = useAppStore((state) => state.resetCurrentAlgoParams);
   const resetAlgoParamToDefault = useAppStore((state) => state.resetAlgoParamToDefault);
-  const favoriteAlgorithmIds = useAppStore((state) => state.favoriteAlgorithmIds);
-  const toggleFavoriteAlgorithm = useAppStore((state) => state.toggleFavoriteAlgorithm);
+  const favoriteAlgorithms = useAppStore((state) => state.favoriteAlgorithms);
+  const toggleFavorite = useAppStore((state) => state.toggleFavorite);
+  const favoriteAlgorithmIds = favoriteAlgorithms;
+  const toggleFavoriteAlgorithm = toggleFavorite;
 
 
 
@@ -145,10 +147,27 @@ export const RightSidebar: React.FC = () => {
     setActiveCategory(CATEGORY_KEYS[next]);
   };
 
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('search') || '';
+    }
+    return '';
+  });
+
   // Filtered algorithms
   const filteredAlgos = ALGORITHM_REGISTRY.filter((a: any) => {
     return activeCategory === 'all' || a.category === activeCategory;
   });
+
+  const searchFilteredAlgos = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredAlgos;
+    return filteredAlgos.filter((a: any) =>
+      (a.name && a.name.toLowerCase().includes(q)) ||
+      (a.description && a.description.toLowerCase().includes(q)) ||
+      (a.id && a.id.toLowerCase().includes(q))
+    );
+  }, [filteredAlgos, searchQuery]);
 
   const currentAlgo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId) || ALGORITHM_REGISTRY[0];
   const currentIndex = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
@@ -167,10 +186,12 @@ export const RightSidebar: React.FC = () => {
     }
     return false;
   });
+
   const [focusedAlgoIndex, setFocusedAlgoIndex] = useState(0);
   const listboxRef = useRef<HTMLDivElement>(null);
   const listboxPanelRef = useRef<HTMLDivElement>(null);
   const listboxTriggerRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Click outside listener for listbox
   useEffect(() => {
@@ -184,6 +205,17 @@ export const RightSidebar: React.FC = () => {
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [isAlgoListboxOpen]);
 
+  // Autofocus search on open, clear on close
+  useEffect(() => {
+    if (isAlgoListboxOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+    } else {
+      setSearchQuery('');
+    }
+  }, [isAlgoListboxOpen]);
+
   // Scroll the selected item into view, once, on open.
   useEffect(() => {
     if (!isAlgoListboxOpen) return;
@@ -195,17 +227,38 @@ export const RightSidebar: React.FC = () => {
   }, [isAlgoListboxOpen]);
 
   // Keyboard navigation for listbox
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (searchFilteredAlgos.length > 0) {
+        setFocusedAlgoIndex(0);
+        const firstItem = listboxPanelRef.current?.querySelector('.algo-listbox-item') as HTMLElement;
+        firstItem?.focus();
+        firstItem?.scrollIntoView({ block: 'nearest' });
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsAlgoListboxOpen(false);
+    } else if (e.key === 'Enter') {
+      if (searchFilteredAlgos.length > 0) {
+        e.preventDefault();
+        setAlgorithmId(searchFilteredAlgos[0].id);
+        setIsAlgoListboxOpen(false);
+      }
+    }
+  };
+
   const handleListboxKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!isAlgoListboxOpen) {
         setIsAlgoListboxOpen(true);
-        const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
+        const idx = searchFilteredAlgos.findIndex((a: any) => a.id === algorithmId);
         setFocusedAlgoIndex(idx >= 0 ? idx : 0);
       } else {
         setFocusedAlgoIndex((prev) => {
-          const next = prev < filteredAlgos.length - 1 ? prev + 1 : 0;
-          const target = listboxPanelRef.current?.children[next] as HTMLElement;
+          const next = prev < searchFilteredAlgos.length - 1 ? prev + 1 : 0;
+          const target = listboxPanelRef.current?.querySelectorAll('.algo-listbox-item')[next] as HTMLElement;
           target?.scrollIntoView({ block: 'nearest' });
           return next;
         });
@@ -214,12 +267,14 @@ export const RightSidebar: React.FC = () => {
       e.preventDefault();
       if (!isAlgoListboxOpen) {
         setIsAlgoListboxOpen(true);
-        const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
+        const idx = searchFilteredAlgos.findIndex((a: any) => a.id === algorithmId);
         setFocusedAlgoIndex(idx >= 0 ? idx : 0);
+      } else if (focusedAlgoIndex === 0) {
+        searchInputRef.current?.focus();
       } else {
         setFocusedAlgoIndex((prev) => {
-          const next = prev > 0 ? prev - 1 : filteredAlgos.length - 1;
-          const target = listboxPanelRef.current?.children[next] as HTMLElement;
+          const next = prev > 0 ? prev - 1 : 0;
+          const target = listboxPanelRef.current?.querySelectorAll('.algo-listbox-item')[next] as HTMLElement;
           target?.scrollIntoView({ block: 'nearest' });
           return next;
         });
@@ -227,8 +282,8 @@ export const RightSidebar: React.FC = () => {
     } else if (e.key === 'Enter' || e.key === ' ') {
       if (isAlgoListboxOpen) {
         e.preventDefault();
-        if (focusedAlgoIndex >= 0 && focusedAlgoIndex < filteredAlgos.length) {
-          setAlgorithmId(filteredAlgos[focusedAlgoIndex].id);
+        if (focusedAlgoIndex >= 0 && focusedAlgoIndex < searchFilteredAlgos.length) {
+          setAlgorithmId(searchFilteredAlgos[focusedAlgoIndex].id);
           setIsAlgoListboxOpen(false);
         }
       } else if (e.key === 'Enter') {
@@ -282,36 +337,36 @@ export const RightSidebar: React.FC = () => {
     setActivePalette(BUILTIN_PALETTES[next].id);
   };
 
-  // Progressive parameter disclosure based on algorithm category & id
-  const getVisibleParams = (id: string, cat: string) => {
-    if (id === 'bayer_2x2' || id === 'bayer_4x4' || id === 'bayer_8x8' || id === 'bayer_16x16') {
-      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
-    }
-    if (cat === 'error_diffusion') {
+  const ERROR_DIFFUSION_IDS = new Set([
+    'floyd_steinberg', 'atkinson', 'jarvis_judice_ninke', 'stucki', 'burkes',
+    'sierra_3', 'sierra_2', 'sierra_lite', 'stevenson_arce', 'fan',
+    'shiau_fan', 'shiau_fan_2', 'false_floyd_steinberg', 'minimized_avg_error',
+    'dynamic_serpentine'
+  ]);
+
+  const NOISE_AMOUNT_SPECIAL_IDS = new Set([
+    'random_threshold', 'blue_noise', 'gaussian_noise', 'tpdf_noise',
+    'companding_curve', 'laplacian_mod', 'quantum_stipple'
+  ]);
+
+  const getVisibleParams = (id: string) => {
+    if (ERROR_DIFFUSION_IDS.has(id)) {
       return { threshold: true, scale: false, diffusionStrength: true, serpentine: true, noiseAmount: false };
-    }
-    if (cat === 'glitch') {
-      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
-    }
-    if (cat === 'pattern') {
-      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
     }
     if (id === 'fixed_threshold') {
       return { threshold: true, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: false };
     }
-    if (id === 'random_threshold') {
+    if (NOISE_AMOUNT_SPECIAL_IDS.has(id)) {
       return { threshold: true, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: true };
     }
     if (id === 'ignition_glow') {
       return { threshold: true, scale: true, diffusionStrength: true, serpentine: false, noiseAmount: false };
     }
-    if (id === 'temporal_kinetic') {
-      return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
-    }
-    return { threshold: true, scale: true, diffusionStrength: true, serpentine: true, noiseAmount: false };
+    // Ordered, pattern, glitch (all 17), clustered_dot, temporal_kinetic, and other special:
+    return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
   };
 
-  const visibleParams = getVisibleParams(currentAlgo.id, currentAlgo.category);
+  const visibleParams = getVisibleParams(currentAlgo.id);
 
   // Per-algorithm parameters
   const currentParams = algoParams[algorithmId] ?? {
@@ -459,28 +514,101 @@ export const RightSidebar: React.FC = () => {
                         className="algo-listbox-panel"
                         role="listbox"
                         ref={listboxPanelRef}
-                        style={{ display: isAlgoListboxOpen ? 'block' : 'none' }}
+                        style={{ display: isAlgoListboxOpen ? 'flex' : 'none' }}
                         onWheel={(e) => e.stopPropagation()}
                       >
-                        {filteredAlgos.map((a: any, idx: number) => {
-                          const isSelected = a.id === algorithmId;
-                          const isFocused = idx === focusedAlgoIndex;
-                          return (
-                            <div
-                              key={a.id}
-                              role="option"
-                              aria-selected={isSelected}
-                              data-selected={isSelected ? "true" : "false"}
-                              className={`algo-listbox-item ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
+                        {/* Favourites Row */}
+                        {favoriteAlgorithms.length > 0 && (
+                          <div className="algo-favorites-row">
+                            {favoriteAlgorithms.map((favId) => {
+                              const algoObj = ALGORITHM_REGISTRY.find((a: any) => a.id === favId);
+                              if (!algoObj) return null;
+                              return (
+                                <button
+                                  key={favId}
+                                  type="button"
+                                  className="algo-favorite-chip"
+                                  onClick={() => {
+                                    setAlgorithmId(favId);
+                                    setIsAlgoListboxOpen(false);
+                                  }}
+                                  title={algoObj.name}
+                                >
+                                  {algoObj.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Search Input Box */}
+                        <div className="algo-search-container">
+                          <input
+                            ref={searchInputRef}
+                            type="text"
+                            className="algo-search-input"
+                            placeholder="Search 63 algorithms…"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={handleSearchKeyDown}
+                            tabIndex={isAlgoListboxOpen ? 0 : -1}
+                          />
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              className="algo-search-clear"
                               onClick={() => {
-                                setAlgorithmId(a.id);
-                                setIsAlgoListboxOpen(false);
+                                setSearchQuery('');
+                                searchInputRef.current?.focus();
                               }}
+                              title="Clear search"
                             >
-                              {a.name}
+                              ×
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Scrollable Items List */}
+                        <div className="algo-listbox-items" tabIndex={-1} onKeyDown={handleListboxKeyDown}>
+                          {searchFilteredAlgos.map((a: any, idx: number) => {
+                            const isSelected = a.id === algorithmId;
+                            const isFocused = idx === focusedAlgoIndex;
+                            const isFav = favoriteAlgorithms.includes(a.id);
+                            return (
+                              <div
+                                key={a.id}
+                                role="option"
+                                tabIndex={-1}
+                                aria-selected={isSelected}
+                                data-selected={isSelected ? "true" : "false"}
+                                className={`algo-listbox-item ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
+                                onClick={() => {
+                                  setAlgorithmId(a.id);
+                                  setIsAlgoListboxOpen(false);
+                                }}
+                              >
+                                <span className="algo-listbox-item-name">{a.name}</span>
+                                <button
+                                  type="button"
+                                  className={`algo-listbox-star-btn ${isFav ? 'starred' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFavorite(a.id);
+                                  }}
+                                  title={isFav ? "Remove from Favorites" : "Add to Favorites"}
+                                  aria-label={isFav ? `Remove ${a.name} from Favorites` : `Add ${a.name} to Favorites`}
+                                >
+                                  {isFav ? '★' : '☆'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {searchFilteredAlgos.length === 0 && (
+                            <div style={{ padding: '12px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                              No algorithms found
                             </div>
-                          );
-                        })}
+                          )}
+                        </div>
                       </div>
                     </div>
                     <button className="stepper-btn" onClick={handleNextAlgo} title="Next Algorithm (Down Arrow)">&gt;</button>
@@ -505,9 +633,9 @@ export const RightSidebar: React.FC = () => {
                   <button
                     className="reset-section-btn"
                     onClick={resetCurrentAlgoParams}
-                    title="Reset algorithm parameters to default"
+                    title="Reset algorithm parameters"
                   >
-                    ↺ Reset
+                    Reset
                   </button>
                 </div>
 
@@ -526,7 +654,7 @@ export const RightSidebar: React.FC = () => {
                     <div className="slider-track-input-row">
                       <input
                         type="range"
-                        className="control-slider"
+                        className="control-slider" title="Double-click to reset to default"
                         min="0.0"
                         max="1.0"
                         step="0.02"
@@ -563,7 +691,7 @@ export const RightSidebar: React.FC = () => {
                     <div className="slider-track-input-row">
                       <input
                         type="range"
-                        className="control-slider"
+                        className="control-slider" title="Double-click to reset to default"
                         min="1.0"
                         max="8.0"
                         step="0.5"
@@ -600,7 +728,7 @@ export const RightSidebar: React.FC = () => {
                     <div className="slider-track-input-row">
                       <input
                         type="range"
-                        className="control-slider"
+                        className="control-slider" title="Double-click to reset to default"
                         min="0.0"
                         max="1.0"
                         step="0.05"
@@ -656,7 +784,7 @@ export const RightSidebar: React.FC = () => {
                     <div className="slider-track-input-row">
                       <input
                         type="range"
-                        className="control-slider"
+                        className="control-slider" title="Double-click to reset to default"
                         min="0.0"
                         max="1.0"
                         step="0.05"
@@ -700,9 +828,9 @@ export const RightSidebar: React.FC = () => {
                   <button
                     className="reset-section-btn"
                     onClick={resetAllAdjustments}
-                    title="Reset all unlocked adjustments to default"
+                    title="Reset adjustments"
                   >
-                    ↺ Reset
+                    Reset
                   </button>
                 </div>
 
@@ -728,7 +856,7 @@ export const RightSidebar: React.FC = () => {
                   <div className="slider-track-input-row">
                     <input
                       type="range"
-                      className="control-slider"
+                      className="control-slider" title="Double-click to reset to default"
                       min="-100"
                       max="100"
                       step="1"
@@ -774,7 +902,7 @@ export const RightSidebar: React.FC = () => {
                   <div className="slider-track-input-row">
                     <input
                       type="range"
-                      className="control-slider"
+                      className="control-slider" title="Double-click to reset to default"
                       min="-100"
                       max="100"
                       step="1"
@@ -820,7 +948,7 @@ export const RightSidebar: React.FC = () => {
                   <div className="slider-track-input-row">
                     <input
                       type="range"
-                      className="control-slider"
+                      className="control-slider" title="Double-click to reset to default"
                       min="-100"
                       max="100"
                       step="1"
@@ -866,7 +994,7 @@ export const RightSidebar: React.FC = () => {
                   <div className="slider-track-input-row">
                     <input
                       type="range"
-                      className="control-slider"
+                      className="control-slider" title="Double-click to reset to default"
                       min="0.1"
                       max="3.0"
                       step="0.05"
@@ -912,7 +1040,7 @@ export const RightSidebar: React.FC = () => {
                   <div className="slider-track-input-row">
                     <input
                       type="range"
-                      className="control-slider"
+                      className="control-slider" title="Double-click to reset to default"
                       min="1"
                       max="32"
                       step="1"

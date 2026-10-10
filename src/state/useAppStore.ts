@@ -108,8 +108,12 @@ const buildInitialEffects = (): EffectItem[] => {
 };
 
 interface AppState {
-  // Algorithm Favourites (NEW Phase 3)
+  // Algorithm Favourites (Phase 3.1)
+  favoriteAlgorithms: string[];
   favoriteAlgorithmIds: string[];
+  addFavorite: (id: string) => void;
+  removeFavorite: (id: string) => void;
+  toggleFavorite: (id: string) => void;
   toggleFavoriteAlgorithm: (id: string) => void;
   resetCurrentAlgoParams: () => void;
   resetAlgoParamToDefault: (key: keyof AlgoParams) => void;
@@ -203,11 +207,18 @@ const STORAGE_KEY_THEME = 'ditherforge_theme';
 const STORAGE_KEY_UPDATE_MODE = 'ditherforge_update_mode';
 const STORAGE_KEY_FAVORITES = 'ditherforge_favorites';
 const getStoredFavorites = (): string[] => {
+  let list: string[] = [];
   try {
     const data = localStorage.getItem(STORAGE_KEY_FAVORITES);
-    if (data) return JSON.parse(data);
+    if (data) list = JSON.parse(data);
   } catch {}
-  return [];
+  if (typeof window !== 'undefined') {
+    const urlFav = new URLSearchParams(window.location.search).get('favorite');
+    if (urlFav && !list.includes(urlFav)) {
+      list = [...list, urlFav];
+    }
+  }
+  return list;
 };
 
 
@@ -304,14 +315,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
 
   // Favourites
+  favoriteAlgorithms: getStoredFavorites(),
   favoriteAlgorithmIds: getStoredFavorites(),
-  toggleFavoriteAlgorithm: (id) => set((state) => {
-    const isFav = state.favoriteAlgorithmIds.includes(id);
-    const next = isFav
-      ? state.favoriteAlgorithmIds.filter((favId) => favId !== id)
-      : [...state.favoriteAlgorithmIds, id];
+  addFavorite: (id) => set((state) => {
+    if (state.favoriteAlgorithms.includes(id)) return state;
+    const next = [...state.favoriteAlgorithms, id];
     try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
-    return { favoriteAlgorithmIds: next };
+    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
+  }),
+  removeFavorite: (id) => set((state) => {
+    const next = state.favoriteAlgorithms.filter((favId) => favId !== id);
+    try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
+    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
+  }),
+  toggleFavorite: (id) => set((state) => {
+    const isFav = state.favoriteAlgorithms.includes(id);
+    const next = isFav
+      ? state.favoriteAlgorithms.filter((favId) => favId !== id)
+      : [...state.favoriteAlgorithms, id];
+    try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
+    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
+  }),
+  toggleFavoriteAlgorithm: (id) => set((state) => {
+    const isFav = state.favoriteAlgorithms.includes(id);
+    const next = isFav
+      ? state.favoriteAlgorithms.filter((favId) => favId !== id)
+      : [...state.favoriteAlgorithms, id];
+    try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
+    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
   }),
   resetCurrentAlgoParams: () => set((state) => ({
     algoParams: {

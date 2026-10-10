@@ -85,20 +85,20 @@
 
 | Feature | Source (File & Function / Line) | Current Location | New Location | Status |
 |---|---|---|---|---|
-| Search Input for Algorithms | `index.html:86` (`#algoSearchInput`) | Left Panel top input | Right Panel A > Algorithm search box inside dropdown | [ ] Pending |
-| Category Filter Chips (`All`, `Diffusion`, `Ordered`, `Pattern`, `Glitch`, `Special`, `Bespoke`) | `index.html:89-97` (`#algoCategoryPills`) | Left Panel category pill buttons | Right Panel A > Interactive category filter chips in picker header | [ ] Pending |
-| Favourites / Pinned Algorithms Row | *[NEW Ergonomic Addition]* | None | Right Panel A > Top row of Algorithm Dropdown (`★ Favorites`) | [ ] Pending |
-| Algorithm Stepping (Prev/Next buttons) | `main.js:168-180` | None (Keyboard only) | Right Panel A > `<` and `>` icon buttons next to dropdown | [ ] Pending |
-| Up/Down Arrow Stepping (fires only when no input/slider/select focused) | `main.js:168-180` | Window keydown handler | Window keydown handler (checks `!isInputActive()`) | [ ] Pending |
-| Threshold Pivot Slider & Number Input | `index.html:112-117` (`#sliderThreshold`) | Left Panel card | Right Panel A > Algorithm Parameters section | [ ] Pending |
-| Diffusion Strength Slider & Number Input | `index.html:120-125` (`#sliderDiffusionStrength`) | Left Panel card | Right Panel A > Algorithm Parameters section | [ ] Pending |
-| Pattern Scale Slider & Number Input | `index.html:128-133` (`#sliderScale`) | Left Panel card | Right Panel A > Algorithm Parameters section | [ ] Pending |
-| Serpentine Scanning Toggle Checkbox | `index.html:136-139` (`#checkSerpentine`) | Left Panel card | Right Panel A > Algorithm Parameters section | [ ] Pending |
-| Noise Amount Slider & Number Input | `main.js:52`, `algorithms.js:463` | Engine state | Right Panel A > Parameters section (visible for noise/glitch algorithms) | [ ] Pending |
-| Section Reset Button (Algorithm Parameters) | `index.html:107` (`#btnResetAlgoParams`) | Left Panel `↺` button | Right Panel A > Section header `↺ Reset Parameters` button | [ ] Pending |
-| Global Edit > Reset All | `main.js:485-504` | Top bar implicit | Top Menu Bar > `Edit > Reset All` | [ ] Pending |
-| Per-Slider Double-Click to Reset | *[NEW Ergonomic Addition]* | None | Double-click any slider thumb resets to default | [ ] Pending |
-| One-line Parameter Tooltips | *[NEW Ergonomic Addition]* | None | Hover tooltip on each parameter & slider label | [ ] Pending |
+| Search Input for Algorithms | `index.html:86` (`#algoSearchInput`) | Left Panel top input | Right Panel A > Algorithm search box inside dropdown | [x] Implemented |
+| Category Filter Chips (`All`, `Diffusion`, `Ordered`, `Pattern`, `Glitch`, `Special`, `Bespoke`) | `index.html:89-97` (`#algoCategoryPills`) | Left Panel category pill buttons | Right Panel A > Interactive category filter chips in picker header | [x] Implemented |
+| Favourites / Pinned Algorithms Row | *[NEW Ergonomic Addition]* | None | Right Panel A > Top row of Algorithm Dropdown (`★ Favorites`) | [x] Implemented |
+| Algorithm Stepping (Prev/Next buttons) | `main.js:168-180` | None (Keyboard only) | Right Panel A > `<` and `>` icon buttons next to dropdown | [x] Implemented |
+| Up/Down Arrow Stepping (fires only when no input/slider/select focused) | `main.js:168-180` | Window keydown handler | Window keydown handler (checks `!isInputActive()`) | [x] Implemented |
+| Threshold Pivot Slider & Number Input | `index.html:112-117` (`#sliderThreshold`) | Left Panel card | Right Panel A > Algorithm Parameters section | [x] Implemented |
+| Diffusion Strength Slider & Number Input | `index.html:120-125` (`#sliderDiffusionStrength`) | Left Panel card | Right Panel A > Algorithm Parameters section | [x] Implemented |
+| Pattern Scale Slider & Number Input | `index.html:128-133` (`#sliderScale`) | Left Panel card | Right Panel A > Algorithm Parameters section | [x] Implemented |
+| Serpentine Scanning Toggle Checkbox | `index.html:136-139` (`#checkSerpentine`) | Left Panel card | Right Panel A > Algorithm Parameters section | [x] Implemented |
+| Noise Amount Slider & Number Input | `main.js:52`, `algorithms.js:463` | Engine state | Right Panel A > Parameters section (visible for noise/glitch algorithms) | [x] Implemented |
+| Section Reset Button (Algorithm Parameters) | `index.html:107` (`#btnResetAlgoParams`) | Left Panel `↺` button | Right Panel A > Section header `Reset` button | [x] Implemented |
+| Global Edit > Reset All | `main.js:485-504` | Top bar implicit | Top Menu Bar > `Edit > Reset All` | [x] Implemented |
+| Per-Slider Double-Click to Reset | *[NEW Ergonomic Addition]* | None | Double-click any slider thumb resets to default | [x] Implemented |
+| One-line Parameter Tooltips | *[NEW Ergonomic Addition]* | None | Hover tooltip on each parameter & slider label | [x] Implemented |
 
 ---
 
@@ -287,6 +287,16 @@
 | `Middle-Click Drag` | Pan canvas | Viewport | [ ] Pending |
 | `F11` | Toggle Fullscreen (menu bar remains accessible) | Global | [ ] Pending |
 | `Up / Down` | Step through previous/next algorithm (fires only when no input/slider/select focused) | Global | [ ] Pending |
+
+---
+
+### 1.12 Favourites [NEW]
+
+| Feature | Details / Storage Key | Current Location | Status |
+|---|---|---|---|
+| Algorithm Favourites Store Slice | Persisted to localStorage `ditherforge_favorites` | `src/state/useAppStore.ts` | [x] Implemented |
+| Favourites Chips Row | Horizontal row of starred algorithm chips above search input | Right Panel A > Top row of Algorithm Dropdown | [x] Implemented |
+| Per-Algorithm Star Toggle | Star icon on each algorithm row in picker (`★` / `☆`) | Right Panel A > Algorithm Listbox items & Stepper | [x] Implemented |
 
 ---
 

@@ -3,7 +3,7 @@ import { create } from 'zustand';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
 // @ts-ignore
-import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
+import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans } from '../dither-engine/palettes.js';
 // @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../dither-engine/effect-stack.js';
 import { createCalibrationPattern } from '../utils/samplePattern';
@@ -152,11 +152,24 @@ interface AppState {
   setGamma: (v: number) => void;
   setDepth: (v: number) => void;
 
-  // Color & Palette (STORED BY ID, not display name)
-  activePalette: string;
+  // Image File Name (Phase 4)
+  imageFileName: string;
+
+  // Color & Palette (Phase 4 - Working palette architecture)
+  activePaletteId: string;
+  activePalette: string; // compatibility alias
+  workingPalette: number[][];
   lockedSwatches: number[];
-  setActivePalette: (paletteId: string) => void;
+  paletteDepth: number;
+  setActivePaletteId: (id: string) => void;
+  setActivePalette: (id: string) => void; // compatibility alias
+  updateSwatchColor: (index: number, rgba: number[]) => void;
   toggleLockSwatch: (index: number) => void;
+  shuffleUnlockedSwatches: () => void;
+  addSwatch: () => void;
+  removeSwatch: (index: number) => void;
+  setPaletteDepth: (n: number) => void;
+  resetToBuiltin: () => void;
 
   // Post-Effects Stack (Phase 5 static chrome)
   effects: EffectItem[];
@@ -279,6 +292,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Image State (initialize with clean calibration pattern)
   hasImage: true,
   imageName: 'calibration_pattern.png',
+  imageFileName: 'calibration_pattern.png',
   imageWidth: 400,
   imageHeight: 300,
   sourceImageData: typeof window !== 'undefined' ? createCalibrationPattern(400, 300) : null,
@@ -286,6 +300,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadImageFromData: (imageData, name = 'uploaded_image.png') => set({
     hasImage: true,
     imageName: name,
+    imageFileName: name,
     imageWidth: imageData.width,
     imageHeight: imageData.height,
     sourceImageData: imageData,
@@ -298,6 +313,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       hasImage: true,
       imageName: 'calibration_pattern.png',
+      imageFileName: 'calibration_pattern.png',
       imageWidth: 400,
       imageHeight: 300,
       sourceImageData: sample,
@@ -309,6 +325,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearImage: () => set({
     hasImage: false,
     imageName: '',
+    imageFileName: '',
     imageWidth: 0,
     imageHeight: 0,
     sourceImageData: null
@@ -433,16 +450,135 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGamma: (gamma) => set({ gamma }),
   setDepth: (depth) => set({ depth }),
 
-  // Palette (STORED BY ID: 'monochrome_1bit', etc.)
-  activePalette: (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('palette')) || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit',
+  // Palette State (Phase 4 - workingPalette architecture)
+  activePaletteId: (() => {
+    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
+    return fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
+  })(),
+  activePalette: (() => {
+    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
+    return fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
+  })(),
+  workingPalette: (() => {
+    if (typeof window !== 'undefined') {
+      const extractMode = new URLSearchParams(window.location.search).get('extract');
+      if (extractMode === 'median_cut') {
+        const sample = createCalibrationPattern(400, 300);
+        return extractPaletteMedianCut(sample, 8);
+      } else if (extractMode === 'kmeans') {
+        const sample = createCalibrationPattern(400, 300);
+        return extractPaletteKMeans(sample, 8, 8);
+      }
+    }
+    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
+    const initialId = fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
+    const found = BUILTIN_PALETTES.find((p: any) => p.id === initialId) || BUILTIN_PALETTES[0];
+    return found ? found.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
+  })(),
   lockedSwatches: [],
-  setActivePalette: (activePalette) => set({ activePalette }),
-  toggleLockSwatch: (index) => set((state) => {
+  paletteDepth: (() => {
+    if (typeof window !== 'undefined') {
+      const pdepth = new URLSearchParams(window.location.search).get('pdepth');
+      if (pdepth) return parseInt(pdepth, 10);
+      const extractMode = new URLSearchParams(window.location.search).get('extract');
+      if (extractMode) return 8;
+    }
+    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
+    const initialId = fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
+    const found = BUILTIN_PALETTES.find((p: any) => p.id === initialId) || BUILTIN_PALETTES[0];
+    return found ? found.colors.length : 2;
+  })(),
+
+  setActivePaletteId: (id: string) => {
+    const pal = BUILTIN_PALETTES.find((p: any) => p.id === id);
+    if (!pal) return;
+    const colors = pal.colors.map((c: number[]) => [...c]);
+    set({
+      activePaletteId: id,
+      activePalette: id,
+      workingPalette: colors,
+      lockedSwatches: [],
+      paletteDepth: colors.length
+    });
+  },
+
+  setActivePalette: (id: string) => {
+    const pal = BUILTIN_PALETTES.find((p: any) => p.id === id);
+    if (!pal) return;
+    const colors = pal.colors.map((c: number[]) => [...c]);
+    set({
+      activePaletteId: id,
+      activePalette: id,
+      workingPalette: colors,
+      lockedSwatches: [],
+      paletteDepth: colors.length
+    });
+  },
+
+  updateSwatchColor: (index: number, rgba: number[]) => set((state) => {
+    if (index < 0 || index >= state.workingPalette.length) return state;
+    const nextPalette = state.workingPalette.map((c, i) => i === index ? [...rgba] : [...c]);
+    return { workingPalette: nextPalette };
+  }),
+
+  toggleLockSwatch: (index: number) => set((state) => {
     const isLocked = state.lockedSwatches.includes(index);
     return {
       lockedSwatches: isLocked
         ? state.lockedSwatches.filter((i) => i !== index)
         : [...state.lockedSwatches, index]
+    };
+  }),
+
+  shuffleUnlockedSwatches: () => set((state) => {
+    const nextPalette = state.workingPalette.map((col, idx) => {
+      if (state.lockedSwatches.includes(idx)) {
+        return [...col];
+      }
+      return [
+        Math.floor(Math.random() * 256),
+        Math.floor(Math.random() * 256),
+        Math.floor(Math.random() * 256),
+        255
+      ];
+    });
+    return { workingPalette: nextPalette };
+  }),
+
+  addSwatch: () => set((state) => {
+    if (state.workingPalette.length >= 32) return state;
+    const nextPalette = [...state.workingPalette.map((c) => [...c]), [128, 128, 128, 255]];
+    return {
+      workingPalette: nextPalette,
+      paletteDepth: Math.max(state.paletteDepth, nextPalette.length)
+    };
+  }),
+
+  removeSwatch: (index: number) => set((state) => {
+    if (state.workingPalette.length <= 2) return state;
+    const nextPalette = state.workingPalette.filter((_, i) => i !== index).map((c) => [...c]);
+    const nextLocks = state.lockedSwatches
+      .filter((i) => i !== index)
+      .map((i) => (i > index ? i - 1 : i));
+    const nextDepth = Math.min(state.paletteDepth, nextPalette.length);
+    return {
+      workingPalette: nextPalette,
+      lockedSwatches: nextLocks,
+      paletteDepth: Math.max(2, nextDepth)
+    };
+  }),
+
+  setPaletteDepth: (n: number) => set((state) => ({
+    paletteDepth: Math.max(2, Math.min(Math.min(32, state.workingPalette.length), n))
+  })),
+
+  resetToBuiltin: () => set((state) => {
+    const pal = BUILTIN_PALETTES.find((p: any) => p.id === state.activePaletteId) || BUILTIN_PALETTES[0];
+    const colors = pal ? pal.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
+    return {
+      workingPalette: colors,
+      lockedSwatches: [],
+      paletteDepth: colors.length
     };
   }),
 

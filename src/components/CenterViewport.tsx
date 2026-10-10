@@ -36,7 +36,8 @@ export const CenterViewport: React.FC = () => {
   const contrast = useAppStore((state) => state.contrast);
   const saturation = useAppStore((state) => state.saturation);
   const gamma = useAppStore((state) => state.gamma);
-  const activePaletteId = useAppStore((state) => state.activePalette);
+  const workingPalette = useAppStore((state) => state.workingPalette);
+  const paletteDepth = useAppStore((state) => state.paletteDepth);
 
   const updateMode = useAppStore((state) => state.updateMode);
   const isDraggingSlider = useAppStore((state) => state.isDraggingSlider);
@@ -251,9 +252,8 @@ export const CenterViewport: React.FC = () => {
       gamma: gamma
     });
 
-    // Step 3: Lookup active palette by ID
-    const palObj = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || BUILTIN_PALETTES[0];
-    const palette = palObj.colors;
+    // Step 3: Use effective working palette (sliced to paletteDepth)
+    const palette = workingPalette.slice(0, paletteDepth);
 
     // Step 4: Apply Dither Algorithm
     const ditherImageData = new ImageData(workingData, width, height);
@@ -307,7 +307,8 @@ export const CenterViewport: React.FC = () => {
     contrast,
     saturation,
     gamma,
-    activePaletteId,
+    workingPalette,
+    paletteDepth,
     algorithmId,
     currentParams.threshold,
     currentParams.scale,
@@ -361,7 +362,8 @@ export const CenterViewport: React.FC = () => {
     contrast,
     saturation,
     gamma,
-    activePaletteId,
+    workingPalette,
+    paletteDepth,
     showBeforeAfter,
     splitRatio,
     isDraggingSlider

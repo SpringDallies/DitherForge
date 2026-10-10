@@ -4,14 +4,15 @@ import { useAppStore } from '../../state/useAppStore';
 // @ts-ignore
 import { ALGORITHM_REGISTRY, ALGORITHM_CATEGORIES } from '../../dither-engine/algorithms.js';
 // @ts-ignore
-import { BUILTIN_PALETTES } from '../../dither-engine/palettes.js';
+import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToRgba, rgbaToHex } from '../../dither-engine/palettes.js';
 // @ts-ignore
 import { BUILTIN_PRESETS } from '../../ui/presets.js';
 import { 
   Lock, 
   Unlock, 
   Trash2, 
-  MoveVertical
+  MoveVertical,
+  Shuffle
 } from 'lucide-react';
 
 const CATEGORY_KEYS = [
@@ -86,11 +87,36 @@ export const RightSidebar: React.FC = () => {
   const resetAllAdjustments = useAppStore((state) => state.resetAllAdjustments);
 
   // Palette & Effects & Reset
-  const activePaletteId = useAppStore((state) => state.activePalette);
-  const setActivePalette = useAppStore((state) => state.setActivePalette);
+  const activePaletteId = useAppStore((state) => state.activePaletteId);
+  const setActivePaletteId = useAppStore((state) => state.setActivePaletteId);
+  const workingPalette = useAppStore((state) => state.workingPalette);
+  const lockedSwatches = useAppStore((state) => state.lockedSwatches);
+  const paletteDepth = useAppStore((state) => state.paletteDepth);
+  const updateSwatchColor = useAppStore((state) => state.updateSwatchColor);
+  const toggleLockSwatch = useAppStore((state) => state.toggleLockSwatch);
+  const shuffleUnlockedSwatches = useAppStore((state) => state.shuffleUnlockedSwatches);
+  const addSwatch = useAppStore((state) => state.addSwatch);
+  const removeSwatch = useAppStore((state) => state.removeSwatch);
+  const setPaletteDepth = useAppStore((state) => state.setPaletteDepth);
+  const resetToBuiltin = useAppStore((state) => state.resetToBuiltin);
+  const imageFileName = useAppStore((state) => state.imageFileName);
+  const sourceImageData = useAppStore((state) => state.sourceImageData);
+  const hasImage = useAppStore((state) => state.hasImage);
+
   const effects = useAppStore((state) => state.effects);
   const resetAll = useAppStore((state) => state.resetAll);
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
+
+  // Local state for Swatch editing popover
+  const [activeSwatchIndex, setActiveSwatchIndex] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const sw = new URLSearchParams(window.location.search).get('swatch');
+      if (sw !== null) return parseInt(sw, 10);
+    }
+    return null;
+  });
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const paletteFileInputRef = useRef<HTMLInputElement>(null);
 
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
 
@@ -303,6 +329,27 @@ export const RightSidebar: React.FC = () => {
     setAlgorithmId(filteredAlgos[nextIdx].id);
   }, [filteredAlgos, currentIndex, setAlgorithmId]);
 
+  // Close swatch popover on outside click or Escape
+  useEffect(() => {
+    if (activeSwatchIndex === null) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setActiveSwatchIndex(null);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveSwatchIndex(null);
+      }
+    };
+    window.addEventListener('mousedown', handleOutside);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [activeSwatchIndex]);
+
   // Up/Down keyboard stepping
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -329,12 +376,94 @@ export const RightSidebar: React.FC = () => {
   const handlePrevPalette = () => {
     if (BUILTIN_PALETTES.length === 0) return;
     const prev = (paletteIndex - 1 + BUILTIN_PALETTES.length) % BUILTIN_PALETTES.length;
-    setActivePalette(BUILTIN_PALETTES[prev].id);
+    setActivePaletteId(BUILTIN_PALETTES[prev].id);
   };
   const handleNextPalette = () => {
     if (BUILTIN_PALETTES.length === 0) return;
     const next = (paletteIndex + 1) % BUILTIN_PALETTES.length;
-    setActivePalette(BUILTIN_PALETTES[next].id);
+    setActivePaletteId(BUILTIN_PALETTES[next].id);
+  };
+
+  const handleResetPalette = () => {
+    const pal = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || BUILTIN_PALETTES[0];
+    const isModified = JSON.stringify(workingPalette) !== JSON.stringify(pal.colors);
+    if (isModified) {
+      if (window.confirm('Reset palette to built-in default colors?')) {
+        resetToBuiltin();
+      }
+    } else {
+      resetToBuiltin();
+    }
+  };
+
+  const handleExportPalette = () => {
+    const palName = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId)?.name || 'Custom Palette';
+    const jsonStr = JSON.stringify({ name: palName, colors: workingPalette }, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const baseName = (imageFileName || 'palette').replace(/\.[^/.]+$/, '');
+    a.download = `${baseName}_${Date.now()}.json`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportPalette = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (
+          parsed &&
+          Array.isArray(parsed.colors) &&
+          parsed.colors.length >= 2 &&
+          parsed.colors.every(
+            (c: any) =>
+              Array.isArray(c) &&
+              c.length === 4 &&
+              c.every((num: any) => typeof num === 'number' && num >= 0 && num <= 255)
+          )
+        ) {
+          useAppStore.setState({
+            activePaletteId: 'custom',
+            activePalette: 'custom',
+            workingPalette: parsed.colors.map((c: number[]) => [...c]),
+            lockedSwatches: [],
+            paletteDepth: Math.min(32, parsed.colors.length)
+          });
+        } else {
+          alert('Invalid palette file');
+        }
+      } catch (err) {
+        alert('Invalid palette file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleExtractMedianCut = () => {
+    if (!sourceImageData) return;
+    const extracted = extractPaletteMedianCut(sourceImageData, 8);
+    useAppStore.setState({
+      workingPalette: extracted.map((c: number[]) => [...c]),
+      lockedSwatches: [],
+      paletteDepth: extracted.length
+    });
+  };
+
+  const handleExtractKMeans = () => {
+    if (!sourceImageData) return;
+    const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
+    useAppStore.setState({
+      workingPalette: extracted.map((c: number[]) => [...c]),
+      lockedSwatches: [],
+      paletteDepth: extracted.length
+    });
   };
 
   const ERROR_DIFFUSION_IDS = new Set([
@@ -378,7 +507,7 @@ export const RightSidebar: React.FC = () => {
   };
 
   // Lookup palette strictly by ID
-  const currentPalette = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || BUILTIN_PALETTES[0];
+  const currentPalette = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || { id: 'custom', name: 'Custom Palette', colors: workingPalette };
 
   // Open file handler for top action block
   const handleOpenImage = () => {
@@ -1075,26 +1204,49 @@ export const RightSidebar: React.FC = () => {
                 type="button"
               >
                 <span className="section-collapse-icon">{collapsedSections.palette ? '▶' : '▼'}</span>
-                <span className="section-title-text">PALETTE ({BUILTIN_PALETTES.length})</span>
+                <span className="section-title-text">PALETTE</span>
               </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="stepper-btn"
+                  onClick={shuffleUnlockedSwatches}
+                  title="Shuffle unlocked swatches"
+                  style={{ width: '22px', height: '22px' }}
+                >
+                  <Shuffle size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="reset-section-btn"
+                  onClick={handleResetPalette}
+                  title="Reset to built-in palette"
+                  style={{ marginBottom: 0, padding: '2px 8px' }}
+                >
+                  Reset
+                </button>
+              </div>
             </div>
 
             {!collapsedSections.palette && (
               <div className="section-content">
+                {/* Built-in Dropdown */}
                 <div className="picker-row">
-                  <span className="picker-label">Preset</span>
+                  <span className="picker-label">Built-in</span>
                   <div className="select-with-steppers">
                     <button className="stepper-btn" onClick={handlePrevPalette} title="Previous Palette">&lt;</button>
                     <select
                       className="control-select"
                       style={{ flex: 1 }}
                       value={activePaletteId}
-                      onChange={(e) => setActivePalette(e.target.value)}
+                      onChange={(e) => setActivePaletteId(e.target.value)}
                     >
+                      {activePaletteId === 'custom' && (
+                        <option value="custom">Custom Palette ({workingPalette.length} colors)</option>
+                      )}
                       {BUILTIN_PALETTES.map((pal: any) => (
                         <option key={pal.id} value={pal.id}>
-                          {pal.name} ({pal.colors.length} colors)
+                          {pal.name} · {pal.colors.length} colors
                         </option>
                       ))}
                     </select>
@@ -1102,27 +1254,202 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Palette name and color count in small mono text (Fix 3) */}
-                <div className="palette-info-label">
-                  {currentPalette.name} · {currentPalette.colors.length} colors
-                </div>
-
-                {/* Swatch grid: 32x32px each, 4px gaps, wrapping naturally (Fix 3) */}
+                {/* Swatch grid: 32x32px each, 4px gaps, wrapping naturally */}
                 <div className="palette-swatches-grid" title="Palette swatches">
-                  {currentPalette.colors.map((c: number[], i: number) => {
-                    const r = c[0].toString(16).padStart(2, '0');
-                    const g = c[1].toString(16).padStart(2, '0');
-                    const b = c[2].toString(16).padStart(2, '0');
-                    const hex = `#${r}${g}${b}`.toUpperCase();
+                  {workingPalette.map((c: number[], i: number) => {
+                    const isLocked = lockedSwatches.includes(i);
+                    const isBeyondDepth = i >= paletteDepth;
+                    const hex = rgbaToHex(c[0], c[1], c[2]).toUpperCase();
                     return (
                       <div
                         key={i}
                         className="palette-swatch-item"
-                        style={{ backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }}
-                        title={hex}
-                      />
+                        style={{
+                          backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})`,
+                          opacity: isBeyondDepth ? 0.35 : 1
+                        }}
+                        onClick={() => setActiveSwatchIndex(activeSwatchIndex === i ? null : i)}
+                        title={`Swatch ${i + 1}: ${hex}${isLocked ? ' (Locked)' : ''}`}
+                      >
+                        {isLocked && (
+                          <div className="palette-swatch-lock-badge">
+                            <Lock size={10} />
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
+
+                  {/* Add swatch button if < 32 */}
+                  {workingPalette.length < 32 && (
+                    <button
+                      type="button"
+                      className="palette-swatch-item"
+                      onClick={addSwatch}
+                      title="Add color swatch (up to 32)"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'transparent',
+                        color: 'var(--text-muted)',
+                        fontSize: '1rem',
+                        borderStyle: 'dashed'
+                      }}
+                    >
+                      +
+                    </button>
+                  )}
+
+                  {/* Swatch Edit Popover */}
+                  {activeSwatchIndex !== null && activeSwatchIndex < workingPalette.length && (
+                    <div
+                      ref={popoverRef}
+                      className="palette-swatch-popover"
+                      style={{
+                        top: Math.floor(activeSwatchIndex / 7) * 36 + 40,
+                        left: Math.min(60, (activeSwatchIndex % 7) * 36)
+                      }}
+                    >
+                      <input
+                        type="color"
+                        className="palette-color-picker-input"
+                        value={rgbaToHex(
+                          workingPalette[activeSwatchIndex][0],
+                          workingPalette[activeSwatchIndex][1],
+                          workingPalette[activeSwatchIndex][2]
+                        )}
+                        onChange={(e) => {
+                          const rgba = hexToRgba(e.target.value);
+                          updateSwatchColor(activeSwatchIndex, rgba);
+                        }}
+                      />
+                      <div className="palette-popover-row">
+                        <input
+                          type="text"
+                          className="palette-hex-input"
+                          maxLength={7}
+                          value={rgbaToHex(
+                            workingPalette[activeSwatchIndex][0],
+                            workingPalette[activeSwatchIndex][1],
+                            workingPalette[activeSwatchIndex][2]
+                          ).toUpperCase()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                              updateSwatchColor(activeSwatchIndex, hexToRgba(val));
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="palette-popover-btn"
+                          onClick={() => toggleLockSwatch(activeSwatchIndex)}
+                          title={lockedSwatches.includes(activeSwatchIndex) ? "Unlock Swatch" : "Lock Swatch"}
+                        >
+                          {lockedSwatches.includes(activeSwatchIndex) ? <Lock size={16} /> : <Unlock size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          className="palette-popover-btn"
+                          disabled={workingPalette.length <= 2}
+                          onClick={() => {
+                            removeSwatch(activeSwatchIndex);
+                            setActiveSwatchIndex(null);
+                          }}
+                          title={workingPalette.length <= 2 ? "Minimum 2 colors required" : "Delete Swatch"}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* From Image Extraction Buttons */}
+                <div className="palette-actions-block">
+                  <span className="palette-actions-label">From Image</span>
+                  <div className="palette-buttons-row">
+                    <button
+                      type="button"
+                      className="palette-action-btn"
+                      disabled={!hasImage || !sourceImageData}
+                      onClick={handleExtractMedianCut}
+                      title={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"}
+                    >
+                      Median Cut
+                    </button>
+                    <button
+                      type="button"
+                      className="palette-action-btn"
+                      disabled={!hasImage || !sourceImageData}
+                      onClick={handleExtractKMeans}
+                      title={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"}
+                    >
+                      K-Means
+                    </button>
+                  </div>
+                </div>
+
+                {/* Depth Slider */}
+                <div className="palette-depth-block">
+                  <div className="slider-label-above">
+                    <span title="Palette depth iteration count">Depth</span>
+                  </div>
+                  <div className="slider-track-input-row">
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="2"
+                      max={Math.min(32, workingPalette.length)}
+                      step="1"
+                      disabled={workingPalette.length <= 2}
+                      value={paletteDepth}
+                      style={getSliderFill(paletteDepth, 2, Math.min(32, workingPalette.length))}
+                      {...sliderPointerProps}
+                      onChange={(e) => setPaletteDepth(Number(e.target.value))}
+                    />
+                    <input
+                      type="number"
+                      className="control-num-input"
+                      min="2"
+                      max={Math.min(32, workingPalette.length)}
+                      step="1"
+                      disabled={workingPalette.length <= 2}
+                      value={paletteDepth}
+                      onChange={(e) => setPaletteDepth(parseInt(e.target.value, 10) || 2)}
+                    />
+                  </div>
+                  <div className="palette-depth-info">
+                    Using {paletteDepth} of {workingPalette.length} colours
+                  </div>
+                </div>
+
+                {/* Import / Export JSON */}
+                <div className="palette-buttons-row" style={{ marginTop: '10px' }}>
+                  <input
+                    type="file"
+                    ref={paletteFileInputRef}
+                    accept=".json"
+                    style={{ display: 'none' }}
+                    onChange={handleImportPalette}
+                  />
+                  <button
+                    type="button"
+                    className="palette-action-btn"
+                    onClick={() => paletteFileInputRef.current?.click()}
+                    title="Import custom palette JSON"
+                  >
+                    ⬇ Import
+                  </button>
+                  <button
+                    type="button"
+                    className="palette-action-btn"
+                    onClick={handleExportPalette}
+                    title="Export current working palette to JSON"
+                  >
+                    ⬆ Export
+                  </button>
                 </div>
               </div>
             )}

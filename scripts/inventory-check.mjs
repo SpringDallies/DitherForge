@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -41,6 +41,79 @@ assert(ALGORITHM_REGISTRY.length === EXPECTED_ALGORITHMS,
 assert(ALGORITHM_CATEGORIES.length === 6,
   `Category count matches 6 (found: ${ALGORITHM_CATEGORIES.length})`,
   `Category count mismatch: expected 6, got ${ALGORITHM_CATEGORIES.length}`);
+
+// 1b. FEATURE_INVENTORY.md Cross-Check (Algorithms Table)
+console.log("\n[1b] FEATURE_INVENTORY.md CROSS-CHECK (Section 1.1 Dithering Algorithms)");
+const inventoryMdPath = path.join(rootDir, 'FEATURE_INVENTORY.md');
+if (!fs.existsSync(inventoryMdPath)) {
+  assert(false, `FEATURE_INVENTORY.md exists`, `FEATURE_INVENTORY.md missing at ${inventoryMdPath}`);
+} else {
+  const inventoryMdContent = fs.readFileSync(inventoryMdPath, 'utf8');
+  const lines = inventoryMdContent.split('\n');
+  const docAlgos = new Map();
+  let inAlgoTable = false;
+  for (const line of lines) {
+    if (line.includes('### 1.1 Dithering Algorithms')) {
+      inAlgoTable = true;
+    } else if (inAlgoTable && line.startsWith('### ')) {
+      break;
+    } else if (inAlgoTable && line.trim().startsWith('|')) {
+      const parts = line.split('|').map(p => p.trim());
+      if (parts.length >= 4 && /^\d+$/.test(parts[1])) {
+        const id = parts[2].replace(/`/g, '').trim();
+        const name = parts[3].trim();
+        docAlgos.set(id, { num: parseInt(parts[1], 10), name });
+      }
+    }
+  }
+
+  // Support intentional failure flags for verification:
+  if (args.includes('--simulate-doc-missing-id')) {
+    docAlgos.delete('floyd_steinberg');
+  }
+  if (args.includes('--simulate-doc-name-mismatch')) {
+    docAlgos.set('atkinson', { num: 2, name: 'Atkinson Wrong Canonical Name' });
+  }
+  if (args.includes('--simulate-doc-extra-row')) {
+    docAlgos.set('extra_unregistered_algo', { num: 99, name: 'Ghost Algorithm' });
+  }
+
+  assert(docAlgos.size === ALGORITHM_REGISTRY.length,
+    `FEATURE_INVENTORY.md algorithm count (${docAlgos.size}) matches registry count (${ALGORITHM_REGISTRY.length})`,
+    `FEATURE_INVENTORY.md algorithm count mismatch: doc has ${docAlgos.size}, registry has ${ALGORITHM_REGISTRY.length}`);
+
+  let missingInDoc = [];
+  let nameMismatches = [];
+  for (const reg of ALGORITHM_REGISTRY) {
+    if (!docAlgos.has(reg.id)) {
+      missingInDoc.push(reg.id);
+    } else {
+      const docEntry = docAlgos.get(reg.id);
+      if (docEntry.name !== reg.name) {
+        nameMismatches.push(`${reg.id} (registry: "${reg.name}" vs doc: "${docEntry.name}")`);
+      }
+    }
+  }
+
+  let extraInDoc = [];
+  for (const [docId] of docAlgos.entries()) {
+    if (!ALGORITHM_REGISTRY.some(r => r.id === docId)) {
+      extraInDoc.push(docId);
+    }
+  }
+
+  assert(missingInDoc.length === 0,
+    `All ${ALGORITHM_REGISTRY.length} registry algorithm IDs present in FEATURE_INVENTORY.md`,
+    `Algorithm IDs in registry missing from FEATURE_INVENTORY.md: [${missingInDoc.join(', ')}]`);
+
+  assert(nameMismatches.length === 0,
+    `All ${ALGORITHM_REGISTRY.length} algorithm names match canonical names in FEATURE_INVENTORY.md`,
+    `Algorithm name mismatches between registry and doc: [${nameMismatches.join(', ')}]`);
+
+  assert(extraInDoc.length === 0,
+    `Zero extraneous algorithm rows in FEATURE_INVENTORY.md`,
+    `Algorithm rows in FEATURE_INVENTORY.md not present in registry: [${extraInDoc.join(', ')}]`);
+}
 
 // 2. Palettes & Extractors
 console.log("\n[2] PALETTES & EXTRACTORS (src/dither-engine/palettes.js)");
@@ -151,11 +224,11 @@ parsedExportButtons.forEach(btn => {
 // Summary
 console.log("\n==================================================================");
 if (hasFailures) {
-  console.error("❌ INVENTORY VERIFICATION FAILED: Registry or source drift detected!");
+  console.error("❌ INVENTORY VERIFICATION FAILED: Registry, doc, or source drift detected!");
   console.log("==================================================================\n");
   process.exit(1);
 } else {
-  console.log("✅ INVENTORY VERIFICATION PASSED: All counts match code registries exactly.");
+  console.log("✅ INVENTORY VERIFICATION PASSED: All counts and FEATURE_INVENTORY.md match exactly.");
   console.log("==================================================================\n");
   process.exit(0);
 }

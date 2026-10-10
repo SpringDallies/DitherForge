@@ -51,6 +51,8 @@ export const RightSidebar: React.FC = () => {
   const favoriteAlgorithmIds = useAppStore((state) => state.favoriteAlgorithmIds);
   const toggleFavoriteAlgorithm = useAppStore((state) => state.toggleFavoriteAlgorithm);
 
+
+
   const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
 
   // Adjustments & Locks
@@ -147,6 +149,85 @@ export const RightSidebar: React.FC = () => {
     setAlgorithmId(filteredAlgos[prevIdx].id);
   }, [filteredAlgos, currentIndex, setAlgorithmId]);
 
+  // Custom listbox state for Algorithm picker (Bug 1 quality fix)
+  const [isAlgoListboxOpen, setIsAlgoListboxOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('dropdown') === 'open';
+    }
+    return false;
+  });
+  const [focusedAlgoIndex, setFocusedAlgoIndex] = useState(0);
+  const listboxRef = useRef<HTMLDivElement>(null);
+  const listboxPanelRef = useRef<HTMLDivElement>(null);
+
+  // Click outside listener for listbox
+  useEffect(() => {
+    if (!isAlgoListboxOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (listboxRef.current && !listboxRef.current.contains(e.target as Node)) {
+        setIsAlgoListboxOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isAlgoListboxOpen]);
+
+  // Sync focused index when listbox opens
+  useEffect(() => {
+    if (isAlgoListboxOpen) {
+      const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
+      setFocusedAlgoIndex(idx >= 0 ? idx : 0);
+    }
+  }, [isAlgoListboxOpen, algorithmId, filteredAlgos]);
+
+  // Scroll focused listbox item into view
+  useEffect(() => {
+    if (isAlgoListboxOpen && listboxPanelRef.current) {
+      const activeEl = listboxPanelRef.current.children[focusedAlgoIndex] as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [focusedAlgoIndex, isAlgoListboxOpen]);
+
+  // Keyboard navigation for listbox
+  const handleListboxKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isAlgoListboxOpen) {
+        setIsAlgoListboxOpen(true);
+        const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
+        setFocusedAlgoIndex(idx >= 0 ? idx : 0);
+      } else {
+        setFocusedAlgoIndex((prev) => (prev < filteredAlgos.length - 1 ? prev + 1 : 0));
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!isAlgoListboxOpen) {
+        setIsAlgoListboxOpen(true);
+        const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
+        setFocusedAlgoIndex(idx >= 0 ? idx : 0);
+      } else {
+        setFocusedAlgoIndex((prev) => (prev > 0 ? prev - 1 : filteredAlgos.length - 1));
+      }
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      if (isAlgoListboxOpen) {
+        e.preventDefault();
+        if (focusedAlgoIndex >= 0 && focusedAlgoIndex < filteredAlgos.length) {
+          setAlgorithmId(filteredAlgos[focusedAlgoIndex].id);
+          setIsAlgoListboxOpen(false);
+        }
+      } else if (e.key === 'Enter') {
+        setIsAlgoListboxOpen(true);
+      }
+    } else if (e.key === 'Escape') {
+      if (isAlgoListboxOpen) {
+        e.preventDefault();
+        setIsAlgoListboxOpen(false);
+      }
+    }
+  };
+
   const handleNextAlgo = useCallback(() => {
     if (filteredAlgos.length === 0) return;
     const nextIdx = (currentIndex + 1) % filteredAlgos.length;
@@ -156,6 +237,7 @@ export const RightSidebar: React.FC = () => {
   // Up/Down keyboard stepping
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isAlgoListboxOpen) return;
       const activeEl = document.activeElement;
       const tagName = activeEl?.tagName?.toLowerCase() || '';
       if (tagName === 'input' || tagName === 'select' || tagName === 'textarea' || (activeEl as HTMLElement)?.isContentEditable) {
@@ -345,18 +427,44 @@ export const RightSidebar: React.FC = () => {
                   <span className="picker-label">Algorithm</span>
                   <div className="select-with-steppers">
                     <button className="stepper-btn" onClick={handlePrevAlgo} title="Previous Algorithm (Up Arrow)">&lt;</button>
-                    <select
-                      className="control-select"
-                      style={{ flex: 1 }}
-                      value={algorithmId}
-                      onChange={(e) => setAlgorithmId(e.target.value)}
-                    >
-                      {filteredAlgos.map((a: any) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="algo-listbox-container" ref={listboxRef}>
+                      <button
+                        type="button"
+                        className={`algo-listbox-trigger ${isAlgoListboxOpen ? 'open' : ''}`}
+                        onClick={() => setIsAlgoListboxOpen(!isAlgoListboxOpen)}
+                        onKeyDown={handleListboxKeyDown}
+                        aria-haspopup="listbox"
+                        aria-expanded={isAlgoListboxOpen}
+                        title={currentAlgo.name}
+                      >
+                        <span className="algo-listbox-label">
+                          {currentAlgo.name}
+                        </span>
+                      </button>
+                      {isAlgoListboxOpen && (
+                        <div className="algo-listbox-panel" role="listbox" ref={listboxPanelRef}>
+                          {filteredAlgos.map((a: any, idx: number) => {
+                            const isSelected = a.id === algorithmId;
+                            const isFocused = idx === focusedAlgoIndex;
+                            return (
+                              <div
+                                key={a.id}
+                                role="option"
+                                aria-selected={isSelected}
+                                className={`algo-listbox-item ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
+                                onClick={() => {
+                                  setAlgorithmId(a.id);
+                                  setIsAlgoListboxOpen(false);
+                                }}
+                                onMouseEnter={() => setFocusedAlgoIndex(idx)}
+                              >
+                                {a.name}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <button className="stepper-btn" onClick={handleNextAlgo} title="Next Algorithm (Down Arrow)">&gt;</button>
                     <button
                       className="stepper-btn"
@@ -498,7 +606,7 @@ export const RightSidebar: React.FC = () => {
                 )}
 
                 {visibleParams.serpentine && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', fontFamily: 'var(--font-mono)' }}>
+                  <div className="serpentine-row">
                     <input
                       type="checkbox"
                       id="serpentineCheckbox"

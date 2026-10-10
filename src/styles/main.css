@@ -191,7 +191,7 @@ body {
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  box-shadow: 0 0 10px var(--accent-glow);
+  /* box-shadow removed for perf */
   object-fit: cover;
 }
 
@@ -246,8 +246,8 @@ body {
   border: none;
 }
 .btn-menu.primary:hover {
-  box-shadow: 0 0 14px var(--accent-glow);
-  transform: translateY(-1px);
+  /* box-shadow removed for perf */
+  /* translateY removed for perf */
 }
 
 /* --- Main Layout Studio Grid --- */
@@ -262,7 +262,7 @@ body {
 /* Side Panels */
 .studio-panel {
   background: var(--bg-panel);
-  backdrop-filter: blur(12px);
+  /* backdrop-filter removed for perf */
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -405,7 +405,7 @@ body {
 .algo-item-card.active {
   background: rgba(0, 255, 204, 0.08);
   border-color: var(--accent-cyan);
-  box-shadow: 0 0 10px rgba(0, 255, 204, 0.15);
+  /* box-shadow removed for perf */
 }
 
 .algo-item-header {
@@ -437,10 +437,10 @@ body {
   height: 100%;
   cursor: pointer;
   position: relative;
-  transition: transform 0.15s;
+  /* transition removed for perf */
 }
 .swatch-color:hover {
-  transform: scaleY(1.15);
+  /* transform removed for perf */
   z-index: 2;
 }
 
@@ -512,11 +512,11 @@ body {
   border-radius: 50%;
   background: var(--accent-cyan);
   cursor: pointer;
-  box-shadow: 0 0 6px var(--accent-glow);
-  transition: transform 0.1s;
+  /* box-shadow removed for perf */
+  /* transition removed for perf */
 }
 .slider-input::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  /* scale removed for perf */
 }
 
 /* Checkbox Toggle Row */
@@ -628,7 +628,7 @@ canvas#mainViewportCanvas {
   bottom: 0;
   width: 2px;
   background: var(--accent-cyan);
-  box-shadow: 0 0 10px var(--accent-cyan);
+  /* box-shadow removed for perf */
   cursor: ew-resize;
   z-index: 20;
 }
@@ -763,7 +763,7 @@ canvas#mainViewportCanvas {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
+  /* backdrop-filter removed for perf */
   display: flex;
   align-items: center;
   justify-content: center;

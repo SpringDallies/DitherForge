@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/tooling/cli/schema.json",
+  "productName": "DitherForge",
+  "version": "1.0.0",
+  "identifier": "com.ditherforge.app",
+  "build": {
+    "beforeDevCommand": "",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "DitherForge — Retro Synthesis & Precision Dithering Suite",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' blob: data: 'unsafe-inline' 'unsafe-eval';"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Standalone Retro Image, Video & Animation Dithering Suite",
+    "longDescription": "DitherForge is a standalone desktop application for creating authentic retro-style dithering effects on images, video, and frame sequences using 63 public-domain and bespoke algorithms, stackable post-effects, and multi-format vector/character grid exports.",
+    "category": "GraphicsAndDesign"
+  }
+}

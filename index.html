@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark_pro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DitherForge — Retro Synthesis & Precision Dithering Suite</title>
+  <meta name="description" content="Standalone desktop and web application for high-performance retro image, video, and animation dithering with 63 clean-room algorithms, color integration, effect stack, and multi-format export.">
+  <link rel="stylesheet" href="./src/styles/main.css">
+</head>
+<body>
+
+  <!-- Top Menu Bar -->
+  <header class="top-menu-bar">
+    <div class="brand-section">
+      <img src="./assets/logo.jpg" alt="DitherForge Anvil Logo" class="brand-logo-img" id="appLogoImg">
+      <span class="brand-title">DITHERFORGE</span>
+      <span class="brand-badge">V1.0 PRO</span>
+    </div>
+
+    <div class="top-nav-items">
+      <!-- File Operations -->
+      <button class="btn-menu" id="btnOpenImage" title="Open Image File">
+        📁 Open Image
+      </button>
+      <button class="btn-menu" id="btnOpenVideo" title="Open Video File">
+        🎥 Open Video
+      </button>
+      <button class="btn-menu" id="btnSampleImage" title="Generate Sample Test Pattern">
+        ✨ Load Sample
+      </button>
+      <button class="btn-menu" id="btnBatchModal" title="Batch Process Multiple Images">
+        📑 Batch
+      </button>
+
+      <span style="color: var(--border-color)">|</span>
+
+      <!-- Preset Selector -->
+      <label style="font-size: 0.8rem; color: var(--text-muted); display:flex; align-items:center; gap:4px;">
+        Preset:
+        <select id="presetDropdown" class="search-input-box" style="width: 170px; padding: 4px 8px; font-size: 0.8rem;">
+          <!-- Populated dynamically -->
+        </select>
+      </label>
+
+      <!-- Theme Switcher -->
+      <label style="font-size: 0.8rem; color: var(--text-muted); display:flex; align-items:center; gap:4px;">
+        Theme:
+        <select id="themeSelector" class="search-input-box" style="width: 130px; padding: 4px 8px; font-size: 0.8rem;">
+          <option value="dark_pro">Dark Pro</option>
+          <option value="crt_green">CRT Phosphor</option>
+          <option value="cyberpunk_neon">Cyberpunk</option>
+          <option value="gameboy_olive">GameBoy</option>
+          <option value="retro_mac">Retro Mac</option>
+          <option value="vaporwave_pink">Vaporwave</option>
+        </select>
+      </label>
+
+      <!-- Performance Mode -->
+      <label style="font-size: 0.8rem; color: var(--text-muted); display:flex; align-items:center; gap:4px;">
+        Engine:
+        <select id="perfModeSelector" class="search-input-box" style="width: 90px; padding: 4px 8px; font-size: 0.8rem;">
+          <option value="full">Full</option>
+          <option value="live" selected>Live</option>
+          <option value="still">Still</option>
+        </select>
+      </label>
+
+      <span style="color: var(--border-color)">|</span>
+
+      <button class="btn-menu" id="btnAlgorithmDocs" title="Open Algorithm Reference Guide (1,500+ Lines)">
+        📖 Reference Docs
+      </button>
+
+      <button class="btn-menu" id="btnLicenseModal" title="License & Clean-Room Info">
+        🔑 License
+      </button>
+
+      <button class="btn-menu primary" id="btnQuickExport" title="Quick Export">
+        💾 Export
+      </button>
+    </div>
+  </header>
+
+  <!-- Main 3-Column Studio Body -->
+  <main class="app-studio-body">
+
+    <!-- LEFT COLUMN: Algorithm Selector & Palette Engine -->
+    <aside class="studio-panel" id="leftStudioPanel">
+      <div class="panel-tabs-header">
+        <button class="panel-tab active" id="tabBtnAlgorithms">63 Algorithms</button>
+        <button class="panel-tab" id="tabBtnPalettes">Color & Palettes</button>
+      </div>
+
+      <!-- Tab Content: Algorithms -->
+      <div class="panel-scroll-content" id="tabContentAlgorithms">
+        <!-- Search Box -->
+        <input type="text" class="search-input-box" id="algoSearchInput" placeholder="🔍 Search 63 algorithms (or use ↑/↓ keys)...">
+
+        <!-- Category Pills -->
+        <div class="algo-category-pills" id="algoCategoryPills">
+          <button class="cat-pill active" data-category="all">All (63)</button>
+          <button class="cat-pill" data-category="error_diffusion">Diffusion (15)</button>
+          <button class="cat-pill" data-category="ordered">Ordered (5)</button>
+          <button class="cat-pill" data-category="pattern">Pattern (8)</button>
+          <button class="cat-pill" data-category="glitch">Glitch (17)</button>
+          <button class="cat-pill" data-category="special">Special (16)</button>
+          <button class="cat-pill" data-category="bespoke">Bespoke (2)</button>
+        </div>
+
+        <!-- Algorithm List -->
+        <div class="algo-items-list" id="algoItemsList">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <!-- Core Algorithm Sliders -->
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">⚡ Algorithm Parameters</span>
+            <button class="btn-icon" id="btnResetAlgoParams" title="Reset to Defaults">↺</button>
+          </div>
+
+          <div class="control-row">
+            <div class="control-label-row">
+              <span>Threshold Pivot</span>
+              <span class="control-val" id="valThreshold">0.50</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderThreshold" min="0" max="1" step="0.01" value="0.5">
+          </div>
+
+          <div class="control-row">
+            <div class="control-label-row">
+              <span>Diffusion Strength</span>
+              <span class="control-val" id="valDiffusionStrength">1.00</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderDiffusionStrength" min="0" max="2" step="0.05" value="1.0">
+          </div>
+
+          <div class="control-row">
+            <div class="control-label-row">
+              <span>Pattern Scale / Frequency</span>
+              <span class="control-val" id="valScale">1.00x</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderScale" min="0.2" max="5.0" step="0.1" value="1.0">
+          </div>
+
+          <div class="toggle-row">
+            <span>Serpentine Scanning</span>
+            <input type="checkbox" id="checkSerpentine" checked style="accent-color: var(--accent-cyan); width: 16px; height: 16px; cursor: pointer;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Palettes -->
+      <div class="panel-scroll-content" id="tabContentPalettes" style="display: none;">
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">🎨 Built-in Palettes</span>
+          </div>
+          <select id="paletteSelectDropdown" class="search-input-box">
+            <!-- Populated dynamically -->
+          </select>
+          <div class="palette-swatches-strip" id="palettePreviewStrip">
+            <!-- Swatches preview -->
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">🔮 Image Color Extraction</span>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;">
+            Extract optimal color clusters directly from the loaded image with clean-room quantizers.
+          </p>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-menu" id="btnExtractMedianCut" style="flex:1; justify-content:center; background:var(--bg-tertiary);">
+              Median Cut
+            </button>
+            <button class="btn-menu" id="btnExtractKMeans" style="flex:1; justify-content:center; background:var(--bg-tertiary);">
+              K-Means
+            </button>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">🎛️ Palette Editor & Depth</span>
+            <button class="btn-icon" id="btnShufflePalette" title="Randomize Unlocked Swatches">🔀</button>
+          </div>
+
+          <div class="control-row">
+            <div class="control-label-row">
+              <span>Depth Iterations</span>
+              <span class="control-val" id="valPaletteDepth">16</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderPaletteDepth" min="1" max="32" step="1" value="16">
+          </div>
+
+          <!-- Swatches Editor Grid -->
+          <div class="palette-editor-grid" id="paletteEditorGrid">
+            <!-- Swatches with lock toggles, color input & delete -->
+          </div>
+
+          <div style="display: flex; gap: 6px; margin-top: 6px;">
+            <button class="btn-menu" id="btnAddColorSwatch" style="flex: 1; justify-content: center; background: var(--bg-tertiary);">
+              + Add Color
+            </button>
+            <button class="btn-menu" id="btnExportPaletteJson" style="background: var(--bg-tertiary);" title="Export Palette JSON">
+              📤
+            </button>
+            <button class="btn-menu" id="btnImportPaletteJson" style="background: var(--bg-tertiary);" title="Import Palette JSON">
+              📥
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER COLUMN: Canvas Viewport & Timeline Scrubber -->
+    <section class="studio-center-area">
+      <!-- Viewport Controls Toolbar -->
+      <div class="viewport-toolbar">
+        <div class="toolbar-group">
+          <button class="btn-icon" id="btnZoomOut" title="Zoom Out">-</button>
+          <span class="zoom-indicator" id="zoomLevelIndicator">100%</span>
+          <button class="btn-icon" id="btnZoomIn" title="Zoom In">+</button>
+          <button class="btn-icon" id="btnZoomFit" title="Fit to Window">⛶</button>
+          <button class="btn-icon" id="btnZoomActual" title="100% Actual Size">1:1</button>
+        </div>
+
+        <div class="toolbar-group">
+          <button class="btn-menu" id="btnToggleBeforeAfter" style="font-size: 0.78rem;">
+            👁️ Before/After
+          </button>
+          <button class="btn-menu" id="btnToggleSplitScreen" style="font-size: 0.78rem;">
+            ↔️ Split Slider
+          </button>
+          <button class="btn-icon" id="btnCopyClipboard" title="Copy Processed Image to Clipboard">
+            📋
+          </button>
+          <button class="btn-icon" id="btnToggleFullscreen" title="Toggle Fullscreen">
+            ⛶
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas Stage -->
+      <div class="canvas-container" id="canvasViewportContainer">
+        <div class="canvas-stage-wrapper" id="canvasStageWrapper">
+          <canvas id="mainViewportCanvas" width="800" height="600"></canvas>
+          <!-- Split Screen Divider -->
+          <div class="split-slider-line" id="splitSliderLine" style="display: none; left: 50%;">
+            <div class="split-slider-handle">↔</div>
+          </div>
+        </div>
+
+        <!-- Dropzone / Empty State Overlay -->
+        <div class="dropzone-overlay" id="dropzoneOverlay" style="display: none;">
+          <div class="dropzone-icon">🖼️</div>
+          <div class="dropzone-text">Drop Any Image or Video File Here</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">
+            Supports PNG, JPG, WebP, GIF, BMP, TIFF, MP4, WebM
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button class="btn-menu primary" id="btnDropzoneLoadSample">Load Sample Pattern</button>
+            <button class="btn-menu" id="btnDropzoneBrowseFile" style="background: var(--bg-tertiary);">Browse File</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden File Inputs -->
+      <input type="file" id="fileInputImage" accept="image/*" style="display: none;">
+      <input type="file" id="fileInputVideo" accept="video/*" style="display: none;">
+      <input type="file" id="fileInputPalette" accept=".json" style="display: none;">
+      <input type="file" id="fileInputPreset" accept=".json" style="display: none;">
+      <input type="file" id="fileInputBatch" accept="image/*" multiple style="display: none;">
+
+      <!-- Bottom Timeline & Animation Bar -->
+      <div class="timeline-bottom-bar" id="timelineBar">
+        <div class="timeline-controls-row">
+          <div class="timeline-playback-btns">
+            <button class="btn-icon" id="btnTimelineRewind" title="Rewind">⏮</button>
+            <button class="btn-icon" id="btnTimelinePlayPause" title="Play / Pause Animation" style="width: 32px; height: 32px;">▶</button>
+            <button class="btn-icon" id="btnTimelineLoop" class="active" title="Toggle Loop">🔁</button>
+            <span class="timeline-time-display" id="timelineFrameDisplay">Frame 0 / 60</span>
+          </div>
+
+          <!-- 9 CRT Temporal Noise Profiles -->
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.78rem; color: var(--text-muted);">CRT Temporal Noise:</span>
+            <select id="temporalPatternSelect" class="search-input-box" style="width: 220px; padding: 3px 8px; font-size: 0.78rem;">
+              <!-- 9 patterns populated dynamically -->
+            </select>
+            <button class="btn-menu" id="btnConvertStillToAnim" style="font-size: 0.78rem; background: var(--bg-tertiary);" title="Convert still image into looping animated retro stream">
+              🎬 Animate Still
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.78rem; color: var(--text-muted);">FPS:</span>
+            <select id="fpsSelector" class="search-input-box" style="width: 60px; padding: 3px 6px; font-size: 0.78rem;">
+              <option value="12">12</option>
+              <option value="24">24</option>
+              <option value="30" selected>30</option>
+              <option value="60">60</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="timeline-scrubber-track">
+          <input type="range" class="slider-input scrubber-slider" id="timelineScrubber" min="0" max="60" value="0">
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: Adjustments, Effect Stack & Export Hub -->
+    <aside class="studio-panel right-panel" id="rightStudioPanel">
+      <div class="panel-tabs-header">
+        <button class="panel-tab active" id="tabBtnTweaks">Adjustments & FX</button>
+        <button class="panel-tab" id="tabBtnExports">Export Hub</button>
+      </div>
+
+      <!-- Tab Content: Tweaks & Effect Stack -->
+      <div class="panel-scroll-content" id="tabContentTweaks">
+        <!-- Common Tweaks Card -->
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">🎚️ Image Adjustments</span>
+            <button class="btn-icon" id="btnShuffleTweaks" title="Randomize Unlocked Tweaks">🔀</button>
+          </div>
+
+          <!-- Brightness -->
+          <div class="control-row">
+            <div class="control-label-row">
+              <span style="display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="lockBrightness" title="Lock when randomizing"> Brightness
+              </span>
+              <span class="control-val" id="valBrightness">0.00</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderBrightness" min="-1" max="1" step="0.02" value="0">
+          </div>
+
+          <!-- Contrast -->
+          <div class="control-row">
+            <div class="control-label-row">
+              <span style="display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="lockContrast" title="Lock when randomizing"> Contrast
+              </span>
+              <span class="control-val" id="valContrast">0.00</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderContrast" min="-1" max="1" step="0.02" value="0">
+          </div>
+
+          <!-- Saturation -->
+          <div class="control-row">
+            <div class="control-label-row">
+              <span style="display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="lockSaturation" title="Lock when randomizing"> Saturation
+              </span>
+              <span class="control-val" id="valSaturation">0.00</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderSaturation" min="-1" max="1" step="0.02" value="0">
+          </div>
+
+          <!-- Gamma -->
+          <div class="control-row">
+            <div class="control-label-row">
+              <span style="display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="lockGamma" title="Lock when randomizing"> Gamma
+              </span>
+              <span class="control-val" id="valGamma">1.00</span>
+            </div>
+            <input type="range" class="slider-input" id="sliderGamma" min="0.2" max="2.5" step="0.05" value="1.0">
+          </div>
+        </div>
+
+        <!-- Stackable Reorderable Post-Effects Stack -->
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">📚 Effect Stack</span>
+            <!-- Add Effect "+" dropdown -->
+            <select id="addEffectDropdown" class="search-input-box" style="width: 130px; padding: 4px 6px; font-size: 0.78rem;">
+              <option value="">+ Add Effect...</option>
+              <option value="glow">Ignition Glow</option>
+              <option value="blur_sharpen">Blur / Sharpen</option>
+              <option value="chromatic_aberration">Chromatic Aberration</option>
+              <option value="jpeg_artifacts">JPEG Artifacts</option>
+              <option value="halftone">CMYK Halftone</option>
+              <option value="scanlines">CRT Scanlines</option>
+              <option value="pixelate">Pixelate</option>
+              <option value="curves_levels">Curves & Levels</option>
+              <option value="vignette">Vignette Falloff</option>
+            </select>
+          </div>
+
+          <div class="effect-stack-container" id="effectStackList">
+            <!-- Active effect cards rendered here -->
+          </div>
+        </div>
+
+        <!-- Preset Manager Card -->
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">💾 Preset Manager</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" class="search-input-box" id="presetNameInput" placeholder="Preset name...">
+            <button class="btn-menu" id="btnSavePreset" style="background: var(--bg-tertiary); font-size: 0.8rem;">
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Export Hub -->
+      <div class="panel-scroll-content" id="tabContentExports" style="display: none;">
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">📦 Raster Exports</span>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--text-muted);">
+            High-fidelity dither raster output with original color quantization.
+          </p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="btn-menu" id="btnExportPng" style="background: var(--bg-tertiary); justify-content: center;">
+              PNG (Lossless)
+            </button>
+            <button class="btn-menu" id="btnExportJpg" style="background: var(--bg-tertiary); justify-content: center;">
+              JPG (Web)
+            </button>
+            <button class="btn-menu" id="btnExportWebp" style="background: var(--bg-tertiary); justify-content: center;">
+              WebP (Modern)
+            </button>
+            <button class="btn-menu" id="btnExportClipboard" style="background: var(--bg-tertiary); justify-content: center;">
+              📋 Clipboard
+            </button>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">📐 Vector & Character Grids</span>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--text-muted);">
+            SVG contours for laser cutting, plotting & true Unicode character matrices.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn-menu" id="btnExportSvg" style="background: var(--bg-tertiary); justify-content: center;">
+              SVG Vector Contours
+            </button>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn-menu" id="btnExportAscii" style="flex:1; background: var(--bg-tertiary); justify-content: center;">
+                ASCII Text
+              </button>
+              <button class="btn-menu" id="btnExportBlocks" style="flex:1; background: var(--bg-tertiary); justify-content: center;">
+                Unicode Blocks
+              </button>
+              <button class="btn-menu" id="btnExportBraille" style="flex:1; background: var(--bg-tertiary); justify-content: center;">
+                Braille Matrix
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-title-row">
+            <span class="card-title">🎥 Video & Animation Exports</span>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--text-muted);">
+            Render animated dither streams, CRT temporal variations, and loops.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn-menu primary" id="btnRecordVideo" style="justify-content: center;">
+              Record MP4 / WebM
+            </button>
+            <button class="btn-menu" id="btnExportFrameSequence" style="background: var(--bg-tertiary); justify-content: center;">
+              PNG Frame Sequence
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- MODAL: Algorithm Reference Documentation (1,500+ Lines) -->
+  <div class="modal-backdrop" id="modalDocsBackdrop" style="display: none;">
+    <div class="modal-dialog" style="max-width: 960px; height: 85vh;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.2rem; font-weight: 800; color: var(--accent-cyan);">📖 DitherForge Algorithm Reference Manual</span>
+          <span class="brand-badge">Comprehensive Spec</span>
+        </div>
+        <button class="btn-icon" id="btnCloseDocsModal">✕</button>
+      </div>
+      <div class="modal-body" id="docsModalContent" style="font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap; background: var(--bg-primary); color: #cbd5e1; padding: 24px;">
+        <!-- Loaded dynamically from ALGORITHM_REFERENCE.md -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn-menu" id="btnDownloadDocsMd" style="background: var(--bg-tertiary);">Download Markdown</button>
+        <button class="btn-menu primary" id="btnCloseDocsFooter">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Batch Processing -->
+  <div class="modal-backdrop" id="modalBatchBackdrop" style="display: none;">
+    <div class="modal-dialog" style="max-width: 700px;">
+      <div class="modal-header">
+        <span style="font-weight: 700;">📑 Batch Processing Hub</span>
+        <button class="btn-icon" id="btnCloseBatchModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Apply the active dither algorithm, color palette, and effect stack across multiple image files simultaneously.
+        </p>
+        <div style="border: 2px dashed var(--border-color); padding: 24px; text-align: center; border-radius: 8px; margin-bottom: 16px;">
+          <button class="btn-menu primary" id="btnBatchSelectFiles">+ Select Images</button>
+        </div>
+        <div id="batchFileList" style="max-height: 200px; overflow-y: auto;">
+          <!-- Enqueued files -->
+        </div>
+        <div id="batchProgressContainer" style="margin-top: 14px; display: none;">
+          <div style="font-size: 0.8rem; margin-bottom: 4px; display: flex; justify-content: space-between;">
+            <span>Processing batch queue...</span>
+            <span id="batchProgressPercent">0%</span>
+          </div>
+          <div style="height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden;">
+            <div id="batchProgressBar" style="width: 0%; height: 100%; background: var(--accent-cyan); transition: width 0.2s;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-menu" id="btnCancelBatch">Cancel</button>
+        <button class="btn-menu primary" id="btnRunBatch">Process All & Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: License Key & Provenance -->
+  <div class="modal-backdrop" id="modalLicenseBackdrop" style="display: none;">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header">
+        <span style="font-weight: 700;">🔑 DitherForge License & Clean-Room Attestation</span>
+        <button class="btn-icon" id="btnCloseLicenseModal">✕</button>
+      </div>
+      <div class="modal-body" style="font-size: 0.85rem; line-height: 1.5; color: var(--text-muted);">
+        <p style="margin-bottom: 12px; color: var(--text-main);">
+          <strong>Clean-Room Status:</strong> 100% Independently Authored Clean-Room Implementation. No proprietary binaries or decompiled code were inspected or used.
+        </p>
+        <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+          <div style="font-size: 0.8rem; color: var(--accent-amber); font-weight: 600; margin-bottom: 4px;">License Registration:</div>
+          <input type="text" id="licenseKeyInput" class="search-input-box" placeholder="XXXX-XXXX-XXXX-XXXX" value="DFRG-2026-RETRO-PRO-8891">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <span style="font-size: 0.75rem; color: var(--accent-cyan);">Status: Commercial Unlimited License</span>
+            <button class="btn-menu" id="btnValidateLicense" style="background: var(--bg-secondary); font-size: 0.75rem;">Validate</button>
+          </div>
+        </div>
+        <p style="font-size: 0.78rem;">
+          Temporary cache buffers: <button class="btn-menu" id="btnPurgeCache" style="padding: 2px 8px; font-size: 0.75rem; background: var(--bg-tertiary);">Purge Temp Buffers</button>
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-menu primary" id="btnCloseLicenseFooter">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript App Entrypoint -->
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

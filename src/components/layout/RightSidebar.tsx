@@ -187,11 +187,6 @@ export const RightSidebar: React.FC = () => {
   // Scroll the selected item into view, once, on open.
   useEffect(() => {
     if (!isAlgoListboxOpen) return;
-    const scrollParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('scroll') : null;
-    if (scrollParam === 'bottom' && listboxPanelRef.current) {
-      listboxPanelRef.current.scrollTop = listboxPanelRef.current.scrollHeight;
-      return;
-    }
     const selected = listboxPanelRef.current?.querySelector('[data-selected="true"]') as HTMLElement;
     if (selected) {
       selected.scrollIntoView({ block: 'nearest' });

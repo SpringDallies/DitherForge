@@ -370,3 +370,97 @@ export function extractPaletteKMeans(imageData, k = 8, iterations = 8) {
 
   return centroids.map(c => [c[0], c[1], c[2], 255]);
 }
+
+// Octree Quantization Extraction
+export function extractPaletteOctree(imageData, maxColors = 8) {
+  const data = imageData.data;
+  const step = Math.max(1, Math.floor((data.length / 4) / 4000));
+
+  class OctreeNode {
+    constructor(level) {
+      this.level = level;
+      this.isLeaf = level === 8;
+      this.pixelCount = 0;
+      this.r = 0;
+      this.g = 0;
+      this.b = 0;
+      this.children = new Array(8).fill(null);
+    }
+  }
+
+  const levels = Array.from({ length: 8 }, () => []);
+  const root = new OctreeNode(0);
+  let leafCount = 0;
+
+  function addColor(node, r, g, b, level) {
+    if (node.isLeaf) {
+      if (node.pixelCount === 0) leafCount++;
+      node.pixelCount++;
+      node.r += r;
+      node.g += g;
+      node.b += b;
+      return;
+    }
+
+    const shift = 7 - level;
+    const idx = (((r >> shift) & 1) << 2) | (((g >> shift) & 1) << 1) | ((b >> shift) & 1);
+    if (!node.children[idx]) {
+      node.children[idx] = new OctreeNode(level + 1);
+      if (level + 1 < 8) {
+        levels[level + 1].push(node.children[idx]);
+      }
+    }
+    addColor(node.children[idx], r, g, b, level + 1);
+  }
+
+  for (let i = 0; i < data.length; i += 4 * step) {
+    if (data[i + 3] > 64) {
+      addColor(root, data[i], data[i + 1], data[i + 2], 0);
+    }
+  }
+
+  // Reduce tree until leafCount <= maxColors
+  for (let lvl = 7; lvl >= 0 && leafCount > maxColors; lvl--) {
+    const nodes = levels[lvl];
+    while (nodes.length > 0 && leafCount > maxColors) {
+      const node = nodes.pop();
+      if (!node || node.isLeaf) continue;
+
+      let childLeaves = 0;
+      for (let c = 0; c < 8; c++) {
+        if (node.children[c]) {
+          node.pixelCount += node.children[c].pixelCount;
+          node.r += node.children[c].r;
+          node.g += node.children[c].g;
+          node.b += node.children[c].b;
+          childLeaves++;
+          node.children[c] = null;
+        }
+      }
+      if (childLeaves > 0) {
+        node.isLeaf = true;
+        leafCount -= (childLeaves - 1);
+      }
+    }
+  }
+
+  const palette = [];
+  function collectLeaves(node) {
+    if (!node) return;
+    if (node.isLeaf && node.pixelCount > 0) {
+      palette.push([
+        Math.round(node.r / node.pixelCount),
+        Math.round(node.g / node.pixelCount),
+        Math.round(node.b / node.pixelCount),
+        255
+      ]);
+      return;
+    }
+    for (let c = 0; c < 8; c++) {
+      if (node.children[c]) collectLeaves(node.children[c]);
+    }
+  }
+
+  collectLeaves(root);
+  return palette.length > 0 ? palette : [[0, 0, 0, 255], [255, 255, 255, 255]];
+}

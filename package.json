@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "serve": "python -m http.server 8080"
+    "serve": "python -m http.server 8080",
+    "inventory:check": "node scripts/inventory-check.mjs"
   },
   "dependencies": {},
   "devDependencies": {

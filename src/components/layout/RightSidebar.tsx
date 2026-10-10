@@ -184,23 +184,20 @@ export const RightSidebar: React.FC = () => {
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [isAlgoListboxOpen]);
 
-  // Sync focused index when listbox opens
+  // Scroll the selected item into view, once, on open.
   useEffect(() => {
-    if (isAlgoListboxOpen) {
-      const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
-      setFocusedAlgoIndex(idx >= 0 ? idx : 0);
+    if (!isAlgoListboxOpen) return;
+    const scrollParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('scroll') : null;
+    if (scrollParam === 'bottom' && listboxPanelRef.current) {
+      listboxPanelRef.current.scrollTop = listboxPanelRef.current.scrollHeight;
+      return;
     }
-  }, [isAlgoListboxOpen, algorithmId, filteredAlgos]);
-
-  // Scroll focused listbox item into view
-  useEffect(() => {
-    if (isAlgoListboxOpen && listboxPanelRef.current) {
-      const activeEl = listboxPanelRef.current.children[focusedAlgoIndex] as HTMLElement;
-      if (activeEl) {
-        activeEl.scrollIntoView({ block: 'nearest' });
-      }
+    const selected = listboxPanelRef.current?.querySelector('[data-selected="true"]') as HTMLElement;
+    if (selected) {
+      selected.scrollIntoView({ block: 'nearest' });
     }
-  }, [focusedAlgoIndex, isAlgoListboxOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAlgoListboxOpen]);
 
   // Keyboard navigation for listbox
   const handleListboxKeyDown = (e: React.KeyboardEvent) => {
@@ -211,7 +208,12 @@ export const RightSidebar: React.FC = () => {
         const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
         setFocusedAlgoIndex(idx >= 0 ? idx : 0);
       } else {
-        setFocusedAlgoIndex((prev) => (prev < filteredAlgos.length - 1 ? prev + 1 : 0));
+        setFocusedAlgoIndex((prev) => {
+          const next = prev < filteredAlgos.length - 1 ? prev + 1 : 0;
+          const target = listboxPanelRef.current?.children[next] as HTMLElement;
+          target?.scrollIntoView({ block: 'nearest' });
+          return next;
+        });
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -220,7 +222,12 @@ export const RightSidebar: React.FC = () => {
         const idx = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
         setFocusedAlgoIndex(idx >= 0 ? idx : 0);
       } else {
-        setFocusedAlgoIndex((prev) => (prev > 0 ? prev - 1 : filteredAlgos.length - 1));
+        setFocusedAlgoIndex((prev) => {
+          const next = prev > 0 ? prev - 1 : filteredAlgos.length - 1;
+          const target = listboxPanelRef.current?.children[next] as HTMLElement;
+          target?.scrollIntoView({ block: 'nearest' });
+          return next;
+        });
       }
     } else if (e.key === 'Enter' || e.key === ' ') {
       if (isAlgoListboxOpen) {
@@ -453,29 +460,33 @@ export const RightSidebar: React.FC = () => {
                           {currentAlgo.name}
                         </span>
                       </button>
-                      {isAlgoListboxOpen && (
-                        <div className="algo-listbox-panel" role="listbox" ref={listboxPanelRef} onWheel={(e) => e.stopPropagation()}>
-                          {filteredAlgos.map((a: any, idx: number) => {
-                            const isSelected = a.id === algorithmId;
-                            const isFocused = idx === focusedAlgoIndex;
-                            return (
-                              <div
-                                key={a.id}
-                                role="option"
-                                aria-selected={isSelected}
-                                className={`algo-listbox-item ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
-                                onClick={() => {
-                                  setAlgorithmId(a.id);
-                                  setIsAlgoListboxOpen(false);
-                                }}
-                                onMouseEnter={() => setFocusedAlgoIndex(idx)}
-                              >
-                                {a.name}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                      <div
+                        className="algo-listbox-panel"
+                        role="listbox"
+                        ref={listboxPanelRef}
+                        style={{ display: isAlgoListboxOpen ? 'block' : 'none' }}
+                        onWheel={(e) => e.stopPropagation()}
+                      >
+                        {filteredAlgos.map((a: any, idx: number) => {
+                          const isSelected = a.id === algorithmId;
+                          const isFocused = idx === focusedAlgoIndex;
+                          return (
+                            <div
+                              key={a.id}
+                              role="option"
+                              aria-selected={isSelected}
+                              data-selected={isSelected ? "true" : "false"}
+                              className={`algo-listbox-item ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
+                              onClick={() => {
+                                setAlgorithmId(a.id);
+                                setIsAlgoListboxOpen(false);
+                              }}
+                            >
+                              {a.name}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                     <button className="stepper-btn" onClick={handleNextAlgo} title="Next Algorithm (Down Arrow)">&gt;</button>
                     <button

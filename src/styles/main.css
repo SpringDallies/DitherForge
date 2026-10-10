@@ -1,28 +1,41 @@
 /* DitherForge: Core Design System & Theme Styles
    Clean-Room Retro-Modern Desktop UI */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root, [data-theme="dark_pro"] {
-  --bg-primary: #0d0d0d;
-  --bg-secondary: #141414;
-  --bg-tertiary: #1c1c1c;
-  --bg-panel: #141414;
-  --bg-hover: #262626;
-  --border-color: #2e2e2e;
-  --border-focus: #7ba3d0;
-  --text-main: #d8d8d8;
-  --text-muted: #7a7a7a;
-  --text-dim: #5a5a5a;
-  --accent-cyan: #7ba3d0;
-  --accent-amber: #7ba3d0;
-  --accent-pink: #7ba3d0;
-  --accent-blue: #7ba3d0;
+  --bg-primary: #0a0a0b;
+  --bg-secondary: #0d0d0f;
+  --bg-tertiary: #121214;
+  --bg-panel: rgba(13, 13, 15, 0.96);
+  --bg-hover: rgba(200, 220, 245, 0.04);
+  --border-color: rgba(140, 170, 205, 0.10);
+  --border-secondary: rgba(140, 170, 205, 0.06);
+  --border-hover: rgba(140, 170, 205, 0.18);
+  --border-focus: rgba(138, 171, 204, 0.45);
+  --text-main: rgba(215, 225, 235, 0.92);
+  --text-secondary: rgba(185, 195, 210, 0.68);
+  --text-muted: rgba(185, 195, 210, 0.68);
+  --text-dim: rgba(155, 165, 180, 0.44);
+  --text-disabled: rgba(135, 145, 160, 0.26);
+  --accent-cyan: #8aabcc;
+  --accent-amber: #8aabcc;
+  --accent-pink: #8aabcc;
+  --accent-blue: #8aabcc;
+  --accent-secondary: #6e8fad;
   --accent-glow: transparent;
-  --canvas-bg: #050505;
-  --scrollbar-thumb: #2e2e2e;
-  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --canvas-bg: #060608;
+  --scrollbar-thumb: rgba(140, 170, 205, 0.14);
+  --scrollbar-thumb-hover: rgba(140, 170, 205, 0.25);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-pill: 100px;
 }
 
 [data-theme="crt_green"] {

@@ -24,6 +24,11 @@ const CATEGORY_KEYS = [
   'bespoke'
 ];
 
+const getSliderFill = (val: number, min: number, max: number): React.CSSProperties => {
+  const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+  return { '--slider-fill': `${pct.toFixed(1)}%` } as React.CSSProperties;
+};
+
 export const RightSidebar: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [collapsedSections, setCollapsedSections] = useState<{ [key: string]: boolean }>({
@@ -400,6 +405,7 @@ export const RightSidebar: React.FC = () => {
                         max="1.0"
                         step="0.02"
                         value={currentParams.threshold}
+                        style={getSliderFill(currentParams.threshold, 0, 1)}
                         {...sliderPointerProps}
                         onDoubleClick={() => resetAlgoParamToDefault('threshold')}
                         onChange={(e) => updateCurrentAlgoParam('threshold', Number(e.target.value))}
@@ -436,6 +442,7 @@ export const RightSidebar: React.FC = () => {
                         max="8.0"
                         step="0.5"
                         value={currentParams.scale}
+                        style={getSliderFill(currentParams.scale, 1, 8)}
                         {...sliderPointerProps}
                         onDoubleClick={() => resetAlgoParamToDefault('scale')}
                         onChange={(e) => updateCurrentAlgoParam('scale', Number(e.target.value))}
@@ -472,6 +479,7 @@ export const RightSidebar: React.FC = () => {
                         max="1.0"
                         step="0.05"
                         value={currentParams.diffusionStrength}
+                        style={getSliderFill(currentParams.diffusionStrength, 0, 1)}
                         {...sliderPointerProps}
                         onDoubleClick={() => resetAlgoParamToDefault('diffusionStrength')}
                         onChange={(e) => updateCurrentAlgoParam('diffusionStrength', Number(e.target.value))}
@@ -601,6 +609,7 @@ export const RightSidebar: React.FC = () => {
                       step="1"
                       value={brightness}
                       disabled={lockedAdjustments.brightness}
+                      style={getSliderFill(brightness, -100, 100)}
                       {...sliderPointerProps}
                       onDoubleClick={() => resetAdjustmentParam('brightness')}
                       onChange={(e) => setBrightness(Number(e.target.value))}
@@ -647,6 +656,7 @@ export const RightSidebar: React.FC = () => {
                       step="1"
                       value={contrast}
                       disabled={lockedAdjustments.contrast}
+                      style={getSliderFill(contrast, -100, 100)}
                       {...sliderPointerProps}
                       onDoubleClick={() => resetAdjustmentParam('contrast')}
                       onChange={(e) => setContrast(Number(e.target.value))}
@@ -693,6 +703,7 @@ export const RightSidebar: React.FC = () => {
                       step="1"
                       value={saturation}
                       disabled={lockedAdjustments.saturation}
+                      style={getSliderFill(saturation, -100, 100)}
                       {...sliderPointerProps}
                       onDoubleClick={() => resetAdjustmentParam('saturation')}
                       onChange={(e) => setSaturation(Number(e.target.value))}
@@ -739,6 +750,7 @@ export const RightSidebar: React.FC = () => {
                       step="0.05"
                       value={gamma}
                       disabled={lockedAdjustments.gamma}
+                      style={getSliderFill(gamma, 0.1, 3.0)}
                       {...sliderPointerProps}
                       onDoubleClick={() => resetAdjustmentParam('gamma')}
                       onChange={(e) => setGamma(Number(e.target.value))}
@@ -943,7 +955,7 @@ export const RightSidebar: React.FC = () => {
                         >
                           <Trash2 size={12} style={{ color: 'var(--text-muted)' }} />
                         </button>
-                        <MoveVertical size={12} style={{ color: 'var(--text-muted)', cursor: 'not-allowed' }} title="Drag-reorder effects (Coming in Phase 5)" />
+                        <span title="Drag-reorder effects (Coming in Phase 5)" style={{ display: 'inline-flex', alignItems: 'center', cursor: 'not-allowed' }}><MoveVertical size={12} style={{ color: 'var(--text-muted)' }} /></span>
                       </div>
                     </div>
                   ))}

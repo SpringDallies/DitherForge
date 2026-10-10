@@ -31,12 +31,23 @@ const getSliderFill = (val: number, min: number, max: number): React.CSSProperti
 
 export const RightSidebar: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [collapsedSections, setCollapsedSections] = useState<{ [key: string]: boolean }>({
-    style: false,
-    adjustments: false,
-    palette: false,
-    effects: false,
-    presets: false
+  const [collapsedSections, setCollapsedSections] = useState<{ [key: string]: boolean }>(() => {
+    if (typeof window !== 'undefined') {
+      const sec = new URLSearchParams(window.location.search).get('section');
+      if (sec === 'adjustments') {
+        return { style: true, adjustments: false, palette: true, effects: true, presets: true };
+      }
+      if (sec === 'palette') {
+        return { style: true, adjustments: true, palette: false, effects: true, presets: true };
+      }
+    }
+    return {
+      style: false,
+      adjustments: false,
+      palette: false,
+      effects: false,
+      presets: false
+    };
   });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -159,6 +170,7 @@ export const RightSidebar: React.FC = () => {
   const [focusedAlgoIndex, setFocusedAlgoIndex] = useState(0);
   const listboxRef = useRef<HTMLDivElement>(null);
   const listboxPanelRef = useRef<HTMLDivElement>(null);
+  const listboxTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Click outside listener for listbox
   useEffect(() => {
@@ -442,7 +454,7 @@ export const RightSidebar: React.FC = () => {
                         </span>
                       </button>
                       {isAlgoListboxOpen && (
-                        <div className="algo-listbox-panel" role="listbox" ref={listboxPanelRef}>
+                        <div className="algo-listbox-panel" role="listbox" ref={listboxPanelRef} onWheel={(e) => e.stopPropagation()}>
                           {filteredAlgos.map((a: any, idx: number) => {
                             const isSelected = a.id === algorithmId;
                             const isFocused = idx === focusedAlgoIndex;
@@ -691,22 +703,21 @@ export const RightSidebar: React.FC = () => {
                 {/* Brightness */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <div className="slider-label-left">
-                      <button
-                        className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('brightness')}
-                        title={lockedAdjustments.brightness ? "Brightness locked" : "Lock brightness"}
-                      >
-                        {lockedAdjustments.brightness ? <Lock size={10} /> : <Unlock size={10} />}
-                      </button>
-                      <span
+                    <span
                         onDoubleClick={() => resetAdjustmentParam('brightness')}
                         style={{ cursor: 'pointer' }}
                         title="Brightness (-100 to +100). Double-click to reset."
                       >
                         Brightness
                       </span>
-                    </div>
+                    <button
+                      type="button"
+                      className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
+                      onClick={() => toggleAdjustmentLock('brightness')}
+                      title={lockedAdjustments.brightness ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
+                    >
+                      {lockedAdjustments.brightness ? <Lock size={14} /> : <Unlock size={14} />}
+                    </button>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -738,22 +749,21 @@ export const RightSidebar: React.FC = () => {
                 {/* Contrast */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <div className="slider-label-left">
-                      <button
-                        className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('contrast')}
-                        title={lockedAdjustments.contrast ? "Contrast locked" : "Lock contrast"}
-                      >
-                        {lockedAdjustments.contrast ? <Lock size={10} /> : <Unlock size={10} />}
-                      </button>
-                      <span
+                    <span
                         onDoubleClick={() => resetAdjustmentParam('contrast')}
                         style={{ cursor: 'pointer' }}
                         title="Contrast (-100 to +100). Double-click to reset."
                       >
                         Contrast
                       </span>
-                    </div>
+                    <button
+                      type="button"
+                      className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
+                      onClick={() => toggleAdjustmentLock('contrast')}
+                      title={lockedAdjustments.contrast ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
+                    >
+                      {lockedAdjustments.contrast ? <Lock size={14} /> : <Unlock size={14} />}
+                    </button>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -785,22 +795,21 @@ export const RightSidebar: React.FC = () => {
                 {/* Saturation */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <div className="slider-label-left">
-                      <button
-                        className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('saturation')}
-                        title={lockedAdjustments.saturation ? "Saturation locked" : "Lock saturation"}
-                      >
-                        {lockedAdjustments.saturation ? <Lock size={10} /> : <Unlock size={10} />}
-                      </button>
-                      <span
+                    <span
                         onDoubleClick={() => resetAdjustmentParam('saturation')}
                         style={{ cursor: 'pointer' }}
                         title="Saturation (-100 to +100). Double-click to reset."
                       >
                         Saturation
                       </span>
-                    </div>
+                    <button
+                      type="button"
+                      className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
+                      onClick={() => toggleAdjustmentLock('saturation')}
+                      title={lockedAdjustments.saturation ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
+                    >
+                      {lockedAdjustments.saturation ? <Lock size={14} /> : <Unlock size={14} />}
+                    </button>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -832,22 +841,21 @@ export const RightSidebar: React.FC = () => {
                 {/* Gamma */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <div className="slider-label-left">
-                      <button
-                        className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('gamma')}
-                        title={lockedAdjustments.gamma ? "Gamma locked" : "Lock gamma"}
-                      >
-                        {lockedAdjustments.gamma ? <Lock size={10} /> : <Unlock size={10} />}
-                      </button>
-                      <span
+                    <span
                         onDoubleClick={() => resetAdjustmentParam('gamma')}
                         style={{ cursor: 'pointer' }}
                         title="Gamma (0.10 to 3.00). Double-click to reset."
                       >
                         Gamma
                       </span>
-                    </div>
+                    <button
+                      type="button"
+                      className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
+                      onClick={() => toggleAdjustmentLock('gamma')}
+                      title={lockedAdjustments.gamma ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
+                    >
+                      {lockedAdjustments.gamma ? <Lock size={14} /> : <Unlock size={14} />}
+                    </button>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -879,22 +887,21 @@ export const RightSidebar: React.FC = () => {
                 {/* Color Depth */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <div className="slider-label-left">
-                      <button
-                        className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('depth')}
-                        title={lockedAdjustments.depth ? "Color Depth locked" : "Lock color depth"}
-                      >
-                        {lockedAdjustments.depth ? <Lock size={10} /> : <Unlock size={10} />}
-                      </button>
-                      <span
+                    <span
                         onDoubleClick={() => resetAdjustmentParam('depth')}
                         style={{ cursor: 'pointer' }}
                         title="Color Depth (1 to 32 bit). Double-click to reset."
                       >
                         Color Depth
                       </span>
-                    </div>
+                    <button
+                      type="button"
+                      className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
+                      onClick={() => toggleAdjustmentLock('depth')}
+                      title={lockedAdjustments.depth ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
+                    >
+                      {lockedAdjustments.depth ? <Lock size={14} /> : <Unlock size={14} />}
+                    </button>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -961,53 +968,27 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="swatch-grid" title="Palette colors (Custom swatch editing coming in Phase 4)">
-                  {currentPalette.colors.map((c: number[], i: number) => (
-                    <div
-                      key={i}
-                      className="swatch-box"
-                      style={{ backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})`, cursor: 'default' }}
-                      title={`RGB(${c[0]}, ${c[1]}, ${c[2]})`}
-                    />
-                  ))}
+                {/* Palette name and color count in small mono text (Fix 3) */}
+                <div className="palette-info-label">
+                  {currentPalette.name} · {currentPalette.colors.length} colors
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                  <button
-                    className="action-btn"
-                    disabled
-                    title="Import custom palette (Coming in Phase 4)"
-                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                  >
-                    Import Palette
-                  </button>
-                  <button
-                    className="action-btn"
-                    disabled
-                    title="Export palette (Coming in Phase 4)"
-                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                  >
-                    Export Palette
-                  </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                  <button
-                    className="action-btn"
-                    disabled
-                    title="Median Cut palette extraction (Coming in Phase 4)"
-                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                  >
-                    Median Cut
-                  </button>
-                  <button
-                    className="action-btn"
-                    disabled
-                    title="K-Means palette extraction (Coming in Phase 4)"
-                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                  >
-                    K-Means
-                  </button>
+                {/* Swatch grid: 32x32px each, 4px gaps, wrapping naturally (Fix 3) */}
+                <div className="palette-swatches-grid" title="Palette swatches">
+                  {currentPalette.colors.map((c: number[], i: number) => {
+                    const r = c[0].toString(16).padStart(2, '0');
+                    const g = c[1].toString(16).padStart(2, '0');
+                    const b = c[2].toString(16).padStart(2, '0');
+                    const hex = `#${r}${g}${b}`.toUpperCase();
+                    return (
+                      <div
+                        key={i}
+                        className="palette-swatch-item"
+                        style={{ backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }}
+                        title={hex}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -403,7 +403,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setDepth: (depth) => set({ depth }),
 
   // Palette (STORED BY ID: 'monochrome_1bit', etc.)
-  activePalette: BUILTIN_PALETTES[0]?.id || 'monochrome_1bit',
+  activePalette: (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('palette')) || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit',
   lockedSwatches: [],
   setActivePalette: (activePalette) => set({ activePalette }),
   toggleLockSwatch: (index) => set((state) => {

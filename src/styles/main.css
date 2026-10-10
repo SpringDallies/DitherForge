@@ -4,22 +4,22 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root, [data-theme="dark_pro"] {
-  --bg-primary: #0a0c12;
-  --bg-secondary: #121520;
-  --bg-tertiary: #1a1e2d;
-  --bg-panel: rgba(22, 26, 39, 0.85);
-  --bg-hover: #262c42;
-  --border-color: #2b324c;
-  --border-focus: #00ffcc;
-  --text-main: #f0f3fa;
-  --text-muted: #8c97b8;
-  --accent-cyan: #00ffcc;
-  --accent-amber: #ffb830;
-  --accent-pink: #ff3366;
-  --accent-blue: #3b82f6;
-  --accent-glow: rgba(0, 255, 204, 0.25);
-  --canvas-bg: #07080b;
-  --scrollbar-thumb: #2d3550;
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #222222;
+  --bg-tertiary: #2a2a2a;
+  --bg-panel: #222222;
+  --bg-hover: #333333;
+  --border-color: #383838;
+  --border-focus: #6a8fc4;
+  --text-main: #d8d8d8;
+  --text-muted: #8a8a8a;
+  --accent-cyan: #6a8fc4;
+  --accent-amber: #8a8a8a;
+  --accent-pink: #8a8a8a;
+  --accent-blue: #6a8fc4;
+  --accent-glow: transparent;
+  --canvas-bg: #141414;
+  --scrollbar-thumb: #383838;
   --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }

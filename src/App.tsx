@@ -2,6 +2,7 @@
 import './styles/shell.css';
 import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
+import { LeftIconRail } from './components/layout/LeftIconRail';
 import { CenterViewport } from './components/CenterViewport';
 import { RightSidebar } from './components/layout/RightSidebar';
 import { BottomControlStrip } from './components/layout/BottomControlStrip';
@@ -107,7 +108,10 @@ export const App: React.FC = () => {
 
       {/* Main Workspace Layout */}
       <div className="workspace-container">
-        {/* Viewport on Left (takes remaining width) */}
+        {/* Left Icon Rail (Placeholder for Phase 6/7) */}
+        <LeftIconRail />
+
+        {/* Viewport (takes remaining width, canvas centered) */}
         <CenterViewport />
 
         {/* 4px Draggable Splitter */}

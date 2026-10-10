@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 // Import frozen registries UNCHANGED via allowJs
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
@@ -108,6 +108,18 @@ const buildInitialEffects = (): EffectItem[] => {
 };
 
 interface AppState {
+  // Algorithm Favourites (NEW Phase 3)
+  favoriteAlgorithmIds: string[];
+  toggleFavoriteAlgorithm: (id: string) => void;
+  resetCurrentAlgoParams: () => void;
+  resetAlgoParamToDefault: (key: keyof AlgoParams) => void;
+
+  // Adjustment Locks (NEW Phase 3)
+  lockedAdjustments: Record<string, boolean>;
+  toggleAdjustmentLock: (key: string) => void;
+  resetAdjustmentParam: (key: string) => void;
+  resetAllAdjustments: () => void;
+
   // Source Image State
   hasImage: boolean;
   imageName: string;
@@ -189,16 +201,25 @@ const STORAGE_KEY_SIDEBAR_WIDTH = 'ditherforge_sidebar_width';
 const STORAGE_KEY_SIDEBAR_COLLAPSED = 'ditherforge_sidebar_collapsed';
 const STORAGE_KEY_THEME = 'ditherforge_theme';
 const STORAGE_KEY_UPDATE_MODE = 'ditherforge_update_mode';
+const STORAGE_KEY_FAVORITES = 'ditherforge_favorites';
+const getStoredFavorites = (): string[] => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY_FAVORITES);
+    if (data) return JSON.parse(data);
+  } catch {}
+  return [];
+};
+
 
 const getStoredSidebarWidth = (): number => {
   try {
     const val = localStorage.getItem(STORAGE_KEY_SIDEBAR_WIDTH);
     if (val) {
       const num = parseInt(val, 10);
-      if (!isNaN(num) && num >= 280 && num <= 600) return num;
+      if (!isNaN(num) && num >= 260 && num <= 480) return num;
     }
   } catch {}
-  return 360;
+  return 300;
 };
 
 const getStoredSidebarCollapsed = (): boolean => {
@@ -280,6 +301,72 @@ export const useAppStore = create<AppState>((set, get) => ({
     imageWidth: 0,
     imageHeight: 0,
     sourceImageData: null
+  }),
+
+  // Favourites
+  favoriteAlgorithmIds: getStoredFavorites(),
+  toggleFavoriteAlgorithm: (id) => set((state) => {
+    const isFav = state.favoriteAlgorithmIds.includes(id);
+    const next = isFav
+      ? state.favoriteAlgorithmIds.filter((favId) => favId !== id)
+      : [...state.favoriteAlgorithmIds, id];
+    try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
+    return { favoriteAlgorithmIds: next };
+  }),
+  resetCurrentAlgoParams: () => set((state) => ({
+    algoParams: {
+      ...state.algoParams,
+      [state.algorithmId]: getInitialAlgoParams(state.algorithmId)
+    }
+  })),
+  resetAlgoParamToDefault: (key) => set((state) => {
+    const defaults = getInitialAlgoParams(state.algorithmId);
+    const current = state.algoParams[state.algorithmId] ?? defaults;
+    return {
+      algoParams: {
+        ...state.algoParams,
+        [state.algorithmId]: {
+          ...current,
+          [key]: defaults[key]
+        }
+      }
+    };
+  }),
+
+  // Adjustment Locks
+  lockedAdjustments: {
+    brightness: false,
+    contrast: false,
+    saturation: false,
+    gamma: false,
+    depth: false
+  },
+  toggleAdjustmentLock: (key) => set((state) => ({
+    lockedAdjustments: {
+      ...state.lockedAdjustments,
+      [key]: !state.lockedAdjustments[key]
+    }
+  })),
+  resetAdjustmentParam: (key) => set((state) => {
+    if (state.lockedAdjustments[key]) return state; // Locked params don't reset
+    const defaults: Record<string, number> = {
+      brightness: 0,
+      contrast: 0,
+      saturation: 0,
+      gamma: 1.0,
+      depth: 8
+    };
+    if (defaults[key] === undefined) return state;
+    return { [key]: defaults[key] } as any;
+  }),
+  resetAllAdjustments: () => set((state) => {
+    const updates: any = {};
+    if (!state.lockedAdjustments.brightness) updates.brightness = 0;
+    if (!state.lockedAdjustments.contrast) updates.contrast = 0;
+    if (!state.lockedAdjustments.saturation) updates.saturation = 0;
+    if (!state.lockedAdjustments.gamma) updates.gamma = 1.0;
+    if (!state.lockedAdjustments.depth) updates.depth = 8;
+    return updates;
   }),
 
   // Algorithm selection
@@ -395,7 +482,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isManualOpen: false,
 
   setSidebarWidth: (width) => set(() => {
-    const clamped = Math.max(280, Math.min(600, width));
+    const clamped = Math.max(260, Math.min(480, width));
     try { localStorage.setItem(STORAGE_KEY_SIDEBAR_WIDTH, String(clamped)); } catch {}
     return { sidebarWidth: clamped };
   }),

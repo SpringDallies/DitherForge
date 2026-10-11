@@ -1,12 +1,12 @@
-# DitherForge — Retro Synthesis & Precision Dithering Suite
+﻿# DitherForge — Retro Synthesis & Precision Dithering Suite
 
 ![DitherForge Banner](./assets/logo.jpg)
 
-**DitherForge** is a standalone, cross-platform image, video, and animation dithering application It features 63 original and public-domain dithering algorithms, native color-space integration, a stackable post-effects pipeline, CRT temporal noise variation, vector contour export, and true Unicode character grids. it is inspired by ditherboy
+**DitherForge** is a standalone, cross-platform image dithering application. It features 63 original and public-domain dithering algorithms, native color-space integration, a stackable post-effects pipeline, CRT temporal noise variation, vector contour export, and true Unicode character grids.
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
 ### 1. 63 Public-Domain & Clean-Room Dithering Algorithms
 - **Error Diffusion (15)**: Floyd–Steinberg, Atkinson, Jarvis–Judice–Ninke, Stucki, Burkes, Sierra Three-Row, Sierra Two-Row, Sierra Lite, Stevenson–Arce, Fan Adaptive, Shiau–Fan Balanced, Shiau–Fan 2, False Floyd–Steinberg, Minimized Average Error (Oatley), Dynamic Serpentine Lattice.
@@ -18,10 +18,10 @@
 - **Temporal Effect (1)**: **Temporal Kinetic Dither** — continuous phase-shifting for animated media.
 
 ### 2. Native Color-Integrated Quantization
-Color is never mapped as an external pre- or post-filter. The error diffusion and ordered threshold loops evaluate distances directly in 3D Rec. 709 luminance-weighted RGB color space, supporting up to 32 depth iterations per palette with live swatch remapping.
+Color is never mapped as an external pre- or post-filter. The error diffusion and ordered threshold loops evaluate distances directly in 3D Rec. 709 luminance-weighted RGB color space, supporting up to 32 depth iterations per palette with live swatch remapping. 14 built-in palettes are shipped.
 
 ### 3. Reorderable Post-Effects Stack
-Stackable post-processing with a "+" add menu:
+Stackable post-processing pipeline with 9 post-effects:
 - Ignition Glow
 - Separable Blur / Sharpen
 - Chromatic Aberration
@@ -32,33 +32,34 @@ Stackable post-processing with a "+" add menu:
 - Curves & Levels
 - Optical Vignette Falloff
 
-### 4. Video & Animation Timeline
-- Interactive scrubber with play/pause, loop, and FPS controls (12, 24, 30, 60 fps).
-- **9 CRT Temporal Noise Profiles**: Grain, Static, Scanline Drift, Vertical Drift, Pulse, Flicker, Wave, Shimmer, Chaos.
-- One-click **Animate Still** converter.
-- Real-time MP4/WebM video stream recorder.
+### 4. Video & Animation Timeline (Planned)
+- Interactive scrubber with play/pause, loop, and FPS controls (planned).
+- **9 CRT Temporal Noise Profiles**: Grain, Static, Scanline Drift, Vertical Drift, Pulse, Flicker, Wave, Shimmer, Chaos (engine implemented; timeline integration planned).
+- One-click **Animate Still** converter (planned).
+- Real-time MP4/WebM video stream recorder (planned).
 
-### 5. Multi-Format Exporters (9 Formats)
-- **PNG**: Lossless raster for print.
-- **JPG**: Web compressed raster.
-- **WebP**: Modern lightweight compressed format.
-- **SVG**: Vector contours with grouping and Marching Squares tracing for pen plotters and laser cutters.
-- **TXT**: True character-grid matrices (ASCII ` .:-=+*#%@`, Unicode Blocks ` ░▒▓█`, and 2×4 dot Braille Matrix `U+2800..U+28FF`).
-- **MP4 / WebM**: Recorded animated dither streams.
-- **GIF**: Animated retro sequences.
-- **Frame Sequence**: PNG frames sequence export.
-- **Clipboard**: Direct PNG copy for pasting into Photoshop, Figma, or Discord.
+### 5. Multi-Format Exporters
+- **PNG**: Lossless raster for print (shipped).
+- **JPG**: Web compressed raster (shipped).
+- **WebP**: Modern lightweight compressed format (shipped).
+- **SVG**: Vector contours with Marching Squares tracing for pen plotters and laser cutters (shipped).
+- **TXT**: True character-grid matrices (ASCII ` .:-=+*#%@`, Unicode Blocks ` ░▒▓█`, and 2×4 dot Braille Matrix `U+2800..U+28FF`) (shipped).
+- **Clipboard**: Direct PNG copy for pasting into Photoshop, Figma, or Discord (shipped).
+- **MP4 / WebM**: Recorded animated dither streams (planned).
+- **GIF**: Animated retro sequences (planned).
+- **Frame Sequence**: PNG frames sequence export (planned).
+- **Batch Processing**: Multi-file queue processing (planned).
 
 ### 6. Interactive Studio UI
 - Canvas preview with smooth zoom, pan, 1:1 view, and fit-to-window.
 - **Before/After toggle** and **Interactive Draggable Split Comparison Slider**.
 - 6 Themes: Dark Pro, CRT Phosphor Green, Cyberpunk Neon, GameBoy Olive, Retro Mac 1984, Vaporwave Pink.
-- Preset manager with 10 built-in presets and user JSON save/load.
-- Comprehensive in-app **Algorithm Reference Documentation** (1,500+ lines).
+- Preset manager with 10 built-in factory presets (custom preset save/load planned).
+- Comprehensive in-app **Algorithm Reference Manual** (63 models).
 
 ---
 
-## 🚀 Quick Start & Launch
+## Quick Start & Launch
 
 ### Modern Web App (Vite + React + TypeScript)
 Run the development server on port 5173:
@@ -70,7 +71,7 @@ npm run dev
 
 Open `http://localhost:5173/app.html` in your browser.
 
-To build and serve the production bundle on port 8080:
+To build and preview the production bundle on port 8080:
 
 ```powershell
 npm run build
@@ -96,12 +97,13 @@ npm run tauri build
 
 ---
 
-## 📜 Clean-Room Documentation
+## Clean-Room Architecture & Provenance
 
+- The mathematical dither engine (`src/dither-engine/`) is clean-room engineered from public-domain literature and mathematical kernels. The desktop web studio interface is our own custom implementation.
 - See [`SPEC_AND_CLEAN_ROOM_LOG.md`](./SPEC_AND_CLEAN_ROOM_LOG.md) for full clean-room attestations, algorithm provenance, and mathematical formulations.
 - See [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) for the 1,500+ line technical manual detailing every algorithm, parameter sensitivity, and visual trade-offs.
 
 ---
 
-## ⚖️ License
+## License
 Dual-licensed under MIT and Apache-2.0. Clean-room engineered for retro synthesis and digital artists.

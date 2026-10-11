@@ -199,6 +199,7 @@ interface AppState {
   panX: number;
   panY: number;
   splitRatio: number;
+  hasUserMovedSplitRatio: boolean;
   showBeforeAfter: boolean;
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
@@ -662,6 +663,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   panX: 0,
   panY: 0,
   splitRatio: 0.5,
+  hasUserMovedSplitRatio: false,
   showBeforeAfter: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare') === 'true',
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(3200, zoom)) }),
   setPan: (panX, panY) => set({ panX, panY }),
@@ -675,9 +677,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ zoom: fitZoom, panX: 0, panY: 0 });
   },
   resetZoom: () => set({ zoom: 100, panX: 0, panY: 0 }),
-  setSplitRatio: (splitRatio) => set({ splitRatio: Math.max(0.05, Math.min(0.95, splitRatio)) }),
-  setShowBeforeAfter: (showBeforeAfter) => set({ showBeforeAfter }),
-  toggleBeforeAfter: () => set((state) => ({ showBeforeAfter: !state.showBeforeAfter })),
+  setSplitRatio: (splitRatio) => set({ 
+    splitRatio: Math.max(0.02, Math.min(0.98, splitRatio)),
+    hasUserMovedSplitRatio: true
+  }),
+  setShowBeforeAfter: (showBeforeAfter) => set((state) => ({ 
+    showBeforeAfter,
+    splitRatio: showBeforeAfter && !state.hasUserMovedSplitRatio ? 0.5 : state.splitRatio
+  })),
+  toggleBeforeAfter: () => set((state) => {
+    const next = !state.showBeforeAfter;
+    return {
+      showBeforeAfter: next,
+      splitRatio: next && !state.hasUserMovedSplitRatio ? 0.5 : state.splitRatio
+    };
+  }),
 
   // Shell Layout & UI
   sidebarWidth: getStoredSidebarWidth(),
@@ -733,6 +747,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     panX: 0,
     panY: 0,
     splitRatio: 0.5,
+    hasUserMovedSplitRatio: false,
     showBeforeAfter: false
   }))
 }));

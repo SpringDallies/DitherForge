@@ -9,6 +9,7 @@ import { CenterViewport } from './components/CenterViewport';
 import { RightSidebar } from './components/layout/RightSidebar';
 import { BottomControlStrip } from './components/layout/BottomControlStrip';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
+import { Tooltip } from './components/common/Tooltip';
 
 export const App: React.FC = () => {
   const activeTheme = useAppStore((state) => state.activeTheme);
@@ -146,11 +147,12 @@ export const App: React.FC = () => {
 
         {/* 4px Draggable Splitter */}
         {!isSidebarCollapsed && (
-          <div
-            className={`splitter ${isDraggingSplitter ? 'dragging' : ''}`}
-            onMouseDown={handleSplitterMouseDown}
-            title="Drag to resize sidebar (persisted)"
-          />
+          <Tooltip text="Drag to resize sidebar (persisted)">
+            <div
+              className={`splitter ${isDraggingSplitter ? 'dragging' : ''}`}
+              onMouseDown={handleSplitterMouseDown}
+            />
+          </Tooltip>
         )}
 
         {/* Single Right Panel (Algorithm, Adjustments, Palette, Effects Stack) */}

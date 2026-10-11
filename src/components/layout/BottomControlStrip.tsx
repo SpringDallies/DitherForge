@@ -76,7 +76,6 @@ export const BottomControlStrip: React.FC = () => {
           <button
             className="zoom-btn"
             onClick={handleZoomOut}
-            title="Zoom Out"
           >
             -
           </button>
@@ -94,7 +93,6 @@ export const BottomControlStrip: React.FC = () => {
           <button
             className="zoom-btn"
             onClick={handleZoomIn}
-            title="Zoom In"
           >
             +
           </button>
@@ -119,9 +117,8 @@ export const BottomControlStrip: React.FC = () => {
           <button
             className="zoom-btn"
             onClick={resetZoom}
-            title="Reset to 100% and center"
           >
-            ?
+            ↺
           </button>
         </Tooltip>
       </div>

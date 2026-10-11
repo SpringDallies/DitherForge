@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useId } from 'react';
+import { Tooltip } from './Tooltip';
 
 export interface DropdownItem {
   id: string;
@@ -14,6 +15,7 @@ export interface DropdownProps {
   searchable?: boolean; // default false
   width?: number | string; // default 100% of parent
   disabled?: boolean;
+  tooltip?: string;
   title?: string;
   defaultOpen?: boolean;
   className?: string;
@@ -27,10 +29,12 @@ export const Dropdown: React.FC<DropdownProps> = ({
   searchable = false,
   width,
   disabled = false,
+  tooltip,
   title,
   className = '',
   defaultOpen = false,
 }) => {
+  const tooltipText = tooltip || title;
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -158,36 +162,45 @@ export const Dropdown: React.FC<DropdownProps> = ({
     pointerEvents: disabled ? 'none' : 'auto',
   };
 
+  const triggerBtn = (
+    <button
+      ref={triggerRef}
+      type="button"
+      className={`custom-dropdown-trigger ${isOpen ? 'open' : ''}`}
+      onClick={() => !disabled && setIsOpen(!isOpen)}
+      onKeyDown={handleTriggerKeyDown}
+      disabled={disabled}
+      aria-haspopup="listbox"
+      aria-expanded={isOpen}
+    >
+      <span className="custom-dropdown-label">
+        {selectedItem ? (
+          <span className="custom-dropdown-content-wrap">
+            <span className="custom-dropdown-main-text">{selectedItem.label}</span>
+            {selectedItem.hint && (
+              <span className="custom-dropdown-hint-text">{selectedItem.hint}</span>
+            )}
+          </span>
+        ) : (
+          <span className="custom-dropdown-placeholder-text">{placeholder}</span>
+        )}
+      </span>
+    </button>
+  );
+
   return (
     <div
       ref={containerRef}
       className={`custom-dropdown-container ${className}`}
       style={containerStyle}
-      title={title}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`custom-dropdown-trigger ${isOpen ? 'open' : ''}`}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        onKeyDown={handleTriggerKeyDown}
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-      >
-        <span className="custom-dropdown-label">
-          {selectedItem ? (
-            <span className="custom-dropdown-content-wrap">
-              <span className="custom-dropdown-main-text">{selectedItem.label}</span>
-              {selectedItem.hint && (
-                <span className="custom-dropdown-hint-text">{selectedItem.hint}</span>
-              )}
-            </span>
-          ) : (
-            <span className="custom-dropdown-placeholder-text">{placeholder}</span>
-          )}
-        </span>
-      </button>
+      {tooltipText && !isOpen ? (
+        <Tooltip text={tooltipText} style={{ width: '100%', display: 'block' }}>
+          {triggerBtn}
+        </Tooltip>
+      ) : (
+        triggerBtn
+      )}
 
       <div
         ref={panelRef}
@@ -214,17 +227,18 @@ export const Dropdown: React.FC<DropdownProps> = ({
               tabIndex={isOpen ? 0 : -1}
             />
             {searchQuery && (
-              <button
-                type="button"
-                className="custom-dropdown-search-clear"
-                onClick={() => {
-                  setSearchQuery('');
-                  searchInputRef.current?.focus();
-                }}
-                title="Clear search"
-              >
-                ×
-              </button>
+              <Tooltip text="Clear search">
+                <button
+                  type="button"
+                  className="custom-dropdown-search-clear"
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                >
+                  ×
+                </button>
+              </Tooltip>
             )}
           </div>
         )}

@@ -628,24 +628,23 @@ canvas#mainViewportCanvas {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75); /* hardcoded intentionally */
-  /* backdrop-filter removed for perf */
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  padding: 24px;
 }
 
 .modal-dialog {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 840px;
+  border-radius: var(--radius-md);
+  max-width: 900px;
+  width: 100%;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8); /* hardcoded intentionally */
   overflow: hidden;
 }
 
@@ -658,9 +657,9 @@ canvas#mainViewportCanvas {
 }
 
 .modal-body {
-  padding: 20px;
   overflow-y: auto;
   flex: 1;
+  padding: 20px;
 }
 
 .modal-footer {

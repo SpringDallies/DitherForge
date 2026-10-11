@@ -1,8 +1,10 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 // Import frozen algorithm registry UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
 import { X, Search, BookOpen } from 'lucide-react';
+import { Tooltip } from './common/Tooltip';
 
 interface AlgorithmReferenceModalProps {
   isOpen: boolean;
@@ -11,6 +13,17 @@ interface AlgorithmReferenceModalProps {
 
 export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -21,17 +34,19 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
     a.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BookOpen size={16} style={{ color: 'var(--accent-cyan)' }} />
             <span>Algorithm Reference Manual (63 Models)</span>
           </div>
-          <button className="tool-icon-btn" onClick={onClose} title="Close dialog">
-            <X size={16} />
-          </button>
+          <Tooltip text="Close dialog">
+            <button className="tool-icon-btn" onClick={onClose}>
+              <X size={16} />
+            </button>
+          </Tooltip>
         </div>
 
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '8px' }}>
@@ -91,6 +106,7 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

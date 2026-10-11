@@ -1306,16 +1306,22 @@ body {
   letter-spacing: normal;
 }
 
+.effects-stack-list,
 .effect-stack-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);         /* 4px between cards */
+  padding: 0;                   /* no extra padding on the wrapper */
+  width: 100%;
   margin-bottom: 8px;
 }
 
 .effect-card {
-  height: 38px;
-  background-color: var(--bg-secondary);
+  width: 100%;
+  margin: 0;                    /* no auto-centering, no side margins */
+  padding: 0;                   /* header handles its own padding */
+  box-sizing: border-box;
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   display: flex;
@@ -1345,25 +1351,31 @@ body {
 
 /* Card Header (Collapsed 38px, Three Distinct Hit Zones) */
 .effect-card-header {
-  height: 38px;
-  min-height: 38px;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  height: 38px;
+  padding: 0 var(--space-3);   /* 12px left AND right */
+  gap: var(--space-2);          /* 8px between zones */
+  box-sizing: border-box;
   user-select: none;
   background-color: transparent;
 }
 
-/* Zone 1 — Chevron + Name (~70% width) */
+/* Zone 1 — Chevron + Name */
 .effect-zone-expand {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
+  padding: 0;
   cursor: pointer;
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   background-color: transparent;
   outline: none;
+  border-radius: var(--radius-sm);
   transition: background-color var(--transition-fast);
 }
 
@@ -1402,14 +1414,17 @@ body {
   color: var(--text-muted);
 }
 
-/* Zone 2 — Toggle Square (28px wide) */
+/* Zone 2 — Toggle Square */
 .effect-zone-toggle {
-  width: 28px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   padding: 0;
   color: var(--text-dim);
@@ -1432,9 +1447,11 @@ body {
   color: var(--accent-primary);
 }
 
-/* Zone 3 — Drag Handle (28px wide, always visible) */
+/* Zone 3 — Drag Handle */
 .effect-zone-drag {
-  width: 28px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1447,6 +1464,7 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--text-dim);
+  border-radius: var(--radius-sm);
   cursor: grab;
   outline: none;
   opacity: 1;
@@ -1463,18 +1481,20 @@ body {
   background-color: var(--bg-hover);
 }
 
-/* Zone 4 — Delete Button (28px wide, always visible) */
+/* Zone 4 — Delete Button */
 .effect-zone-delete {
-  width: 28px;
-  height: 100%;
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  padding: 0;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
   outline: none;
   opacity: 1;
   transition: color var(--transition-fast), background-color var(--transition-fast);
@@ -1586,6 +1606,7 @@ body {
 
 .add-effect-trigger-btn {
   width: 100%;
+  box-sizing: border-box;
   height: 32px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-secondary);

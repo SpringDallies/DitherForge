@@ -1,9 +1,7 @@
- <p align="center">
-  <img src="assets/logo-wordmark.webp" alt="Ditherforge" width="400" height="75" />
-</p> 
-
 <p align="center">
-  <img src="assets/logo-mark.png" alt="ForgeLogo" width="250" height="250" />
+  <img src="assets/logo-wordmark.webp" alt="DitherForge" height="80" style="vertical-align: middle;" />
+  &nbsp;&nbsp;
+  <img src="assets/logo-mark.png" alt="ForgeLogo" height="48" style="vertical-align: middle;" />
 </p>
 
 <h3 align="center">FOSS Dithering Suite</h3>

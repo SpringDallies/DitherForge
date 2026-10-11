@@ -19,7 +19,9 @@ import {
   GripVertical,
   ChevronRight,
   RotateCcw,
-  Square
+  Square,
+  Download,
+  Upload
 } from 'lucide-react';
 
 const CATEGORY_KEYS = [
@@ -222,7 +224,13 @@ export const RightSidebar: React.FC = () => {
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
 
   const toggleSection = (section: string) => {
-    setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [section]: !prev[section] };
+      try {
+        localStorage.setItem('ditherforge_collapsed_sections', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   // Window-level safety listener to guarantee isDraggingSlider is always cleared
@@ -651,7 +659,7 @@ export const RightSidebar: React.FC = () => {
             onChange={handleFileChange}
           />
           <button
-            className="action-btn primary open-image-btn"
+            className="btn-primary open-image-btn"
             onClick={handleOpenImage}
             title="Open local image file"
           >
@@ -659,7 +667,7 @@ export const RightSidebar: React.FC = () => {
           </button>
           <div className="export-action-row">
             <button
-              className="action-btn export-image-btn"
+              className="btn-default export-image-btn"
               disabled
               title="Export Image (Coming in Phase 7)"
             >
@@ -864,7 +872,7 @@ export const RightSidebar: React.FC = () => {
                 {/* Reset button */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button
-                    className="reset-section-btn"
+                    className="btn-subtle"
                     onClick={resetCurrentAlgoParams}
                     title="Reset algorithm parameters"
                   >
@@ -1059,7 +1067,7 @@ export const RightSidebar: React.FC = () => {
               <div className="section-content">
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button
-                    className="reset-section-btn"
+                    className="btn-subtle"
                     onClick={resetAllAdjustments}
                     title="Reset adjustments"
                   >
@@ -1326,10 +1334,9 @@ export const RightSidebar: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  className="reset-section-btn"
+                  className="btn-subtle"
                   onClick={handleResetPalette}
                   title="Reset to built-in palette"
-                  style={{ marginBottom: 0, padding: '2px 8px' }}
                 >
                   Reset
                 </button>
@@ -1453,7 +1460,7 @@ export const RightSidebar: React.FC = () => {
                         />
                         <button
                           type="button"
-                          className="palette-popover-btn"
+                          className="btn-subtle palette-popover-btn"
                           onClick={() => toggleLockSwatch(activeSwatchIndex)}
                           title={lockedSwatches.includes(activeSwatchIndex) ? "Unlock Swatch" : "Lock Swatch"}
                         >
@@ -1461,7 +1468,7 @@ export const RightSidebar: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          className="palette-popover-btn"
+                          className="btn-subtle palette-popover-btn"
                           disabled={workingPalette.length <= 2}
                           onClick={() => {
                             removeSwatch(activeSwatchIndex);
@@ -1546,19 +1553,19 @@ export const RightSidebar: React.FC = () => {
                   />
                   <button
                     type="button"
-                    className="palette-action-btn"
+                    className="btn-default"
                     onClick={() => paletteFileInputRef.current?.click()}
                     title="Import custom palette JSON"
                   >
-                    ⬇ Import
+                    <Download size={14} className="btn-icon" /> Import
                   </button>
                   <button
                     type="button"
-                    className="palette-action-btn"
+                    className="btn-default"
                     onClick={handleExportPalette}
                     title="Export current working palette to JSON"
                   >
-                    ⬆ Export
+                    <Upload size={14} className="btn-icon" /> Export
                   </button>
                 </div>
               </div>
@@ -1579,11 +1586,11 @@ export const RightSidebar: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="section-reset-btn"
+                className="btn-subtle"
                 onClick={handleResetEffects}
                 title="Reset effect stack to default"
               >
-                <RotateCcw size={12} />
+                <RotateCcw size={12} className="btn-icon" />
                 <span>Reset</span>
               </button>
             </div>
@@ -1594,7 +1601,7 @@ export const RightSidebar: React.FC = () => {
                 <div className="add-effect-popover-container" ref={addEffectPopoverRef}>
                   <button
                     type="button"
-                    className="action-btn add-effect-trigger-btn"
+                    className="btn-default add-effect-trigger-btn"
                     onClick={() => setIsAddEffectOpen(!isAddEffectOpen)}
                     title="Add post-effect to stack"
                   >
@@ -1700,7 +1707,7 @@ export const RightSidebar: React.FC = () => {
                             </span>
                           </div>
 
-                          {/* Zone 2 — toggle square (~40px wide) */}
+                          {/* Zone 2 — toggle square (28px wide) */}
                           <button
                             type="button"
                             className={`effect-zone-toggle ${eff.enabled ? 'enabled' : ''}`}
@@ -1717,7 +1724,7 @@ export const RightSidebar: React.FC = () => {
                             />
                           </button>
 
-                          {/* Zone 3 — drag handle (~30px wide, hover-swaps with delete) */}
+                          {/* Zone 3 — drag handle (28px wide, always visible) */}
                           <div
                             className="effect-zone-drag"
                             onClick={(e) => e.stopPropagation()}
@@ -1743,21 +1750,22 @@ export const RightSidebar: React.FC = () => {
                             >
                               <GripVertical size={14} strokeWidth={1.5} />
                             </span>
-
-                            <button
-                              type="button"
-                              className="effect-delete-btn"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeEffectInstance(eff.id);
-                                if (expandedEffectId === eff.id) setExpandedEffectId(null);
-                              }}
-                              title={`Delete ${eff.name}`}
-                            >
-                              <Trash2 size={14} strokeWidth={1.5} />
-                            </button>
                           </div>
+
+                          {/* Zone 4 — delete button (28px wide, always visible) */}
+                          <button
+                            type="button"
+                            className="effect-zone-delete"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeEffectInstance(eff.id);
+                              if (expandedEffectId === eff.id) setExpandedEffectId(null);
+                            }}
+                            title={`Delete ${eff.name}`}
+                          >
+                            <Trash2 size={14} strokeWidth={1.5} />
+                          </button>
                         </div>
 
                         {/* Card Expanded Parameters */}
@@ -1895,7 +1903,7 @@ export const RightSidebar: React.FC = () => {
                     }))}
                   />
                   <button 
-                    className="action-btn" 
+                    className="btn-default" 
                     disabled 
                     style={{ opacity: 0.5, cursor: 'not-allowed' }}
                     title="Load Preset (Coming in Phase 6)"
@@ -1905,7 +1913,7 @@ export const RightSidebar: React.FC = () => {
                 </div>
 
                 <button
-                  className="action-btn"
+                  className="btn-default"
                   disabled
                   style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
                   title="Save Preset (Coming in Phase 6)"
@@ -1914,7 +1922,7 @@ export const RightSidebar: React.FC = () => {
                 </button>
 
                 <button
-                  className="action-btn"
+                  className="btn-default"
                   onClick={resetAll}
                   style={{ width: '100%' }}
                   title="Reset all settings to default"

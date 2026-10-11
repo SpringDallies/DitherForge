@@ -18,6 +18,8 @@ import {
   Shuffle,
   GripVertical,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   RotateCcw,
   Square,
   Download,
@@ -1683,9 +1685,9 @@ export const RightSidebar: React.FC = () => {
                           setDragOverEffectIndex(null);
                         }}
                       >
-                        {/* Card Header (Collapsed 34px tall) */}
+                        {/* Card Header (44px tall) */}
                         <div className="effect-card-header">
-                          {/* Zone 1 — chevron + name (left, ~70% width, toggles expand) */}
+                          {/* Zone 1 & 2 — chevron (20px slot) + name (flex: 1) */}
                           <div
                             className="effect-zone-expand"
                             role="button"
@@ -1700,14 +1702,14 @@ export const RightSidebar: React.FC = () => {
                             title={isExpanded ? "Collapse effect parameters" : "Expand effect parameters"}
                           >
                             <span className={`effect-expand-chevron ${isExpanded ? 'expanded' : ''}`}>
-                              <ChevronRight size={14} strokeWidth={1.5} />
+                              <ChevronDown size={18} strokeWidth={1.5} />
                             </span>
                             <span className={`effect-name-text ${!eff.enabled ? 'disabled' : ''}`}>
                               {eff.name}
                             </span>
                           </div>
 
-                          {/* Zone 2 — toggle square (28px wide) */}
+                          {/* Zone 3 — toggle square (28px slot) */}
                           <button
                             type="button"
                             className={`effect-zone-toggle ${eff.enabled ? 'enabled' : ''}`}
@@ -1715,18 +1717,14 @@ export const RightSidebar: React.FC = () => {
                               e.stopPropagation();
                               toggleEffectEnabled(eff.id);
                             }}
-                            title={`Enable / disable ${eff.name}`}
+                            title={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}
                           >
-                            <Square
-                              size={16}
-                              strokeWidth={1.5}
-                              fill={eff.enabled ? "currentColor" : "none"}
-                            />
+                            <span className="effect-toggle-square" />
                           </button>
 
-                          {/* Zone 3 — drag handle (28px wide, always visible) */}
+                          {/* Zone 4 — drag handle / delete swap (24px slot) */}
                           <div
-                            className="effect-zone-drag"
+                            className="effect-zone-drag effect-zone-action"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <span
@@ -1748,24 +1746,36 @@ export const RightSidebar: React.FC = () => {
                                 }
                               }}
                             >
-                              <GripVertical size={14} strokeWidth={1.5} />
+                              <svg
+                                width="9"
+                                height="15"
+                                viewBox="0 0 9 15"
+                                fill="currentColor"
+                                className="effect-drag-dots"
+                                aria-hidden="true"
+                              >
+                                <circle cx="1.5" cy="1.5" r="1.5" />
+                                <circle cx="7.5" cy="1.5" r="1.5" />
+                                <circle cx="1.5" cy="7.5" r="1.5" />
+                                <circle cx="7.5" cy="7.5" r="1.5" />
+                                <circle cx="1.5" cy="13.5" r="1.5" />
+                                <circle cx="7.5" cy="13.5" r="1.5" />
+                              </svg>
                             </span>
+                            <button
+                              type="button"
+                              className="effect-delete-btn effect-zone-delete"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeEffectInstance(eff.id);
+                                if (expandedEffectId === eff.id) setExpandedEffectId(null);
+                              }}
+                              title={`Delete ${eff.name}`}
+                            >
+                              <Trash2 size={14} strokeWidth={1.5} />
+                            </button>
                           </div>
-
-                          {/* Zone 4 — delete button (28px wide, always visible) */}
-                          <button
-                            type="button"
-                            className="effect-zone-delete"
-                            tabIndex={0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeEffectInstance(eff.id);
-                              if (expandedEffectId === eff.id) setExpandedEffectId(null);
-                            }}
-                            title={`Delete ${eff.name}`}
-                          >
-                            <Trash2 size={14} strokeWidth={1.5} />
-                          </button>
                         </div>
 
                         {/* Card Expanded Parameters */}
@@ -1777,8 +1787,8 @@ export const RightSidebar: React.FC = () => {
                               // Shape segmented control
                               if (key === 'shape' && typeof defaultParams[key] === 'string') {
                                 return (
-                                  <div key={key} className="slider-control-block">
-                                    <div className="slider-label-above">
+                                  <div key={key} className="effect-param-row">
+                                    <div className="effect-param-label">
                                       <span>Shape</span>
                                     </div>
                                     <div className="effect-param-segmented">
@@ -1822,22 +1832,32 @@ export const RightSidebar: React.FC = () => {
 
                               const numVal = typeof val === 'number' ? val : defaultParams[key];
                               const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                              const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
+                              const displayVal = typeof numVal === 'number'
+                                ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
+                                : String(val);
+
+                              const handleStep = (direction: 1 | -1) => {
+                                const nextRaw = numVal + direction * step;
+                                const clamped = Math.min(max, Math.max(min, nextRaw));
+                                const rounded = Number(clamped.toFixed(decimals));
+                                updateEffectParam(eff.id, key, rounded);
+                              };
 
                               return (
-                                <div key={key} className="slider-control-block">
-                                  <div className="slider-label-above">
+                                <div key={key} className="effect-param-row">
+                                  <div className="effect-param-label">
                                     <span
                                       onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
-                                      style={{ cursor: 'pointer' }}
                                       title={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}
                                     >
                                       {labelText}
                                     </span>
                                   </div>
-                                  <div className="slider-track-input-row">
+                                  <div className="effect-param-control-row">
                                     <input
                                       type="range"
-                                      className="control-slider"
+                                      className="effect-param-slider"
                                       min={min}
                                       max={max}
                                       step={step}
@@ -1847,18 +1867,34 @@ export const RightSidebar: React.FC = () => {
                                       onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
                                       onChange={(e) => updateEffectParam(eff.id, key, Number(e.target.value))}
                                     />
-                                    <input
-                                      type="number"
-                                      className="control-num-input"
-                                      min={min}
-                                      max={max}
-                                      step={step}
-                                      value={numVal}
-                                      onChange={(e) => {
-                                        const parsed = parseFloat(e.target.value);
-                                        updateEffectParam(eff.id, key, isNaN(parsed) ? defaultParams[key] : parsed);
-                                      }}
-                                    />
+                                    <div className="slider-value-box">
+                                      <span
+                                        className="slider-value-number"
+                                        title="Double-click slider to reset"
+                                      >
+                                        {displayVal}
+                                      </span>
+                                      <div className="slider-value-spinner">
+                                        <button
+                                          type="button"
+                                          className="spinner-btn spinner-up"
+                                          tabIndex={0}
+                                          onClick={() => handleStep(1)}
+                                          title="Increment"
+                                        >
+                                          <ChevronUp size={12} strokeWidth={2} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="spinner-btn spinner-down"
+                                          tabIndex={0}
+                                          onClick={() => handleStep(-1)}
+                                          title="Decrement"
+                                        >
+                                          <ChevronDown size={12} strokeWidth={2} />
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               );

@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Logo } from './common/Logo';
 import { Dropdown } from './common/Dropdown';
 import { Tooltip } from './common/Tooltip';
 import { useAppStore } from '../state/useAppStore';
@@ -88,10 +87,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
         style={{ display: 'none' }}
         onChange={handleFileInputChange}
       />
-
-      <div className="brand-section">
-        <Logo variant="mark" size={20} />
-      </div>
 
       <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
         {/* File Menu */}

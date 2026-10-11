@@ -636,7 +636,7 @@ export const RightSidebar: React.FC = () => {
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block">
           <div className="sidebar-brand">
-            <Logo variant="mark" size={100} />
+            <Logo variant="mark" size={140} />
           </div>
           <input
             type="file"

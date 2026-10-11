@@ -47,7 +47,7 @@
 }
 
 .sidebar-brand .logo-mark {
-  height: 100px;
+  height: 140px;
   width: auto;
   opacity: 0.95;
 }
@@ -63,7 +63,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: 20px;
+  margin-left: 0;
 }
 
 .top-right-controls {

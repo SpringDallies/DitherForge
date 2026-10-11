@@ -1,11 +1,11 @@
 # DitherForge
 
-<p align="center">FOSS Dithering Suite</p>
 
 <p align="center">
   <img src="assets/logo-mark.png" alt="ForgeLogo" width="250" height="250" />
 </p>
 
+<h3 align="center">FOSS Dithering Suite</h3>
 DitherForge is a standalone, cross-platform app for dithering images, video, and animation. It ships with 63 original and public-domain dithering algorithms, works directly in native color space, and lets you stack post-effects on top of your results. There's CRT-style temporal noise, vector contour export, and real Unicode character grids. It's inspired by ditherboy.
 
 ---

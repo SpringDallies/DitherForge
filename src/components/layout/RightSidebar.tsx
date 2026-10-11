@@ -52,12 +52,9 @@ export const RightSidebar: React.FC = () => {
       if (sec === 'palette') {
         return { style: true, adjustments: true, palette: false, effects: true, presets: true };
       }
-      if (sec === 'effects') {
-        return { style: true, adjustments: true, palette: true, effects: false, presets: true };
-      }
     }
     return {
-      style: true,
+      style: false,
       adjustments: false,
       palette: false,
       effects: false,
@@ -129,29 +126,31 @@ export const RightSidebar: React.FC = () => {
 
   // Local state for Swatch editing popover
   // Local state for Effects section (Phase 5)
-  const [expandedEffectId, setExpandedEffectId] = useState<string | null>(() => {
+  const [expandedEffectId, setExpandedEffectId] = useState<string | null>('glow');
+  const [isAddEffectOpen, setIsAddEffectOpen] = useState(false);
+  const [addEffectQuery, setAddEffectQuery] = useState('');
+  const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
+  const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
+
+  // Dropdown open/closed state persists in localStorage under 'ditherforge_effects_open'. Default: closed on first load.
+  const [isEffectsDropdownOpen, setIsEffectsDropdownOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search).get('effects_expanded');
-      if (p === 'none') return null;
-      if (p) return p;
-    }
-    return 'glow';
-  });
-  const [isAddEffectOpen, setIsAddEffectOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return new URLSearchParams(window.location.search).get('effects_add') === 'open';
+      try {
+        return localStorage.getItem('ditherforge_effects_open') === 'true';
+      } catch {}
     }
     return false;
   });
-  const [addEffectQuery, setAddEffectQuery] = useState('');
-  const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(() => {
-    if (typeof window !== 'undefined') {
-      const d = new URLSearchParams(window.location.search).get('effects_dragging');
-      if (d !== null) return parseInt(d, 10);
-    }
-    return null;
-  });
-  const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
+
+  const toggleEffectsDropdown = useCallback(() => {
+    setIsEffectsDropdownOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('ditherforge_effects_open', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   const addEffectPopoverRef = useRef<HTMLDivElement>(null);
   const addEffectInputRef = useRef<HTMLInputElement>(null);

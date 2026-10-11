@@ -1,3 +1,4 @@
+import { Dropdown } from '../common/Dropdown';
 ﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAppStore } from '../../state/useAppStore';
 // Import frozen registries UNCHANGED
@@ -566,16 +567,18 @@ export const RightSidebar: React.FC = () => {
             >
               Export Image
             </button>
-            <select
-              className="control-select"
+            <Dropdown
               disabled
+              width={76}
+              value="PNG"
+              onChange={() => {}}
               title="Export format (Coming in Phase 7)"
-              style={{ width: '70px', opacity: 0.5, cursor: 'not-allowed' }}
-            >
-              <option>PNG</option>
-              <option>JPEG</option>
-              <option>WEBP</option>
-            </select>
+              items={[
+                { id: 'PNG', label: 'PNG' },
+                { id: 'JPEG', label: 'JPEG' },
+                { id: 'WEBP', label: 'WEBP' },
+              ]}
+            />
           </div>
         </div>
 
@@ -602,20 +605,22 @@ export const RightSidebar: React.FC = () => {
                   <span className="picker-label">Category</span>
                   <div className="select-with-steppers">
                     <button className="stepper-btn" onClick={handlePrevCategory} title="Previous Category">&lt;</button>
-                    <select
-                      className="control-select"
-                      style={{ flex: 1 }}
+                    <Dropdown
+                      className="category-dropdown"
+                      width="100%"
                       value={activeCategory}
-                      onChange={(e) => setActiveCategory(e.target.value)}
-                    >
-                      <option value="all">All ({ALGORITHM_REGISTRY.length})</option>
-                      <option value="error_diffusion">Diffusion (15)</option>
-                      <option value="ordered">Ordered (5)</option>
-                      <option value="pattern">Pattern (8)</option>
-                      <option value="glitch">Glitch (17)</option>
-                      <option value="special">Special (16)</option>
-                      <option value="bespoke">Bespoke (2)</option>
-                    </select>
+                      onChange={(catId) => setActiveCategory(catId)}
+                      title="Filter algorithms by category"
+                      items={[
+                        { id: 'all', label: `All (${ALGORITHM_REGISTRY.length})` },
+                        { id: 'error_diffusion', label: 'Diffusion (15)' },
+                        { id: 'ordered', label: 'Ordered (5)' },
+                        { id: 'pattern', label: 'Pattern (8)' },
+                        { id: 'glitch', label: 'Glitch (17)' },
+                        { id: 'special', label: 'Special (16)' },
+                        { id: 'bespoke', label: 'Bespoke (2)' },
+                      ]}
+                    />
                     <button className="stepper-btn" onClick={handleNextCategory} title="Next Category">&gt;</button>
                   </div>
                 </div>
@@ -1235,21 +1240,23 @@ export const RightSidebar: React.FC = () => {
                   <span className="picker-label">Built-in</span>
                   <div className="select-with-steppers">
                     <button className="stepper-btn" onClick={handlePrevPalette} title="Previous Palette">&lt;</button>
-                    <select
-                      className="control-select"
-                      style={{ flex: 1 }}
+                    <Dropdown
+                      className="palette-builtin-dropdown"
+                      width="100%"
                       value={activePaletteId}
-                      onChange={(e) => setActivePaletteId(e.target.value)}
-                    >
-                      {activePaletteId === 'custom' && (
-                        <option value="custom">Custom Palette ({workingPalette.length} colors)</option>
-                      )}
-                      {BUILTIN_PALETTES.map((pal: any) => (
-                        <option key={pal.id} value={pal.id}>
-                          {pal.name} · {pal.colors.length} colors
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(palId) => setActivePaletteId(palId)}
+                      title="Choose built-in palette"
+                      items={[
+                        ...(activePaletteId === 'custom'
+                          ? [{ id: 'custom', label: 'Custom Palette', hint: `${workingPalette.length} colors` }]
+                          : []),
+                        ...BUILTIN_PALETTES.map((pal: any) => ({
+                          id: pal.id,
+                          label: pal.name,
+                          hint: `${pal.colors.length} colors`,
+                        })),
+                      ]}
+                    />
                     <button className="stepper-btn" onClick={handleNextPalette} title="Next Palette">&gt;</button>
                   </div>
                 </div>
@@ -1531,16 +1538,18 @@ export const RightSidebar: React.FC = () => {
             {!collapsedSections.presets && (
               <div className="section-content">
                 <div style={{ display: 'flex', gap: '4px' }}>
-                  <select 
-                    className="control-select" 
-                    disabled 
-                    style={{ flex: 1, opacity: 0.5, cursor: 'not-allowed' }}
+                  <Dropdown
+                    disabled
+                    width="100%"
+                    value=""
+                    placeholder="Built-in Presets..."
+                    onChange={() => {}}
                     title="Load Preset (Coming in Phase 6)"
-                  >
-                    {BUILTIN_PRESETS.map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    items={BUILTIN_PRESETS.map((p: any) => ({
+                      id: p.id,
+                      label: p.name,
+                    }))}
+                  />
                   <button 
                     className="action-btn" 
                     disabled 

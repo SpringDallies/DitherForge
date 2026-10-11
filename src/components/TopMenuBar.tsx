@@ -1,3 +1,4 @@
+import { Dropdown } from './common/Dropdown';
 ﻿import React, { useRef, useState, useEffect } from 'react';
 import { useAppStore } from '../state/useAppStore';
 import { 
@@ -228,20 +229,21 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
 
       {/* Far-Right Compact Cluster: Theme selector + Fullscreen */}
       <div className="top-right-controls">
-        <select 
-          className="control-select" 
-          value={activeTheme} 
-          onChange={(e) => setActiveTheme(e.target.value)}
+        <Dropdown
+          className="theme-dropdown-compact"
+          width={160}
+          value={activeTheme}
+          onChange={(newTheme) => setActiveTheme(newTheme)}
           title="Switch theme design tokens"
-          style={{ height: '22px', fontSize: '0.7rem' }}
-        >
-          <option value="dark_pro">Dark Pro</option>
-          <option value="crt_green">CRT Phosphor</option>
-          <option value="cyberpunk_neon">Cyberpunk Neon</option>
-          <option value="gameboy_olive">GameBoy Olive</option>
-          <option value="retro_mac">Retro Mac OS</option>
-          <option value="vaporwave_pink">Vaporwave</option>
-        </select>
+          items={[
+            { id: 'dark_pro', label: 'Dark Pro' },
+            { id: 'crt_green', label: 'CRT Phosphor' },
+            { id: 'cyberpunk_neon', label: 'Cyberpunk Neon' },
+            { id: 'gameboy_olive', label: 'GameBoy Olive' },
+            { id: 'retro_mac', label: 'Retro Mac OS' },
+            { id: 'vaporwave_pink', label: 'Vaporwave' },
+          ]}
+        />
 
         <button 
           className="tool-icon-btn" 

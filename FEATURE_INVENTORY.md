@@ -150,21 +150,23 @@
 
 | Feature | Source (File & Function / Line) | Exact Parameter List in Code | Current Location | New Location | Status |
 |---|---|---|---|---|---|
-| Effect Stack Reordering (Up/Down) | `main.js:660-678` | Array item swap | Right Panel card | Right Panel C > Drag handle + Up/Down arrows | [ ] Pending |
-| Eye / Checkbox Enable Toggle | `main.js:655-658` | `enabled: boolean` | Right Panel card | Right Panel C > Eye icon toggle | [ ] Pending |
-| Delete Effect from Stack | `main.js:680-685` | Array splice | Right Panel card | Right Panel C > `✕` button | [ ] Pending |
-| 1. Ignition Glow | `effect-stack.js:52-84` | `radius: 1-20`, `intensity: 0-1` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 2. Blur / Sharpen | `effect-stack.js:86-131` | `amount: -1 to 1` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 3. Chromatic Aberration | `effect-stack.js:133-162` | `offsetX: -1 to 1`, `offsetY: -1 to 1` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 4. JPEG Compression Artifacts | `effect-stack.js:164-188` | `quality: 0.05-1.0` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 5. CMYK Halftone Screen | `effect-stack.js:190-221` | `dotSize: 2-20`, `angle: 0-360`, `shape: 0-1` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 6. CRT Scanlines | `effect-stack.js:223-239` | `thickness: 1-10`, `intensity: 0-1` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 7. Pixelate | `effect-stack.js:241-267` | `blockSize: 2-32` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 8. Curves & Levels | `effect-stack.js:269-289` | `blackPoint: 0-0.5`, `whitePoint: 0.5-1.0`, `gamma: 0.2-2.5` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
-| 9. Vignette Falloff | `effect-stack.js:291-314` | `radius: 0.1-1.0`, `softness: 0.1-1.0` | Right Panel `+ Add` | Right Panel C > Add Effect popover | [ ] Pending |
+| Effect Stack Reordering (Up/Down / Drag) | `main.js:660-678` | Array item swap | Right Panel card | Right Panel C > Drag handle + Reorder | [x] Implemented |
+| Eye / Checkbox Enable Toggle | `main.js:655-658` | `enabled: boolean` | Right Panel card | Right Panel C > Enable dot indicator | [x] Implemented |
+| Delete Effect from Stack | `main.js:680-685` | Array splice | Right Panel card | Right Panel C > Trash icon button | [x] Implemented |
+| 1. Ignition Glow | `effect-stack.js:52-84` | `radius: 1-20`, `intensity: 0-1` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 2. Blur / Sharpen | `effect-stack.js:86-131` | `amount: -1 to 1` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 3. Chromatic Aberration | `effect-stack.js:133-162` | `offsetX: 0-20`, `offsetY: 0-20` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 4. JPEG Compression Artifacts | `effect-stack.js:164-188` | `quality: 0-1` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 5. CMYK Halftone Screen | `effect-stack.js:190-221` | `dotSize: 1-20`, `angle: 0-360`, `shape: circle/diamond` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 6. CRT Scanlines | `effect-stack.js:223-239` | `thickness: 1-20`, `intensity: 0-1` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 7. Pixelate | `effect-stack.js:241-267` | `blockSize: 1-20` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 8. Curves & Levels | `effect-stack.js:269-289` | `blackPoint: 0-1`, `whitePoint: 0-1`, `gamma: 0.1-3.0` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
+| 9. Vignette Falloff | `effect-stack.js:291-314` | `radius: 0-1`, `softness: 0-1` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
 
 ---
 
+| Add / Remove / Reorder Instances | *[NEW Architectural Addition]* | Dynamic stack manipulation | Right Panel > `+ Add Effect` popover | Multiple instances per effect type with unique IDs | [x] Implemented |
+| Single-Instance-Expanded Accordion | *[NEW Ergonomic Addition]* | None | Right Panel > Effect cards | Accordion disclosure; single active expanded card | [x] Implemented |
 ### 1.6 Animation & Temporal CRT Noise System
 
 | Feature | Source (File & Function / Line) | Current Location | New Location | Status |

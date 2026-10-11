@@ -20,6 +20,7 @@ export interface AlgoParams {
 
 export interface EffectItem {
   id: string;
+  type: string;
   name: string;
   enabled: boolean;
   params: Record<string, any>;
@@ -101,6 +102,7 @@ const buildInitialAlgoParamsMap = (): Record<string, AlgoParams> => {
 const buildInitialEffects = (): EffectItem[] => {
   return AVAILABLE_EFFECT_TYPES.map((eff: any) => ({
     id: eff.id,
+    type: eff.id,
     name: eff.name,
     enabled: eff.id === 'glow',
     params: { ...eff.defaultParams }
@@ -171,10 +173,16 @@ interface AppState {
   setPaletteDepth: (n: number) => void;
   resetToBuiltin: () => void;
 
-  // Post-Effects Stack (Phase 5 static chrome)
+  // Post-Effects Stack (Phase 5 full stack editor)
   effects: EffectItem[];
+  addEffectInstance: (effectType: string) => void;
+  removeEffectInstance: (id: string) => void;
+  toggleEffectEnabled: (id: string) => void;
+  reorderEffects: (fromIndex: number, toIndex: number) => void;
+  updateEffectParam: (id: string, key: string, value: any) => void;
+  resetEffects: () => void;
+  // Legacy aliases
   toggleEffect: (id: string) => void;
-  reorderEffects: (startIndex: number, endIndex: number) => void;
   addEffect: (effectType: string) => void;
   removeEffect: (index: number) => void;
 
@@ -584,20 +592,50 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Effects
   effects: buildInitialEffects(),
+  addEffectInstance: (effectType) => set((state) => {
+    const meta = AVAILABLE_EFFECT_TYPES.find((e: any) => e.id === effectType);
+    if (!meta) return state;
+    const newEffect: EffectItem = {
+      id: `${effectType}_${Date.now()}`,
+      type: effectType,
+      name: meta.name,
+      enabled: true,
+      params: { ...meta.defaultParams }
+    };
+    return { effects: [...state.effects, newEffect] };
+  }),
+  removeEffectInstance: (id) => set((state) => ({
+    effects: state.effects.filter((e) => e.id !== id)
+  })),
+  toggleEffectEnabled: (id) => set((state) => ({
+    effects: state.effects.map((e) => e.id === id ? { ...e, enabled: !e.enabled } : e)
+  })),
+  reorderEffects: (fromIndex, toIndex) => set((state) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 ||
+        fromIndex >= state.effects.length || toIndex >= state.effects.length) {
+      return state;
+    }
+    const list = [...state.effects];
+    const [moved] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, moved);
+    return { effects: list };
+  }),
+  updateEffectParam: (id, key, value) => set((state) => ({
+    effects: state.effects.map((e) =>
+      e.id === id ? { ...e, params: { ...e.params, [key]: value } } : e
+    )
+  })),
+  resetEffects: () => set({ effects: buildInitialEffects() }),
+  // Legacy aliases
   toggleEffect: (id) => set((state) => ({
     effects: state.effects.map((e) => e.id === id ? { ...e, enabled: !e.enabled } : e)
   })),
-  reorderEffects: (startIndex, endIndex) => set((state) => {
-    const list = [...state.effects];
-    const [removed] = list.splice(startIndex, 1);
-    list.splice(endIndex, 0, removed);
-    return { effects: list };
-  }),
   addEffect: (effectType) => set((state) => {
     const meta = AVAILABLE_EFFECT_TYPES.find((e: any) => e.id === effectType);
     if (!meta) return state;
     const newEffect: EffectItem = {
       id: `${effectType}_${Date.now()}`,
+      type: effectType,
       name: meta.name,
       enabled: true,
       params: { ...meta.defaultParams }

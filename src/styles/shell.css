@@ -1179,39 +1179,270 @@ body {
   padding-right: 8px;
 }
 
-/* Effect Stack */
+/* Effect Stack (Phase 5 Interactive Stack Editor) */
 .effect-stack-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .effect-card {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 8px 10px;
+  border-radius: var(--radius-sm, 4px);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  transition: background-color var(--transition-fast);
+  flex-direction: column;
+  overflow: hidden;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .effect-card:hover {
+  border-color: var(--border-hover);
+}
+
+.effect-card.expanded {
+  border-color: var(--border-focus);
+}
+
+.effect-card.dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.effect-card.drag-over {
+  border-color: var(--accent-primary);
+}
+
+.effect-card-header {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  background-color: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.effect-card-header:hover {
   background-color: var(--bg-hover);
 }
 
-.effect-info {
+.effect-card-left {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.76rem;
-  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
 }
 
-.effect-toggle {
-  accent-color: var(--accent-cyan);
+.effect-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  cursor: grab;
+  padding: 2px;
+  border-radius: 2px;
+  user-select: none;
+}
+
+.effect-drag-handle:active {
+  cursor: grabbing;
+}
+
+.effect-enable-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+  background-color: transparent;
+  cursor: pointer;
+  padding: 0;
+  display: inline-block;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.effect-enable-dot.enabled {
+  background-color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.effect-name-text {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.effect-name-text.disabled {
+  color: var(--text-muted);
+}
+
+.effect-card-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.effect-expand-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.effect-expand-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.effect-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.effect-delete-btn:hover {
+  color: #ff6b6b;
+  background-color: var(--bg-hover);
+}
+
+.effect-card-params {
+  padding: 8px 12px 12px 12px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Param segmented control for shapes (circle / diamond) */
+.effect-param-segmented {
+  display: flex;
+  gap: 4px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 4px);
+  padding: 2px;
+}
+
+.effect-param-segment-btn {
+  flex: 1;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: capitalize;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.effect-param-segment-btn.active {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+}
+
+/* Add Effect Popover */
+.add-effect-popover-container {
+  position: relative;
+  width: 100%;
+}
+
+.add-effect-trigger-btn {
+  width: 100%;
+  height: 36px;
+}
+
+.add-effect-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 260px;
+  max-height: 320px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.add-effect-search-input {
+  width: 100%;
+  height: 32px;
+  background-color: var(--bg-primary);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0 10px;
+  font-size: 0.82rem;
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.add-effect-search-input:focus {
+  border-bottom-color: var(--border-focus);
+}
+
+.add-effect-items-list {
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.add-effect-item-row {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--transition-fast);
+}
+
+.add-effect-item-row:hover {
+  background-color: var(--bg-hover);
+}
+
+.add-effect-item-name {
+  font-size: 0.82rem;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.add-effect-item-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 /* Bottom Control Strip */

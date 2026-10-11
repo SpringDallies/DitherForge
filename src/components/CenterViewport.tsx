@@ -3,6 +3,7 @@ import { useAppStore } from '../state/useAppStore';
 // Import real frozen dither engine UNCHANGED via allowJs
 // @ts-ignore
 import { applyDitherAlgorithm, applyTweaks } from '../dither-engine/algorithms.js';
+import { applyEffectStack } from '../dither-engine/effect-stack.js';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import { createProxyImageData } from '../utils/samplePattern';
@@ -39,6 +40,21 @@ export const CenterViewport: React.FC = () => {
   const depth = useAppStore((state) => state.depth);
   const workingPalette = useAppStore((state) => state.workingPalette);
   const paletteDepth = useAppStore((state) => state.paletteDepth);
+  const effects = useAppStore((state) => state.effects);
+  const toggleEffectEnabled = useAppStore((state) => state.toggleEffectEnabled);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const preset = new URLSearchParams(window.location.search).get('effects_preset');
+      if (preset === 'tri_effects') {
+        // Enable scanlines and chromatic if not already enabled
+        const scanlines = effects.find(e => e.type === 'scanlines' || e.id === 'scanlines');
+        if (scanlines && !scanlines.enabled) toggleEffectEnabled(scanlines.id);
+        const chromatic = effects.find(e => e.type === 'chromatic_aberration' || e.id === 'chromatic_aberration');
+        if (chromatic && !chromatic.enabled) toggleEffectEnabled(chromatic.id);
+      }
+    }
+  }, []);
 
   const updateMode = useAppStore((state) => state.updateMode);
   const isDraggingSlider = useAppStore((state) => state.isDraggingSlider);
@@ -270,6 +286,9 @@ export const CenterViewport: React.FC = () => {
       depth: depth,
       temporalSeed: 0
     });
+
+    // Step 4b: Apply Stackable Post-Effects Stack (after dithering)
+    applyEffectStack(ditherImageData, effects);
     const elapsed = performance.now() - t0;
     setLastRenderMs(elapsed);
 
@@ -320,6 +339,7 @@ export const CenterViewport: React.FC = () => {
     currentParams.noiseAmount,
     showBeforeAfter,
     splitRatio,
+    effects,
     setLastRenderMs
   ]);
 

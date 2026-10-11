@@ -8,12 +8,17 @@ import { ALGORITHM_REGISTRY, ALGORITHM_CATEGORIES } from '../../dither-engine/al
 import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToRgba, rgbaToHex } from '../../dither-engine/palettes.js';
 // @ts-ignore
 import { BUILTIN_PRESETS } from '../../ui/presets.js';
+// @ts-ignore
+import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 import { 
   Lock, 
   Unlock, 
   Trash2, 
   MoveVertical,
-  Shuffle
+  Shuffle,
+  GripVertical,
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
 
 const CATEGORY_KEYS = [
@@ -41,6 +46,9 @@ export const RightSidebar: React.FC = () => {
       }
       if (sec === 'palette') {
         return { style: true, adjustments: true, palette: false, effects: true, presets: true };
+      }
+      if (sec === 'effects') {
+        return { style: true, adjustments: true, palette: true, effects: false, presets: true };
       }
     }
     return {
@@ -105,10 +113,84 @@ export const RightSidebar: React.FC = () => {
   const hasImage = useAppStore((state) => state.hasImage);
 
   const effects = useAppStore((state) => state.effects);
+  const addEffectInstance = useAppStore((state) => state.addEffectInstance);
+  const removeEffectInstance = useAppStore((state) => state.removeEffectInstance);
+  const toggleEffectEnabled = useAppStore((state) => state.toggleEffectEnabled);
+  const reorderEffects = useAppStore((state) => state.reorderEffects);
+  const updateEffectParam = useAppStore((state) => state.updateEffectParam);
+  const resetEffects = useAppStore((state) => state.resetEffects);
   const resetAll = useAppStore((state) => state.resetAll);
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
 
   // Local state for Swatch editing popover
+  // Local state for Effects section (Phase 5)
+  const [expandedEffectId, setExpandedEffectId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('effects_expanded');
+      if (p === 'none') return null;
+      if (p) return p;
+    }
+    return 'glow';
+  });
+  const [isAddEffectOpen, setIsAddEffectOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('effects_add') === 'open';
+    }
+    return false;
+  });
+  const [addEffectQuery, setAddEffectQuery] = useState('');
+  const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
+  const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
+
+  const addEffectPopoverRef = useRef<HTMLDivElement>(null);
+  const addEffectInputRef = useRef<HTMLInputElement>(null);
+
+  // Close Add Effect popover on outside click or Escape
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (addEffectPopoverRef.current && !addEffectPopoverRef.current.contains(e.target as Node)) {
+        setIsAddEffectOpen(false);
+        setAddEffectQuery('');
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isAddEffectOpen) {
+        setIsAddEffectOpen(false);
+        setAddEffectQuery('');
+      }
+    };
+    if (isAddEffectOpen) {
+      document.addEventListener('mousedown', handleOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      requestAnimationFrame(() => addEffectInputRef.current?.focus());
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAddEffectOpen]);
+
+  // Reset Effects with confirmation if modified
+  const handleResetEffects = () => {
+    const isModified = effects.length !== 9 || effects.some((e, idx) => {
+      const typeMeta = AVAILABLE_EFFECT_TYPES[idx];
+      if (!typeMeta || e.type !== typeMeta.id) return true;
+      const expectedEnabled = typeMeta.id === 'glow';
+      if (e.enabled !== expectedEnabled) return true;
+      for (const k of Object.keys(typeMeta.defaultParams)) {
+        if (e.params[k] !== (typeMeta.defaultParams as any)[k]) return true;
+      }
+      return false;
+    });
+
+    if (isModified) {
+      const confirmed = window.confirm('Reset effect stack to default (Glow enabled)?');
+      if (!confirmed) return;
+    }
+    resetEffects();
+    setExpandedEffectId('glow');
+  };
+
   const [activeSwatchIndex, setActiveSwatchIndex] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
       const sw = new URLSearchParams(window.location.search).get('swatch');
@@ -1474,51 +1556,266 @@ export const RightSidebar: React.FC = () => {
                 type="button"
               >
                 <span className="section-collapse-icon">{collapsedSections.effects ? '▶' : '▼'}</span>
-                <span className="section-title-text">EFFECTS STACK ({effects.length})</span>
+                <span className="section-title-text">
+                  EFFECTS STACK ({effects.filter(e => e.enabled).length} active / {effects.length} total)
+                </span>
               </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              <button
+                type="button"
+                className="section-reset-btn"
+                onClick={handleResetEffects}
+                title="Reset effect stack to default"
+              >
+                <RotateCcw size={12} />
+                <span>Reset</span>
+              </button>
             </div>
 
             {!collapsedSections.effects && (
               <div className="section-content">
-                <button
-                  className="action-btn"
-                  disabled
-                  title="Add post-effect to stack (Coming in Phase 5)"
-                  style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
-                >
-                  + Add Effect
-                </button>
+                {/* Add Effect Button with Popover */}
+                <div className="add-effect-popover-container" ref={addEffectPopoverRef}>
+                  <button
+                    type="button"
+                    className="action-btn add-effect-trigger-btn"
+                    onClick={() => setIsAddEffectOpen(!isAddEffectOpen)}
+                    title="Add post-effect to stack"
+                  >
+                    + Add Effect
+                  </button>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {effects.map((eff) => (
-                    <div key={eff.id} className="effect-card" style={{ opacity: 0.75 }}>
-                      <div className="effect-info">
-                        <input
-                          type="checkbox"
-                          className="effect-toggle"
-                          checked={eff.enabled}
-                          disabled
-                          title="Effect toggle (Coming in Phase 5)"
-                          style={{ cursor: 'not-allowed' }}
-                        />
-                        <span style={{ color: eff.enabled ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                          {eff.name}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <button
-                          className="tool-icon-btn"
-                          disabled
-                          title="Remove effect (Coming in Phase 5)"
-                          style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                        >
-                          <Trash2 size={12} style={{ color: 'var(--text-muted)' }} />
-                        </button>
-                        <span title="Drag-reorder effects (Coming in Phase 5)" style={{ display: 'inline-flex', alignItems: 'center', cursor: 'not-allowed' }}><MoveVertical size={12} style={{ color: 'var(--text-muted)' }} /></span>
+                  {isAddEffectOpen && (
+                    <div className="add-effect-popover" onWheel={(e) => e.stopPropagation()}>
+                      <input
+                        ref={addEffectInputRef}
+                        type="text"
+                        className="add-effect-search-input"
+                        placeholder="Search effects…"
+                        value={addEffectQuery}
+                        onChange={(e) => setAddEffectQuery(e.target.value)}
+                      />
+                      <div className="add-effect-items-list">
+                        {AVAILABLE_EFFECT_TYPES
+                          .filter((eff: any) =>
+                            eff.name.toLowerCase().includes(addEffectQuery.toLowerCase()) ||
+                            eff.id.toLowerCase().includes(addEffectQuery.toLowerCase())
+                          )
+                          .map((eff: any) => {
+                            const paramKeys = Object.keys(eff.defaultParams).join(' · ');
+                            return (
+                              <div
+                                key={eff.id}
+                                className="add-effect-item-row"
+                                onClick={() => {
+                                  addEffectInstance(eff.id);
+                                  setIsAddEffectOpen(false);
+                                  setAddEffectQuery('');
+                                }}
+                              >
+                                <span className="add-effect-item-name">{eff.name}</span>
+                                <span className="add-effect-item-hint">{paramKeys}</span>
+                              </div>
+                            );
+                          })}
+                        {AVAILABLE_EFFECT_TYPES.filter((eff: any) =>
+                          eff.name.toLowerCase().includes(addEffectQuery.toLowerCase())
+                        ).length === 0 && (
+                          <div style={{ padding: '12px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                            No effects match search
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  )}
+                </div>
+
+                {/* Effect Cards List */}
+                <div className="effect-stack-list">
+                  {effects.map((eff, index) => {
+                    const isExpanded = expandedEffectId === eff.id;
+                    const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
+                    const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
+
+                    return (
+                      <div
+                        key={eff.id}
+                        className={`effect-card ${isExpanded ? 'expanded' : ''} ${draggedEffectIndex === index ? 'dragging' : ''} ${dragOverEffectIndex === index ? 'drag-over' : ''}`}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
+                            setDragOverEffectIndex(index);
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverEffectIndex === index) setDragOverEffectIndex(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
+                            reorderEffects(draggedEffectIndex, index);
+                          }
+                          setDraggedEffectIndex(null);
+                          setDragOverEffectIndex(null);
+                        }}
+                      >
+                        {/* Card Header (Collapsed 34px tall) */}
+                        <div
+                          className="effect-card-header"
+                          onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
+                        >
+                          <div className="effect-card-left">
+                            <span
+                              className="effect-drag-handle"
+                              draggable
+                              title="Drag to reorder"
+                              onClick={(e) => e.stopPropagation()}
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                setDraggedEffectIndex(index);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedEffectIndex(null);
+                                setDragOverEffectIndex(null);
+                              }}
+                            >
+                              <GripVertical size={12} />
+                            </span>
+
+                            <button
+                              type="button"
+                              className={`effect-enable-dot ${eff.enabled ? 'enabled' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleEffectEnabled(eff.id);
+                              }}
+                              title={eff.enabled ? "Disable effect" : "Enable effect"}
+                            />
+
+                            <span className={`effect-name-text ${!eff.enabled ? 'disabled' : ''}`}>
+                              {eff.name}
+                            </span>
+                          </div>
+
+                          <div className="effect-card-right">
+                            <span className={`effect-expand-chevron ${isExpanded ? 'expanded' : ''}`}>
+                              <ChevronRight size={12} />
+                            </span>
+
+                            <button
+                              type="button"
+                              className="effect-delete-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeEffectInstance(eff.id);
+                                if (expandedEffectId === eff.id) setExpandedEffectId(null);
+                              }}
+                              title="Delete effect"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Card Expanded Parameters */}
+                        {isExpanded && (
+                          <div className="effect-card-params">
+                            {Object.keys(defaultParams).map((key) => {
+                              const val = eff.params[key] !== undefined ? eff.params[key] : defaultParams[key];
+
+                              // Shape segmented control
+                              if (key === 'shape' && typeof defaultParams[key] === 'string') {
+                                return (
+                                  <div key={key} className="slider-control-block">
+                                    <div className="slider-label-above">
+                                      <span>Shape</span>
+                                    </div>
+                                    <div className="effect-param-segmented">
+                                      <button
+                                        type="button"
+                                        className={`effect-param-segment-btn ${val === 'circle' ? 'active' : ''}`}
+                                        onClick={() => updateEffectParam(eff.id, 'shape', 'circle')}
+                                      >
+                                        Circle
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`effect-param-segment-btn ${val === 'diamond' ? 'active' : ''}`}
+                                        onClick={() => updateEffectParam(eff.id, 'shape', 'diamond')}
+                                      >
+                                        Diamond
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              // Numerical Slider Params
+                              let min = 0;
+                              let max = 1;
+                              let step = 0.05;
+
+                              if (key === 'quality' || key === 'intensity' || key === 'blackPoint' || key === 'whitePoint' || key === 'softness') {
+                                min = 0; max = 1; step = 0.05;
+                              } else if (key === 'radius' || key === 'dotSize' || key === 'thickness' || key === 'blockSize') {
+                                min = 1; max = 20; step = 1;
+                              } else if (key === 'angle') {
+                                min = 0; max = 360; step = 1;
+                              } else if (key === 'offsetX' || key === 'offsetY') {
+                                min = 0; max = 20; step = 1;
+                              } else if (key === 'gamma') {
+                                min = 0.1; max = 3.0; step = 0.05;
+                              } else if (key === 'amount') {
+                                min = -1.0; max = 1.0; step = 0.05;
+                              }
+
+                              const numVal = typeof val === 'number' ? val : defaultParams[key];
+                              const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+
+                              return (
+                                <div key={key} className="slider-control-block">
+                                  <div className="slider-label-above">
+                                    <span
+                                      onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
+                                      style={{ cursor: 'pointer' }}
+                                      title={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}
+                                    >
+                                      {labelText}
+                                    </span>
+                                  </div>
+                                  <div className="slider-track-input-row">
+                                    <input
+                                      type="range"
+                                      className="control-slider"
+                                      min={min}
+                                      max={max}
+                                      step={step}
+                                      value={numVal}
+                                      style={getSliderFill(numVal, min, max)}
+                                      {...sliderPointerProps}
+                                      onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
+                                      onChange={(e) => updateEffectParam(eff.id, key, Number(e.target.value))}
+                                    />
+                                    <input
+                                      type="number"
+                                      className="control-num-input"
+                                      min={min}
+                                      max={max}
+                                      step={step}
+                                      value={numVal}
+                                      onChange={(e) => {
+                                        const parsed = parseFloat(e.target.value);
+                                        updateEffectParam(eff.id, key, isNaN(parsed) ? defaultParams[key] : parsed);
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

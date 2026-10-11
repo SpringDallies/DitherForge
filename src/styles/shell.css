@@ -1888,16 +1888,17 @@ body {
   gap: 6px;
 }
 
-/* Popover menus */
+/* Popover menus (Phase 7.1) */
 .dropdown-menu-popover {
   position: absolute;
   top: 30px;
   left: 0;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  min-width: 180px;
-  z-index: 100;
+  border-radius: var(--radius-sm);
+  min-width: 220px;
+  width: max-content;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   padding: 4px 0;
@@ -1908,8 +1909,10 @@ body {
   background: transparent;
   border: none;
   color: var(--text-main);
+  font-family: var(--font-sans);
   font-size: 0.76rem;
-  padding: 6px 12px;
+  height: 32px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1917,10 +1920,14 @@ body {
   width: 100%;
   text-align: left;
   transition: background-color var(--transition-fast);
+  user-select: none;
 }
 
-.dropdown-menu-item:hover {
+.dropdown-menu-item:hover,
+.dropdown-menu-item.focused,
+.dropdown-menu-item.active {
   background-color: var(--bg-hover);
+  color: var(--text-main);
 }
 
 .dropdown-menu-item:disabled {
@@ -1936,9 +1943,39 @@ body {
 
 .menu-shortcut {
   margin-left: auto;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
+}
+
+/* Submenu popover */
+.dropdown-submenu-trigger {
+  position: relative;
+}
+
+.dropdown-submenu-popover {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 2px;
+  min-width: 190px;
+}
+
+.dropdown-submenu-trigger:hover > .dropdown-submenu-popover,
+.dropdown-submenu-trigger.active > .dropdown-submenu-popover,
+.dropdown-submenu-popover.open {
+  display: flex;
+}
+
+.shortcut-kbd {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-main);
 }
 
 
@@ -2344,7 +2381,7 @@ body {
   max-width: 280px;
   width: max-content;
   white-space: normal;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Only element allowed box-shadow per spec */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); /* Only element allowed box-shadow per spec */
   pointer-events: none;
   animation: tooltipFadeIn 120ms ease forwards;
   line-height: 1.35;

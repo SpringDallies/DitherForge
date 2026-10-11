@@ -1,5 +1,8 @@
-<p align="center">
+ <p align="center">
   <img src="assets/logo-wordmark.webp" alt="Ditherforge" width="400" height="75" />
+</p> 
+
+<p align="center">
   <img src="assets/logo-mark.png" alt="ForgeLogo" width="250" height="250" />
 </p>
 

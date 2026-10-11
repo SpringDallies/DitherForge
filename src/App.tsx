@@ -1,5 +1,8 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/shell.css';
+import './styles/logo.css';
+import './styles/loading.css';
+import { LoadingScreen } from './components/common/LoadingScreen';
 import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
 import { LeftIconRail } from './components/layout/LeftIconRail';
@@ -18,9 +21,31 @@ export const App: React.FC = () => {
   const setSidebarWidth = useAppStore((state) => state.setSidebarWidth);
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
 
+  const [booted, setBooted] = useState<boolean>(false);
   const [isPeekOpen, setIsPeekOpen] = useState<boolean>(false);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState<boolean>(false);
   const peekTimerRef = useRef<number | null>(null);
+
+  // App boot: dismiss overlay immediately once fonts are ready & painted
+  useEffect(() => {
+    let active = true;
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        if (active) {
+          requestAnimationFrame(() => {
+            if (active) setBooted(true);
+          });
+        }
+      });
+    } else {
+      requestAnimationFrame(() => {
+        if (active) setBooted(true);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Sync theme with document root & body
   useEffect(() => {
@@ -82,7 +107,9 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div
+    <>
+      {!booted && <LoadingScreen fullscreen />}
+      <div
       className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
       data-theme={activeTheme}
     >
@@ -95,7 +122,7 @@ export const App: React.FC = () => {
         >
           {!isPeekOpen && (
             <div className="fullscreen-peek-tab" onClick={() => setIsPeekOpen(true)}>
-              MENU ▼
+              MENU  
             </div>
           )}
         </div>
@@ -135,6 +162,7 @@ export const App: React.FC = () => {
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
       />
-    </div>
+      </div>
+    </>
   );
 };

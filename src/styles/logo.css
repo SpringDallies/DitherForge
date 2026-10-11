@@ -1,0 +1,39 @@
+/* Logo Component Styles */
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.logo-mark {
+  display: block;
+  height: 20px;
+  width: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  user-select: none;
+  object-fit: contain;
+}
+
+@keyframes logo-breath {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.logo-animated {
+  animation: logo-breath 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-animated {
+    animation: none;
+  }
+}

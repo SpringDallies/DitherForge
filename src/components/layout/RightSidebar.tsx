@@ -1,5 +1,8 @@
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { LoadingScreen } from '../common/LoadingScreen';
 import { Dropdown } from '../common/Dropdown';
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Tooltip } from '../common/Tooltip';
+import { USER_ALGORITHM_DESCRIPTIONS } from '../../ui/algorithm-descriptions';
 import { useAppStore } from '../../state/useAppStore';
 // Import frozen registries UNCHANGED
 // @ts-ignore
@@ -126,6 +129,7 @@ export const RightSidebar: React.FC = () => {
 
   // Local state for Swatch editing popover
   // Local state for Effects section (Phase 5)
+  const [isExtractingPalette, setIsExtractingPalette] = useState<boolean>(false);
   const [expandedEffectId, setExpandedEffectId] = useState<string | null>('glow');
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
@@ -528,21 +532,29 @@ export const RightSidebar: React.FC = () => {
 
   const handleExtractMedianCut = () => {
     if (!sourceImageData) return;
-    const extracted = extractPaletteMedianCut(sourceImageData, 8);
-    useAppStore.setState({
-      workingPalette: extracted.map((c: number[]) => [...c]),
-      lockedSwatches: [],
-      paletteDepth: extracted.length
+    setIsExtractingPalette(true);
+    requestAnimationFrame(() => {
+      const extracted = extractPaletteMedianCut(sourceImageData, 8);
+      useAppStore.setState({
+        workingPalette: extracted.map((c: number[]) => [...c]),
+        lockedSwatches: [],
+        paletteDepth: extracted.length
+      });
+      setIsExtractingPalette(false);
     });
   };
 
   const handleExtractKMeans = () => {
     if (!sourceImageData) return;
-    const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
-    useAppStore.setState({
-      workingPalette: extracted.map((c: number[]) => [...c]),
-      lockedSwatches: [],
-      paletteDepth: extracted.length
+    setIsExtractingPalette(true);
+    requestAnimationFrame(() => {
+      const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
+      useAppStore.setState({
+        workingPalette: extracted.map((c: number[]) => [...c]),
+        lockedSwatches: [],
+        paletteDepth: extracted.length
+      });
+      setIsExtractingPalette(false);
     });
   };
 
@@ -629,21 +641,24 @@ export const RightSidebar: React.FC = () => {
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
-          <button
-            className="btn-primary open-image-btn"
-            onClick={handleOpenImage}
-            title="Open local image file"
-          >
-            Open Image
-          </button>
-          <div className="export-action-row">
+          <Tooltip text="Open local image file" style={{ width: '100%' }}>
             <button
-              className="btn-default export-image-btn"
-              disabled
-              title="Export Image (Coming in Phase 7)"
+              className="btn-primary open-image-btn"
+              onClick={handleOpenImage}
             >
-              Export Image
+              Open Image
             </button>
+          </Tooltip>
+          <div className="export-action-row">
+            <Tooltip text="Export Image (Coming in Phase 7)" style={{ width: '65%' }}>
+              <button
+                className="btn-default export-image-btn"
+                disabled
+                style={{ width: '100%' }}
+              >
+                Export Image
+              </button>
+            </Tooltip>
             <Dropdown
               className="export-format-dropdown"
               disabled
@@ -673,7 +688,7 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.style ? '▶' : '▼'}</span>
                 <span className="section-title-text">STYLE</span>
               </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.style && (
@@ -682,7 +697,9 @@ export const RightSidebar: React.FC = () => {
                 <div className="picker-row">
                   <span className="picker-label">Category</span>
                   <div className="select-with-steppers">
-                    <button className="stepper-btn" onClick={handlePrevCategory} title="Previous Category">&lt;</button>
+                    <Tooltip text="Previous Category">
+                      <button className="stepper-btn" onClick={handlePrevCategory}>&lt;</button>
+                    </Tooltip>
                     <Dropdown
                       className="category-dropdown"
                       width="100%"
@@ -699,7 +716,9 @@ export const RightSidebar: React.FC = () => {
                         { id: 'bespoke', label: 'Bespoke (2)' },
                       ]}
                     />
-                    <button className="stepper-btn" onClick={handleNextCategory} title="Next Category">&gt;</button>
+                    <Tooltip text="Next Category">
+                      <button className="stepper-btn" onClick={handleNextCategory}>&gt;</button>
+                    </Tooltip>
                   </div>
                 </div>
 
@@ -707,7 +726,9 @@ export const RightSidebar: React.FC = () => {
                 <div className="picker-row">
                   <span className="picker-label">Algorithm</span>
                   <div className="select-with-steppers">
-                    <button className="stepper-btn" onClick={handlePrevAlgo} title="Previous Algorithm (Up Arrow)">&lt;</button>
+                    <Tooltip text="Previous Algorithm (Up Arrow)">
+                      <button className="stepper-btn" onClick={handlePrevAlgo}>&lt;</button>
+                    </Tooltip>
                     <div className="algo-listbox-container" ref={listboxRef}>
                       <button
                         type="button"
@@ -823,32 +844,54 @@ export const RightSidebar: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <button className="stepper-btn" onClick={handleNextAlgo} title="Next Algorithm (Down Arrow)">&gt;</button>
-                    <button
-                      className="stepper-btn"
-                      onClick={() => toggleFavoriteAlgorithm(algorithmId)}
-                      title={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                      style={{ color: isCurrentFavorite ? 'var(--accent-cyan)' : 'var(--text-muted)' }}
-                    >
-                      ★
-                    </button>
+                    <Tooltip text="Next Algorithm (Down Arrow)">
+                      <button className="stepper-btn" onClick={handleNextAlgo}>&gt;</button>
+                    </Tooltip>
+                    <Tooltip text={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}>
+                      <button
+                        className="stepper-btn"
+                        onClick={() => toggleFavoriteAlgorithm(algorithmId)}
+                        style={{ color: isCurrentFavorite ? 'var(--accent-cyan)' : 'var(--text-muted)' }}
+                      >
+                        ★
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
 
-                {/* Description */}
-                <p className="algo-description-box">
-                  {currentAlgo.description}
-                </p>
+                {/* User-facing Algorithm Description (Item 7) */}
+                {(() => {
+                  const desc = USER_ALGORITHM_DESCRIPTIONS[algorithmId];
+                  return (
+                    <div className="algo-description-container">
+                      <div className="algo-desc-what">
+                        {desc?.what ?? currentAlgo.description}
+                      </div>
+                      {desc?.why && (
+                        <div className="algo-desc-why">
+                          <span className="algo-desc-why-prefix">Best for: </span>
+                          {desc.why}
+                        </div>
+                      )}
+                      {currentAlgo.description && desc && (
+                        <div className="algo-desc-footnote">
+                          {currentAlgo.description}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Reset button */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn-subtle"
-                    onClick={resetCurrentAlgoParams}
-                    title="Reset algorithm parameters"
-                  >
-                    Reset
-                  </button>
+                  <Tooltip text="Reset algorithm parameters">
+                    <button
+                      className="btn-subtle"
+                      onClick={resetCurrentAlgoParams}
+                    >
+                      Reset
+                    </button>
+                  </Tooltip>
                 </div>
 
                 {/* Progressive Parameters */}
@@ -965,17 +1008,21 @@ export const RightSidebar: React.FC = () => {
 
                 {visibleParams.serpentine && (
                   <div className="serpentine-row">
-                    <input
-                      type="checkbox"
-                      id="serpentineCheckbox"
-                      checked={currentParams.serpentine}
-                      onChange={(e) => updateCurrentAlgoParam('serpentine', e.target.checked)}
-                      style={{ accentColor: 'var(--accent-cyan)' }}
-                    />
+                    <Tooltip text="Alternates scan direction on odd rows to prevent diagonal artifacting">
+                      <button
+                        type="button"
+                        id="serpentineToggleBtn"
+                        className={`toggle-square-btn ${currentParams.serpentine ? 'enabled' : ''}`}
+                        onClick={() => updateCurrentAlgoParam('serpentine', !currentParams.serpentine)}
+                        aria-label="Toggle Serpentine Scanline"
+                      >
+                        <span className={`toggle-square ${currentParams.serpentine ? 'enabled' : ''}`} />
+                      </button>
+                    </Tooltip>
                     <label 
-                      htmlFor="serpentineCheckbox" 
-                      style={{ cursor: 'pointer', color: 'var(--text-main)', userSelect: 'none' }}
-                      title="Alternates scan direction on odd rows to prevent diagonal artifacting"
+                      htmlFor="serpentineToggleBtn"
+                      className="serpentine-label"
+                      onClick={() => updateCurrentAlgoParam('serpentine', !currentParams.serpentine)}
                     >
                       Serpentine Scanline
                     </label>
@@ -1031,19 +1078,20 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.adjustments ? '▶' : '▼'}</span>
                 <span className="section-title-text">ADJUSTMENTS</span>
               </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.adjustments && (
               <div className="section-content">
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn-subtle"
-                    onClick={resetAllAdjustments}
-                    title="Reset adjustments"
-                  >
-                    Reset
-                  </button>
+                  <Tooltip text="Reset adjustments">
+                    <button
+                      className="btn-subtle"
+                      onClick={resetAllAdjustments}
+                    >
+                      Reset
+                    </button>
+                  </Tooltip>
                 </div>
 
                 {/* Brightness */}
@@ -1056,14 +1104,15 @@ export const RightSidebar: React.FC = () => {
                       >
                         Brightness
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('brightness')}
-                      title={lockedAdjustments.brightness ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.brightness ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    <Tooltip text={lockedAdjustments.brightness ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('brightness')}
+                      >
+                        {lockedAdjustments.brightness ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -1102,14 +1151,15 @@ export const RightSidebar: React.FC = () => {
                       >
                         Contrast
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('contrast')}
-                      title={lockedAdjustments.contrast ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.contrast ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    <Tooltip text={lockedAdjustments.contrast ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('contrast')}
+                      >
+                        {lockedAdjustments.contrast ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -1148,14 +1198,15 @@ export const RightSidebar: React.FC = () => {
                       >
                         Saturation
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('saturation')}
-                      title={lockedAdjustments.saturation ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.saturation ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    <Tooltip text={lockedAdjustments.saturation ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('saturation')}
+                      >
+                        {lockedAdjustments.saturation ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -1194,14 +1245,15 @@ export const RightSidebar: React.FC = () => {
                       >
                         Gamma
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('gamma')}
-                      title={lockedAdjustments.gamma ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.gamma ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    <Tooltip text={lockedAdjustments.gamma ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('gamma')}
+                      >
+                        {lockedAdjustments.gamma ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -1294,33 +1346,40 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-title-text">PALETTE</span>
               </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  type="button"
-                  className="stepper-btn"
-                  onClick={shuffleUnlockedSwatches}
-                  title="Shuffle unlocked swatches"
-                  style={{ width: '22px', height: '22px' }}
-                >
-                  <Shuffle size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="btn-subtle"
-                  onClick={handleResetPalette}
-                  title="Reset to built-in palette"
-                >
-                  Reset
-                </button>
+                <Tooltip text="Shuffle unlocked swatches">
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={shuffleUnlockedSwatches}
+                    style={{ width: '22px', height: '22px' }}
+                  >
+                    <Shuffle size={14} />
+                  </button>
+                </Tooltip>
+                <Tooltip text="Reset to built-in palette">
+                  <button
+                    type="button"
+                    className="btn-subtle"
+                    onClick={handleResetPalette}
+                  >
+                    Reset
+                  </button>
+                </Tooltip>
               </div>
             </div>
 
             {!collapsedSections.palette && (
-              <div className="section-content">
+              <div className="section-content" style={{ position: 'relative' }}>
+                {isExtractingPalette && (
+                  <LoadingScreen />
+                )}
                 {/* Built-in Dropdown */}
                 <div className="picker-row">
                   <span className="picker-label">Built-in</span>
                   <div className="select-with-steppers">
-                    <button className="stepper-btn" onClick={handlePrevPalette} title="Previous Palette">&lt;</button>
+                    <Tooltip text="Previous Palette">
+                      <button className="stepper-btn" onClick={handlePrevPalette}>&lt;</button>
+                    </Tooltip>
                     <Dropdown
                       className="palette-builtin-dropdown"
                       width="100%"
@@ -1338,26 +1397,27 @@ export const RightSidebar: React.FC = () => {
                         })),
                       ]}
                     />
-                    <button className="stepper-btn" onClick={handleNextPalette} title="Next Palette">&gt;</button>
+                    <Tooltip text="Next Palette">
+                      <button className="stepper-btn" onClick={handleNextPalette}>&gt;</button>
+                    </Tooltip>
                   </div>
                 </div>
 
                 {/* Swatch grid: 32x32px each, 4px gaps, wrapping naturally */}
-                <div className="palette-swatches-grid" title="Palette swatches">
+                <div className="palette-swatches-grid">
                   {workingPalette.map((c: number[], i: number) => {
                     const isLocked = lockedSwatches.includes(i);
                     const isBeyondDepth = i >= paletteDepth;
                     const hex = rgbaToHex(c[0], c[1], c[2]).toUpperCase();
                     return (
+                      <Tooltip key={i} text={`Swatch ${i + 1}: ${hex}${isLocked ? ' (Locked)' : ''}`}>
                       <div
-                        key={i}
                         className="palette-swatch-item"
                         style={{
                           backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})`,
                           opacity: isBeyondDepth ? 0.35 : 1
                         }}
                         onClick={() => setActiveSwatchIndex(activeSwatchIndex === i ? null : i)}
-                        title={`Swatch ${i + 1}: ${hex}${isLocked ? ' (Locked)' : ''}`}
                       >
                         {isLocked && (
                           <div className="palette-swatch-lock-badge">
@@ -1365,16 +1425,17 @@ export const RightSidebar: React.FC = () => {
                           </div>
                         )}
                       </div>
+                    </Tooltip>
                     );
                   })}
 
                   {/* Add swatch button if < 32 */}
                   {workingPalette.length < 32 && (
+                    <Tooltip text="Add color swatch (up to 32)">
                     <button
                       type="button"
                       className="palette-swatch-item"
                       onClick={addSwatch}
-                      title="Add color swatch (up to 32)"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1387,6 +1448,7 @@ export const RightSidebar: React.FC = () => {
                     >
                       +
                     </button>
+                  </Tooltip>
                   )}
 
                   {/* Swatch Edit Popover */}
@@ -1458,31 +1520,35 @@ export const RightSidebar: React.FC = () => {
                 <div className="palette-actions-block">
                   <span className="palette-actions-label">From Image</span>
                   <div className="palette-buttons-row">
+                    <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"} style={{ flex: 1 }}>
                     <button
                       type="button"
                       className="palette-action-btn"
                       disabled={!hasImage || !sourceImageData}
                       onClick={handleExtractMedianCut}
-                      title={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"}
+                      style={{ width: '100%' }}
                     >
                       Median Cut
                     </button>
+                  </Tooltip>
+                    <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"} style={{ flex: 1 }}>
                     <button
                       type="button"
                       className="palette-action-btn"
                       disabled={!hasImage || !sourceImageData}
                       onClick={handleExtractKMeans}
-                      title={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"}
+                      style={{ width: '100%' }}
                     >
                       K-Means
                     </button>
+                  </Tooltip>
                   </div>
                 </div>
 
                 {/* Depth Slider */}
                 <div className="palette-depth-block">
                   <div className="slider-label-above">
-                    <span title="Palette depth iteration count">Palette Depth</span>
+                    <span>Palette Depth</span>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -1522,22 +1588,26 @@ export const RightSidebar: React.FC = () => {
                     style={{ display: 'none' }}
                     onChange={handleImportPalette}
                   />
+                  <Tooltip text="Import custom palette JSON" style={{ flex: 1 }}>
                   <button
                     type="button"
                     className="btn-default"
                     onClick={() => paletteFileInputRef.current?.click()}
-                    title="Import custom palette JSON"
+                    style={{ width: '100%' }}
                   >
                     <Download size={14} className="btn-icon" /> Import
                   </button>
+                </Tooltip>
+                  <Tooltip text="Export current working palette to JSON" style={{ flex: 1 }}>
                   <button
                     type="button"
                     className="btn-default"
                     onClick={handleExportPalette}
-                    title="Export current working palette to JSON"
+                    style={{ width: '100%' }}
                   >
                     <Upload size={14} className="btn-icon" /> Export
                   </button>
+                </Tooltip>
                 </div>
               </div>
             )}
@@ -1555,15 +1625,16 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-title-text">EFFECTS STACK</span>
                 <span className="section-counter-text">{effects.filter(e => e.enabled).length} active / {effects.length} total</span>
               </button>
+              <Tooltip text="Reset effect stack to default">
               <button
                 type="button"
                 className="btn-subtle"
                 onClick={handleResetEffects}
-                title="Reset effect stack to default"
               >
                 <RotateCcw size={12} className="btn-icon" />
                 <span>Reset</span>
               </button>
+            </Tooltip>
             </div>
 
             {!collapsedSections.effects && (
@@ -1680,17 +1751,18 @@ export const RightSidebar: React.FC = () => {
                               </span>
 
                               {/* Toggle square */}
-                              <button
-                                type="button"
-                                className={`effect-row-toggle ${eff.enabled ? 'enabled' : ''}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleEffectEnabled(eff.id);
-                                }}
-                                title={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}
-                              >
+                              <Tooltip text={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}>
+                                <button
+                                  type="button"
+                                  className={`effect-row-toggle ${eff.enabled ? 'enabled' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleEffectEnabled(eff.id);
+                                  }}
+                                >
                                 <span className="effect-toggle-square" />
-                              </button>
+                                </button>
+                              </Tooltip>
 
                               {/* Effect name */}
                               <span className={`effect-row-name ${!eff.enabled ? 'disabled' : ''}`}>
@@ -1847,51 +1919,57 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.presets ? '▶' : '▼'}</span>
                 <span className="section-title-text">PRESETS</span>
               </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.presets && (
-              <div className="section-content">
-                <div style={{ display: 'flex', gap: '4px' }}>
+              <div className="section-content presets-section-content">
+                <div className="preset-row preset-dropdown-row">
                   <Dropdown
                     disabled
                     width="100%"
                     value=""
                     placeholder="Built-in Presets..."
                     onChange={() => {}}
-                    title="Load Preset (Coming in Phase 6)"
                     items={BUILTIN_PRESETS.map((p: any) => ({
                       id: p.id,
                       label: p.name,
                     }))}
                   />
-                  <button 
-                    className="btn-default" 
-                    disabled 
-                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                    title="Load Preset (Coming in Phase 6)"
-                  >
-                    Load
-                  </button>
+                  <Tooltip text="Load Preset (Coming in Phase 6)">
+                    <button 
+                      className="btn-default" 
+                      disabled 
+                      style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                    >
+                      Load
+                    </button>
+                  </Tooltip>
                 </div>
 
-                <button
-                  className="btn-default"
-                  disabled
-                  style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
-                  title="Save Preset (Coming in Phase 6)"
-                >
-                  Save Preset
-                </button>
+                <div className="preset-row preset-save-row">
+                  <Tooltip text="Save Preset (Coming in Phase 6)" style={{ width: '100%' }}>
+                    <button
+                      className="btn-default"
+                      disabled
+                      style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
+                    >
+                      Save Preset
+                    </button>
+                  </Tooltip>
+                </div>
 
-                <button
-                  className="btn-default"
-                  onClick={resetAll}
-                  style={{ width: '100%' }}
-                  title="Reset all settings to default"
-                >
-                  Reset to Default
-                </button>
+                <div className="preset-row preset-reset-row">
+                  <Tooltip text="Reset all settings to default" style={{ width: '100%' }}>
+                    <button
+                      className="btn-default"
+                      onClick={resetAll}
+                      style={{ width: '100%' }}
+                    >
+                      Reset to Default
+                    </button>
+                  </Tooltip>
+                </div>
               </div>
             )}
           </div>

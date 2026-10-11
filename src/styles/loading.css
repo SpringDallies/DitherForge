@@ -1,0 +1,56 @@
+/* LoadingScreen Styles */
+
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-primary);
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.loading-screen-fullscreen {
+  position: fixed;
+  inset: 0;
+  background-color: var(--bg-primary);
+  z-index: 9999;
+}
+
+.loading-screen-inline {
+  position: absolute;
+  inset: 0;
+  background-color: var(--bg-primary);
+  z-index: 100;
+}
+
+.loading-anvil-mark {
+  display: block;
+  width: auto;
+  user-select: none;
+  animation: anvil-beat 1.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes anvil-beat {
+  0% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.08);
+  }
+  30% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.08);
+  }
+  60%, 100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-anvil-mark {
+    animation: none;
+  }
+}

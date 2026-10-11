@@ -37,3 +37,35 @@
     animation: none;
   }
 }
+
+/* Sidebar Brand Mark (Fix 2) */
+.sidebar-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 0 20px 0;
+}
+
+.sidebar-brand .logo-mark {
+  height: 48px;
+  width: auto;
+  opacity: 0.9;
+}
+
+/* Top Menu Bar Left Alignment (Fix 3) */
+.top-menu-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start !important;
+}
+
+.menu-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 20px;
+}
+
+.top-right-controls {
+  margin-left: auto;
+}

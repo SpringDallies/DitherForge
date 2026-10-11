@@ -8,8 +8,33 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    html, body { background: #0a0a0b; margin: 0; }
+    .boot-loader {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #0a0a0b;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .boot-loader-mark {
+      height: 64px; width: auto; display: block;
+      animation: boot-anvil-beat 1.6s ease-in-out infinite;
+    }
+    @keyframes boot-anvil-beat {
+      0%    { transform: scale(1);    }
+      15%   { transform: scale(1.08); }
+      30%   { transform: scale(1);    }
+      45%   { transform: scale(1.08); }
+      60%, 100% { transform: scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .boot-loader-mark { animation: none; }
+    }
+  </style>
 </head>
 <body>
+    <div id="boot-loader" class="boot-loader">
+    <img src="/assets/logo-mark.png" alt="" class="boot-loader-mark" />
+  </div>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
 </body>

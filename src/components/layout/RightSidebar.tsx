@@ -1,3 +1,4 @@
+import { Logo } from '../common/Logo';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { LoadingScreen } from '../common/LoadingScreen';
 import { Dropdown } from '../common/Dropdown';
@@ -634,6 +635,9 @@ export const RightSidebar: React.FC = () => {
       <div className="sidebar-scrollable-content">
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block">
+          <div className="sidebar-brand">
+            <Logo variant="mark" size={48} />
+          </div>
           <input
             type="file"
             ref={fileInputRef}

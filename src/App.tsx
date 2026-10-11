@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/shell.css';
 import './styles/logo.css';
 import './styles/loading.css';
-import { LoadingScreen } from './components/common/LoadingScreen';
 import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
 import { LeftIconRail } from './components/layout/LeftIconRail';
@@ -26,21 +25,24 @@ export const App: React.FC = () => {
   const [isDraggingSplitter, setIsDraggingSplitter] = useState<boolean>(false);
   const peekTimerRef = useRef<number | null>(null);
 
-  // App boot: dismiss overlay immediately once fonts are ready & painted
+  // App boot: dismiss static boot-loader once fonts are ready & painted
   useEffect(() => {
     let active = true;
+    const finishBoot = () => {
+      if (active) {
+        document.getElementById('boot-loader')?.remove();
+        setBooted(true);
+      }
+    };
+
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => {
         if (active) {
-          requestAnimationFrame(() => {
-            if (active) setBooted(true);
-          });
+          requestAnimationFrame(finishBoot);
         }
       });
     } else {
-      requestAnimationFrame(() => {
-        if (active) setBooted(true);
-      });
+      requestAnimationFrame(finishBoot);
     }
     return () => {
       active = false;
@@ -107,9 +109,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <>
-      {!booted && <LoadingScreen fullscreen />}
-      <div
+    <div
       className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
       data-theme={activeTheme}
     >
@@ -162,7 +162,6 @@ export const App: React.FC = () => {
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
       />
-      </div>
-    </>
+    </div>
   );
 };

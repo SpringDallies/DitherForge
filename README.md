@@ -1,6 +1,6 @@
 # DitherForge
 
-### Feature-rich Dithering Suite
+<h1>FOSS Dithering Suite</h1>
 
 <p align="center">
   <img src="assets/logo-mark.png" alt="ForgeLogo" width="250" height="250" />

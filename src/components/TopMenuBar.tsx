@@ -8,14 +8,16 @@ import {
   Download, 
   RotateCcw, 
   Maximize,
-  Minimize
+  Minimize,
+  Settings
 } from 'lucide-react';
 
 interface TopMenuBarProps {
   onOpenManual: () => void;
+  onOpenSettings?: () => void;
 }
 
-export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
+export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -258,6 +260,17 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
             { id: 'vaporwave_pink', label: 'Vaporwave' },
           ]}
         />
+
+        <Tooltip text="Settings" side="bottom">
+          <button 
+            className="tool-icon-btn topbar-settings-btn" 
+            onClick={onOpenSettings}
+            style={{ height: '22px', width: '24px', padding: 0, justifyContent: 'center' }}
+            aria-label="Settings"
+          >
+            <Settings size={16} />
+          </button>
+        </Tooltip>
 
         <Tooltip text={isFullScreen ? "Exit Fullscreen (F11)" : "Enter Fullscreen (F11)"} side="bottom">
           <button 

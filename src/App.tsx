@@ -10,6 +10,8 @@ import { RightSidebar } from './components/layout/RightSidebar';
 import { BottomControlStrip } from './components/layout/BottomControlStrip';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
 import { Tooltip } from './components/common/Tooltip';
+import './styles/preferences.css';
+import { SettingsDialog, getStoredSettings } from './components/dialogs/SettingsDialog';
 
 export const App: React.FC = () => {
   const activeTheme = useAppStore((state) => state.activeTheme);
@@ -23,6 +25,20 @@ export const App: React.FC = () => {
 
   const [booted, setBooted] = useState<boolean>(false);
   const [isPeekOpen, setIsPeekOpen] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+
+  // Seed default update mode from settings if update_mode is unset in localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('ditherforge_update_mode');
+      if (!stored) {
+        const settings = getStoredSettings();
+        if (settings.defaultUpdateMode) {
+          useAppStore.getState().setUpdateMode(settings.defaultUpdateMode);
+        }
+      }
+    } catch {}
+  }, []);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState<boolean>(false);
   const peekTimerRef = useRef<number | null>(null);
 
@@ -134,7 +150,10 @@ export const App: React.FC = () => {
 
       {/* Top Menu Bar */}
       <div onMouseEnter={handleMouseEnterPeek} onMouseLeave={handleMouseLeavePeek}>
-        <TopMenuBar onOpenManual={() => setIsManualOpen(true)} />
+        <TopMenuBar 
+          onOpenManual={() => setIsManualOpen(true)} 
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
       </div>
 
       {/* Main Workspace Layout */}
@@ -166,6 +185,12 @@ export const App: React.FC = () => {
       <AlgorithmReferenceModal
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
+      />
+
+      {/* Preferences / Settings Modal */}
+      <SettingsDialog
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
     </div>
   );

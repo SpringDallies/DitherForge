@@ -1,6 +1,6 @@
 # DitherForge — Retro Synthesis & Precision Dithering Suite
 
-<img src="assets/logo-mark.png" alt="ForgeLogo" width="250" height="250">
+<img src="assets/logo-mark.png" alt="ForgeLogo" width="250" height="250" style="display: flex; justify-content: center;">
 
 **DitherForge** is a standalone, cross-platform image, video, and animation dithering application It features 63 original and public-domain dithering algorithms, native color-space integration, a stackable post-effects pipeline, CRT temporal noise variation, vector contour export, and true Unicode character grids. it is inspired by ditherboy
 

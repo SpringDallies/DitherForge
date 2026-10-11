@@ -1306,114 +1306,172 @@ body {
   letter-spacing: normal;
 }
 
-.effects-stack-list,
-.effect-stack-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;                    /* Gap between cards: 8px */
-  padding: 0;                   /* no extra padding on the wrapper */
-  width: 100%;
-  margin-bottom: 8px;
-}
+/* ==========================================================================
+   Effects Section (Phase 5 Redesign: Collapsible Dropdown)
+   ========================================================================== */
 
-.effect-card {
+/* Collapsible Dropdown Container */
+.effects-dropdown {
   width: 100%;
-  margin: 0;                    /* no auto-centering, no side margins */
-  padding: 0;                   /* Card padding: 0 (header and rows handle their own) */
+  margin: 0 0 8px 0;
   box-sizing: border-box;
-  background: var(--bg-secondary); /* Card background: var(--bg-secondary) */
-  border: none;                 /* Card border: none */
-  border-radius: 8px;           /* Card corner radius: 8px (--radius-md) */
-  display: flex;
-  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
   overflow: hidden;
   box-shadow: none;
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.effect-card.expanded {
-  height: auto;
+.effects-dropdown.open {
+  /* Modifier for expanded state */
 }
 
-.effect-card:hover {
-  /* No box shadow */
-}
-
-.effect-card.dragging {
-  opacity: 0.5;
-}
-
-.effect-card.drag-over {
-  outline: 2px dashed var(--accent-primary);
-}
-
-/* Header Row (44px) */
-.effect-card-header {
-  height: 44px;                 /* 44px header row */
-  min-height: 44px;
-  max-height: 44px;
-  padding: 0 12px;              /* padding: 0 12px */
+/* Dropdown Header: 40px row */
+.effects-dropdown-header {
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
-  gap: 12px;                    /* gap: 12px */
+  gap: 8px;
   box-sizing: border-box;
-  user-select: none;
-  background-color: transparent;
-}
-
-/* Zone 1 & 2 — Chevron (20px slot) + Name (flex: 1) */
-.effect-zone-expand {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0;
   cursor: pointer;
-  overflow: hidden;
-  background-color: transparent;
-  outline: none;
+  user-select: none;
+  background-color: var(--bg-secondary);
+  transition: background-color var(--transition-fast);
 }
 
-.effect-expand-chevron {
-  flex: 0 0 20px;               /* 20px wide slot */
-  width: 20px;
-  height: 20px;
+.effects-dropdown-header:hover {
+  background-color: var(--bg-hover);
+}
+
+.effects-dropdown-icon {
+  flex: 0 0 16px;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
-  transform: rotate(-90deg);    /* rotates -90° when collapsed */
-  transition: transform 150ms ease, color var(--transition-fast);
 }
 
-.effect-expand-chevron.expanded {
-  transform: rotate(0deg);      /* 0° when expanded */
-}
-
-.effect-zone-expand:hover .effect-expand-chevron {
-  color: var(--text-main);
-}
-
-.effect-name-text {
+.effects-dropdown-text {
   flex: 1;
-  font-size: 0.9rem;
-  font-weight: 500;
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.effects-dropdown-count {
+  font-weight: 600;
   color: var(--text-main);
+  flex-shrink: 0;
+}
+
+.effects-dropdown-names {
+  color: var(--text-muted);
+  font-weight: 400;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.effect-name-text.disabled {
+.effects-dropdown-empty {
   color: var(--text-muted);
+  font-weight: 400;
 }
 
-/* Zone 3 — Toggle Square (28px slot) */
-.effect-zone-toggle {
-  flex: 0 0 28px;               /* 28px wide slot */
-  width: 28px;
-  height: 28px;
+.effects-dropdown-chevron {
+  flex: 0 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform 150ms ease, color var(--transition-fast);
+}
+
+.effects-dropdown.open .effects-dropdown-chevron {
+  transform: rotate(180deg);
+  color: var(--text-main);
+}
+
+/* Expanded List Container */
+.effects-dropdown-panel {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  box-sizing: border-box;
+}
+
+/* Individual Effect Item in panel */
+.effect-item {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  transition: opacity var(--transition-fast);
+}
+
+.effect-item.dragging {
+  opacity: 0.5;
+}
+
+.effect-item.drag-over {
+  outline: 1px dashed var(--accent-primary);
+}
+
+/* One 36px row per effect */
+.effect-row {
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  background-color: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.effect-row:hover {
+  background-color: var(--bg-hover);
+}
+
+/* Drag handle: 16px slot */
+.effect-row-drag {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  cursor: grab;
+  transition: color var(--transition-fast);
+}
+
+.effect-row-drag:active {
+  cursor: grabbing;
+}
+
+.effect-row-drag:hover {
+  color: var(--text-main);
+}
+
+/* Square toggle */
+.effect-row-toggle {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1425,113 +1483,81 @@ body {
 }
 
 .effect-toggle-square {
-  width: 20px;                  /* 20x20 outlined square */
-  height: 20px;
-  border-radius: 4px;           /* border-radius 4px */
-  border: 2px solid var(--text-muted); /* When OFF: border: 2px solid var(--text-muted) */
-  background: transparent;      /* background: transparent */
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1.5px solid var(--text-muted);
+  background: transparent;
   box-sizing: border-box;
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.effect-zone-toggle:hover .effect-toggle-square {
-  border-color: var(--text-main); /* Hover: border-color → var(--text-main) when off */
+.effect-row-toggle:hover .effect-toggle-square {
+  border-color: var(--text-main);
 }
 
-.effect-zone-toggle.enabled .effect-toggle-square {
-  background-color: var(--accent-primary); /* When ON: background: var(--accent-primary) */
-  border: 2px solid var(--accent-primary);  /* border: 2px solid var(--accent-primary) */
+.effect-row-toggle.enabled .effect-toggle-square {
+  background-color: var(--accent-primary);
+  border: 1.5px solid var(--accent-primary);
 }
 
-/* Zone 4 — Drag Handle (24px slot) with Hover Trash Swap */
-.effect-zone-drag,
-.effect-zone-action {
-  flex: 0 0 24px;               /* 24px wide slot */
-  width: 24px;
-  height: 24px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.effect-drag-handle {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-dim);
-  cursor: grab;
-  opacity: 1;
-  pointer-events: auto;
-  transition: opacity var(--transition-fast), color var(--transition-fast);
-}
-
-.effect-drag-handle:active {
-  cursor: grabbing;
-}
-
-.effect-drag-handle:hover {
+/* Effect Name */
+.effect-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
   color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--transition-fast);
 }
 
-.effect-delete-btn,
-.effect-zone-delete {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  padding: 0;
+.effect-row-name.disabled {
   color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition-fast), color var(--transition-fast);
 }
 
-.effect-delete-btn:hover,
-.effect-zone-delete:hover {
+/* Chevron › that expands params */
+.effect-row-chevron {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform 150ms ease, color var(--transition-fast);
+}
+
+.effect-row-chevron.expanded {
+  transform: rotate(90deg);
   color: var(--text-main);
 }
 
-/* Delete control swap on card hover */
-.effect-card:hover .effect-drag-handle,
-.effect-card.hover-sim .effect-drag-handle {
-  opacity: 0;
-  pointer-events: none;
+.effect-row:hover .effect-row-chevron {
+  color: var(--text-main);
 }
 
-.effect-card:hover .effect-delete-btn,
-.effect-card:hover .effect-zone-delete,
-.effect-card.hover-sim .effect-delete-btn,
-.effect-card.hover-sim .effect-zone-delete {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Expanded Parameters Area */
-.effect-card-params {
-  padding-top: 4px;             /* First param row starts 4px below header */
+/* Indented Param Container */
+.effect-row-params {
+  margin: 2px 10px 8px 34px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-tertiary);
   display: flex;
   flex-direction: column;
-  background: transparent;
-  border-top: none;
+  gap: 8px;
+  box-sizing: border-box;
 }
 
 /* Param Row Structure */
 .effect-param-row {
-  padding: 0 12px 12px 44px;    /* padding: 0 12px 14px 44px (12px between rows) */
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;                     /* gap: 6px between label and slider row */
-}
-
-.effect-param-row:last-child {
-  padding-bottom: 14px;         /* Last param row bottom padding: 14px */
+  gap: 4px;
 }
 
 /* Label row */
@@ -1752,7 +1778,7 @@ body {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm, 4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
   z-index: 300;
   display: flex;
   flex-direction: column;

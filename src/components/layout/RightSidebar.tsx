@@ -13,7 +13,7 @@ import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 import { 
   Lock, 
   Unlock, 
-  Trash2, 
+  Trash2,
   MoveVertical,
   Shuffle,
   GripVertical,
@@ -22,6 +22,7 @@ import {
   ChevronUp,
   RotateCcw,
   Square,
+  Layers,
   Download,
   Upload
 } from 'lucide-react';
@@ -1598,7 +1599,272 @@ export const RightSidebar: React.FC = () => {
 
             {!collapsedSections.effects && (
               <div className="section-content">
-                {/* Add Effect Button with Popover */}
+                {/* Collapsible Effects Dropdown */}
+                <div className={`effects-dropdown ${isEffectsDropdownOpen ? 'open' : ''}`}>
+                  <div
+                    className="effects-dropdown-header"
+                    role="button"
+                    tabIndex={0}
+                    onClick={toggleEffectsDropdown}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleEffectsDropdown();
+                      }
+                    }}
+                    title={isEffectsDropdownOpen ? "Collapse effects stack" : "Expand effects stack"}
+                  >
+                    <span className="effects-dropdown-icon">
+                      <Layers size={14} strokeWidth={1.75} />
+                    </span>
+                    <div className="effects-dropdown-text">
+                      {effects.filter(e => e.enabled).length > 0 ? (
+                        <>
+                          <span className="effects-dropdown-count">
+                            {effects.filter(e => e.enabled).length} {effects.filter(e => e.enabled).length === 1 ? 'effect' : 'effects'} enabled
+                          </span>
+                          <span className="effects-dropdown-names">
+                            ({effects.filter(e => e.enabled).map(e => e.name).join(', ')})
+                          </span>
+                        </>
+                      ) : (
+                        <span className="effects-dropdown-empty">No effects enabled</span>
+                      )}
+                    </div>
+                    <span className="effects-dropdown-chevron">
+                      <ChevronDown size={14} strokeWidth={1.75} />
+                    </span>
+                  </div>
+
+                  {isEffectsDropdownOpen && (
+                    <div className="effects-dropdown-panel">
+                      {effects.map((eff, index) => {
+                        const isExpanded = expandedEffectId === eff.id;
+                        const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
+                        const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
+
+                        return (
+                          <div
+                            key={eff.id}
+                            className={`effect-item ${draggedEffectIndex === index ? 'dragging' : ''} ${dragOverEffectIndex === index ? 'drag-over' : ''}`}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
+                                setDragOverEffectIndex(index);
+                              }
+                            }}
+                            onDragLeave={() => {
+                              if (dragOverEffectIndex === index) setDragOverEffectIndex(null);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
+                                reorderEffects(draggedEffectIndex, index);
+                              }
+                              setDraggedEffectIndex(null);
+                              setDragOverEffectIndex(null);
+                            }}
+                          >
+                            {/* 36px row per effect */}
+                            <div
+                              className="effect-row"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setExpandedEffectId(isExpanded ? null : eff.id);
+                                }
+                              }}
+                            >
+                              {/* Drag handle (dot grid) at left, 16px slot */}
+                              <span
+                                className="effect-row-drag"
+                                draggable
+                                tabIndex={0}
+                                title="Drag to reorder"
+                                onClick={(e) => e.stopPropagation()}
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  setDraggedEffectIndex(index);
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedEffectIndex(null);
+                                  setDragOverEffectIndex(null);
+                                }}
+                              >
+                                <svg
+                                  width="8"
+                                  height="14"
+                                  viewBox="0 0 8 14"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
+                                  <circle cx="1.5" cy="1.5" r="1.5" />
+                                  <circle cx="6.5" cy="1.5" r="1.5" />
+                                  <circle cx="1.5" cy="7" r="1.5" />
+                                  <circle cx="6.5" cy="7" r="1.5" />
+                                  <circle cx="1.5" cy="12.5" r="1.5" />
+                                  <circle cx="6.5" cy="12.5" r="1.5" />
+                                </svg>
+                              </span>
+
+                              {/* Toggle square */}
+                              <button
+                                type="button"
+                                className={`effect-row-toggle ${eff.enabled ? 'enabled' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleEffectEnabled(eff.id);
+                                }}
+                                title={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}
+                              >
+                                <span className="effect-toggle-square" />
+                              </button>
+
+                              {/* Effect name */}
+                              <span className={`effect-row-name ${!eff.enabled ? 'disabled' : ''}`}>
+                                {eff.name}
+                              </span>
+
+                              {/* Chevron › on right (expands params inline, one at a time) */}
+                              <span className={`effect-row-chevron ${isExpanded ? 'expanded' : ''}`}>
+                                <ChevronRight size={14} strokeWidth={1.75} />
+                              </span>
+                            </div>
+
+                            {/* Indented parameter panel below row */}
+                            {isExpanded && (
+                              <div className="effect-row-params">
+                                {Object.keys(defaultParams).map((key) => {
+                                  const val = eff.params[key] !== undefined ? eff.params[key] : defaultParams[key];
+
+                                  // Shape segmented control
+                                  if (key === 'shape' && typeof defaultParams[key] === 'string') {
+                                    return (
+                                      <div key={key} className="effect-param-row">
+                                        <div className="effect-param-label">
+                                          <span>Shape</span>
+                                        </div>
+                                        <div className="effect-param-segmented">
+                                          <button
+                                            type="button"
+                                            className={`effect-param-segment-btn ${val === 'circle' ? 'active' : ''}`}
+                                            onClick={() => updateEffectParam(eff.id, 'shape', 'circle')}
+                                          >
+                                            Circle
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={`effect-param-segment-btn ${val === 'diamond' ? 'active' : ''}`}
+                                            onClick={() => updateEffectParam(eff.id, 'shape', 'diamond')}
+                                          >
+                                            Diamond
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  // Numerical Slider Params
+                                  let min = 0;
+                                  let max = 1;
+                                  let step = 0.05;
+
+                                  if (key === 'quality' || key === 'intensity' || key === 'blackPoint' || key === 'whitePoint' || key === 'softness') {
+                                    min = 0; max = 1; step = 0.05;
+                                  } else if (key === 'radius' || key === 'dotSize' || key === 'thickness' || key === 'blockSize') {
+                                    min = 1; max = 20; step = 1;
+                                  } else if (key === 'angle') {
+                                    min = 0; max = 360; step = 1;
+                                  } else if (key === 'offsetX' || key === 'offsetY') {
+                                    min = 0; max = 20; step = 1;
+                                  } else if (key === 'gamma') {
+                                    min = 0.1; max = 3.0; step = 0.05;
+                                  } else if (key === 'amount') {
+                                    min = -1.0; max = 1.0; step = 0.05;
+                                  }
+
+                                  const numVal = typeof val === 'number' ? val : defaultParams[key];
+                                  const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                                  const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
+                                  const displayVal = typeof numVal === 'number'
+                                    ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
+                                    : String(val);
+
+                                  const handleStep = (direction: 1 | -1) => {
+                                    const nextRaw = numVal + direction * step;
+                                    const clamped = Math.min(max, Math.max(min, nextRaw));
+                                    const rounded = Number(clamped.toFixed(decimals));
+                                    updateEffectParam(eff.id, key, rounded);
+                                  };
+
+                                  return (
+                                    <div key={key} className="effect-param-row">
+                                      <div className="effect-param-label">
+                                        <span
+                                          onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
+                                          title={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}
+                                        >
+                                          {labelText}
+                                        </span>
+                                      </div>
+                                      <div className="effect-param-control-row">
+                                        <input
+                                          type="range"
+                                          className="effect-param-slider"
+                                          min={min}
+                                          max={max}
+                                          step={step}
+                                          value={numVal}
+                                          style={getSliderFill(numVal, min, max)}
+                                          {...sliderPointerProps}
+                                          onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
+                                          onChange={(e) => updateEffectParam(eff.id, key, Number(e.target.value))}
+                                        />
+                                        <div className="slider-value-box">
+                                          <span
+                                            className="slider-value-number"
+                                            title="Double-click slider to reset"
+                                          >
+                                            {displayVal}
+                                          </span>
+                                          <div className="slider-value-spinner">
+                                            <button
+                                              type="button"
+                                              className="spinner-btn spinner-up"
+                                              tabIndex={0}
+                                              onClick={() => handleStep(1)}
+                                              title="Increment"
+                                            >
+                                              <ChevronUp size={12} strokeWidth={2} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="spinner-btn spinner-down"
+                                              tabIndex={0}
+                                              onClick={() => handleStep(-1)}
+                                              title="Decrement"
+                                            >
+                                              <ChevronDown size={12} strokeWidth={2} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* + Add Effect button below dropdown row */}
                 <div className="add-effect-popover-container" ref={addEffectPopoverRef}>
                   <button
                     type="button"
@@ -1652,257 +1918,6 @@ export const RightSidebar: React.FC = () => {
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Effect Cards List */}
-                <div className="effect-stack-list">
-                  {effects.map((eff, index) => {
-                    const isExpanded = expandedEffectId === eff.id;
-                    const isForcedHover = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('effects_hover') === eff.id;
-                    const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
-                    const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
-
-                    return (
-                      <div
-                        key={eff.id}
-                        className={`effect-card ${isExpanded ? 'expanded' : ''} ${draggedEffectIndex === index ? 'dragging' : ''} ${dragOverEffectIndex === index ? 'drag-over' : ''} ${isForcedHover ? 'hover-sim' : ''}`}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
-                            setDragOverEffectIndex(index);
-                          }
-                        }}
-                        onDragLeave={() => {
-                          if (dragOverEffectIndex === index) setDragOverEffectIndex(null);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
-                            reorderEffects(draggedEffectIndex, index);
-                          }
-                          setDraggedEffectIndex(null);
-                          setDragOverEffectIndex(null);
-                        }}
-                      >
-                        {/* Card Header (44px tall) */}
-                        <div className="effect-card-header">
-                          {/* Zone 1 & 2 — chevron (20px slot) + name (flex: 1) */}
-                          <div
-                            className="effect-zone-expand"
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setExpandedEffectId(isExpanded ? null : eff.id);
-                              }
-                            }}
-                            title={isExpanded ? "Collapse effect parameters" : "Expand effect parameters"}
-                          >
-                            <span className={`effect-expand-chevron ${isExpanded ? 'expanded' : ''}`}>
-                              <ChevronDown size={18} strokeWidth={1.5} />
-                            </span>
-                            <span className={`effect-name-text ${!eff.enabled ? 'disabled' : ''}`}>
-                              {eff.name}
-                            </span>
-                          </div>
-
-                          {/* Zone 3 — toggle square (28px slot) */}
-                          <button
-                            type="button"
-                            className={`effect-zone-toggle ${eff.enabled ? 'enabled' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleEffectEnabled(eff.id);
-                            }}
-                            title={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}
-                          >
-                            <span className="effect-toggle-square" />
-                          </button>
-
-                          {/* Zone 4 — drag handle / delete swap (24px slot) */}
-                          <div
-                            className="effect-zone-drag effect-zone-action"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <span
-                              className="effect-drag-handle"
-                              draggable
-                              tabIndex={0}
-                              title="Drag to reorder"
-                              onDragStart={(e) => {
-                                e.stopPropagation();
-                                setDraggedEffectIndex(index);
-                              }}
-                              onDragEnd={() => {
-                                setDraggedEffectIndex(null);
-                                setDragOverEffectIndex(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                }
-                              }}
-                            >
-                              <svg
-                                width="9"
-                                height="15"
-                                viewBox="0 0 9 15"
-                                fill="currentColor"
-                                className="effect-drag-dots"
-                                aria-hidden="true"
-                              >
-                                <circle cx="1.5" cy="1.5" r="1.5" />
-                                <circle cx="7.5" cy="1.5" r="1.5" />
-                                <circle cx="1.5" cy="7.5" r="1.5" />
-                                <circle cx="7.5" cy="7.5" r="1.5" />
-                                <circle cx="1.5" cy="13.5" r="1.5" />
-                                <circle cx="7.5" cy="13.5" r="1.5" />
-                              </svg>
-                            </span>
-                            <button
-                              type="button"
-                              className="effect-delete-btn effect-zone-delete"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeEffectInstance(eff.id);
-                                if (expandedEffectId === eff.id) setExpandedEffectId(null);
-                              }}
-                              title={`Delete ${eff.name}`}
-                            >
-                              <Trash2 size={14} strokeWidth={1.5} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Card Expanded Parameters */}
-                        {isExpanded && (
-                          <div className="effect-card-params">
-                            {Object.keys(defaultParams).map((key) => {
-                              const val = eff.params[key] !== undefined ? eff.params[key] : defaultParams[key];
-
-                              // Shape segmented control
-                              if (key === 'shape' && typeof defaultParams[key] === 'string') {
-                                return (
-                                  <div key={key} className="effect-param-row">
-                                    <div className="effect-param-label">
-                                      <span>Shape</span>
-                                    </div>
-                                    <div className="effect-param-segmented">
-                                      <button
-                                        type="button"
-                                        className={`effect-param-segment-btn ${val === 'circle' ? 'active' : ''}`}
-                                        onClick={() => updateEffectParam(eff.id, 'shape', 'circle')}
-                                      >
-                                        Circle
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className={`effect-param-segment-btn ${val === 'diamond' ? 'active' : ''}`}
-                                        onClick={() => updateEffectParam(eff.id, 'shape', 'diamond')}
-                                      >
-                                        Diamond
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              }
-
-                              // Numerical Slider Params
-                              let min = 0;
-                              let max = 1;
-                              let step = 0.05;
-
-                              if (key === 'quality' || key === 'intensity' || key === 'blackPoint' || key === 'whitePoint' || key === 'softness') {
-                                min = 0; max = 1; step = 0.05;
-                              } else if (key === 'radius' || key === 'dotSize' || key === 'thickness' || key === 'blockSize') {
-                                min = 1; max = 20; step = 1;
-                              } else if (key === 'angle') {
-                                min = 0; max = 360; step = 1;
-                              } else if (key === 'offsetX' || key === 'offsetY') {
-                                min = 0; max = 20; step = 1;
-                              } else if (key === 'gamma') {
-                                min = 0.1; max = 3.0; step = 0.05;
-                              } else if (key === 'amount') {
-                                min = -1.0; max = 1.0; step = 0.05;
-                              }
-
-                              const numVal = typeof val === 'number' ? val : defaultParams[key];
-                              const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                              const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
-                              const displayVal = typeof numVal === 'number'
-                                ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
-                                : String(val);
-
-                              const handleStep = (direction: 1 | -1) => {
-                                const nextRaw = numVal + direction * step;
-                                const clamped = Math.min(max, Math.max(min, nextRaw));
-                                const rounded = Number(clamped.toFixed(decimals));
-                                updateEffectParam(eff.id, key, rounded);
-                              };
-
-                              return (
-                                <div key={key} className="effect-param-row">
-                                  <div className="effect-param-label">
-                                    <span
-                                      onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
-                                      title={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}
-                                    >
-                                      {labelText}
-                                    </span>
-                                  </div>
-                                  <div className="effect-param-control-row">
-                                    <input
-                                      type="range"
-                                      className="effect-param-slider"
-                                      min={min}
-                                      max={max}
-                                      step={step}
-                                      value={numVal}
-                                      style={getSliderFill(numVal, min, max)}
-                                      {...sliderPointerProps}
-                                      onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
-                                      onChange={(e) => updateEffectParam(eff.id, key, Number(e.target.value))}
-                                    />
-                                    <div className="slider-value-box">
-                                      <span
-                                        className="slider-value-number"
-                                        title="Double-click slider to reset"
-                                      >
-                                        {displayVal}
-                                      </span>
-                                      <div className="slider-value-spinner">
-                                        <button
-                                          type="button"
-                                          className="spinner-btn spinner-up"
-                                          tabIndex={0}
-                                          onClick={() => handleStep(1)}
-                                          title="Increment"
-                                        >
-                                          <ChevronUp size={12} strokeWidth={2} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="spinner-btn spinner-down"
-                                          tabIndex={0}
-                                          onClick={() => handleStep(-1)}
-                                          title="Decrement"
-                                        >
-                                          <ChevronDown size={12} strokeWidth={2} />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             )}

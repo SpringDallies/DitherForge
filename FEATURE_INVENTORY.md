@@ -151,8 +151,8 @@
 | Feature | Source (File & Function / Line) | Exact Parameter List in Code | Current Location | New Location | Status |
 |---|---|---|---|---|---|
 | Effect Stack Reordering (Up/Down / Drag) | `main.js:660-678` | Array item swap | Right Panel card | Right Panel C > Drag handle + Reorder | [x] Implemented |
-| Eye / Checkbox Enable Toggle | `main.js:655-658` | `enabled: boolean` | Right Panel card | Right Panel C > Enable dot indicator | [x] Implemented |
-| Delete Effect from Stack | `main.js:680-685` | Array splice | Right Panel card | Right Panel C > Trash icon button | [x] Implemented |
+| Eye / Checkbox Enable Toggle | `main.js:655-658` | `enabled: boolean` | Right Panel card | Right Panel C > Enable square toggle | [x] Implemented |
+| Effects Stack Container | *[Ergonomic Redesign]* | Collapsible dropdown with inline expanded panel | Right Panel card list | Right Panel C > Collapsible Dropdown (.effects-dropdown) | [x] Implemented |
 | 1. Ignition Glow | `effect-stack.js:52-84` | `radius: 1-20`, `intensity: 0-1` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
 | 2. Blur / Sharpen | `effect-stack.js:86-131` | `amount: -1 to 1` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
 | 3. Chromatic Aberration | `effect-stack.js:133-162` | `offsetX: 0-20`, `offsetY: 0-20` | Right Panel `+ Add` | Right Panel C > Stack card & Add Popover | [x] Implemented |
@@ -165,8 +165,9 @@
 
 ---
 
-| Add / Remove / Reorder Instances | *[NEW Architectural Addition]* | Dynamic stack manipulation | Right Panel > `+ Add Effect` popover | Multiple instances per effect type with unique IDs | [x] Implemented |
-| Single-Instance-Expanded Accordion | *[NEW Ergonomic Addition]* | None | Right Panel > Effect cards | Accordion disclosure; single active expanded card | [x] Implemented |
+| Add / Reorder Instances | *[NEW Architectural Addition]* | Dynamic stack manipulation | Right Panel > `+ Add Effect` popover | Multiple instances per effect type with unique IDs | [x] Implemented |
+| Single-Instance-Expanded Accordion | *[NEW Ergonomic Addition]* | None | Right Panel > Effect rows | Accordion disclosure; single active expanded row | [x] Implemented |
+| Effects dropdown collapsed/expanded state persisted in localStorage under 'ditherforge_effects_open' | *[NEW Ergonomic Addition]* | LocalStorage state | Right Panel > Effects dropdown | Default closed; persisted state | [x] Implemented |
 ### 1.6 Animation & Temporal CRT Noise System
 
 | Feature | Source (File & Function / Line) | Current Location | New Location | Status |

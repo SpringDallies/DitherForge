@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 // Import frozen algorithm registry UNCHANGED
 // @ts-ignore
@@ -34,6 +34,7 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
     a.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Render fixed overlay via portal into document.body to escape ancestor transforms & flex flow
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>

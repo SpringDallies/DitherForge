@@ -18,7 +18,8 @@ import {
   Shuffle,
   GripVertical,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  Square
 } from 'lucide-react';
 
 const CATEGORY_KEYS = [
@@ -139,7 +140,13 @@ export const RightSidebar: React.FC = () => {
     return false;
   });
   const [addEffectQuery, setAddEffectQuery] = useState('');
-  const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
+  const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const d = new URLSearchParams(window.location.search).get('effects_dragging');
+      if (d !== null) return parseInt(d, 10);
+    }
+    return null;
+  });
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
 
   const addEffectPopoverRef = useRef<HTMLDivElement>(null);
@@ -169,6 +176,17 @@ export const RightSidebar: React.FC = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAddEffectOpen]);
+
+  // Escape key collapses expanded effect card
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && expandedEffectId !== null && !isAddEffectOpen) {
+        setExpandedEffectId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [expandedEffectId, isAddEffectOpen]);
 
   // Reset Effects with confirmation if modified
   const handleResetEffects = () => {
@@ -1556,9 +1574,8 @@ export const RightSidebar: React.FC = () => {
                 type="button"
               >
                 <span className="section-collapse-icon">{collapsedSections.effects ? '▶' : '▼'}</span>
-                <span className="section-title-text">
-                  EFFECTS STACK ({effects.filter(e => e.enabled).length} active / {effects.length} total)
-                </span>
+                <span className="section-title-text">EFFECTS STACK</span>
+                <span className="section-counter-text">{effects.filter(e => e.enabled).length} active / {effects.length} total</span>
               </button>
               <button
                 type="button"
@@ -1633,13 +1650,14 @@ export const RightSidebar: React.FC = () => {
                 <div className="effect-stack-list">
                   {effects.map((eff, index) => {
                     const isExpanded = expandedEffectId === eff.id;
+                    const isForcedHover = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('effects_hover') === eff.id;
                     const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
                     const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
 
                     return (
                       <div
                         key={eff.id}
-                        className={`effect-card ${isExpanded ? 'expanded' : ''} ${draggedEffectIndex === index ? 'dragging' : ''} ${dragOverEffectIndex === index ? 'drag-over' : ''}`}
+                        className={`effect-card ${isExpanded ? 'expanded' : ''} ${draggedEffectIndex === index ? 'dragging' : ''} ${dragOverEffectIndex === index ? 'drag-over' : ''} ${isForcedHover ? 'hover-sim' : ''}`}
                         onDragOver={(e) => {
                           e.preventDefault();
                           if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
@@ -1659,16 +1677,56 @@ export const RightSidebar: React.FC = () => {
                         }}
                       >
                         {/* Card Header (Collapsed 34px tall) */}
-                        <div
-                          className="effect-card-header"
-                          onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
-                        >
-                          <div className="effect-card-left">
+                        <div className="effect-card-header">
+                          {/* Zone 1 — chevron + name (left, ~70% width, toggles expand) */}
+                          <div
+                            className="effect-zone-expand"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setExpandedEffectId(isExpanded ? null : eff.id);
+                              }
+                            }}
+                            title={isExpanded ? "Collapse effect parameters" : "Expand effect parameters"}
+                          >
+                            <span className={`effect-expand-chevron ${isExpanded ? 'expanded' : ''}`}>
+                              <ChevronRight size={14} strokeWidth={1.5} />
+                            </span>
+                            <span className={`effect-name-text ${!eff.enabled ? 'disabled' : ''}`}>
+                              {eff.name}
+                            </span>
+                          </div>
+
+                          {/* Zone 2 — toggle square (~40px wide) */}
+                          <button
+                            type="button"
+                            className={`effect-zone-toggle ${eff.enabled ? 'enabled' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleEffectEnabled(eff.id);
+                            }}
+                            title={`Enable / disable ${eff.name}`}
+                          >
+                            <Square
+                              size={16}
+                              strokeWidth={1.5}
+                              fill={eff.enabled ? "currentColor" : "none"}
+                            />
+                          </button>
+
+                          {/* Zone 3 — drag handle (~30px wide, hover-swaps with delete) */}
+                          <div
+                            className="effect-zone-drag"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <span
                               className="effect-drag-handle"
                               draggable
+                              tabIndex={0}
                               title="Drag to reorder"
-                              onClick={(e) => e.stopPropagation()}
                               onDragStart={(e) => {
                                 e.stopPropagation();
                                 setDraggedEffectIndex(index);
@@ -1677,41 +1735,27 @@ export const RightSidebar: React.FC = () => {
                                 setDraggedEffectIndex(null);
                                 setDragOverEffectIndex(null);
                               }}
-                            >
-                              <GripVertical size={12} />
-                            </span>
-
-                            <button
-                              type="button"
-                              className={`effect-enable-dot ${eff.enabled ? 'enabled' : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleEffectEnabled(eff.id);
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                }
                               }}
-                              title={eff.enabled ? "Disable effect" : "Enable effect"}
-                            />
-
-                            <span className={`effect-name-text ${!eff.enabled ? 'disabled' : ''}`}>
-                              {eff.name}
-                            </span>
-                          </div>
-
-                          <div className="effect-card-right">
-                            <span className={`effect-expand-chevron ${isExpanded ? 'expanded' : ''}`}>
-                              <ChevronRight size={12} />
+                            >
+                              <GripVertical size={14} strokeWidth={1.5} />
                             </span>
 
                             <button
                               type="button"
                               className="effect-delete-btn"
+                              tabIndex={0}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeEffectInstance(eff.id);
                                 if (expandedEffectId === eff.id) setExpandedEffectId(null);
                               }}
-                              title="Delete effect"
+                              title={`Delete ${eff.name}`}
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={14} strokeWidth={1.5} />
                             </button>
                           </div>
                         </div>

@@ -551,23 +551,22 @@ export const RightSidebar: React.FC = () => {
             onChange={handleFileChange}
           />
           <button
-            className="action-btn primary"
+            className="action-btn primary open-image-btn"
             onClick={handleOpenImage}
-            style={{ width: '100%', height: '28px', fontSize: '0.74rem' }}
             title="Open local image file"
           >
             Open Image
           </button>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="export-action-row">
             <button
-              className="action-btn"
+              className="action-btn export-image-btn"
               disabled
               title="Export Image (Coming in Phase 7)"
-              style={{ flex: 1, opacity: 0.5, cursor: 'not-allowed' }}
             >
               Export Image
             </button>
             <Dropdown
+              className="export-format-dropdown"
               disabled
               width={76}
               value="PNG"

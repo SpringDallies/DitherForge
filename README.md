@@ -117,7 +117,7 @@ npm run tauri build
 
 ## Documentation
 
-- [`SPEC_AND_CLEAN_ROOM_LOG.md`](./SPEC_AND_CLEAN_ROOM_LOG.md) — algorithm provenance, and mathematical formulations
+- [`SPEC_AND_CLEAN_ROOM_LOG.md`](./SPEC_LOG.md) — algorithm provenance, and mathematical formulations
 - [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) — the full technical manual: every algorithm, parameter sensitivity, and visual trade-offs
 
 ---

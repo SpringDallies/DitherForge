@@ -225,16 +225,16 @@
 
 | Feature | Source (File & Function / Line) | Current Location | New Location | Status |
 |---|---|---|---|---|
-| Brand Header & Logo | `index.html:14-18` | Top bar left | Top Menu Bar left brand mark | [ ] Pending |
-| File > Open Image | `index.html:22` (`#btnOpenImage`) | Top bar button | File > Open Image... (`Ctrl+O`) | [ ] Pending |
+| Brand Header & Logo | `index.html:14-18` | Top bar left | Top Menu Bar left brand mark | [x] Complete |
+| File > Open Image... | `index.html:22` (`#btnOpenImage`) | Top bar button | File > Open Image... (`Ctrl+O`) | [x] Complete |
 | File > Open Video | `index.html:25` (`#btnOpenVideo`) | Top bar button | File > Open Video... | [ ] Pending |
-| File > Load Sample Pattern | `index.html:28` (`#btnSampleImage`) | Top bar button | File > Load Sample Pattern | [ ] Pending |
-| File > Export Image / Video... | `index.html:414-480` | Right Panel tab | File > Export... (`Ctrl+E`) & Quick Export button | [ ] Pending |
-| Edit > Undo / Redo | *[NEW Ergonomic Addition]* | None | Edit > Undo (`Ctrl+Z`) / Redo (`Ctrl+Y`) | [ ] Pending |
-| Edit > Reset All Parameters | `main.js:485-504` | Top bar implicit | Edit > Reset All (reverts all sliders & tweaks) | [ ] Pending |
-| Edit > Copy to Clipboard | `exporters.js:13-29` | Viewport icon | Edit > Copy Dithered Image (`Ctrl+C`) | [ ] Pending |
-| Extras > Themes (6 Static Token Themes) | `index.html:48-56` (`#themeSelector`) | Top bar select | Extras > Themes (Dark Pro, CRT Phosphor, Cyberpunk, GameBoy, Retro Mac, Vaporwave) | [ ] Pending |
-| 10 Built-in Presets (Mac 1984, GameBoy, Cyberpunk, C64, Amber CRT, VHS, Newsprint, Vaporwave, Nordic, PICO) | `src/ui/presets.js:4-162` (`BUILTIN_PRESETS`) | Top menu Preset dropdown | Top Menu Presets Dropdown & Extras > Presets | [ ] Pending |
+| File > Load Sample Pattern | `index.html:28` (`#btnSampleImage`) | Top bar button | File > Load Sample Pattern | [x] Complete |
+| File > Export Image / Video... | `index.html:414-480` | Right Panel tab | File > Export... (`Ctrl+E`) & Quick Export button | [x] Complete |
+| Edit > Undo / Redo | *[NEW Ergonomic Addition]* | None | Edit > Undo (`Ctrl+Z`) / Redo (`Ctrl+Y`) | [ ] [Deferred to 7.3] |
+| Edit > Reset All Parameters | `main.js:485-504` | Top bar implicit | Edit > Reset All (reverts all sliders & tweaks) | [x] Complete |
+| Edit > Copy to Clipboard | `exporters.js:13-29` | Viewport icon | Edit > Copy Dithered Image (`Ctrl+C`) | [x] Complete |
+| Extras > Themes (6 Static Token Themes) | `index.html:48-56` (`#themeSelector`) | Top bar select | Extras > Themes (Dark Pro, CRT Phosphor, Cyberpunk, GameBoy, Retro Mac, Vaporwave) | [x] Complete |
+| 10 Built-in Presets (Mac 1984, GameBoy, Cyberpunk, C64, Amber CRT, VHS, Newsprint, Vaporwave, Nordic, PICO) | `src/ui/presets.js:4-162` (`BUILTIN_PRESETS`) | Top menu Preset dropdown | Top Menu Presets Dropdown & Extras > Presets | [x] Complete |
 | Save User Preset with Name | `index.html:406-410` (`#btnSavePreset`) | Right Panel Preset Manager | Presets dropdown > `+ Save Current as Preset...` | [ ] Pending |
 | Rename / Delete User Presets | `presets.js:164-178` (`saveUserPresets`) | Storage only | Presets Manager dialog (Extras > Presets > Manage...) | [ ] Pending |
 | Export Presets JSON | `presets.js:164-178` | LocalStorage | Extras > Presets > Export Presets JSON | [ ] Pending |
@@ -246,12 +246,12 @@
 
 | Feature | Source (File & Function / Line) | Current Location | New Location | Status |
 |---|---|---|---|---|
-| Algorithm Reference Manual (2,438 lines) | `index.html:485-503`, `src/docs/ALGORITHM_REFERENCE.md` | Top bar button | Help > Algorithm Reference Manual dialog | [ ] Pending |
+| Algorithm Reference Manual (2,438 lines) | `index.html:485-503`, `src/docs/ALGORITHM_REFERENCE.md` | Top bar button | Help > Algorithm Reference Manual dialog | [x] Complete |
 | Download Reference Manual (.md) | `index.html:499` (`#btnDownloadDocsMd`) | Docs modal footer | Inside Reference Manual dialog footer | [ ] Pending |
 | Batch Processing Queue & Progress | `index.html:505-528`, `main.js:1154-1203` | Top bar `Batch` | Top Menu Bar > Batch > Batch Process Images... | [ ] Pending |
-| License Registration Key Input & Validate Button | `index.html:530-555`, `main.js:1206-1212` | Bottom panel / Help | Help > About DitherForge / License Registration (**Zero Gating, Zero Paywalling**) | [ ] Pending |
+| License Registration Key Input & Validate Button | `index.html:530-555`, `main.js:1206-1212` | Bottom panel / Help | Help > About DitherForge / License Registration (**Zero Gating, Zero Paywalling**) | [x] Complete |
 | Purge Temporary Cache Buffers | `index.html:543`, `main.js:1213-1215` | License modal | Help > Settings > Storage > Purge Temp Cache | [ ] Pending |
-| Keyboard Shortcuts Cheat Sheet Dialog | *[NEW Ergonomic Addition]* | None | Help > Keyboard Shortcuts (`?`) | [ ] Pending |
+| Keyboard Shortcuts Cheat Sheet Dialog | *[NEW Ergonomic Addition]* | None | Help > Keyboard Shortcuts (`?`) | [x] Complete |
 
 ---
 

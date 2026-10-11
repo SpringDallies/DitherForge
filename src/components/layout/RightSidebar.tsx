@@ -1,5 +1,9 @@
+import { Logo } from '../common/Logo';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { LoadingScreen } from '../common/LoadingScreen';
 import { Dropdown } from '../common/Dropdown';
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Tooltip } from '../common/Tooltip';
+import { USER_ALGORITHM_DESCRIPTIONS } from '../../ui/algorithm-descriptions';
 import { useAppStore } from '../../state/useAppStore';
 // Import frozen registries UNCHANGED
 // @ts-ignore
@@ -126,6 +130,7 @@ export const RightSidebar: React.FC = () => {
 
   // Local state for Swatch editing popover
   // Local state for Effects section (Phase 5)
+  const [isExtractingPalette, setIsExtractingPalette] = useState<boolean>(false);
   const [expandedEffectId, setExpandedEffectId] = useState<string | null>('glow');
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
@@ -528,21 +533,29 @@ export const RightSidebar: React.FC = () => {
 
   const handleExtractMedianCut = () => {
     if (!sourceImageData) return;
-    const extracted = extractPaletteMedianCut(sourceImageData, 8);
-    useAppStore.setState({
-      workingPalette: extracted.map((c: number[]) => [...c]),
-      lockedSwatches: [],
-      paletteDepth: extracted.length
+    setIsExtractingPalette(true);
+    requestAnimationFrame(() => {
+      const extracted = extractPaletteMedianCut(sourceImageData, 8);
+      useAppStore.setState({
+        workingPalette: extracted.map((c: number[]) => [...c]),
+        lockedSwatches: [],
+        paletteDepth: extracted.length
+      });
+      setIsExtractingPalette(false);
     });
   };
 
   const handleExtractKMeans = () => {
     if (!sourceImageData) return;
-    const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
-    useAppStore.setState({
-      workingPalette: extracted.map((c: number[]) => [...c]),
-      lockedSwatches: [],
-      paletteDepth: extracted.length
+    setIsExtractingPalette(true);
+    requestAnimationFrame(() => {
+      const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
+      useAppStore.setState({
+        workingPalette: extracted.map((c: number[]) => [...c]),
+        lockedSwatches: [],
+        paletteDepth: extracted.length
+      });
+      setIsExtractingPalette(false);
     });
   };
 
@@ -622,6 +635,9 @@ export const RightSidebar: React.FC = () => {
       <div className="sidebar-scrollable-content">
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block">
+          <div className="sidebar-brand">
+            <Logo variant="mark" size={140} />
+          </div>
           <input
             type="file"
             ref={fileInputRef}
@@ -629,28 +645,31 @@ export const RightSidebar: React.FC = () => {
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
-          <button
-            className="btn-primary open-image-btn"
-            onClick={handleOpenImage}
-            title="Open local image file"
-          >
-            Open Image
-          </button>
-          <div className="export-action-row">
+          <Tooltip text="Open local image file" style={{ width: '100%' }}>
             <button
-              className="btn-default export-image-btn"
-              disabled
-              title="Export Image (Coming in Phase 7)"
+              className="btn-primary open-image-btn"
+              onClick={handleOpenImage}
             >
-              Export Image
+              Open Image
             </button>
+          </Tooltip>
+          <div className="export-action-row">
+            <Tooltip text="Export Image (Coming in Phase 7)" style={{ width: '65%' }}>
+              <button
+                className="btn-default export-image-btn"
+                disabled
+                style={{ width: '100%' }}
+              >
+                Export Image
+              </button>
+            </Tooltip>
             <Dropdown
               className="export-format-dropdown"
               disabled
               width={76}
               value="PNG"
               onChange={() => {}}
-              title="Export format (Coming in Phase 7)"
+              tooltip="Export format (Coming in Phase 7)"
               items={[
                 { id: 'PNG', label: 'PNG' },
                 { id: 'JPEG', label: 'JPEG' },
@@ -664,16 +683,15 @@ export const RightSidebar: React.FC = () => {
         <div className="sections-container">
           {/* 1. STYLE SECTION */}
           <div className="section-block">
-            <div className="section-header">
-              <button 
-                className="section-header-left" 
-                onClick={() => toggleSection('style')}
-                type="button"
-              >
+            <div 
+              className="section-header section-header-clickable"
+              onClick={() => toggleSection('style')}
+            >
+              <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.style ? '▶' : '▼'}</span>
                 <span className="section-title-text">STYLE</span>
-              </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              </div>
+              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.style && (
@@ -682,13 +700,15 @@ export const RightSidebar: React.FC = () => {
                 <div className="picker-row">
                   <span className="picker-label">Category</span>
                   <div className="select-with-steppers">
-                    <button className="stepper-btn" onClick={handlePrevCategory} title="Previous Category">&lt;</button>
+                    <Tooltip text="Previous Category">
+                      <button className="stepper-btn" onClick={handlePrevCategory}>&lt;</button>
+                    </Tooltip>
                     <Dropdown
                       className="category-dropdown"
                       width="100%"
                       value={activeCategory}
                       onChange={(catId) => setActiveCategory(catId)}
-                      title="Filter algorithms by category"
+                      tooltip="Filter algorithms by category"
                       items={[
                         { id: 'all', label: `All (${ALGORITHM_REGISTRY.length})` },
                         { id: 'error_diffusion', label: 'Diffusion (15)' },
@@ -699,7 +719,9 @@ export const RightSidebar: React.FC = () => {
                         { id: 'bespoke', label: 'Bespoke (2)' },
                       ]}
                     />
-                    <button className="stepper-btn" onClick={handleNextCategory} title="Next Category">&gt;</button>
+                    <Tooltip text="Next Category">
+                      <button className="stepper-btn" onClick={handleNextCategory}>&gt;</button>
+                    </Tooltip>
                   </div>
                 </div>
 
@@ -707,7 +729,9 @@ export const RightSidebar: React.FC = () => {
                 <div className="picker-row">
                   <span className="picker-label">Algorithm</span>
                   <div className="select-with-steppers">
-                    <button className="stepper-btn" onClick={handlePrevAlgo} title="Previous Algorithm (Up Arrow)">&lt;</button>
+                    <Tooltip text="Previous Algorithm (Up Arrow)">
+                      <button className="stepper-btn" onClick={handlePrevAlgo}>&lt;</button>
+                    </Tooltip>
                     <div className="algo-listbox-container" ref={listboxRef}>
                       <button
                         type="button"
@@ -716,7 +740,6 @@ export const RightSidebar: React.FC = () => {
                         onKeyDown={handleListboxKeyDown}
                         aria-haspopup="listbox"
                         aria-expanded={isAlgoListboxOpen}
-                        title={currentAlgo.name}
                       >
                         <span className="algo-listbox-label">
                           {currentAlgo.name}
@@ -736,18 +759,18 @@ export const RightSidebar: React.FC = () => {
                               const algoObj = ALGORITHM_REGISTRY.find((a: any) => a.id === favId);
                               if (!algoObj) return null;
                               return (
-                                <button
-                                  key={favId}
-                                  type="button"
-                                  className="algo-favorite-chip"
-                                  onClick={() => {
-                                    setAlgorithmId(favId);
-                                    setIsAlgoListboxOpen(false);
-                                  }}
-                                  title={algoObj.name}
-                                >
-                                  {algoObj.name}
-                                </button>
+                                <Tooltip key={favId} text={algoObj.name}>
+                                  <button
+                                    type="button"
+                                    className="algo-favorite-chip"
+                                    onClick={() => {
+                                      setAlgorithmId(favId);
+                                      setIsAlgoListboxOpen(false);
+                                    }}
+                                  >
+                                    {algoObj.name}
+                                  </button>
+                                </Tooltip>
                               );
                             })}
                           </div>
@@ -766,17 +789,18 @@ export const RightSidebar: React.FC = () => {
                             tabIndex={isAlgoListboxOpen ? 0 : -1}
                           />
                           {searchQuery && (
-                            <button
-                              type="button"
-                              className="algo-search-clear"
-                              onClick={() => {
-                                setSearchQuery('');
-                                searchInputRef.current?.focus();
-                              }}
-                              title="Clear search"
-                            >
-                              ×
-                            </button>
+                            <Tooltip text="Clear search">
+                              <button
+                                type="button"
+                                className="algo-search-clear"
+                                onClick={() => {
+                                  setSearchQuery('');
+                                  searchInputRef.current?.focus();
+                                }}
+                              >
+                                ×
+                              </button>
+                            </Tooltip>
                           )}
                         </div>
 
@@ -800,18 +824,19 @@ export const RightSidebar: React.FC = () => {
                                 }}
                               >
                                 <span className="algo-listbox-item-name">{a.name}</span>
-                                <button
-                                  type="button"
-                                  className={`algo-listbox-star-btn ${isFav ? 'starred' : ''}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleFavorite(a.id);
-                                  }}
-                                  title={isFav ? "Remove from Favorites" : "Add to Favorites"}
-                                  aria-label={isFav ? `Remove ${a.name} from Favorites` : `Add ${a.name} to Favorites`}
-                                >
-                                  {isFav ? '★' : '☆'}
-                                </button>
+                                <Tooltip text={isFav ? "Remove from Favorites" : "Add to Favorites"}>
+                                  <button
+                                    type="button"
+                                    className={`algo-listbox-star-btn ${isFav ? 'starred' : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFavorite(a.id);
+                                    }}
+                                    aria-label={isFav ? `Remove ${a.name} from Favorites` : `Add ${a.name} to Favorites`}
+                                  >
+                                    {isFav ? '★' : '☆'}
+                                  </button>
+                                </Tooltip>
                               </div>
                             );
                           })}
@@ -823,59 +848,84 @@ export const RightSidebar: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <button className="stepper-btn" onClick={handleNextAlgo} title="Next Algorithm (Down Arrow)">&gt;</button>
-                    <button
-                      className="stepper-btn"
-                      onClick={() => toggleFavoriteAlgorithm(algorithmId)}
-                      title={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                      style={{ color: isCurrentFavorite ? 'var(--accent-cyan)' : 'var(--text-muted)' }}
-                    >
-                      ★
-                    </button>
+                    <Tooltip text="Next Algorithm (Down Arrow)">
+                      <button className="stepper-btn" onClick={handleNextAlgo}>&gt;</button>
+                    </Tooltip>
+                    <Tooltip text={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}>
+                      <button
+                        className="stepper-btn"
+                        onClick={() => toggleFavoriteAlgorithm(algorithmId)}
+                        style={{ color: isCurrentFavorite ? 'var(--accent-cyan)' : 'var(--text-muted)' }}
+                      >
+                        ★
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
 
-                {/* Description */}
-                <p className="algo-description-box">
-                  {currentAlgo.description}
-                </p>
+                {/* User-facing Algorithm Description (Item 7) */}
+                {(() => {
+                  const desc = USER_ALGORITHM_DESCRIPTIONS[algorithmId];
+                  return (
+                    <div className="algo-description-container">
+                      <div className="algo-desc-what">
+                        {desc?.what ?? currentAlgo.description}
+                      </div>
+                      {desc?.why && (
+                        <div className="algo-desc-why">
+                          <span className="algo-desc-why-prefix">Best for: </span>
+                          {desc.why}
+                        </div>
+                      )}
+                      {currentAlgo.description && desc && (
+                        <div className="algo-desc-footnote">
+                          {currentAlgo.description}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Reset button */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn-subtle"
-                    onClick={resetCurrentAlgoParams}
-                    title="Reset algorithm parameters"
-                  >
-                    Reset
-                  </button>
+                  <Tooltip text="Reset algorithm parameters">
+                    <button
+                      className="btn-subtle"
+                      onClick={resetCurrentAlgoParams}
+                    >
+                      Reset
+                    </button>
+                  </Tooltip>
                 </div>
 
                 {/* Progressive Parameters */}
                 {visibleParams.threshold && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
-                      <span
-                        onDoubleClick={() => resetAlgoParamToDefault('threshold')}
-                        style={{ cursor: 'pointer' }}
-                        title="Threshold (0.00 to 1.00). Double-click to reset."
-                      >
-                        Threshold
-                      </span>
+                      <Tooltip text="Threshold (0.00 to 1.00). Double-click to reset.">
+                        <span
+                          onDoubleClick={() => resetAlgoParamToDefault('threshold')}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          Threshold
+                        </span>
+                      </Tooltip>
                     </div>
                     <div className="slider-track-input-row">
-                      <input
-                        type="range"
-                        className="control-slider" title="Double-click to reset to default"
-                        min="0.0"
-                        max="1.0"
-                        step="0.02"
-                        value={currentParams.threshold}
-                        style={getSliderFill(currentParams.threshold, 0, 1)}
-                        {...sliderPointerProps}
-                        onDoubleClick={() => resetAlgoParamToDefault('threshold')}
-                        onChange={(e) => updateCurrentAlgoParam('threshold', Number(e.target.value))}
-                      />
+                      <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                        <input
+                          type="range"
+                          className="control-slider"
+                          min="0.0"
+                          max="1.0"
+                          step="0.02"
+                          value={currentParams.threshold}
+                          style={getSliderFill(currentParams.threshold, 0, 1)}
+                          {...sliderPointerProps}
+                          onDoubleClick={() => resetAlgoParamToDefault('threshold')}
+                          onChange={(e) => updateCurrentAlgoParam('threshold', Number(e.target.value))}
+                        />
+                      </Tooltip>
                       <input
                         type="number"
                         className="control-num-input"
@@ -892,27 +942,30 @@ export const RightSidebar: React.FC = () => {
                 {visibleParams.scale && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
-                      <span
-                        onDoubleClick={() => resetAlgoParamToDefault('scale')}
-                        style={{ cursor: 'pointer' }}
-                        title="Pattern Scale (1.0x to 8.0x). Double-click to reset."
-                      >
-                        Pattern Scale
-                      </span>
+                      <Tooltip text="Pattern Scale (1.0x to 8.0x). Double-click to reset.">
+                        <span
+                          onDoubleClick={() => resetAlgoParamToDefault('scale')}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          Pattern Scale
+                        </span>
+                      </Tooltip>
                     </div>
                     <div className="slider-track-input-row">
-                      <input
-                        type="range"
-                        className="control-slider" title="Double-click to reset to default"
-                        min="1.0"
-                        max="8.0"
-                        step="0.5"
-                        value={currentParams.scale}
-                        style={getSliderFill(currentParams.scale, 1, 8)}
-                        {...sliderPointerProps}
-                        onDoubleClick={() => resetAlgoParamToDefault('scale')}
-                        onChange={(e) => updateCurrentAlgoParam('scale', Number(e.target.value))}
-                      />
+                      <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                        <input
+                          type="range"
+                          className="control-slider"
+                          min="1.0"
+                          max="8.0"
+                          step="0.5"
+                          value={currentParams.scale}
+                          style={getSliderFill(currentParams.scale, 1, 8)}
+                          {...sliderPointerProps}
+                          onDoubleClick={() => resetAlgoParamToDefault('scale')}
+                          onChange={(e) => updateCurrentAlgoParam('scale', Number(e.target.value))}
+                        />
+                      </Tooltip>
                       <input
                         type="number"
                         className="control-num-input"
@@ -929,27 +982,30 @@ export const RightSidebar: React.FC = () => {
                 {visibleParams.diffusionStrength && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
-                      <span
-                        onDoubleClick={() => resetAlgoParamToDefault('diffusionStrength')}
-                        style={{ cursor: 'pointer' }}
-                        title="Diffusion Strength (0.0 to 1.0). Double-click to reset."
-                      >
-                        Diffusion Strength
-                      </span>
+                      <Tooltip text="Diffusion Strength (0.0 to 1.0). Double-click to reset.">
+                        <span
+                          onDoubleClick={() => resetAlgoParamToDefault('diffusionStrength')}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          Diffusion Strength
+                        </span>
+                      </Tooltip>
                     </div>
                     <div className="slider-track-input-row">
-                      <input
-                        type="range"
-                        className="control-slider" title="Double-click to reset to default"
-                        min="0.0"
-                        max="1.0"
-                        step="0.05"
-                        value={currentParams.diffusionStrength}
-                        style={getSliderFill(currentParams.diffusionStrength, 0, 1)}
-                        {...sliderPointerProps}
-                        onDoubleClick={() => resetAlgoParamToDefault('diffusionStrength')}
-                        onChange={(e) => updateCurrentAlgoParam('diffusionStrength', Number(e.target.value))}
-                      />
+                      <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                        <input
+                          type="range"
+                          className="control-slider"
+                          min="0.0"
+                          max="1.0"
+                          step="0.05"
+                          value={currentParams.diffusionStrength}
+                          style={getSliderFill(currentParams.diffusionStrength, 0, 1)}
+                          {...sliderPointerProps}
+                          onDoubleClick={() => resetAlgoParamToDefault('diffusionStrength')}
+                          onChange={(e) => updateCurrentAlgoParam('diffusionStrength', Number(e.target.value))}
+                        />
+                      </Tooltip>
                       <input
                         type="number"
                         className="control-num-input"
@@ -965,17 +1021,21 @@ export const RightSidebar: React.FC = () => {
 
                 {visibleParams.serpentine && (
                   <div className="serpentine-row">
-                    <input
-                      type="checkbox"
-                      id="serpentineCheckbox"
-                      checked={currentParams.serpentine}
-                      onChange={(e) => updateCurrentAlgoParam('serpentine', e.target.checked)}
-                      style={{ accentColor: 'var(--accent-cyan)' }}
-                    />
+                    <Tooltip text="Alternates scan direction on odd rows to prevent diagonal artifacting">
+                      <button
+                        type="button"
+                        id="serpentineToggleBtn"
+                        className={`toggle-square-btn ${currentParams.serpentine ? 'enabled' : ''}`}
+                        onClick={() => updateCurrentAlgoParam('serpentine', !currentParams.serpentine)}
+                        aria-label="Toggle Serpentine Scanline"
+                      >
+                        <span className={`toggle-square ${currentParams.serpentine ? 'enabled' : ''}`} />
+                      </button>
+                    </Tooltip>
                     <label 
-                      htmlFor="serpentineCheckbox" 
-                      style={{ cursor: 'pointer', color: 'var(--text-main)', userSelect: 'none' }}
-                      title="Alternates scan direction on odd rows to prevent diagonal artifacting"
+                      htmlFor="serpentineToggleBtn"
+                      className="serpentine-label"
+                      onClick={() => updateCurrentAlgoParam('serpentine', !currentParams.serpentine)}
                     >
                       Serpentine Scanline
                     </label>
@@ -985,26 +1045,29 @@ export const RightSidebar: React.FC = () => {
                 {visibleParams.noiseAmount && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
-                      <span
-                        onDoubleClick={() => resetAlgoParamToDefault('noiseAmount')}
-                        style={{ cursor: 'pointer' }}
-                        title="Noise Amount (0.0 to 1.0). Double-click to reset."
-                      >
-                        Noise Amount
-                      </span>
+                      <Tooltip text="Noise Amount (0.0 to 1.0). Double-click to reset.">
+                        <span
+                          onDoubleClick={() => resetAlgoParamToDefault('noiseAmount')}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          Noise Amount
+                        </span>
+                      </Tooltip>
                     </div>
                     <div className="slider-track-input-row">
-                      <input
-                        type="range"
-                        className="control-slider" title="Double-click to reset to default"
-                        min="0.0"
-                        max="1.0"
-                        step="0.05"
-                        value={currentParams.noiseAmount ?? 0.3}
-                        {...sliderPointerProps}
-                        onDoubleClick={() => resetAlgoParamToDefault('noiseAmount')}
-                        onChange={(e) => updateCurrentAlgoParam('noiseAmount', Number(e.target.value))}
-                      />
+                      <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                        <input
+                          type="range"
+                          className="control-slider"
+                          min="0.0"
+                          max="1.0"
+                          step="0.05"
+                          value={currentParams.noiseAmount ?? 0.3}
+                          {...sliderPointerProps}
+                          onDoubleClick={() => resetAlgoParamToDefault('noiseAmount')}
+                          onChange={(e) => updateCurrentAlgoParam('noiseAmount', Number(e.target.value))}
+                        />
+                      </Tooltip>
                       <input
                         type="number"
                         className="control-num-input"
@@ -1022,63 +1085,67 @@ export const RightSidebar: React.FC = () => {
           </div>
           {/* 2. ADJUSTMENTS SECTION */}
           <div className="section-block">
-            <div className="section-header">
-              <button 
-                className="section-header-left" 
-                onClick={() => toggleSection('adjustments')}
-                type="button"
-              >
+            <div 
+              className="section-header section-header-clickable"
+              onClick={() => toggleSection('adjustments')}
+            >
+              <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.adjustments ? '▶' : '▼'}</span>
                 <span className="section-title-text">ADJUSTMENTS</span>
-              </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              </div>
+              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.adjustments && (
               <div className="section-content">
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn-subtle"
-                    onClick={resetAllAdjustments}
-                    title="Reset adjustments"
-                  >
-                    Reset
-                  </button>
+                  <Tooltip text="Reset adjustments">
+                    <button
+                      className="btn-subtle"
+                      onClick={resetAllAdjustments}
+                    >
+                      Reset
+                    </button>
+                  </Tooltip>
                 </div>
 
                 {/* Brightness */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <span
+                    <Tooltip text="Brightness (-100 to +100). Double-click to reset.">
+                      <span
                         onDoubleClick={() => resetAdjustmentParam('brightness')}
                         style={{ cursor: 'pointer' }}
-                        title="Brightness (-100 to +100). Double-click to reset."
                       >
                         Brightness
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('brightness')}
-                      title={lockedAdjustments.brightness ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.brightness ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    </Tooltip>
+                    <Tooltip text={lockedAdjustments.brightness ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('brightness')}
+                      >
+                        {lockedAdjustments.brightness ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <input
-                      type="range"
-                      className="control-slider" title="Double-click to reset to default"
-                      min="-100"
-                      max="100"
-                      step="1"
-                      value={brightness}
-                      disabled={lockedAdjustments.brightness}
-                      style={getSliderFill(brightness, -100, 100)}
-                      {...sliderPointerProps}
-                      onDoubleClick={() => resetAdjustmentParam('brightness')}
-                      onChange={(e) => setBrightness(Number(e.target.value))}
-                    />
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                      <input
+                        type="range"
+                        className="control-slider"
+                        min="-100"
+                        max="100"
+                        step="1"
+                        value={brightness}
+                        disabled={lockedAdjustments.brightness}
+                        style={getSliderFill(brightness, -100, 100)}
+                        {...sliderPointerProps}
+                        onDoubleClick={() => resetAdjustmentParam('brightness')}
+                        onChange={(e) => setBrightness(Number(e.target.value))}
+                      />
+                    </Tooltip>
                     <input
                       type="number"
                       className="control-num-input"
@@ -1095,36 +1162,40 @@ export const RightSidebar: React.FC = () => {
                 {/* Contrast */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <span
+                    <Tooltip text="Contrast (-100 to +100). Double-click to reset.">
+                      <span
                         onDoubleClick={() => resetAdjustmentParam('contrast')}
                         style={{ cursor: 'pointer' }}
-                        title="Contrast (-100 to +100). Double-click to reset."
                       >
                         Contrast
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('contrast')}
-                      title={lockedAdjustments.contrast ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.contrast ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    </Tooltip>
+                    <Tooltip text={lockedAdjustments.contrast ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('contrast')}
+                      >
+                        {lockedAdjustments.contrast ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <input
-                      type="range"
-                      className="control-slider" title="Double-click to reset to default"
-                      min="-100"
-                      max="100"
-                      step="1"
-                      value={contrast}
-                      disabled={lockedAdjustments.contrast}
-                      style={getSliderFill(contrast, -100, 100)}
-                      {...sliderPointerProps}
-                      onDoubleClick={() => resetAdjustmentParam('contrast')}
-                      onChange={(e) => setContrast(Number(e.target.value))}
-                    />
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                      <input
+                        type="range"
+                        className="control-slider"
+                        min="-100"
+                        max="100"
+                        step="1"
+                        value={contrast}
+                        disabled={lockedAdjustments.contrast}
+                        style={getSliderFill(contrast, -100, 100)}
+                        {...sliderPointerProps}
+                        onDoubleClick={() => resetAdjustmentParam('contrast')}
+                        onChange={(e) => setContrast(Number(e.target.value))}
+                      />
+                    </Tooltip>
                     <input
                       type="number"
                       className="control-num-input"
@@ -1141,36 +1212,40 @@ export const RightSidebar: React.FC = () => {
                 {/* Saturation */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <span
+                    <Tooltip text="Saturation (-100 to +100). Double-click to reset.">
+                      <span
                         onDoubleClick={() => resetAdjustmentParam('saturation')}
                         style={{ cursor: 'pointer' }}
-                        title="Saturation (-100 to +100). Double-click to reset."
                       >
                         Saturation
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('saturation')}
-                      title={lockedAdjustments.saturation ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.saturation ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    </Tooltip>
+                    <Tooltip text={lockedAdjustments.saturation ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('saturation')}
+                      >
+                        {lockedAdjustments.saturation ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <input
-                      type="range"
-                      className="control-slider" title="Double-click to reset to default"
-                      min="-100"
-                      max="100"
-                      step="1"
-                      value={saturation}
-                      disabled={lockedAdjustments.saturation}
-                      style={getSliderFill(saturation, -100, 100)}
-                      {...sliderPointerProps}
-                      onDoubleClick={() => resetAdjustmentParam('saturation')}
-                      onChange={(e) => setSaturation(Number(e.target.value))}
-                    />
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                      <input
+                        type="range"
+                        className="control-slider"
+                        min="-100"
+                        max="100"
+                        step="1"
+                        value={saturation}
+                        disabled={lockedAdjustments.saturation}
+                        style={getSliderFill(saturation, -100, 100)}
+                        {...sliderPointerProps}
+                        onDoubleClick={() => resetAdjustmentParam('saturation')}
+                        onChange={(e) => setSaturation(Number(e.target.value))}
+                      />
+                    </Tooltip>
                     <input
                       type="number"
                       className="control-num-input"
@@ -1187,36 +1262,40 @@ export const RightSidebar: React.FC = () => {
                 {/* Gamma */}
                 <div className="slider-control-block">
                   <div className="slider-label-above">
-                    <span
+                    <Tooltip text="Gamma (0.10 to 3.00). Double-click to reset.">
+                      <span
                         onDoubleClick={() => resetAdjustmentParam('gamma')}
                         style={{ cursor: 'pointer' }}
-                        title="Gamma (0.10 to 3.00). Double-click to reset."
                       >
                         Gamma
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('gamma')}
-                      title={lockedAdjustments.gamma ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.gamma ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                    </Tooltip>
+                    <Tooltip text={lockedAdjustments.gamma ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('gamma')}
+                      >
+                        {lockedAdjustments.gamma ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <input
-                      type="range"
-                      className="control-slider" title="Double-click to reset to default"
-                      min="0.1"
-                      max="3.0"
-                      step="0.05"
-                      value={gamma}
-                      disabled={lockedAdjustments.gamma}
-                      style={getSliderFill(gamma, 0.1, 3.0)}
-                      {...sliderPointerProps}
-                      onDoubleClick={() => resetAdjustmentParam('gamma')}
-                      onChange={(e) => setGamma(Number(e.target.value))}
-                    />
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                      <input
+                        type="range"
+                        className="control-slider"
+                        min="0.1"
+                        max="3.0"
+                        step="0.05"
+                        value={gamma}
+                        disabled={lockedAdjustments.gamma}
+                        style={getSliderFill(gamma, 0.1, 3.0)}
+                        {...sliderPointerProps}
+                        onDoubleClick={() => resetAdjustmentParam('gamma')}
+                        onChange={(e) => setGamma(Number(e.target.value))}
+                      />
+                    </Tooltip>
                     <input
                       type="number"
                       className="control-num-input"
@@ -1234,36 +1313,39 @@ export const RightSidebar: React.FC = () => {
                 {algorithmId === 'bit_crush' && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
-                      <span
-                        onDoubleClick={() => resetAdjustmentParam('depth')}
-                        style={{ cursor: 'pointer' }}
-                        title="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm."
-                      >
-                        Color Depth
-                      </span>
-                      <button
-                        type="button"
-                        className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('depth')}
-                        title={lockedAdjustments.depth ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                      >
-                        {lockedAdjustments.depth ? <Lock size={14} /> : <Unlock size={14} />}
-                      </button>
+                      <Tooltip text="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm.">
+                        <span
+                          onDoubleClick={() => resetAdjustmentParam('depth')}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          Color Depth
+                        </span>
+                      </Tooltip>
+                      <Tooltip text={lockedAdjustments.depth ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
+                        <button
+                          type="button"
+                          className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
+                          onClick={() => toggleAdjustmentLock('depth')}
+                        >
+                          {lockedAdjustments.depth ? <Lock size={14} /> : <Unlock size={14} />}
+                        </button>
+                      </Tooltip>
                     </div>
                     <div className="slider-track-input-row">
-                      <input
-                        type="range"
-                        className="control-slider"
-                        title="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm."
-                        min="1"
-                        max="32"
-                        step="1"
-                        value={depth}
-                        disabled={lockedAdjustments.depth}
-                        {...sliderPointerProps}
-                        onDoubleClick={() => resetAdjustmentParam('depth')}
-                        onChange={(e) => setDepth(Number(e.target.value))}
-                      />
+                      <Tooltip text="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm." style={{ flex: 1, display: 'flex' }}>
+                        <input
+                          type="range"
+                          className="control-slider"
+                          min="1"
+                          max="32"
+                          step="1"
+                          value={depth}
+                          disabled={lockedAdjustments.depth}
+                          {...sliderPointerProps}
+                          onDoubleClick={() => resetAdjustmentParam('depth')}
+                          onChange={(e) => setDepth(Number(e.target.value))}
+                        />
+                      </Tooltip>
                       <input
                         type="number"
                         className="control-num-input"
@@ -1272,7 +1354,6 @@ export const RightSidebar: React.FC = () => {
                         step="1"
                         value={depth}
                         disabled={lockedAdjustments.depth}
-                        title="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm."
                         onChange={(e) => setDepth(parseInt(e.target.value, 10) || 8)}
                       />
                     </div>
@@ -1284,49 +1365,55 @@ export const RightSidebar: React.FC = () => {
 
           {/* 3. PALETTE SECTION */}
           <div className="section-block">
-            <div className="section-header">
-              <button 
-                className="section-header-left" 
-                onClick={() => toggleSection('palette')}
-                type="button"
-              >
+            <div 
+              className="section-header section-header-clickable"
+              onClick={() => toggleSection('palette')}
+            >
+              <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.palette ? '▶' : '▼'}</span>
                 <span className="section-title-text">PALETTE</span>
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  type="button"
-                  className="stepper-btn"
-                  onClick={shuffleUnlockedSwatches}
-                  title="Shuffle unlocked swatches"
-                  style={{ width: '22px', height: '22px' }}
-                >
-                  <Shuffle size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="btn-subtle"
-                  onClick={handleResetPalette}
-                  title="Reset to built-in palette"
-                >
-                  Reset
-                </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                <Tooltip text="Shuffle unlocked swatches">
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={(e) => { e.stopPropagation(); shuffleUnlockedSwatches(); }}
+                    style={{ width: '22px', height: '22px' }}
+                  >
+                    <Shuffle size={14} />
+                  </button>
+                </Tooltip>
+                <Tooltip text="Reset to built-in palette">
+                  <button
+                    type="button"
+                    className="btn-subtle"
+                    onClick={(e) => { e.stopPropagation(); handleResetPalette(); }}
+                  >
+                    Reset
+                  </button>
+                </Tooltip>
               </div>
             </div>
 
             {!collapsedSections.palette && (
-              <div className="section-content">
+              <div className="section-content" style={{ position: 'relative' }}>
+                {isExtractingPalette && (
+                  <LoadingScreen />
+                )}
                 {/* Built-in Dropdown */}
                 <div className="picker-row">
                   <span className="picker-label">Built-in</span>
                   <div className="select-with-steppers">
-                    <button className="stepper-btn" onClick={handlePrevPalette} title="Previous Palette">&lt;</button>
+                    <Tooltip text="Previous Palette">
+                      <button className="stepper-btn" onClick={handlePrevPalette}>&lt;</button>
+                    </Tooltip>
                     <Dropdown
                       className="palette-builtin-dropdown"
                       width="100%"
                       value={activePaletteId}
                       onChange={(palId) => setActivePaletteId(palId)}
-                      title="Choose built-in palette"
+                      tooltip="Choose built-in palette"
                       items={[
                         ...(activePaletteId === 'custom'
                           ? [{ id: 'custom', label: 'Custom Palette', hint: `${workingPalette.length} colors` }]
@@ -1338,26 +1425,27 @@ export const RightSidebar: React.FC = () => {
                         })),
                       ]}
                     />
-                    <button className="stepper-btn" onClick={handleNextPalette} title="Next Palette">&gt;</button>
+                    <Tooltip text="Next Palette">
+                      <button className="stepper-btn" onClick={handleNextPalette}>&gt;</button>
+                    </Tooltip>
                   </div>
                 </div>
 
                 {/* Swatch grid: 32x32px each, 4px gaps, wrapping naturally */}
-                <div className="palette-swatches-grid" title="Palette swatches">
+                <div className="palette-swatches-grid">
                   {workingPalette.map((c: number[], i: number) => {
                     const isLocked = lockedSwatches.includes(i);
                     const isBeyondDepth = i >= paletteDepth;
                     const hex = rgbaToHex(c[0], c[1], c[2]).toUpperCase();
                     return (
+                      <Tooltip key={i} text={`Swatch ${i + 1}: ${hex}${isLocked ? ' (Locked)' : ''}`}>
                       <div
-                        key={i}
                         className="palette-swatch-item"
                         style={{
                           backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})`,
                           opacity: isBeyondDepth ? 0.35 : 1
                         }}
                         onClick={() => setActiveSwatchIndex(activeSwatchIndex === i ? null : i)}
-                        title={`Swatch ${i + 1}: ${hex}${isLocked ? ' (Locked)' : ''}`}
                       >
                         {isLocked && (
                           <div className="palette-swatch-lock-badge">
@@ -1365,16 +1453,17 @@ export const RightSidebar: React.FC = () => {
                           </div>
                         )}
                       </div>
+                    </Tooltip>
                     );
                   })}
 
                   {/* Add swatch button if < 32 */}
                   {workingPalette.length < 32 && (
+                    <Tooltip text="Add color swatch (up to 32)">
                     <button
                       type="button"
                       className="palette-swatch-item"
                       onClick={addSwatch}
-                      title="Add color swatch (up to 32)"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1387,6 +1476,7 @@ export const RightSidebar: React.FC = () => {
                     >
                       +
                     </button>
+                  </Tooltip>
                   )}
 
                   {/* Swatch Edit Popover */}
@@ -1429,26 +1519,28 @@ export const RightSidebar: React.FC = () => {
                             }
                           }}
                         />
-                        <button
-                          type="button"
-                          className="btn-subtle palette-popover-btn"
-                          onClick={() => toggleLockSwatch(activeSwatchIndex)}
-                          title={lockedSwatches.includes(activeSwatchIndex) ? "Unlock Swatch" : "Lock Swatch"}
-                        >
-                          {lockedSwatches.includes(activeSwatchIndex) ? <Lock size={16} /> : <Unlock size={16} />}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-subtle palette-popover-btn"
-                          disabled={workingPalette.length <= 2}
-                          onClick={() => {
-                            removeSwatch(activeSwatchIndex);
-                            setActiveSwatchIndex(null);
-                          }}
-                          title={workingPalette.length <= 2 ? "Minimum 2 colors required" : "Delete Swatch"}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <Tooltip text={lockedSwatches.includes(activeSwatchIndex) ? "Unlock Swatch" : "Lock Swatch"}>
+                          <button
+                            type="button"
+                            className="btn-subtle palette-popover-btn"
+                            onClick={() => toggleLockSwatch(activeSwatchIndex)}
+                          >
+                            {lockedSwatches.includes(activeSwatchIndex) ? <Lock size={16} /> : <Unlock size={16} />}
+                          </button>
+                        </Tooltip>
+                        <Tooltip text={workingPalette.length <= 2 ? "Minimum 2 colors required" : "Delete Swatch"}>
+                          <button
+                            type="button"
+                            className="btn-subtle palette-popover-btn"
+                            disabled={workingPalette.length <= 2}
+                            onClick={() => {
+                              removeSwatch(activeSwatchIndex);
+                              setActiveSwatchIndex(null);
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </Tooltip>
                       </div>
                     </div>
                   )}
@@ -1458,31 +1550,35 @@ export const RightSidebar: React.FC = () => {
                 <div className="palette-actions-block">
                   <span className="palette-actions-label">From Image</span>
                   <div className="palette-buttons-row">
+                    <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"} style={{ flex: 1 }}>
                     <button
                       type="button"
                       className="palette-action-btn"
                       disabled={!hasImage || !sourceImageData}
                       onClick={handleExtractMedianCut}
-                      title={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"}
+                      style={{ width: '100%' }}
                     >
                       Median Cut
                     </button>
+                  </Tooltip>
+                    <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"} style={{ flex: 1 }}>
                     <button
                       type="button"
                       className="palette-action-btn"
                       disabled={!hasImage || !sourceImageData}
                       onClick={handleExtractKMeans}
-                      title={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"}
+                      style={{ width: '100%' }}
                     >
                       K-Means
                     </button>
+                  </Tooltip>
                   </div>
                 </div>
 
                 {/* Depth Slider */}
                 <div className="palette-depth-block">
                   <div className="slider-label-above">
-                    <span title="Palette depth iteration count">Palette Depth</span>
+                    <span>Palette Depth</span>
                   </div>
                   <div className="slider-track-input-row">
                     <input
@@ -1522,22 +1618,26 @@ export const RightSidebar: React.FC = () => {
                     style={{ display: 'none' }}
                     onChange={handleImportPalette}
                   />
+                  <Tooltip text="Import custom palette JSON" style={{ flex: 1 }}>
                   <button
                     type="button"
                     className="btn-default"
                     onClick={() => paletteFileInputRef.current?.click()}
-                    title="Import custom palette JSON"
+                    style={{ width: '100%' }}
                   >
                     <Download size={14} className="btn-icon" /> Import
                   </button>
+                </Tooltip>
+                  <Tooltip text="Export current working palette to JSON" style={{ flex: 1 }}>
                   <button
                     type="button"
                     className="btn-default"
                     onClick={handleExportPalette}
-                    title="Export current working palette to JSON"
+                    style={{ width: '100%' }}
                   >
                     <Upload size={14} className="btn-icon" /> Export
                   </button>
+                </Tooltip>
                 </div>
               </div>
             )}
@@ -1545,44 +1645,46 @@ export const RightSidebar: React.FC = () => {
 
           {/* 4. EFFECTS STACK SECTION */}
           <div className="section-block">
-            <div className="section-header">
-              <button 
-                className="section-header-left" 
-                onClick={() => toggleSection('effects')}
-                type="button"
-              >
+            <div 
+              className="section-header section-header-clickable"
+              onClick={() => toggleSection('effects')}
+            >
+              <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.effects ? '▶' : '▼'}</span>
                 <span className="section-title-text">EFFECTS STACK</span>
                 <span className="section-counter-text">{effects.filter(e => e.enabled).length} active / {effects.length} total</span>
-              </button>
-              <button
-                type="button"
-                className="btn-subtle"
-                onClick={handleResetEffects}
-                title="Reset effect stack to default"
-              >
-                <RotateCcw size={12} className="btn-icon" />
-                <span>Reset</span>
-              </button>
+              </div>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Tooltip text="Reset effect stack to default">
+                  <button
+                    type="button"
+                    className="btn-subtle"
+                    onClick={(e) => { e.stopPropagation(); handleResetEffects(); }}
+                  >
+                    <RotateCcw size={12} className="btn-icon" />
+                    <span>Reset</span>
+                  </button>
+                </Tooltip>
+              </div>
             </div>
 
             {!collapsedSections.effects && (
               <div className="section-content">
                 {/* Collapsible Effects Dropdown */}
                 <div className={`effects-dropdown ${isEffectsDropdownOpen ? 'open' : ''}`}>
-                  <div
-                    className="effects-dropdown-header"
-                    role="button"
-                    tabIndex={0}
-                    onClick={toggleEffectsDropdown}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        toggleEffectsDropdown();
-                      }
-                    }}
-                    title={isEffectsDropdownOpen ? "Collapse effects stack" : "Expand effects stack"}
-                  >
+                  <Tooltip text={isEffectsDropdownOpen ? "Collapse effects stack" : "Expand effects stack"} style={{ width: '100%', display: 'block' }}>
+                    <div
+                      className="effects-dropdown-header"
+                      role="button"
+                      tabIndex={0}
+                      onClick={toggleEffectsDropdown}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleEffectsDropdown();
+                        }
+                      }}
+                    >
                     <span className="effects-dropdown-icon">
                       <Layers size={14} strokeWidth={1.75} />
                     </span>
@@ -1604,6 +1706,7 @@ export const RightSidebar: React.FC = () => {
                       <ChevronDown size={14} strokeWidth={1.75} />
                     </span>
                   </div>
+                  </Tooltip>
 
                   {isEffectsDropdownOpen && (
                     <div className="effects-dropdown-panel">
@@ -1648,21 +1751,21 @@ export const RightSidebar: React.FC = () => {
                               }}
                             >
                               {/* Drag handle (dot grid) at left, 16px slot */}
-                              <span
-                                className="effect-row-drag"
-                                draggable
-                                tabIndex={0}
-                                title="Drag to reorder"
-                                onClick={(e) => e.stopPropagation()}
-                                onDragStart={(e) => {
-                                  e.stopPropagation();
-                                  setDraggedEffectIndex(index);
-                                }}
-                                onDragEnd={() => {
-                                  setDraggedEffectIndex(null);
-                                  setDragOverEffectIndex(null);
-                                }}
-                              >
+                              <Tooltip text="Drag to reorder">
+                                <span
+                                  className="effect-row-drag"
+                                  draggable
+                                  tabIndex={0}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    setDraggedEffectIndex(index);
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggedEffectIndex(null);
+                                    setDragOverEffectIndex(null);
+                                  }}
+                                >
                                 <svg
                                   width="8"
                                   height="14"
@@ -1678,19 +1781,21 @@ export const RightSidebar: React.FC = () => {
                                   <circle cx="6.5" cy="12.5" r="1.5" />
                                 </svg>
                               </span>
+                              </Tooltip>
 
                               {/* Toggle square */}
-                              <button
-                                type="button"
-                                className={`effect-row-toggle ${eff.enabled ? 'enabled' : ''}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleEffectEnabled(eff.id);
-                                }}
-                                title={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}
-                              >
+                              <Tooltip text={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}>
+                                <button
+                                  type="button"
+                                  className={`effect-row-toggle ${eff.enabled ? 'enabled' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleEffectEnabled(eff.id);
+                                  }}
+                                >
                                 <span className="effect-toggle-square" />
-                              </button>
+                                </button>
+                              </Tooltip>
 
                               {/* Effect name */}
                               <span className={`effect-row-name ${!eff.enabled ? 'disabled' : ''}`}>
@@ -1772,12 +1877,13 @@ export const RightSidebar: React.FC = () => {
                                   return (
                                     <div key={key} className="effect-param-row">
                                       <div className="effect-param-label">
-                                        <span
-                                          onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
-                                          title={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}
-                                        >
-                                          {labelText}
-                                        </span>
+                                        <Tooltip text={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}>
+                                          <span
+                                            onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
+                                          >
+                                            {labelText}
+                                          </span>
+                                        </Tooltip>
                                       </div>
                                       <div className="effect-param-control-row">
                                         <input
@@ -1793,34 +1899,36 @@ export const RightSidebar: React.FC = () => {
                                           onChange={(e) => updateEffectParam(eff.id, key, Number(e.target.value))}
                                         />
                                         <div className="slider-value-box">
-                                          <span
-                                            className="slider-value-number"
-                                            title="Double-click slider to reset"
-                                          >
-                                            {displayVal}
-                                          </span>
+                                          <Tooltip text="Double-click slider to reset">
+                                            <span
+                                              className="slider-value-number"
+                                            >
+                                              {displayVal}
+                                            </span>
+                                          </Tooltip>
                                           <div className="slider-value-spinner">
-                                            <button
-                                              type="button"
-                                              className="spinner-btn spinner-up"
-                                              tabIndex={0}
-                                              onClick={() => handleStep(1)}
-                                              title="Increment"
-                                            >
-                                              <ChevronUp size={12} strokeWidth={2} />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="spinner-btn spinner-down"
-                                              tabIndex={0}
-                                              onClick={() => handleStep(-1)}
-                                              title="Decrement"
-                                            >
-                                              <ChevronDown size={12} strokeWidth={2} />
-                                            </button>
+                                            <Tooltip text="Increment">
+                                              <button
+                                                type="button"
+                                                className="spinner-btn spinner-up"
+                                                tabIndex={0}
+                                                onClick={() => handleStep(1)}
+                                              >
+                                                <ChevronUp size={12} strokeWidth={2} />
+                                              </button>
+                                            </Tooltip>
+                                            <Tooltip text="Decrement">
+                                              <button
+                                                type="button"
+                                                className="spinner-btn spinner-down"
+                                                tabIndex={0}
+                                                onClick={() => handleStep(-1)}
+                                              >
+                                                <ChevronDown size={12} strokeWidth={2} />
+                                              </button>
+                                            </Tooltip>
                                           </div>
-                                        </div>
-                                      </div>
+                                        </div>                                      </div>
                                     </div>
                                   );
                                 })}
@@ -1838,60 +1946,65 @@ export const RightSidebar: React.FC = () => {
 
           {/* 5. PRESETS SECTION */}
           <div className="section-block">
-            <div className="section-header">
-              <button 
-                className="section-header-left" 
-                onClick={() => toggleSection('presets')}
-                type="button"
-              >
+            <div 
+              className="section-header section-header-clickable"
+              onClick={() => toggleSection('presets')}
+            >
+              <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.presets ? '▶' : '▼'}</span>
                 <span className="section-title-text">PRESETS</span>
-              </button>
-              <span className="section-header-more" title="More options (Coming in later phase)">»</span>
+              </div>
+              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.presets && (
-              <div className="section-content">
-                <div style={{ display: 'flex', gap: '4px' }}>
+              <div className="section-content presets-section-content">
+                <div className="preset-row preset-dropdown-row">
                   <Dropdown
                     disabled
                     width="100%"
                     value=""
                     placeholder="Built-in Presets..."
                     onChange={() => {}}
-                    title="Load Preset (Coming in Phase 6)"
                     items={BUILTIN_PRESETS.map((p: any) => ({
                       id: p.id,
                       label: p.name,
                     }))}
                   />
-                  <button 
-                    className="btn-default" 
-                    disabled 
-                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                    title="Load Preset (Coming in Phase 6)"
-                  >
-                    Load
-                  </button>
+                  <Tooltip text="Load Preset (Coming in Phase 6)">
+                    <button 
+                      className="btn-default" 
+                      disabled 
+                      style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                    >
+                      Load
+                    </button>
+                  </Tooltip>
                 </div>
 
-                <button
-                  className="btn-default"
-                  disabled
-                  style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
-                  title="Save Preset (Coming in Phase 6)"
-                >
-                  Save Preset
-                </button>
+                <div className="preset-row preset-save-row">
+                  <Tooltip text="Save Preset (Coming in Phase 6)" style={{ width: '100%' }}>
+                    <button
+                      className="btn-default"
+                      disabled
+                      style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
+                    >
+                      Save Preset
+                    </button>
+                  </Tooltip>
+                </div>
 
-                <button
-                  className="btn-default"
-                  onClick={resetAll}
-                  style={{ width: '100%' }}
-                  title="Reset all settings to default"
-                >
-                  Reset to Default
-                </button>
+                <div className="preset-row preset-reset-row">
+                  <Tooltip text="Reset all settings to default" style={{ width: '100%' }}>
+                    <button
+                      className="btn-default"
+                      onClick={resetAll}
+                      style={{ width: '100%' }}
+                    >
+                      Reset to Default
+                    </button>
+                  </Tooltip>
+                </div>
               </div>
             )}
           </div>

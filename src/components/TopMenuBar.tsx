@@ -1,5 +1,6 @@
+import React, { useRef, useState, useEffect } from 'react';
 import { Dropdown } from './common/Dropdown';
-﻿import React, { useRef, useState, useEffect } from 'react';
+import { Tooltip } from './common/Tooltip';
 import { useAppStore } from '../state/useAppStore';
 import { 
   FolderOpen, 
@@ -22,25 +23,28 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
   const setActiveTheme = useAppStore((state) => state.setActiveTheme);
   const isFullScreen = useAppStore((state) => state.isFullScreen);
   const toggleFullScreen = useAppStore((state) => state.toggleFullScreen);
-  const resetAll = useAppStore((state) => state.resetAll);
-  const loadSampleImage = useAppStore((state) => state.loadSampleImage);
+
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
+  const loadSampleImage = useAppStore((state) => state.loadSampleImage);
   const clearImage = useAppStore((state) => state.clearImage);
+  const resetAll = useAppStore((state) => state.resetAll);
   const fitToViewport = useAppStore((state) => state.fitToViewport);
   const resetZoom = useAppStore((state) => state.resetZoom);
 
-  // Close menus when clicking outside
+  // Close open dropdown menus on click outside
   useEffect(() => {
-    const handleClickOutside = () => setActiveMenu(null);
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
+    const handleWindowClick = () => {
+      setActiveMenu(null);
+    };
+    window.addEventListener('click', handleWindowClick);
+    return () => window.removeEventListener('click', handleWindowClick);
   }, []);
 
   const handleOpenFileDialog = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -48,13 +52,18 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext('2d')!;
+        const offscreen = document.createElement('canvas');
+        offscreen.width = img.naturalWidth;
+        offscreen.height = img.naturalHeight;
+        const ctx = offscreen.getContext('2d')!;
         ctx.drawImage(img, 0, 0);
         const imgData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
         loadImageFromData(imgData, file.name);
+
+        const canvasArea = document.querySelector('.canvas-area');
+        if (canvasArea) {
+          fitToViewport(canvasArea.clientWidth, canvasArea.clientHeight);
+        }
       };
       img.src = event.target?.result as string;
     };
@@ -66,33 +75,30 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
     const canvasArea = document.querySelector('.canvas-area');
     if (canvasArea) {
       fitToViewport(canvasArea.clientWidth, canvasArea.clientHeight);
-    } else {
-      fitToViewport(window.innerWidth - 400, window.innerHeight - 100);
     }
   };
 
   return (
     <header className="top-menu-bar">
-      {/* Hidden File Input */}
       <input 
         type="file" 
         ref={fileInputRef} 
-        accept="image/png, image/jpeg, image/webp, image/gif, image/bmp" 
+        accept="image/*" 
         style={{ display: 'none' }}
-        onChange={handleFileChange}
+        onChange={handleFileInputChange}
       />
 
-      {/* Left-aligned plain-text menus only */}
       <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
         {/* File Menu */}
         <div style={{ position: 'relative' }}>
-          <button 
-            className={`menu-btn ${activeMenu === 'file' ? 'active' : ''}`}
-            onClick={() => setActiveMenu(activeMenu === 'file' ? null : 'file')}
-            title="File operations"
-          >
-            File
-          </button>
+          <Tooltip text="File operations" side="bottom">
+            <button 
+              className={`menu-btn ${activeMenu === 'file' ? 'active' : ''}`}
+              onClick={() => setActiveMenu(activeMenu === 'file' ? null : 'file')}
+            >
+              File
+            </button>
+          </Tooltip>
           {activeMenu === 'file' && (
             <div className="dropdown-menu-popover">
               <button 
@@ -124,42 +130,49 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
                 Close Image
               </button>
               <div className="dropdown-divider" />
-              <button 
-                className="dropdown-menu-item"
-                disabled
-                title="Coming in Phase 7"
-              >
-                <Download size={13} /> Export Image... <span className="menu-shortcut">Phase 7</span>
-              </button>
+              <Tooltip text="Coming in Phase 7" side="right" style={{ width: '100%' }}>
+                <button 
+                  className="dropdown-menu-item"
+                  disabled
+                  style={{ width: '100%' }}
+                >
+                  <Download size={13} /> Export Image... <span className="menu-shortcut">Phase 7</span>
+                </button>
+              </Tooltip>
             </div>
           )}
         </div>
 
         {/* Edit Menu */}
         <div style={{ position: 'relative' }}>
-          <button 
-            className={`menu-btn ${activeMenu === 'edit' ? 'active' : ''}`}
-            onClick={() => setActiveMenu(activeMenu === 'edit' ? null : 'edit')}
-            title="Edit operations"
-          >
-            Edit
-          </button>
+          <Tooltip text="Edit operations" side="bottom">
+            <button 
+              className={`menu-btn ${activeMenu === 'edit' ? 'active' : ''}`}
+              onClick={() => setActiveMenu(activeMenu === 'edit' ? null : 'edit')}
+            >
+              Edit
+            </button>
+          </Tooltip>
           {activeMenu === 'edit' && (
             <div className="dropdown-menu-popover">
-              <button 
-                className="dropdown-menu-item"
-                disabled
-                title="Coming in Phase 6"
-              >
-                Undo <span className="menu-shortcut">Ctrl+Z</span>
-              </button>
-              <button 
-                className="dropdown-menu-item"
-                disabled
-                title="Coming in Phase 6"
-              >
-                Redo <span className="menu-shortcut">Ctrl+Y</span>
-              </button>
+              <Tooltip text="Coming in Phase 6" side="right" style={{ width: '100%' }}>
+                <button 
+                  className="dropdown-menu-item"
+                  disabled
+                  style={{ width: '100%' }}
+                >
+                  Undo <span className="menu-shortcut">Ctrl+Z</span>
+                </button>
+              </Tooltip>
+              <Tooltip text="Coming in Phase 6" side="right" style={{ width: '100%' }}>
+                <button 
+                  className="dropdown-menu-item"
+                  disabled
+                  style={{ width: '100%' }}
+                >
+                  Redo <span className="menu-shortcut">Ctrl+Y</span>
+                </button>
+              </Tooltip>
               <div className="dropdown-divider" />
               <button 
                 className="dropdown-menu-item"
@@ -176,13 +189,14 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
 
         {/* View Menu */}
         <div style={{ position: 'relative' }}>
-          <button 
-            className={`menu-btn ${activeMenu === 'view' ? 'active' : ''}`}
-            onClick={() => setActiveMenu(activeMenu === 'view' ? null : 'view')}
-            title="View options"
-          >
-            View
-          </button>
+          <Tooltip text="View options" side="bottom">
+            <button 
+              className={`menu-btn ${activeMenu === 'view' ? 'active' : ''}`}
+              onClick={() => setActiveMenu(activeMenu === 'view' ? null : 'view')}
+            >
+              View
+            </button>
+          </Tooltip>
           {activeMenu === 'view' && (
             <div className="dropdown-menu-popover">
               <button 
@@ -218,13 +232,14 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
         </div>
 
         {/* Help Menu */}
-        <button 
-          className="menu-btn" 
-          onClick={onOpenManual} 
-          title="Algorithm Reference Manual"
-        >
-          Help
-        </button>
+        <Tooltip text="Algorithm Reference Manual" side="bottom">
+          <button 
+            className="menu-btn" 
+            onClick={onOpenManual}
+          >
+            Help
+          </button>
+        </Tooltip>
       </nav>
 
       {/* Far-Right Compact Cluster: Theme selector + Fullscreen */}
@@ -234,7 +249,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
           width={160}
           value={activeTheme}
           onChange={(newTheme) => setActiveTheme(newTheme)}
-          title="Switch theme design tokens"
           items={[
             { id: 'dark_pro', label: 'Dark Pro' },
             { id: 'crt_green', label: 'CRT Phosphor' },
@@ -245,14 +259,15 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual }) => {
           ]}
         />
 
-        <button 
-          className="tool-icon-btn" 
-          onClick={toggleFullScreen}
-          title={isFullScreen ? "Exit Fullscreen (F11)" : "Enter Fullscreen (F11)"}
-          style={{ height: '22px', width: '24px', padding: 0, justifyContent: 'center' }}
-        >
-          {isFullScreen ? <Minimize size={12} /> : <Maximize size={12} />}
-        </button>
+        <Tooltip text={isFullScreen ? "Exit Fullscreen (F11)" : "Enter Fullscreen (F11)"} side="bottom">
+          <button 
+            className="tool-icon-btn" 
+            onClick={toggleFullScreen}
+            style={{ height: '22px', width: '24px', padding: 0, justifyContent: 'center' }}
+          >
+            {isFullScreen ? <Minimize size={12} /> : <Maximize size={12} />}
+          </button>
+        </Tooltip>
       </div>
     </header>
   );

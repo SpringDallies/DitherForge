@@ -1,5 +1,7 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/shell.css';
+import './styles/logo.css';
+import './styles/loading.css';
 import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
 import { LeftIconRail } from './components/layout/LeftIconRail';
@@ -7,6 +9,7 @@ import { CenterViewport } from './components/CenterViewport';
 import { RightSidebar } from './components/layout/RightSidebar';
 import { BottomControlStrip } from './components/layout/BottomControlStrip';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
+import { Tooltip } from './components/common/Tooltip';
 
 export const App: React.FC = () => {
   const activeTheme = useAppStore((state) => state.activeTheme);
@@ -18,9 +21,37 @@ export const App: React.FC = () => {
   const setSidebarWidth = useAppStore((state) => state.setSidebarWidth);
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
 
+  const [booted, setBooted] = useState<boolean>(false);
   const [isPeekOpen, setIsPeekOpen] = useState<boolean>(false);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState<boolean>(false);
   const peekTimerRef = useRef<number | null>(null);
+
+  // App boot: dismiss static boot-loader once fonts are ready & painted
+  useEffect(() => {
+    let active = true;
+    const finishBoot = () => {
+      if (active) {
+        const loader = document.getElementById('boot-loader');
+        if (loader) loader.remove();
+        setBooted(true);
+      }
+    };
+
+    // Remove boot-loader as soon as React mounts and paints the first frame
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(finishBoot);
+      return () => cancelAnimationFrame(raf2);
+    });
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(finishBoot).catch(finishBoot);
+    }
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(raf1);
+    };
+  }, []);
 
   // Sync theme with document root & body
   useEffect(() => {
@@ -95,7 +126,7 @@ export const App: React.FC = () => {
         >
           {!isPeekOpen && (
             <div className="fullscreen-peek-tab" onClick={() => setIsPeekOpen(true)}>
-              MENU ▼
+              MENU  
             </div>
           )}
         </div>
@@ -116,11 +147,12 @@ export const App: React.FC = () => {
 
         {/* 4px Draggable Splitter */}
         {!isSidebarCollapsed && (
-          <div
-            className={`splitter ${isDraggingSplitter ? 'dragging' : ''}`}
-            onMouseDown={handleSplitterMouseDown}
-            title="Drag to resize sidebar (persisted)"
-          />
+          <Tooltip text="Drag to resize sidebar (persisted)">
+            <div
+              className={`splitter ${isDraggingSplitter ? 'dragging' : ''}`}
+              onMouseDown={handleSplitterMouseDown}
+            />
+          </Tooltip>
         )}
 
         {/* Single Right Panel (Algorithm, Adjustments, Palette, Effects Stack) */}

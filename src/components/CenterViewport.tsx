@@ -1,3 +1,5 @@
+import { LoadingScreen } from './common/LoadingScreen';
+import { Tooltip } from './common/Tooltip';
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../state/useAppStore';
 // Import real frozen dither engine UNCHANGED via allowJs
@@ -7,11 +9,8 @@ import { applyEffectStack } from '../dither-engine/effect-stack.js';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import { createProxyImageData } from '../utils/samplePattern';
-import { 
-  ZoomIn, 
-  ZoomOut, 
-  Maximize2, 
-  Columns, 
+import {
+Columns, 
   Grid,
   UploadCloud,
   FolderOpen,
@@ -75,6 +74,8 @@ export const CenterViewport: React.FC = () => {
 
   // Local interaction states
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(false);
+  const loadingTimerRef = useRef<number | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -195,6 +196,7 @@ export const CenterViewport: React.FC = () => {
 
   // Handle Image File Loading
   const processImageFile = useCallback((file: File) => {
+    setIsImageLoading(true);
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -211,6 +213,7 @@ export const CenterViewport: React.FC = () => {
         if (container) {
           fitToViewport(container.clientWidth, container.clientHeight);
         }
+        setIsImageLoading(false);
       };
       img.src = e.target?.result as string;
     };
@@ -235,6 +238,16 @@ export const CenterViewport: React.FC = () => {
     }
   };
 
+  // Performance refs (Pre-allocated buffers, throttle, and memoization)
+  const workBufferRef = useRef<Uint8ClampedArray | null>(null);
+  const compositeBufferRef = useRef<Uint8ClampedArray | null>(null);
+  const cachedDitherBufferRef = useRef<Uint8ClampedArray | null>(null);
+  const lastDitherInputsRef = useRef<any[] | null>(null);
+  const lastRenderTimeRef = useRef<number>(0);
+  const throttleTimerRef = useRef<number | null>(null);
+
+  const proxyCacheRef = useRef<{ source: ImageData; proxy: ImageData } | null>(null);
+
   // Pipeline execution core
   const executeRenderPipeline = useCallback(() => {
     const canvas = canvasRef.current;
@@ -242,13 +255,17 @@ export const CenterViewport: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // In Live Mode during active slider dragging, downsample to fast proxy
+    // (a) In Live Mode during active slider dragging, downsample to fast proxy (capped at 320px)
     let renderSource = sourceImageData;
     let proxyOriginalSource = sourceImageData;
-    if (updateMode === 'live' && isDraggingSlider) {
-      const proxyResult = createProxyImageData(sourceImageData, 450);
-      renderSource = proxyResult.data;
-      proxyOriginalSource = proxyResult.data;
+    const isLiveDrag = updateMode === 'live' && isDraggingSlider;
+    if (isLiveDrag) {
+      if (proxyCacheRef.current?.source !== sourceImageData) {
+        const proxyResult = createProxyImageData(sourceImageData, 320);
+        proxyCacheRef.current = { source: sourceImageData, proxy: proxyResult.data };
+      }
+      renderSource = proxyCacheRef.current.proxy;
+      proxyOriginalSource = proxyCacheRef.current.proxy;
     }
 
     const width = renderSource.width;
@@ -258,68 +275,123 @@ export const CenterViewport: React.FC = () => {
       canvas.height = height;
     }
 
-    // Step 1: Clone working buffer (pristine sourceImageData is NEVER mutated)
-    const workingData = new Uint8ClampedArray(renderSource.data);
+    const len = renderSource.data.length;
 
-    // Step 2: Apply adjustments (brightness, contrast, saturation, gamma)
-    applyTweaks(workingData, width, height, {
-      brightness: brightness / 100,
-      contrast: contrast / 100,
-      saturation: saturation / 100,
-      gamma: gamma
-    });
-
-    // Step 3: Use effective working palette (sliced to paletteDepth)
-    const palette = workingPalette.slice(0, paletteDepth);
-
-    // Step 4: Apply Dither Algorithm
-    const ditherImageData = new ImageData(workingData, width, height);
-    const t0 = performance.now();
-    applyDitherAlgorithm(ditherImageData, {
+    // (c) Memoize source ImageData & dither parameters by reference / value
+    const currentDitherInputs = [
+      sourceImageData,
+      isLiveDrag ? 320 : 'full',
+      brightness,
+      contrast,
+      saturation,
+      gamma,
+      depth,
+      paletteDepth,
+      workingPalette,
       algorithmId,
-      palette,
-      threshold: currentParams.threshold,
-      scale: currentParams.scale,
-      diffusionStrength: currentParams.diffusionStrength,
-      serpentine: currentParams.serpentine,
-      noiseAmount: currentParams.noiseAmount ?? 0.3,
-      depth: depth,
-      temporalSeed: 0
-    });
+      currentParams.threshold,
+      currentParams.scale,
+      currentParams.diffusionStrength,
+      currentParams.serpentine,
+      currentParams.noiseAmount,
+      effects
+    ];
 
-    // Step 4b: Apply Stackable Post-Effects Stack (after dithering)
-    applyEffectStack(ditherImageData, effects);
-    const elapsed = performance.now() - t0;
-    setLastRenderMs(elapsed);
+    const prevInputs = lastDitherInputsRef.current;
+    let ditherNeedsCompute = !prevInputs || !cachedDitherBufferRef.current || cachedDitherBufferRef.current.length !== len;
+    if (!ditherNeedsCompute && prevInputs) {
+      for (let i = 0; i < currentDitherInputs.length; i++) {
+        if (currentDitherInputs[i] !== prevInputs[i]) {
+          ditherNeedsCompute = true;
+          break;
+        }
+      }
+    }
+
+    if (ditherNeedsCompute) {
+      // (f) Pre-allocate the work buffer as a ref; don't allocate a new Uint8ClampedArray on every render
+      if (!workBufferRef.current || workBufferRef.current.length !== len) {
+        workBufferRef.current = new Uint8ClampedArray(len);
+      }
+      workBufferRef.current.set(renderSource.data);
+      const workingData = workBufferRef.current;
+
+      // Step 2: Apply adjustments (brightness, contrast, saturation, gamma)
+      applyTweaks(workingData, width, height, {
+        brightness: brightness / 100,
+        contrast: contrast / 100,
+        saturation: saturation / 100,
+        gamma: gamma
+      });
+
+      // Step 3: Use effective working palette (sliced to paletteDepth)
+      const palette = workingPalette.slice(0, paletteDepth);
+
+      // Step 4: Apply Dither Algorithm
+      const ditherImageData = new ImageData(workingData as any, width, height);
+      const t0 = performance.now();
+      applyDitherAlgorithm(ditherImageData, {
+        algorithmId,
+        palette,
+        threshold: currentParams.threshold,
+        scale: currentParams.scale,
+        diffusionStrength: currentParams.diffusionStrength,
+        serpentine: currentParams.serpentine,
+        noiseAmount: currentParams.noiseAmount ?? 0.3,
+        depth: depth,
+        temporalSeed: 0
+      });
+
+      // Step 4b: Apply Stackable Post-Effects Stack (after dithering)
+      applyEffectStack(ditherImageData, effects);
+      const elapsed = performance.now() - t0;
+      setLastRenderMs(elapsed);
+
+      // Cache dithered result for instant split-compare updates
+      if (!cachedDitherBufferRef.current || cachedDitherBufferRef.current.length !== len) {
+        cachedDitherBufferRef.current = new Uint8ClampedArray(len);
+      }
+      cachedDitherBufferRef.current.set(workingData);
+      lastDitherInputsRef.current = currentDitherInputs;
+    }
 
     // Step 5: Render to canvas (Before/After split or full output)
+    // (e) Skip the split-compare compositing loop when showBeforeAfter is false
+    const ditherBuffer = cachedDitherBufferRef.current!;
     if (showBeforeAfter) {
+      if (!compositeBufferRef.current || compositeBufferRef.current.length !== len) {
+        compositeBufferRef.current = new Uint8ClampedArray(len);
+      }
+      compositeBufferRef.current.set(ditherBuffer);
+      const comp = compositeBufferRef.current;
+
       const splitX = Math.round(width * splitRatio);
-      const compositeData = new ImageData(new Uint8ClampedArray(ditherImageData.data), width, height);
-      
-      // Left side: Pristine source data BEFORE any tweaks
       const originalData = proxyOriginalSource.data;
       for (let y = 0; y < height; y++) {
+        const rowOffset = y * width;
         for (let x = 0; x < splitX; x++) {
-          const idx = (y * width + x) * 4;
-          compositeData.data[idx] = originalData[idx];
-          compositeData.data[idx + 1] = originalData[idx + 1];
-          compositeData.data[idx + 2] = originalData[idx + 2];
-          compositeData.data[idx + 3] = originalData[idx + 3];
+          const idx = (rowOffset + x) * 4;
+          comp[idx] = originalData[idx];
+          comp[idx + 1] = originalData[idx + 1];
+          comp[idx + 2] = originalData[idx + 2];
+          comp[idx + 3] = originalData[idx + 3];
         }
         // Crisp 1px split line
         if (splitX >= 0 && splitX < width) {
-          const splitIdx = (y * width + splitX) * 4;
-          compositeData.data[splitIdx] = 0;
-          compositeData.data[splitIdx + 1] = 255;
-          compositeData.data[splitIdx + 2] = 204;
-          compositeData.data[splitIdx + 3] = 255;
+          const splitIdx = (rowOffset + splitX) * 4;
+          comp[splitIdx] = 0;
+          comp[splitIdx + 1] = 255;
+          comp[splitIdx + 2] = 204;
+          comp[splitIdx + 3] = 255;
         }
       }
+      const compositeData = new ImageData(comp as any, width, height);
       ctx.putImageData(compositeData, 0, 0);
     } else {
+      const ditherImageData = new ImageData(ditherBuffer as any, width, height);
       ctx.putImageData(ditherImageData, 0, 0);
     }
+    lastRenderTimeRef.current = performance.now();
   }, [
     sourceImageData,
     updateMode,
@@ -354,21 +426,36 @@ export const CenterViewport: React.FC = () => {
       }, 180);
       return () => clearTimeout(timer);
     } else if (updateMode === 'live' && isDraggingSlider) {
-      // Live Mode during drag: Coalesce rapid slider input events to 1 render per display refresh frame
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-      rafIdRef.current = requestAnimationFrame(() => {
-        executeRenderPipeline();
-        rafIdRef.current = null;
-      });
-      return () => {
-        if (rafIdRef.current !== null) {
-          cancelAnimationFrame(rafIdRef.current);
+      // (d) In Live mode, throttle renders to at most 30 fps (not every rAF).
+      // Use a timestamp check: if less than 33ms since last render, skip and schedule trailing call.
+      const now = performance.now();
+      const elapsed = now - lastRenderTimeRef.current;
+      if (elapsed < 33) {
+        if (throttleTimerRef.current !== null) {
+          clearTimeout(throttleTimerRef.current);
         }
-      };
+        throttleTimerRef.current = window.setTimeout(() => {
+          executeRenderPipeline();
+          throttleTimerRef.current = null;
+        }, 33 - elapsed) as unknown as number;
+        return () => {
+          if (throttleTimerRef.current !== null) {
+            clearTimeout(throttleTimerRef.current);
+          }
+        };
+      } else {
+        if (throttleTimerRef.current !== null) {
+          clearTimeout(throttleTimerRef.current);
+          throttleTimerRef.current = null;
+        }
+        executeRenderPipeline();
+      }
     } else {
       // Precise Mode (immediate) and Live Mode upon release
+      if (throttleTimerRef.current !== null) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
+      }
       executeRenderPipeline();
     }
   }, [
@@ -425,12 +512,6 @@ export const CenterViewport: React.FC = () => {
     setIsDraggingSplitter(true);
   };
 
-  const handleFitClick = () => {
-    const container = containerRef.current;
-    if (container) {
-      fitToViewport(container.clientWidth, container.clientHeight);
-    }
-  };
 
   return (
     <main 
@@ -453,55 +534,23 @@ export const CenterViewport: React.FC = () => {
       {/* Viewport Toolbar */}
       <div className="viewport-toolbar">
         <div className="toolbar-group">
-          <button 
-            className="tool-icon-btn" 
-            onClick={() => setZoom(zoom - 20)} 
-            title="Zoom Out (-)"
-          >
-            <ZoomOut size={13} />
-          </button>
-          <span style={{ fontFamily: 'var(--font-mono)', minWidth: '44px', textAlign: 'center', fontSize: '0.75rem' }}>
-            {Math.round(zoom)}%
-          </span>
-          <button 
-            className="tool-icon-btn" 
-            onClick={() => setZoom(zoom + 20)} 
-            title="Zoom In (+)"
-          >
-            <ZoomIn size={13} />
-          </button>
-          <button 
-            className="tool-icon-btn" 
-            onClick={resetZoom} 
-            title="Reset to 1:1 Pixel Native Resolution (Key: 1)"
-          >
-            1:1
-          </button>
-          <button 
-            className="tool-icon-btn" 
-            onClick={handleFitClick} 
-            title="Fit to Viewport (Key: 0)"
-          >
-            <Maximize2 size={13} /> Fit
-          </button>
-        </div>
-
-        <div className="toolbar-group">
-          <button 
-            className={`tool-icon-btn ${showBeforeAfter ? 'active' : ''}`} 
-            onClick={toggleBeforeAfter}
-            title="Toggle Split-Screen Compare View (Key: \)"
-          >
-            <Columns size={13} /> Compare
-          </button>
-          <button 
-            className="tool-icon-btn" 
-            disabled={true}
-            title="Pixel-grid overlay (Phase 7)"
-            style={{ opacity: 0.5, cursor: 'not-allowed' }}
-          >
-            <Grid size={13} /> Grid
-          </button>
+          <Tooltip text="Toggle Split-Screen Compare View (Key: \)">
+            <button 
+              className={`tool-icon-btn ${showBeforeAfter ? 'active' : ''}`} 
+              onClick={toggleBeforeAfter}
+            >
+              <Columns size={13} /> Compare
+            </button>
+          </Tooltip>
+          <Tooltip text="Pixel-grid overlay (Phase 7)">
+            <button 
+              className="tool-icon-btn" 
+              disabled={true}
+              style={{ opacity: 0.5, cursor: 'not-allowed' }}
+            >
+              <Grid size={13} /> Grid
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -558,8 +607,7 @@ export const CenterViewport: React.FC = () => {
               className="preview-canvas"
               style={{
                 display: 'block',
-                imageRendering: 'pixelated',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.65)'
+                imageRendering: 'pixelated'
               }}
             />
 

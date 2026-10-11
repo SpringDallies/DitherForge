@@ -1,0 +1,71 @@
+/* Logo Component Styles */
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.logo-mark {
+  display: block;
+  height: 20px;
+  width: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  user-select: none;
+  object-fit: contain;
+}
+
+@keyframes logo-breath {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.logo-animated {
+  animation: logo-breath 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-animated {
+    animation: none;
+  }
+}
+
+/* Sidebar Brand Mark (Fix 2) */
+.sidebar-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px 0 28px 0;
+}
+
+.sidebar-brand .logo-mark {
+  height: 140px;
+  width: auto;
+  opacity: 0.95;
+}
+
+/* Top Menu Bar Left Alignment (Fix 3) */
+.top-menu-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start !important;
+}
+
+.menu-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 0;
+}
+
+.top-right-controls {
+  margin-left: auto;
+}

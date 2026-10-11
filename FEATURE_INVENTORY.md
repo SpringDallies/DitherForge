@@ -165,7 +165,7 @@
 
 ---
 
-| Add / Reorder Instances | *[NEW Architectural Addition]* | Dynamic stack manipulation | Right Panel > `+ Add Effect` popover | Multiple instances per effect type with unique IDs | [x] Implemented |
+| + Add Effect Dropdown / Popover | *[NEW Architectural Addition]* | Dynamic stack manipulation | Right Panel > `+ Add Effect` popover | [Removed by user request — Phase 5 cleanup; toggling in the expanded dropdown replaces the add flow] | [x] Implemented |
 | Single-Instance-Expanded Accordion | *[NEW Ergonomic Addition]* | None | Right Panel > Effect rows | Accordion disclosure; single active expanded row | [x] Implemented |
 | Effects dropdown collapsed/expanded state persisted in localStorage under 'ditherforge_effects_open' | *[NEW Ergonomic Addition]* | LocalStorage state | Right Panel > Effects dropdown | Default closed; persisted state | [x] Implemented |
 ### 1.6 Animation & Temporal CRT Noise System

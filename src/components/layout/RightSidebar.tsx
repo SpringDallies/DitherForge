@@ -116,7 +116,6 @@ export const RightSidebar: React.FC = () => {
   const hasImage = useAppStore((state) => state.hasImage);
 
   const effects = useAppStore((state) => state.effects);
-  const addEffectInstance = useAppStore((state) => state.addEffectInstance);
   const removeEffectInstance = useAppStore((state) => state.removeEffectInstance);
   const toggleEffectEnabled = useAppStore((state) => state.toggleEffectEnabled);
   const reorderEffects = useAppStore((state) => state.reorderEffects);
@@ -128,8 +127,6 @@ export const RightSidebar: React.FC = () => {
   // Local state for Swatch editing popover
   // Local state for Effects section (Phase 5)
   const [expandedEffectId, setExpandedEffectId] = useState<string | null>('glow');
-  const [isAddEffectOpen, setIsAddEffectOpen] = useState(false);
-  const [addEffectQuery, setAddEffectQuery] = useState('');
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
 
@@ -153,44 +150,16 @@ export const RightSidebar: React.FC = () => {
     });
   }, []);
 
-  const addEffectPopoverRef = useRef<HTMLDivElement>(null);
-  const addEffectInputRef = useRef<HTMLInputElement>(null);
-
-  // Close Add Effect popover on outside click or Escape
-  useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (addEffectPopoverRef.current && !addEffectPopoverRef.current.contains(e.target as Node)) {
-        setIsAddEffectOpen(false);
-        setAddEffectQuery('');
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isAddEffectOpen) {
-        setIsAddEffectOpen(false);
-        setAddEffectQuery('');
-      }
-    };
-    if (isAddEffectOpen) {
-      document.addEventListener('mousedown', handleOutside);
-      document.addEventListener('keydown', handleKeyDown);
-      requestAnimationFrame(() => addEffectInputRef.current?.focus());
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isAddEffectOpen]);
-
   // Escape key collapses expanded effect card
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && expandedEffectId !== null && !isAddEffectOpen) {
+      if (e.key === 'Escape' && expandedEffectId !== null) {
         setExpandedEffectId(null);
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [expandedEffectId, isAddEffectOpen]);
+  }, [expandedEffectId]);
 
   // Reset Effects with confirmation if modified
   const handleResetEffects = () => {
@@ -1860,62 +1829,6 @@ export const RightSidebar: React.FC = () => {
                           </div>
                         );
                       })}
-                    </div>
-                  )}
-                </div>
-
-                {/* + Add Effect button below dropdown row */}
-                <div className="add-effect-popover-container" ref={addEffectPopoverRef}>
-                  <button
-                    type="button"
-                    className="btn-default add-effect-trigger-btn"
-                    onClick={() => setIsAddEffectOpen(!isAddEffectOpen)}
-                    title="Add post-effect to stack"
-                  >
-                    + Add Effect
-                  </button>
-
-                  {isAddEffectOpen && (
-                    <div className="add-effect-popover" onWheel={(e) => e.stopPropagation()}>
-                      <input
-                        ref={addEffectInputRef}
-                        type="text"
-                        className="add-effect-search-input"
-                        placeholder="Search effects…"
-                        value={addEffectQuery}
-                        onChange={(e) => setAddEffectQuery(e.target.value)}
-                      />
-                      <div className="add-effect-items-list">
-                        {AVAILABLE_EFFECT_TYPES
-                          .filter((eff: any) =>
-                            eff.name.toLowerCase().includes(addEffectQuery.toLowerCase()) ||
-                            eff.id.toLowerCase().includes(addEffectQuery.toLowerCase())
-                          )
-                          .map((eff: any) => {
-                            const paramKeys = Object.keys(eff.defaultParams).join(' · ');
-                            return (
-                              <div
-                                key={eff.id}
-                                className="add-effect-item-row"
-                                onClick={() => {
-                                  addEffectInstance(eff.id);
-                                  setIsAddEffectOpen(false);
-                                  setAddEffectQuery('');
-                                }}
-                              >
-                                <span className="add-effect-item-name">{eff.name}</span>
-                                <span className="add-effect-item-hint">{paramKeys}</span>
-                              </div>
-                            );
-                          })}
-                        {AVAILABLE_EFFECT_TYPES.filter((eff: any) =>
-                          eff.name.toLowerCase().includes(addEffectQuery.toLowerCase())
-                        ).length === 0 && (
-                          <div style={{ padding: '12px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                            No effects match search
-                          </div>
-                        )}
-                      </div>
                     </div>
                   )}
                 </div>

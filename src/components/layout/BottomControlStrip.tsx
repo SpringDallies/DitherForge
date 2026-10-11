@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAppStore } from '../../state/useAppStore';
-import { Grid } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 
 export const BottomControlStrip: React.FC = () => {
@@ -24,11 +23,11 @@ export const BottomControlStrip: React.FC = () => {
   };
 
   const handleZoomIn = () => {
-    setZoom(Math.min(1000, zoom * 1.25));
+    setZoom(Math.min(3200, Math.round(zoom + 10)));
   };
 
   const handleZoomOut = () => {
-    setZoom(Math.max(10, zoom * 0.8));
+    setZoom(Math.max(10, Math.round(zoom - 10)));
   };
 
   return (
@@ -73,12 +72,31 @@ export const BottomControlStrip: React.FC = () => {
 
       {/* Right: Zoom controls (- 100% + ↻) and small placeholder icons */}
       <div className="strip-actions">
-        <Tooltip text="Zoom Out (-)" side="top">
+        <Tooltip text="Zoom Out (-10%)" side="top">
           <button
             className="zoom-btn"
             onClick={handleZoomOut}
+            title="Zoom Out"
           >
             -
+          </button>
+        </Tooltip>
+        <Tooltip text="Reset Zoom to 100% (Key: 1)" side="top">
+          <button
+            className="zoom-btn"
+            onClick={resetZoom}
+            style={{ minWidth: '44px', textAlign: 'center' }}
+          >
+            {Math.round(zoom)}%
+          </button>
+        </Tooltip>
+        <Tooltip text="Zoom In (+10%)" side="top">
+          <button
+            className="zoom-btn"
+            onClick={handleZoomIn}
+            title="Zoom In"
+          >
+            +
           </button>
         </Tooltip>
         <Tooltip text="1:1 Native Resolution (Key: 1)" side="top">
@@ -86,15 +104,7 @@ export const BottomControlStrip: React.FC = () => {
             className="zoom-btn"
             onClick={resetZoom}
           >
-            {Math.round(zoom)}%
-          </button>
-        </Tooltip>
-        <Tooltip text="Zoom In (+)" side="top">
-          <button
-            className="zoom-btn"
-            onClick={handleZoomIn}
-          >
-            +
+            1:1
           </button>
         </Tooltip>
         <Tooltip text="Fit view to viewport (Key: 0)" side="top">
@@ -102,16 +112,16 @@ export const BottomControlStrip: React.FC = () => {
             className="zoom-btn"
             onClick={handleFit}
           >
-            ↻
+            Fit
           </button>
         </Tooltip>
-        <Tooltip text="Pixel grid overlay (Phase 7)" side="top">
+        <Tooltip text="Reset zoom and pan to defaults" side="top">
           <button
             className="zoom-btn"
-            disabled
-            style={{ opacity: 0.4, cursor: 'not-allowed', marginLeft: '4px' }}
+            onClick={resetZoom}
+            title="Reset to 100% and center"
           >
-            <Grid size={11} />
+            ?
           </button>
         </Tooltip>
       </div>

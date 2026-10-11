@@ -9,11 +9,8 @@ import { applyEffectStack } from '../dither-engine/effect-stack.js';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import { createProxyImageData } from '../utils/samplePattern';
-import { 
-  ZoomIn, 
-  ZoomOut, 
-  Maximize2, 
-  Columns, 
+import {
+Columns, 
   Grid,
   UploadCloud,
   FolderOpen,
@@ -515,12 +512,6 @@ export const CenterViewport: React.FC = () => {
     setIsDraggingSplitter(true);
   };
 
-  const handleFitClick = () => {
-    const container = containerRef.current;
-    if (container) {
-      fitToViewport(container.clientWidth, container.clientHeight);
-    }
-  };
 
   return (
     <main 
@@ -542,44 +533,6 @@ export const CenterViewport: React.FC = () => {
 
       {/* Viewport Toolbar */}
       <div className="viewport-toolbar">
-        <div className="toolbar-group">
-          <Tooltip text="Zoom Out (-)">
-            <button 
-              className="tool-icon-btn" 
-              onClick={() => setZoom(zoom - 20)}
-            >
-              <ZoomOut size={13} />
-            </button>
-          </Tooltip>
-          <span style={{ fontFamily: 'var(--font-mono)', minWidth: '44px', textAlign: 'center', fontSize: '0.75rem' }}>
-            {Math.round(zoom)}%
-          </span>
-          <Tooltip text="Zoom In (+)">
-            <button 
-              className="tool-icon-btn" 
-              onClick={() => setZoom(zoom + 20)}
-            >
-              <ZoomIn size={13} />
-            </button>
-          </Tooltip>
-          <Tooltip text="Reset to 1:1 Pixel Native Resolution (Key: 1)">
-            <button 
-              className="tool-icon-btn" 
-              onClick={resetZoom}
-            >
-              1:1
-            </button>
-          </Tooltip>
-          <Tooltip text="Fit to Viewport (Key: 0)">
-            <button 
-              className="tool-icon-btn" 
-              onClick={handleFitClick}
-            >
-              <Maximize2 size={13} /> Fit
-            </button>
-          </Tooltip>
-        </div>
-
         <div className="toolbar-group">
           <Tooltip text="Toggle Split-Screen Compare View (Key: \)">
             <button 

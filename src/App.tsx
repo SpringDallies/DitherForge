@@ -30,22 +30,25 @@ export const App: React.FC = () => {
     let active = true;
     const finishBoot = () => {
       if (active) {
-        document.getElementById('boot-loader')?.remove();
+        const loader = document.getElementById('boot-loader');
+        if (loader) loader.remove();
         setBooted(true);
       }
     };
 
+    // Remove boot-loader as soon as React mounts and paints the first frame
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(finishBoot);
+      return () => cancelAnimationFrame(raf2);
+    });
+
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(() => {
-        if (active) {
-          requestAnimationFrame(finishBoot);
-        }
-      });
-    } else {
-      requestAnimationFrame(finishBoot);
+      document.fonts.ready.then(finishBoot).catch(finishBoot);
     }
+
     return () => {
       active = false;
+      cancelAnimationFrame(raf1);
     };
   }, []);
 

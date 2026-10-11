@@ -43,13 +43,13 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px 0 20px 0;
+  padding: 24px 0 28px 0;
 }
 
 .sidebar-brand .logo-mark {
-  height: 48px;
+  height: 100px;
   width: auto;
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 /* Top Menu Bar Left Alignment (Fix 3) */

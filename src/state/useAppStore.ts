@@ -663,7 +663,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   panY: 0,
   splitRatio: 0.5,
   showBeforeAfter: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare') === 'true',
-  setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(1000, zoom)) }),
+  setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(3200, zoom)) }),
   setPan: (panX, panY) => set({ panX, panY }),
   fitToViewport: (containerWidth, containerHeight) => {
     const { imageWidth, imageHeight } = get();

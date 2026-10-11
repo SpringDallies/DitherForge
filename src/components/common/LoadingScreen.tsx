@@ -9,7 +9,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   fullscreen = false,
   withLogo = true,
 }) => {
-  const size = fullscreen ? 64 : 48;
+  const size = fullscreen ? 180 : 48;
 
   return (
     <div

@@ -26,6 +26,9 @@
 .loading-anvil-mark {
   display: block;
   width: auto;
+  border: none;
+  background: none;
+  outline: none;
   user-select: none;
   animation: anvil-beat 1.6s ease-in-out infinite;
   will-change: transform;

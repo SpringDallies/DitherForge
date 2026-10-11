@@ -116,6 +116,7 @@
 | Lock Gamma Checkbox / Toggle | `index.html:368` (`#lockGamma`) | Right Panel checkbox | Right Panel A > Lock icon button next to Gamma | [ ] Pending |
 | Section Reset Button (Adjustments) | *[NEW Ergonomic Addition]* | None | Right Panel A > Adjustments header `↺ Reset Adjustments` button | [ ] Pending |
 | Global Randomize / Shuffle Tweaks | `index.html:337` (`#btnShuffleTweaks`) | Right Panel `🔀` button | Right Panel A > Adjustments header `🔀 Randomize` button | [ ] Pending |
+| Color Depth Slider & Number Input (Bit Crush) | index.html:178 | Right Panel > Tweaks | Right Panel A > Adjustments section | Active; only affects bit_crush; slider conditionally visible. |
 
 ---
 

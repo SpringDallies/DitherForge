@@ -36,6 +36,7 @@ export const CenterViewport: React.FC = () => {
   const contrast = useAppStore((state) => state.contrast);
   const saturation = useAppStore((state) => state.saturation);
   const gamma = useAppStore((state) => state.gamma);
+  const depth = useAppStore((state) => state.depth);
   const workingPalette = useAppStore((state) => state.workingPalette);
   const paletteDepth = useAppStore((state) => state.paletteDepth);
 
@@ -266,6 +267,7 @@ export const CenterViewport: React.FC = () => {
       diffusionStrength: currentParams.diffusionStrength,
       serpentine: currentParams.serpentine,
       noiseAmount: currentParams.noiseAmount ?? 0.3,
+      depth: depth,
       temporalSeed: 0
     });
     const elapsed = performance.now() - t0;
@@ -307,6 +309,7 @@ export const CenterViewport: React.FC = () => {
     contrast,
     saturation,
     gamma,
+    depth,
     workingPalette,
     paletteDepth,
     algorithmId,
@@ -362,6 +365,7 @@ export const CenterViewport: React.FC = () => {
     contrast,
     saturation,
     gamma,
+    depth,
     workingPalette,
     paletteDepth,
     showBeforeAfter,

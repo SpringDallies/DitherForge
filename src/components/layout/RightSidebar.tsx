@@ -37,14 +37,14 @@ export const RightSidebar: React.FC = () => {
     if (typeof window !== 'undefined') {
       const sec = new URLSearchParams(window.location.search).get('section');
       if (sec === 'adjustments') {
-        return { style: true, adjustments: false, palette: true, effects: true, presets: true };
+        return { style: false, adjustments: false, palette: true, effects: true, presets: true };
       }
       if (sec === 'palette') {
         return { style: true, adjustments: true, palette: false, effects: true, presets: true };
       }
     }
     return {
-      style: false,
+      style: true,
       adjustments: false,
       palette: false,
       effects: false,
@@ -1151,50 +1151,54 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Color Depth */}
-                <div className="slider-control-block">
-                  <div className="slider-label-above">
-                    <span
+                {/* Color Depth — Only applies to Bit Crush */}
+                {algorithmId === 'bit_crush' && (
+                  <div className="slider-control-block">
+                    <div className="slider-label-above">
+                      <span
                         onDoubleClick={() => resetAdjustmentParam('depth')}
                         style={{ cursor: 'pointer' }}
-                        title="Color Depth (1 to 32 bit). Double-click to reset."
+                        title="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm."
                       >
                         Color Depth
                       </span>
-                    <button
-                      type="button"
-                      className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
-                      onClick={() => toggleAdjustmentLock('depth')}
-                      title={lockedAdjustments.depth ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
-                    >
-                      {lockedAdjustments.depth ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
+                      <button
+                        type="button"
+                        className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
+                        onClick={() => toggleAdjustmentLock('depth')}
+                        title={lockedAdjustments.depth ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}
+                      >
+                        {lockedAdjustments.depth ? <Lock size={14} /> : <Unlock size={14} />}
+                      </button>
+                    </div>
+                    <div className="slider-track-input-row">
+                      <input
+                        type="range"
+                        className="control-slider"
+                        title="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm."
+                        min="1"
+                        max="32"
+                        step="1"
+                        value={depth}
+                        disabled={lockedAdjustments.depth}
+                        {...sliderPointerProps}
+                        onDoubleClick={() => resetAdjustmentParam('depth')}
+                        onChange={(e) => setDepth(Number(e.target.value))}
+                      />
+                      <input
+                        type="number"
+                        className="control-num-input"
+                        min="1"
+                        max="32"
+                        step="1"
+                        value={depth}
+                        disabled={lockedAdjustments.depth}
+                        title="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm."
+                        onChange={(e) => setDepth(parseInt(e.target.value, 10) || 8)}
+                      />
+                    </div>
                   </div>
-                  <div className="slider-track-input-row">
-                    <input
-                      type="range"
-                      className="control-slider" title="Double-click to reset to default"
-                      min="1"
-                      max="32"
-                      step="1"
-                      value={depth}
-                      disabled={lockedAdjustments.depth}
-                      {...sliderPointerProps}
-                      onDoubleClick={() => resetAdjustmentParam('depth')}
-                      onChange={(e) => setDepth(Number(e.target.value))}
-                    />
-                    <input
-                      type="number"
-                      className="control-num-input"
-                      min="1"
-                      max="32"
-                      step="1"
-                      value={depth}
-                      disabled={lockedAdjustments.depth}
-                      onChange={(e) => setDepth(parseInt(e.target.value, 10) || 8)}
-                    />
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>
@@ -1400,7 +1404,7 @@ export const RightSidebar: React.FC = () => {
                 {/* Depth Slider */}
                 <div className="palette-depth-block">
                   <div className="slider-label-above">
-                    <span title="Palette depth iteration count">Depth</span>
+                    <span title="Palette depth iteration count">Palette Depth</span>
                   </div>
                   <div className="slider-track-input-row">
                     <input

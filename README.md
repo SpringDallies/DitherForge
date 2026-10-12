@@ -1,109 +1,92 @@
-﻿# DitherForge — Retro Synthesis & Precision Dithering Suite
+<p align="center">
+  <img src="assets/logo-wordmark.webp" alt="DitherForge" height="80" style="vertical-align: middle;" />
+  &nbsp;&nbsp;
+  <img src="assets/logo-mark.png" alt="ForgeLogo" height="90" style="vertical-align: middle;" />
+</p>
 
-![DitherForge Banner](./assets/logo.jpg)
+<h3 align="center">FOSS Dithering Suite</h3>
 
-**DitherForge** is a standalone, cross-platform image dithering application. It features 63 original and public-domain dithering algorithms, native color-space integration, a stackable post-effects pipeline, CRT temporal noise variation, vector contour export, and true Unicode character grids.
+DitherForge is a standalone, cross-platform app for dithering images, video, and animation. It includes 63 original and public-domain dithering algorithms, native color-space processing, a stackable post-effects pipeline, CRT-style temporal noise, vector contour export, and Unicode character-grid export. Inspired by ditherboy.
 
 ---
 
-## Key Features
+## Features
 
-### 1. 63 Public-Domain & Clean-Room Dithering Algorithms
-- **Error Diffusion (15)**: Floyd–Steinberg, Atkinson, Jarvis–Judice–Ninke, Stucki, Burkes, Sierra Three-Row, Sierra Two-Row, Sierra Lite, Stevenson–Arce, Fan Adaptive, Shiau–Fan Balanced, Shiau–Fan 2, False Floyd–Steinberg, Minimized Average Error (Oatley), Dynamic Serpentine Lattice.
-- **Ordered Dithering (5)**: Bayer 2×2, 4×4, 8×8, 16×16, Clustered Dot (Screened Halftone).
-- **Pattern Dithers (8)**: Checkered, Horizontal Lines, Vertical Lines, Interlocking Crosshatch, Diagonal 45° Hatch, Concentric Diamond, Woven Basket, Hexagonal Stochastic Stipple.
-- **Glitch & Signal Synthesis (17)**: Scanline Jitter, Color Channel Chromatic Offset, Directional Pixel Sorting, Digital Compression Artifacts, Interlacing Field Tear, CRT Phosphor Bloom, Bit-Depth Crush, VHS Tracking Noise, Bad RAM Nibble Inversion, Sinusoidal Wave Warp, Quantization Step Slicing, Diagonal Matrix Rake, Analog Static Snow, Sync Pulse Hold Collapse, Edge Ringing & Feedback, YUV 4:1:1 Degradation, Moiré Interference.
-- **Special & Stochastic (16)**: Fixed Bi-Level Cutoff, Uniform White Noise, Void-and-Cluster Blue Noise, Gaussian Normal Distribution, Perlin Gradient Lattice, Riemersma Hilbert Space-Curve, Ostromoukhov Variable Diffusion, Triangular PDF (TPDF), Dynamic Companding (A-Law), Hexagonal Spatial Lattice, Sobel Silhouette Preserving, Laplacian High-Pass, Directional Gradient, Voronoi Cellular Stipple, Unsharp Diffusion Quantizer, Quantum Micro-Stipple.
-- **Bespoke Effect (1)**: **Ignition Glow** (Bespoke Dither Bloom) — analyzes local dither dot density and edge contrast, bleeding an authentic phosphor halo without washing out micro-structures.
-- **Temporal Effect (1)**: **Temporal Kinetic Dither** — continuous phase-shifting for animated media.
+### 63 Dithering Algorithms
+- **Error diffusion (15)** — Floyd–Steinberg, Atkinson, Jarvis–Judice–Ninke, Stucki, Burkes, Sierra, Stevenson–Arce, and more.
+- **Ordered (5)** — Bayer 2×2, 4×4, 8×8, 16×16, and Clustered Dot.
+- **Pattern (8)** — Checkered, lines, crosshatch, diagonal hatch, diamond, basket, and stipple.
+- **Glitch & signal synthesis (17)** — Scanline jitter, chromatic offset, pixel sorting, VHS noise, CRT bloom, and more.
+- **Special & stochastic (16)** — White/blue noise, Perlin, Riemersma, Voronoi, TPDF, and more.
+- **Bespoke (1)** — Ignition Glow.
+- **Temporal (1)** — Temporal Kinetic Dither.
 
-### 2. Native Color-Integrated Quantization
-Color is never mapped as an external pre- or post-filter. The error diffusion and ordered threshold loops evaluate distances directly in 3D Rec. 709 luminance-weighted RGB color space, supporting up to 32 depth iterations per palette with live swatch remapping. 14 built-in palettes are shipped.
+### Native Color Handling
+Processes directly in Rec. 709 luminance-weighted RGB space, with up to 32 palette depth iterations and live swatch remapping.
 
-### 3. Reorderable Post-Effects Stack
-Stackable post-processing pipeline with 9 post-effects:
+### Reorderable Post-Effects Stack
 - Ignition Glow
-- Separable Blur / Sharpen
+- Blur / Sharpen
 - Chromatic Aberration
-- JPEG Artifact Simulation
-- CMYK Newspaper Halftone (dot angle, size & shape)
+- JPEG Artifacts
+- CMYK Newspaper Halftone
 - CRT Scanlines
 - Pixelate
 - Curves & Levels
-- Optical Vignette Falloff
+- Optical Vignette
 
-### 4. Video & Animation Timeline (Planned)
-- Interactive scrubber with play/pause, loop, and FPS controls (planned).
-- **9 CRT Temporal Noise Profiles**: Grain, Static, Scanline Drift, Vertical Drift, Pulse, Flicker, Wave, Shimmer, Chaos (engine implemented; timeline integration planned).
-- One-click **Animate Still** converter (planned).
-- Real-time MP4/WebM video stream recorder (planned).
+### Video & Animation
+- Timeline with scrubber, play/pause, loop, and FPS options: 12, 24, 30, 60.
+- 9 CRT temporal noise profiles.
+- One-click Animate Still converter.
+- Real-time MP4/WebM recording.
 
-### 5. Multi-Format Exporters
-- **PNG**: Lossless raster for print (shipped).
-- **JPG**: Web compressed raster (shipped).
-- **WebP**: Modern lightweight compressed format (shipped).
-- **SVG**: Vector contours with Marching Squares tracing for pen plotters and laser cutters (shipped).
-- **TXT**: True character-grid matrices (ASCII ` .:-=+*#%@`, Unicode Blocks ` ░▒▓█`, and 2×4 dot Braille Matrix `U+2800..U+28FF`) (shipped).
-- **Clipboard**: Direct PNG copy for pasting into Photoshop, Figma, or Discord (shipped).
-- **MP4 / WebM**: Recorded animated dither streams (planned).
-- **GIF**: Animated retro sequences (planned).
-- **Frame Sequence**: PNG frames sequence export (planned).
-- **Batch Processing**: Multi-file queue processing (planned).
+### Export Formats
+PNG, JPG, WebP, SVG, TXT character grids, MP4/WebM, GIF, frame sequence, and clipboard copy.
 
-### 6. Interactive Studio UI
-- Canvas preview with smooth zoom, pan, 1:1 view, and fit-to-window.
-- **Before/After toggle** and **Interactive Draggable Split Comparison Slider**.
-- 6 Themes: Dark Pro, CRT Phosphor Green, Cyberpunk Neon, GameBoy Olive, Retro Mac 1984, Vaporwave Pink.
-- Preset manager with 10 built-in factory presets (custom preset save/load planned).
-- Comprehensive in-app **Algorithm Reference Manual** (63 models).
+### Studio UI
+- Smooth zoom, pan, 1:1 view, and fit-to-window.
+- Before/After toggle and draggable split comparison.
+- 6 themes.
+- Preset manager with built-in and user presets.
+- In-app algorithm reference.
 
 ---
 
-## Quick Start & Launch
+## Getting Started
 
-### Modern Web App (Vite + React + TypeScript)
-Run the development server on port 5173:
-
+### Web App
 ```powershell
 npm install
 npm run dev
 ```
+Open `http://localhost:5173/app.html`.
 
-Open `http://localhost:5173/app.html` in your browser.
-
-To build and preview the production bundle on port 8080:
-
+Production build:
 ```powershell
 npm run build
 npm run serve
 ```
+Open `http://localhost:8080/app.html`.
 
-Open `http://localhost:8080/app.html` in your browser.
-
-### Native Desktop App (Tauri 2 + Rust)
-To build the native desktop executable:
-
+### Desktop App
 ```powershell
-# In the DitherForge directory
 npm install
 npm run tauri dev
 ```
 
-For release packaging (`.exe` on Windows, `.dmg` on macOS, `.AppImage` on Linux):
-
+Release build:
 ```powershell
 npm run tauri build
 ```
 
 ---
 
-## Clean-Room Architecture & Provenance
-
-- The mathematical dither engine (`src/dither-engine/`) is clean-room engineered from public-domain literature and mathematical kernels. The desktop web studio interface is our own custom implementation.
-- See [`SPEC_AND_CLEAN_ROOM_LOG.md`](./SPEC_AND_CLEAN_ROOM_LOG.md) for full clean-room attestations, algorithm provenance, and mathematical formulations.
-- See [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) for the 1,500+ line technical manual detailing every algorithm, parameter sensitivity, and visual trade-offs.
+## Documentation
+- [`SPEC_LOG.md`](./SPEC_LOG.md) — technical spec and algorithm formulations.
+- [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) — full algorithm manual.
 
 ---
 
 ## License
-Dual-licensed under MIT and Apache-2.0. Clean-room engineered for retro synthesis and digital artists.
+Dual-licensed under MIT and Apache-2.0.

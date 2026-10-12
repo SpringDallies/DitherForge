@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Settings } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 import { Dropdown } from '../common/Dropdown';
+import { useAppStore } from '../../state/useAppStore';
 
 export interface DitherForgeSettings {
   defaultUpdateMode: 'precise' | 'live' | 'settle';
@@ -45,6 +46,7 @@ interface SettingsDialogProps {
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<DitherForgeSettings>(getStoredSettings);
   const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
+  const setShowAlgorithmDescriptions = useAppStore((state) => state.setShowAlgorithmDescriptions);
 
   useEffect(() => {
     if (isOpen) {
@@ -183,7 +185,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <span className="settings-label">Export folder</span>
-              <span className="settings-readonly-text">(n/a — browser)</span>
+              <span className="settings-readonly-text">(n/a ï¿½ browser)</span>
             </div>
 
             <div className="settings-row">

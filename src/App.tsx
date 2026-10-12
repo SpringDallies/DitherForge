@@ -25,7 +25,7 @@ export const App: React.FC = () => {
 
   const [booted, setBooted] = useState<boolean>(false);
   const [isPeekOpen, setIsPeekOpen] = useState<boolean>(false);
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('settings') === 'true');
 
   // Seed default update mode from settings if update_mode is unset in localStorage
   useEffect(() => {

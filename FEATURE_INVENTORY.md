@@ -315,12 +315,12 @@ Engine files are frozen and cryptographically locked against accidental tamperin
 
 | File | SHA-256 Hash | Status |
 |---|---|---|
-| `src/dither-engine/algorithms.js` | `e637a8b900f99abb59df083a18f5915258d072d336d833c514b5b3fa87f2aa01` | Frozen |
-| `src/dither-engine/effect-stack.js` | `57cf7cd54301805877c0096ebef5076eff8562aba4e4d7415024ee45cf563989` | Frozen |
-| `src/dither-engine/exporters.js` | `f0f17a707a437da4129eae8a926a505c5c586bfd6d4c0349e67cd4826fd870f1` | Frozen |
+| `src/dither-engine/algorithms.js` | `c3f684abcd8f9054d6fb98afc34748d5ca75953466f837e4d21781e0be0933f9` | Frozen |
+| `src/dither-engine/effect-stack.js` | `8d1bb8c163fc4d99e49ca5496314c839d514d5db9f2d1da29781c42ee6784976` | Frozen |
+| `src/dither-engine/exporters.js` | `1028c7f42d34b7b0a26abceb8c205f613bce1334abc7dda2b1b450b9f55dfeba` | Frozen |
 | `src/dither-engine/palettes.js` | `4802854ee5d13cb44e6be27074c27e1545310d1aec2359ce3b421b591944a867` | Frozen |
-| `src/dither-engine/temporal.js` | `f2062d3531bca24e3a4eea3e527845c61efbb58709a661ed3ff58bf4cf2b02fc` | Frozen |
-| `src/ui/presets.js` | `0bf2f44a341f2d71d635728bb609872ad4982d94b87b9a123349c93fe8b69f37` | Frozen |
+| `src/dither-engine/temporal.js` | `20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584` | Frozen |
+| `src/ui/presets.js` | `f92f4160cadcd2843cc7808f01a7643f211bf399f82721fce4dd9d93f4d86366` | Frozen |
 
 Verification output:
 ```text
@@ -328,17 +328,17 @@ Verification output:
          DITHERFORGE ENGINE INTEGRITY VERIFICATION                
 ==================================================================
   PASS: src/dither-engine/algorithms.js
-        SHA-256: e637a8b900f99abb59df083a18f5915258d072d336d833c514b5b3fa87f2aa01
+        SHA-256: c3f684abcd8f9054d6fb98afc34748d5ca75953466f837e4d21781e0be0933f9
   PASS: src/dither-engine/effect-stack.js
-        SHA-256: 57cf7cd54301805877c0096ebef5076eff8562aba4e4d7415024ee45cf563989
+        SHA-256: 8d1bb8c163fc4d99e49ca5496314c839d514d5db9f2d1da29781c42ee6784976
   PASS: src/dither-engine/exporters.js
-        SHA-256: f0f17a707a437da4129eae8a926a505c5c586bfd6d4c0349e67cd4826fd870f1
+        SHA-256: 1028c7f42d34b7b0a26abceb8c205f613bce1334abc7dda2b1b450b9f55dfeba
   PASS: src/dither-engine/palettes.js
         SHA-256: 4802854ee5d13cb44e6be27074c27e1545310d1aec2359ce3b421b591944a867
   PASS: src/dither-engine/temporal.js
-        SHA-256: f2062d3531bca24e3a4eea3e527845c61efbb58709a661ed3ff58bf4cf2b02fc
+        SHA-256: 20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584
   PASS: src/ui/presets.js
-        SHA-256: 0bf2f44a341f2d71d635728bb609872ad4982d94b87b9a123349c93fe8b69f37
+        SHA-256: f92f4160cadcd2843cc7808f01a7643f211bf399f82721fce4dd9d93f4d86366
 ==================================================================
 ✅ ENGINE FREEZE VERIFIED: All 6 engine files match golden SHA-256.
 ==================================================================

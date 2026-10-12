@@ -1043,7 +1043,7 @@ body {
 .slider-track-input-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   height: 36px;
 }
 
@@ -1091,22 +1091,29 @@ body {
 
 .control-num-input {
   height: 36px;
+  width: 48px;
   min-width: 48px;
-  max-width: 88px;
-  width: auto;
-  flex: 0 1 auto;
+  max-width: 48px;
+  flex: 0 0 48px;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-main);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.80rem;
   font-variant-numeric: tabular-nums;
   text-align: center;
   border-radius: 4px;
-  padding: 0 6px;
+  padding: 0 4px;
   box-sizing: border-box;
   outline: none;
+  -moz-appearance: textfield;
   transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.control-num-input::-webkit-inner-spin-button,
+.control-num-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .control-num-input:hover {
@@ -1232,6 +1239,28 @@ body {
   height: 14px;
   color: inherit;
   flex-shrink: 0;
+}
+
+/* Ensure no icon nested inside any button ever receives background or border from main.css */
+button .btn-icon,
+.btn-default .btn-icon,
+.btn-subtle .btn-icon,
+.btn-primary .btn-icon {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+button .btn-icon:hover,
+.btn-default:hover .btn-icon,
+.btn-subtle:hover .btn-icon,
+.btn-primary:hover .btn-icon {
+  border-color: transparent !important;
+  background: transparent !important;
+  outline: none !important;
 }
 
 /* Backward compatibility aliases */
@@ -1605,7 +1634,7 @@ body {
 .effect-param-control-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   height: 28px;                 /* 28px slider row */
 }
 
@@ -1673,12 +1702,12 @@ body {
   transition: background-color var(--transition-fast);
 }
 
-/* Value box (dynamic width, auto-expands with content) */
+/* Value box (fixed width, sized for widest parameter string) */
 .slider-value-box {
-  min-width: 48px;
-  max-width: 88px;
-  width: auto;
-  flex: 0 1 auto;
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  flex: 0 0 58px;
   height: 28px;
   box-sizing: border-box;
   border: 1px solid var(--border-color);
@@ -1690,17 +1719,17 @@ body {
   padding: 0 2px;
 }
 
-/* Number (sizes to content, min 32px) */
+/* Number (fixed layout, fits -1.00, 360, 0.05 cleanly) */
 .slider-value-number {
-  min-width: 32px;
+  min-width: 0;
   flex: 1 1 auto;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.80rem;
   color: var(--text-main);
   user-select: text;
   white-space: nowrap;
-  padding: 0 4px;
+  padding: 0 2px;
 }
 
 /* Spinner column (right, 18px wide) */
@@ -2369,8 +2398,8 @@ body {
 }
 
 .themed-tooltip-panel {
-  position: absolute;
-  z-index: 2000;
+  position: fixed;
+  z-index: 99999;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -2397,28 +2426,11 @@ body {
   }
 }
 
-.themed-tooltip-panel.side-top {
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.themed-tooltip-panel.side-bottom {
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.themed-tooltip-panel.side-left {
-  right: calc(100% + 6px);
-  top: 50%;
-  transform: translateY(-50%);
-}
-
+.themed-tooltip-panel.side-top,
+.themed-tooltip-panel.side-bottom,
+.themed-tooltip-panel.side-left,
 .themed-tooltip-panel.side-right {
-  left: calc(100% + 6px);
-  top: 50%;
-  transform: translateY(-50%);
+  /* Positioned and edge-clamped via portal fixed coordinates */
 }
 
 /* ═══════════════════════════════════════════════════════════════

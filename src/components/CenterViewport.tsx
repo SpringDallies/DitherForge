@@ -69,6 +69,8 @@ export const CenterViewport: React.FC = () => {
 
   const showBeforeAfter = useAppStore((state) => state.showBeforeAfter);
   const toggleBeforeAfter = useAppStore((state) => state.toggleBeforeAfter);
+  const isOriginalView = useAppStore((state) => state.isOriginalView);
+  const toggleOriginalView = useAppStore((state) => state.toggleOriginalView);
   const splitRatio = useAppStore((state) => state.splitRatio);
   const setSplitRatio = useAppStore((state) => state.setSplitRatio);
 
@@ -613,7 +615,7 @@ export const CenterViewport: React.FC = () => {
             />
 
             {/* Before/After Split Screen Divider Handle */}
-            {showBeforeAfter && canvasRef.current && (
+            {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>
                 <div 
                   className="compare-badge before" 

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface TooltipProps {
   text: string;
@@ -18,10 +19,11 @@ export const Tooltip: React.FC<TooltipProps> = ({
   style
 }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [effectiveSide, setEffectiveSide] = useState<'top' | 'bottom' | 'left' | 'right'>(side);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const [currentSide, setCurrentSide] = useState<'top' | 'bottom' | 'left' | 'right'>(side);
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLSpanElement | null>(null);
+  const panelRef = useRef<HTMLSpanElement | null>(null);
 
   const clearTimer = () => {
     if (timerRef.current) {
@@ -34,36 +36,6 @@ export const Tooltip: React.FC<TooltipProps> = ({
     if (!text) return;
     clearTimer();
     timerRef.current = setTimeout(() => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        // If near top of viewport, flip below
-        let chosenSide = side;
-        if (side === 'top' && rect.top < 45) {
-          chosenSide = 'bottom';
-        } else if (side === 'bottom' && rect.bottom > window.innerHeight - 45) {
-          chosenSide = 'top';
-        }
-        setEffectiveSide(chosenSide);
-
-        // Boundary check against closest scroll/boundary container or viewport
-        const boundaryEl = containerRef.current.closest('.sidebar-scrollable-content, .center-viewport, .app-container') || document.body;
-        const bRect = boundaryEl.getBoundingClientRect();
-        const distFromLeft = rect.left - bRect.left;
-        const distFromRight = bRect.right - rect.right;
-
-        const customStyle: React.CSSProperties = {};
-        if (chosenSide === 'top' || chosenSide === 'bottom') {
-          if (distFromLeft < 140) {
-            customStyle.left = '0';
-            customStyle.transform = 'none';
-          } else if (distFromRight < 140) {
-            customStyle.left = 'auto';
-            customStyle.right = '0';
-            customStyle.transform = 'none';
-          }
-        }
-        setPanelStyle(customStyle);
-      }
       setIsVisible(true);
     }, delay);
   };
@@ -77,6 +49,85 @@ export const Tooltip: React.FC<TooltipProps> = ({
     clearTimer();
     setIsVisible(false);
   };
+
+  // Synchronous positioning and edge clamping before browser paint
+  useLayoutEffect(() => {
+    if (!isVisible || !panelRef.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const pRect = panelRef.current.getBoundingClientRect();
+    const padding = 10;
+    const margin = 6;
+    const vWidth = window.innerWidth;
+    const vHeight = window.innerHeight;
+
+    let chosenSide = side;
+
+    // 1. Flip top/bottom if necessary
+    if (side === 'top' && rect.top - pRect.height - margin < padding) {
+      chosenSide = 'bottom';
+    } else if (side === 'bottom' && rect.bottom + pRect.height + margin > vHeight - padding) {
+      chosenSide = 'top';
+    }
+
+    // 2. Flip left/right if necessary
+    if (chosenSide === 'left' && rect.left - pRect.width - margin < padding) {
+      chosenSide = 'right';
+    } else if (chosenSide === 'right' && rect.right + pRect.width + margin > vWidth - padding) {
+      chosenSide = 'left';
+    }
+
+    setCurrentSide(chosenSide);
+
+    let top = 0;
+    let left = 0;
+
+    if (chosenSide === 'top') {
+      top = rect.top - pRect.height - margin;
+      left = (rect.left + rect.width / 2) - pRect.width / 2;
+    } else if (chosenSide === 'bottom') {
+      top = rect.bottom + margin;
+      left = (rect.left + rect.width / 2) - pRect.width / 2;
+    } else if (chosenSide === 'left') {
+      top = (rect.top + rect.height / 2) - pRect.height / 2;
+      left = rect.left - pRect.width - margin;
+    } else if (chosenSide === 'right') {
+      top = (rect.top + rect.height / 2) - pRect.height / 2;
+      left = rect.right + margin;
+    }
+
+    // 3. HARD VIEWPORT CLAMPING: guarantees panel is NEVER cut in half or clipped
+    const clampedLeft = Math.max(padding, Math.min(vWidth - pRect.width - padding, left));
+    const clampedTop = Math.max(padding, Math.min(vHeight - pRect.height - padding, top));
+
+    panelRef.current.style.top = `${Math.round(clampedTop)}px`;
+    panelRef.current.style.left = `${Math.round(clampedLeft)}px`;
+    panelRef.current.style.visibility = 'visible';
+    panelRef.current.style.opacity = '1';
+  }, [isVisible, text, side]);
+
+  // Support automated testing query param ?tooltip=
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = new URLSearchParams(window.location.search).get('tooltip');
+    if (target && text.toLowerCase().includes(target.toLowerCase())) {
+      const timer = setTimeout(() => {
+        setIsVisible(true);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [text]);
+
+  // Dismiss tooltip on window scroll or resize to prevent detached floating
+  useEffect(() => {
+    if (!isVisible) return;
+    const handleDismiss = () => setIsVisible(false);
+    window.addEventListener('scroll', handleDismiss, true);
+    window.addEventListener('resize', handleDismiss);
+    return () => {
+      window.removeEventListener('scroll', handleDismiss, true);
+      window.removeEventListener('resize', handleDismiss);
+    };
+  }, [isVisible]);
 
   useEffect(() => {
     return () => clearTimer();
@@ -96,14 +147,23 @@ export const Tooltip: React.FC<TooltipProps> = ({
       onClick={handleClick}
     >
       {children}
-      {isVisible && (
-        <span 
-          className={`themed-tooltip-panel side-${effectiveSide}`}
-          style={panelStyle}
+      {isVisible && typeof document !== 'undefined' && createPortal(
+        <span
+          ref={panelRef}
+          className={`themed-tooltip-panel side-${currentSide}`}
+          style={{
+            position: 'fixed',
+            visibility: 'hidden',
+            opacity: 0,
+            transform: 'none',
+            margin: 0,
+            zIndex: 99999
+          }}
           role="tooltip"
         >
           {text}
-        </span>
+        </span>,
+        document.body
       )}
     </span>
   );

@@ -104,7 +104,7 @@ const buildInitialEffects = (): EffectItem[] => {
     id: eff.id,
     type: eff.id,
     name: eff.name,
-    enabled: eff.id === 'glow',
+    enabled: false,
     params: { ...eff.defaultParams }
   }));
 };
@@ -209,6 +209,15 @@ interface AppState {
   setShowBeforeAfter: (show: boolean) => void;
   toggleBeforeAfter: () => void;
 
+  // Viewport Affordance: Original View (Non-persistent - Item 1)
+  isOriginalView: boolean;
+  setIsOriginalView: (val: boolean) => void;
+  toggleOriginalView: () => void;
+
+  // Preferences: Algorithm Descriptions (Item 2)
+  showAlgorithmDescriptions: boolean;
+  setShowAlgorithmDescriptions: (show: boolean) => void;
+
   // Shell Layout & UI State (persisted to localStorage)
   sidebarWidth: number;
   isSidebarCollapsed: boolean;
@@ -228,6 +237,18 @@ const STORAGE_KEY_SIDEBAR_COLLAPSED = 'ditherforge_sidebar_collapsed';
 const STORAGE_KEY_THEME = 'ditherforge_theme';
 const STORAGE_KEY_UPDATE_MODE = 'ditherforge_update_mode';
 const STORAGE_KEY_FAVORITES = 'ditherforge_favorites';
+const getStoredAlgoDescriptionsPref = (): boolean => {
+  try {
+    const raw = localStorage.getItem('ditherforge_settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.showAlgorithmDescriptions === 'boolean') {
+        return parsed.showAlgorithmDescriptions;
+      }
+    }
+  } catch {}
+  return true;
+};
 const getStoredFavorites = (): string[] => {
   let list: string[] = [];
   try {
@@ -692,6 +713,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       splitRatio: next && !state.hasUserMovedSplitRatio ? 0.5 : state.splitRatio
     };
   }),
+
+  // Original View (Item 1)
+  isOriginalView: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('original') === 'true',
+  setIsOriginalView: (val) => set({ isOriginalView: val }),
+  toggleOriginalView: () => set((state) => ({ isOriginalView: !state.isOriginalView })),
+
+  // Preferences: Algorithm descriptions (Item 2)
+  showAlgorithmDescriptions: getStoredAlgoDescriptionsPref(),
+  setShowAlgorithmDescriptions: (show) => set({ showAlgorithmDescriptions: show }),
 
   // Shell Layout & UI
   sidebarWidth: getStoredSidebarWidth(),

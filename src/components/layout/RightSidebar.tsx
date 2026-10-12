@@ -15,6 +15,8 @@ import { BUILTIN_PRESETS } from '../../ui/presets.js';
 // @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 import { 
+  ArrowDown,
+  ArrowUp,
   Lock, 
   Unlock, 
   Trash2,
@@ -84,6 +86,7 @@ export const RightSidebar: React.FC = () => {
 
 
   const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
+  const showAlgorithmDescriptions = useAppStore((state) => state.showAlgorithmDescriptions);
 
   // Adjustments & Locks
   const brightness = useAppStore((state) => state.brightness);
@@ -865,6 +868,7 @@ export const RightSidebar: React.FC = () => {
 
                 {/* User-facing Algorithm Description (Item 7) */}
                 {(() => {
+                  if (!showAlgorithmDescriptions) return null;
                   const desc = USER_ALGORITHM_DESCRIPTIONS[algorithmId];
                   return (
                     <div className="algo-description-container">
@@ -1625,7 +1629,7 @@ export const RightSidebar: React.FC = () => {
                     onClick={() => paletteFileInputRef.current?.click()}
                     style={{ width: '100%' }}
                   >
-                    <Download size={14} className="btn-icon" /> Import
+                    <ArrowDown size={14} /> Import
                   </button>
                 </Tooltip>
                   <Tooltip text="Export current working palette to JSON" style={{ flex: 1 }}>
@@ -1635,7 +1639,7 @@ export const RightSidebar: React.FC = () => {
                     onClick={handleExportPalette}
                     style={{ width: '100%' }}
                   >
-                    <Upload size={14} className="btn-icon" /> Export
+                    <ArrowUp size={14} /> Export
                   </button>
                 </Tooltip>
                 </div>

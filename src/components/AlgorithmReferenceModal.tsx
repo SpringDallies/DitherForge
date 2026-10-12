@@ -43,11 +43,9 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
             <BookOpen size={16} style={{ color: 'var(--accent-cyan)' }} />
             <span>Algorithm Reference Manual (63 Models)</span>
           </div>
-          <Tooltip text="Close dialog">
-            <button className="tool-icon-btn" onClick={onClose}>
-              <X size={16} />
-            </button>
-          </Tooltip>
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
         </div>
 
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '8px' }}>

@@ -1,0 +1,88 @@
+﻿/* ==========================================================================
+   Preferences / Settings Dialog Styles
+   ========================================================================== */
+.settings-dialog {
+  max-width: 640px !important;
+  width: 100%;
+}
+
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-section-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+  font-family: var(--font-sans);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.settings-label {
+  font-size: 0.8rem;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+}
+
+.settings-readonly-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.settings-number-input {
+  width: 70px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  text-align: right;
+  outline: none;
+}
+
+.settings-number-input:focus {
+  border-color: var(--accent-cyan);
+}
+
+.settings-status-msg {
+  font-size: 0.75rem;
+  color: var(--accent-amber);
+  margin-right: 8px;
+  font-family: var(--font-sans);
+}
+
+.topbar-settings-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.topbar-settings-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+}

@@ -1888,16 +1888,17 @@ body {
   gap: 6px;
 }
 
-/* Popover menus */
+/* Popover menus (Phase 7.1) */
 .dropdown-menu-popover {
   position: absolute;
   top: 30px;
   left: 0;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  min-width: 180px;
-  z-index: 100;
+  border-radius: var(--radius-sm);
+  min-width: 220px;
+  width: max-content;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   padding: 4px 0;
@@ -1908,8 +1909,10 @@ body {
   background: transparent;
   border: none;
   color: var(--text-main);
+  font-family: var(--font-sans);
   font-size: 0.76rem;
-  padding: 6px 12px;
+  height: 32px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1917,10 +1920,14 @@ body {
   width: 100%;
   text-align: left;
   transition: background-color var(--transition-fast);
+  user-select: none;
 }
 
-.dropdown-menu-item:hover {
+.dropdown-menu-item:hover,
+.dropdown-menu-item.focused,
+.dropdown-menu-item.active {
   background-color: var(--bg-hover);
+  color: var(--text-main);
 }
 
 .dropdown-menu-item:disabled {
@@ -1936,9 +1943,39 @@ body {
 
 .menu-shortcut {
   margin-left: auto;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
+}
+
+/* Submenu popover */
+.dropdown-submenu-trigger {
+  position: relative;
+}
+
+.dropdown-submenu-popover {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 2px;
+  min-width: 190px;
+}
+
+.dropdown-submenu-trigger:hover > .dropdown-submenu-popover,
+.dropdown-submenu-trigger.active > .dropdown-submenu-popover,
+.dropdown-submenu-popover.open {
+  display: flex;
+}
+
+.shortcut-kbd {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-main);
 }
 
 
@@ -2344,7 +2381,7 @@ body {
   max-width: 280px;
   width: max-content;
   white-space: normal;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Only element allowed box-shadow per spec */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); /* Only element allowed box-shadow per spec */
   pointer-events: none;
   animation: tooltipFadeIn 120ms ease forwards;
   line-height: 1.35;
@@ -2482,3 +2519,160 @@ body {
   flex: 1;
   padding: 20px;
 }
+
+/* ==========================================================================
+   Phase 7.2 Export Dialog
+   ========================================================================== */
+.export-dialog {
+  max-width: 640px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.export-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 20px 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.export-tab-btn {
+  padding: 8px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.export-tab-btn:hover {
+  color: var(--text-main);
+}
+
+.export-tab-btn.active {
+  color: var(--accent-cyan);
+  border-bottom-color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.export-form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.export-form-label {
+  width: 90px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+}
+
+.export-form-control {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.export-input:focus {
+  border-color: var(--accent-cyan);
+}
+
+.export-select {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.export-select:focus {
+  border-color: var(--accent-cyan);
+}
+
+.export-preview-container {
+  margin-top: 14px;
+}
+
+.export-preview-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.export-preview-box {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.export-text-preview {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  line-height: 1.25;
+  white-space: pre;
+  color: var(--text-main);
+  width: 100%;
+  height: 160px;
+  overflow: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  user-select: text;
+}
+
+.export-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+

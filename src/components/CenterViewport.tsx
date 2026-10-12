@@ -604,6 +604,7 @@ export const CenterViewport: React.FC = () => {
           >
             <canvas 
               ref={canvasRef} 
+              id="mainViewportCanvas"
               className="preview-canvas"
               style={{
                 display: 'block',

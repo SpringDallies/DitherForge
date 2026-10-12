@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Settings } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
@@ -119,11 +119,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               Settings
             </span>
           </div>
-          <Tooltip text="Close dialog">
-            <button className="tool-icon-btn" onClick={onClose} aria-label="Close dialog">
-              <X size={16} />
-            </button>
-          </Tooltip>
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
         </div>
 
         {/* Body */}
@@ -185,7 +183,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <span className="settings-label">Export folder</span>
-              <span className="settings-readonly-text">(n/a — browser)</span>
+              <span className="settings-readonly-text">(n/a � browser)</span>
             </div>
 
             <div className="settings-row">

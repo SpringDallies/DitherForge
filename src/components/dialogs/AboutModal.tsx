@@ -37,11 +37,9 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
             <Info size={16} style={{ color: 'var(--accent-cyan)' }} />
             <span id="about-dialog-title">About DitherForge</span>
           </div>
-          <Tooltip text="Close dialog">
-            <button className="tool-icon-btn" onClick={onClose} aria-label="Close dialog">
-              <X size={16} />
-            </button>
-          </Tooltip>
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
         </div>
 
         <div className="modal-body" style={{ padding: '24px 20px', textAlign: 'center' }}>

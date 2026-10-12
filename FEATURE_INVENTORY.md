@@ -259,19 +259,19 @@
 
 | Format | Source (File & Function / Line) | Verified Options in Code & UI | Status |
 |---|---|---|---|
-| PNG (Raster) | `exporters.js:4-11` (`exportRaster`) | Lossless 24-bit/32-bit RGBA raster buffer | [ ] Pending |
-| JPG (Raster) | `exporters.js:4-11` (`exportRaster`) | `quality: float` (0.0 to 1.0, default 0.92) | [ ] Pending |
-| WebP (Raster) | `exporters.js:4-11` (`exportRaster`) | `quality: float` (0.0 to 1.0, default 0.92) | [ ] Pending |
-| System Clipboard Copy | `exporters.js:13-29` (`copyCanvasToClipboard`) | Direct binary PNG blob write to `navigator.clipboard` | [ ] Pending |
-| SVG Vector Contours | `exporters.js:109-157` (`exportSvgContours`) | Draws pixels with `luma < 128` as 1px-high run-length `<rect>`s in their own color (`fill="${spanColor}"`) on white background. (No fill-colour toggle exists in code today. It is NOT Marching Squares). | [ ] Pending |
-| TXT ASCII Character Grid | `exporters.js:32-107` (`exportCharacterGrid`) | Character ramp: ` .:-=+*#%@`. `cellWidth` (default 6) and `cellHeight` (default 12) apply to ASCII and Unicode Blocks only. | [ ] Pending |
-| TXT Unicode Blocks Grid | `exporters.js:32-107` (`exportCharacterGrid`) | Character ramp: ` ░▒▓█`. `cellWidth` (default 6) and `cellHeight` (default 12) apply. | [ ] Pending |
-| TXT Unicode Braille Matrix | `exporters.js:47-78` (`exportCharacterGrid`) | 2×4 dot sub-grid bitmask mapping to Unicode Braille codepoints `U+2800..U+28FF`. (`cellWidth` and `cellHeight` are ignored by Braille). | [ ] Pending |
-| MP4 / WebM Video Stream | `exporters.js:159-210` (`VideoRecorder`) | `MediaRecorder` stream recording with codec negotiation (`video/webm;codecs=vp9`, `vp8`, `video/mp4`), fps selection (12, 24, 30, 60 fps). | [ ] Pending |
-| Animated GIF | *[NOT FOUND in exporters.js / main.js]* | Proposed Addition in future phase; no GIF encoder exists in current JS codebase. | [ ] Proposed |
-| PNG Frame Sequence | `main.js:1139-1142` (`#btnExportFrameSequence`) | Currently a snapshot PNG download with alert stub in `main.js:1139-1142`. Proposed True Multi-Frame loop. | [ ] Pending |
+| PNG (Raster) | `exporters.js:4-11` (`exportRaster`) | Lossless 24-bit/32-bit RGBA raster buffer | [x] Shipped |
+| JPG (Raster) | `exporters.js:4-11` (`exportRaster`) | `quality: float` (0.0 to 1.0, default 0.92) | [x] Shipped |
+| WebP (Raster) | `exporters.js:4-11` (`exportRaster`) | `quality: float` (0.0 to 1.0, default 0.92) | [x] Shipped |
+| System Clipboard Copy | `exporters.js:13-29` (`copyCanvasToClipboard`) | Direct binary PNG blob write to `navigator.clipboard` | [x] Shipped |
+| SVG Vector Contours | `exporters.js:109-157` (`exportSvgContours`) | Draws pixels with `luma < 128` as 1px-high run-length `<rect>`s in their own color (`fill="${spanColor}"`) on white background. (No fill-colour toggle exists in code today. It is NOT Marching Squares). | [x] Shipped |
+| TXT ASCII Character Grid | `exporters.js:32-107` (`exportCharacterGrid`) | Character ramp: ` .:-=+*#%@`. `cellWidth` (default 6) and `cellHeight` (default 12) apply to ASCII and Unicode Blocks only. | [x] Shipped |
+| TXT Unicode Blocks Grid | `exporters.js:32-107` (`exportCharacterGrid`) | Character ramp: ` ░▒▓█`. `cellWidth` (default 6) and `cellHeight` (default 12) apply. | [x] Shipped |
+| TXT Unicode Braille Matrix | `exporters.js:47-78` (`exportCharacterGrid`) | 2×4 dot sub-grid bitmask mapping to Unicode Braille codepoints `U+2800..U+28FF`. (`cellWidth` and `cellHeight` are ignored by Braille). | [x] Shipped |
+| MP4 / WebM Video Stream | `exporters.js:159-210` (`VideoRecorder`) | `MediaRecorder` stream recording with codec negotiation (`video/webm;codecs=vp9`, `vp8`, `video/mp4`), fps selection (12, 24, 30, 60 fps). | [ ] [Deferred] |
+| Animated GIF | *[NOT FOUND in exporters.js / main.js]* | Proposed Addition in future phase; no GIF encoder exists in current JS codebase. | [ ] [Deferred] |
+| PNG Frame Sequence | `main.js:1139-1142` (`#btnExportFrameSequence`) | Currently a snapshot PNG download with alert stub in `main.js:1139-1142`. Proposed True Multi-Frame loop. | [ ] [Deferred] |
 | Export Resolution Multiplier (1x, 2x, 4x) | *[NOT FOUND in codebase]* | Proposed Addition in Export Dialog. | [ ] Proposed |
-| Last Export Settings Memory | *[NEW Ergonomic Addition]* | Preserves format and parameters in localStorage | [ ] Pending |
+| Last Export Settings Memory | *[NEW Ergonomic Addition]* | Preserves format and parameters in localStorage | [x] Shipped |
 
 ---
 

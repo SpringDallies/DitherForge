@@ -35,12 +35,13 @@ import {
 
 const CATEGORY_KEYS = [
   'all',
+  'basic',
   'error_diffusion',
+  'glitch_effects',
   'ordered',
-  'pattern',
-  'glitch',
-  'special',
-  'bespoke'
+  'patterned',
+  'polygon',
+  'special_effects'
 ];
 
 const getSliderFill = (val: number, min: number, max: number): React.CSSProperties => {
@@ -540,6 +541,8 @@ export const RightSidebar: React.FC = () => {
     requestAnimationFrame(() => {
       const extracted = extractPaletteMedianCut(sourceImageData, 8);
       useAppStore.setState({
+        activePaletteId: 'custom',
+        activePalette: 'custom',
         workingPalette: extracted.map((c: number[]) => [...c]),
         lockedSwatches: [],
         paletteDepth: extracted.length
@@ -554,6 +557,8 @@ export const RightSidebar: React.FC = () => {
     requestAnimationFrame(() => {
       const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
       useAppStore.setState({
+        activePaletteId: 'custom',
+        activePalette: 'custom',
         workingPalette: extracted.map((c: number[]) => [...c]),
         lockedSwatches: [],
         paletteDepth: extracted.length
@@ -562,33 +567,31 @@ export const RightSidebar: React.FC = () => {
     });
   };
 
-  const ERROR_DIFFUSION_IDS = new Set([
-    'floyd_steinberg', 'atkinson', 'jarvis_judice_ninke', 'stucki', 'burkes',
-    'sierra_3', 'sierra_2', 'sierra_lite', 'stevenson_arce', 'fan',
-    'shiau_fan', 'shiau_fan_2', 'false_floyd_steinberg', 'minimized_avg_error',
-    'dynamic_serpentine'
-  ]);
-
-  const NOISE_AMOUNT_SPECIAL_IDS = new Set([
-    'random_threshold', 'blue_noise', 'gaussian_noise', 'tpdf_noise',
-    'companding_curve', 'laplacian_mod', 'quantum_stipple'
-  ]);
-
   const getVisibleParams = (id: string) => {
-    if (ERROR_DIFFUSION_IDS.has(id)) {
-      return { threshold: true, scale: false, diffusionStrength: true, serpentine: true, noiseAmount: false };
+    const norm = (id || '').replace(/_/g, '-');
+    const algo = ALGORITHM_REGISTRY.find((a: any) => a.id === id || a.id === norm);
+    if (!algo) {
+      return { threshold: true, scale: true, diffusionStrength: true, serpentine: true, noiseAmount: false };
     }
-    if (id === 'fixed_threshold') {
-      return { threshold: true, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: false };
+
+    if (norm === 'none') {
+      return { threshold: false, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: false };
     }
-    if (NOISE_AMOUNT_SPECIAL_IDS.has(id)) {
-      return { threshold: true, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: true };
-    }
-    if (id === 'ignition_glow') {
-      return { threshold: true, scale: true, diffusionStrength: true, serpentine: false, noiseAmount: false };
-    }
-    // Ordered, pattern, glitch (all 17), clustered_dot, temporal_kinetic, and other special:
-    return { threshold: true, scale: true, diffusionStrength: false, serpentine: false, noiseAmount: false };
+
+    const supportsScale = algo.features?.supportsDpiScale !== false && norm !== 'color-separation';
+    const isErrorDiff = algo.category === 'error_diffusion';
+    const isGlitch = algo.category === 'glitch_effects';
+    const hasErrorStrength = algo.controls?.some((c: any) => c.id === 'errorStrength' || c.id === 'errorReduction' || c.id === 'strength') || isErrorDiff;
+    const hasSerpentine = algo.controls?.some((c: any) => c.id === 'serpentine') || isErrorDiff;
+    const hasNoise = algo.controls?.some((c: any) => c.id === 'noise' || c.id === 'randomVal') || norm === 'noise';
+
+    return {
+      threshold: true,
+      scale: supportsScale,
+      diffusionStrength: hasErrorStrength || isGlitch,
+      serpentine: hasSerpentine || isGlitch,
+      noiseAmount: hasNoise
+    };
   };
 
   const visibleParams = getVisibleParams(currentAlgo.id);
@@ -869,7 +872,7 @@ export const RightSidebar: React.FC = () => {
                 {/* User-facing Algorithm Description (Item 7) */}
                 {(() => {
                   if (!showAlgorithmDescriptions) return null;
-                  const desc = USER_ALGORITHM_DESCRIPTIONS[algorithmId];
+                  const desc = USER_ALGORITHM_DESCRIPTIONS[algorithmId] || USER_ALGORITHM_DESCRIPTIONS[currentAlgo.id] || USER_ALGORITHM_DESCRIPTIONS[(algorithmId || '').replace(/-/g, '_')];
                   return (
                     <div className="algo-description-container">
                       <div className="algo-desc-what">

@@ -213,12 +213,15 @@ export function rgbaToHex(r, g, b) {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-// Rec. 709 Luminance-Weighted Euclidean Color Metric
+// Redmean Perceptual Color Metric
 export function colorDistSq(r1, g1, b1, r2, g2, b2) {
   const dr = r1 - r2;
   const dg = g1 - g2;
   const db = b1 - b2;
-  return 0.2126 * dr * dr + 0.7152 * dg * dg + 0.0722 * db * db;
+  const rMean = (r1 + r2) * 0.5;
+  return (2 + rMean / 256) * dr * dr
+       + 4 * dg * dg
+       + (2 + (255 - rMean) / 256) * db * db;
 }
 
 export function findNearestColor(r, g, b, palette) {

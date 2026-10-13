@@ -79,12 +79,17 @@ const DEFAULT_ALGO_PARAMS_TABLE: Record<string, Partial<AlgoParams>> = {
 };
 
 export const getInitialAlgoParams = (id: string): AlgoParams => {
-  const specific = DEFAULT_ALGO_PARAMS_TABLE[id] || {};
+  const norm = (id || '').replace(/_/g, '-');
+  const snake = (id || '').replace(/-/g, '_');
+  const specific = DEFAULT_ALGO_PARAMS_TABLE[id] || DEFAULT_ALGO_PARAMS_TABLE[norm] || DEFAULT_ALGO_PARAMS_TABLE[snake] || {};
+  const algo = ALGORITHM_REGISTRY.find((a: any) => a.id === id || a.id === norm);
+  const cat = algo?.category || '';
+  const isDiff = cat === 'error_diffusion' || cat === 'glitch_effects';
   return {
     threshold: specific.threshold ?? 0.5,
     scale: specific.scale ?? 1.0,
     diffusionStrength: specific.diffusionStrength ?? 1.0,
-    serpentine: specific.serpentine ?? false,
+    serpentine: specific.serpentine ?? isDiff,
     noiseAmount: specific.noiseAmount ?? 0.3
   };
 };
@@ -305,7 +310,7 @@ const getStoredAlgorithm = (): string => {
       if (p) return p;
     }
   } catch {}
-  return 'floyd_steinberg';
+  return 'floyd-steinberg';
 };
 
 const getStoredUpdateMode = (): UpdateMode => {
@@ -603,6 +608,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   resetToBuiltin: () => set((state) => {
+    if (state.activePaletteId === 'custom') return state;
     const pal = BUILTIN_PALETTES.find((p: any) => p.id === state.activePaletteId) || BUILTIN_PALETTES[0];
     const colors = pal ? pal.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
     return {

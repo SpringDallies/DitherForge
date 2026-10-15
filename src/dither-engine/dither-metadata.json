@@ -10,7 +10,7 @@
     "features": {
       "supportsColorPalettes": true,
       "supportsColorDepth": true,
-      "supportsDpiScale": false,
+      "supportsDpiScale": true,
       "supportsLuminanceThreshold": false,
       "isDeterministic": true,
       "requiresMultiPass": false

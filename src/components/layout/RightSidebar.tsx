@@ -14,18 +14,17 @@ import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToR
 import { BUILTIN_PRESETS } from '../../ui/presets.js';
 // @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
+// @ts-ignore
+import { exportRaster } from '../../dither-engine/exporters.js';
 import { 
   ArrowDown,
   ArrowUp,
-  Lock, 
-  Unlock, 
   Trash2,
   MoveVertical,
   Shuffle,
   GripVertical,
   ChevronRight,
   ChevronDown,
-  ChevronUp,
   RotateCcw,
   Square,
   Layers,
@@ -101,8 +100,6 @@ export const RightSidebar: React.FC = () => {
   const setGamma = useAppStore((state) => state.setGamma);
   const setDepth = useAppStore((state) => state.setDepth);
 
-  const lockedAdjustments = useAppStore((state) => state.lockedAdjustments);
-  const toggleAdjustmentLock = useAppStore((state) => state.toggleAdjustmentLock);
   const resetAdjustmentParam = useAppStore((state) => state.resetAdjustmentParam);
   const resetAllAdjustments = useAppStore((state) => state.resetAllAdjustments);
 
@@ -110,10 +107,8 @@ export const RightSidebar: React.FC = () => {
   const activePaletteId = useAppStore((state) => state.activePaletteId);
   const setActivePaletteId = useAppStore((state) => state.setActivePaletteId);
   const workingPalette = useAppStore((state) => state.workingPalette);
-  const lockedSwatches = useAppStore((state) => state.lockedSwatches);
   const paletteDepth = useAppStore((state) => state.paletteDepth);
   const updateSwatchColor = useAppStore((state) => state.updateSwatchColor);
-  const toggleLockSwatch = useAppStore((state) => state.toggleLockSwatch);
   const shuffleUnlockedSwatches = useAppStore((state) => state.shuffleUnlockedSwatches);
   const addSwatch = useAppStore((state) => state.addSwatch);
   const removeSwatch = useAppStore((state) => state.removeSwatch);
@@ -261,6 +256,50 @@ export const RightSidebar: React.FC = () => {
     const next = (idx + 1) % CATEGORY_KEYS.length;
     setActiveCategory(CATEGORY_KEYS[next]);
   };
+
+  const [exportFormat, setExportFormat] = useState<string>('PNG');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('');
+
+  const handleApplyPreset = (presetId: string) => {
+    setSelectedPresetId(presetId);
+    const preset = BUILTIN_PRESETS.find((p: any) => p.id === presetId);
+    if (!preset) return;
+    if (preset.algorithmId) setAlgorithmId(preset.algorithmId);
+    if (preset.paletteId) setActivePaletteId(preset.paletteId);
+    if (preset.brightness !== undefined) setBrightness(preset.brightness * 100);
+    if (preset.contrast !== undefined) setContrast(preset.contrast * 100);
+    if (preset.saturation !== undefined) setSaturation(preset.saturation * 100);
+    if (preset.gamma !== undefined) setGamma(preset.gamma);
+    if (preset.depth !== undefined) setDepth(preset.depth);
+    if (preset.threshold !== undefined) updateCurrentAlgoParam('threshold', preset.threshold);
+    if (preset.scale !== undefined) updateCurrentAlgoParam('scale', preset.scale);
+    if (preset.diffusionStrength !== undefined) updateCurrentAlgoParam('diffusionStrength', preset.diffusionStrength);
+    if (preset.serpentine !== undefined) updateCurrentAlgoParam('serpentine', preset.serpentine);
+    if (preset.effects && Array.isArray(preset.effects)) {
+      useAppStore.setState({ effects: preset.effects });
+    }
+  };
+
+  const categoryDropdownItems = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const algo of ALGORITHM_REGISTRY) {
+      counts[algo.category] = (counts[algo.category] || 0) + 1;
+    }
+    const labelMap: Record<string, string> = {
+      all: `All (${ALGORITHM_REGISTRY.length})`,
+      basic: `Basic (${counts['basic'] || 0})`,
+      error_diffusion: `Error Diffusion (${counts['error_diffusion'] || 0})`,
+      ordered: `Ordered (${counts['ordered'] || 0})`,
+      patterned: `Patterned (${counts['patterned'] || 0})`,
+      polygon: `Polygon (${counts['polygon'] || 0})`,
+      glitch_effects: `Glitch Effects (${counts['glitch_effects'] || 0})`,
+      special_effects: `Special Effects (${counts['special_effects'] || 0})`
+    };
+    return CATEGORY_KEYS.map((cat) => ({
+      id: cat,
+      label: labelMap[cat] || cat
+    }));
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -521,7 +560,6 @@ export const RightSidebar: React.FC = () => {
             activePaletteId: 'custom',
             activePalette: 'custom',
             workingPalette: parsed.colors.map((c: number[]) => [...c]),
-            lockedSwatches: [],
             paletteDepth: Math.min(32, parsed.colors.length)
           });
         } else {
@@ -544,7 +582,6 @@ export const RightSidebar: React.FC = () => {
         activePaletteId: 'custom',
         activePalette: 'custom',
         workingPalette: extracted.map((c: number[]) => [...c]),
-        lockedSwatches: [],
         paletteDepth: extracted.length
       });
       setIsExtractingPalette(false);
@@ -560,7 +597,6 @@ export const RightSidebar: React.FC = () => {
         activePaletteId: 'custom',
         activePalette: 'custom',
         workingPalette: extracted.map((c: number[]) => [...c]),
-        lockedSwatches: [],
         paletteDepth: extracted.length
       });
       setIsExtractingPalette(false);
@@ -660,22 +696,29 @@ export const RightSidebar: React.FC = () => {
             </button>
           </Tooltip>
           <div className="export-action-row">
-            <Tooltip text="Export Image (Coming in Phase 7)" style={{ width: '65%' }}>
+            <Tooltip text="Export dithered image" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
               <button
                 className="btn-default export-image-btn"
-                disabled
                 style={{ width: '100%' }}
+                onClick={() => {
+                  const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
+                                 (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
+                  if (canvas) {
+                    const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
+                    const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
+                    exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
+                  }
+                }}
               >
                 Export Image
               </button>
             </Tooltip>
             <Dropdown
               className="export-format-dropdown"
-              disabled
-              width={76}
-              value="PNG"
-              onChange={() => {}}
-              tooltip="Export format (Coming in Phase 7)"
+              width={86}
+              value={exportFormat}
+              onChange={(fmt) => setExportFormat(fmt)}
+              tooltip="Select export format"
               items={[
                 { id: 'PNG', label: 'PNG' },
                 { id: 'JPEG', label: 'JPEG' },
@@ -715,15 +758,7 @@ export const RightSidebar: React.FC = () => {
                       value={activeCategory}
                       onChange={(catId) => setActiveCategory(catId)}
                       tooltip="Filter algorithms by category"
-                      items={[
-                        { id: 'all', label: `All (${ALGORITHM_REGISTRY.length})` },
-                        { id: 'error_diffusion', label: 'Diffusion (15)' },
-                        { id: 'ordered', label: 'Ordered (5)' },
-                        { id: 'pattern', label: 'Pattern (8)' },
-                        { id: 'glitch', label: 'Glitch (17)' },
-                        { id: 'special', label: 'Special (16)' },
-                        { id: 'bespoke', label: 'Bespoke (2)' },
-                      ]}
+                      items={categoryDropdownItems}
                     />
                     <Tooltip text="Next Category">
                       <button className="stepper-btn" onClick={handleNextCategory}>&gt;</button>
@@ -949,7 +984,7 @@ export const RightSidebar: React.FC = () => {
                 {visibleParams.scale && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
-                      <Tooltip text="Pattern Scale (1.0x to 8.0x). Double-click to reset.">
+                      <Tooltip text="Pattern Scale (0.05x to 8.0x). Double-click to reset.">
                         <span
                           onDoubleClick={() => resetAlgoParamToDefault('scale')}
                           style={{ cursor: 'pointer' }}
@@ -963,11 +998,11 @@ export const RightSidebar: React.FC = () => {
                         <input
                           type="range"
                           className="control-slider"
-                          min="1.0"
+                          min="0.05"
                           max="8.0"
-                          step="0.5"
+                          step="0.05"
                           value={currentParams.scale}
-                          style={getSliderFill(currentParams.scale, 1, 8)}
+                          style={getSliderFill(currentParams.scale, 0.05, 8)}
                           {...sliderPointerProps}
                           onDoubleClick={() => resetAlgoParamToDefault('scale')}
                           onChange={(e) => updateCurrentAlgoParam('scale', Number(e.target.value))}
@@ -976,11 +1011,11 @@ export const RightSidebar: React.FC = () => {
                       <input
                         type="number"
                         className="control-num-input"
-                        min="1.0"
+                        min="0.05"
                         max="8.0"
-                        step="0.5"
+                        step="0.05"
                         value={currentParams.scale}
-                        onChange={(e) => updateCurrentAlgoParam('scale', parseFloat(e.target.value) || 1)}
+                        onChange={(e) => updateCurrentAlgoParam('scale', parseFloat(e.target.value) || 0.05)}
                       />
                     </div>
                   </div>
@@ -1087,6 +1122,92 @@ export const RightSidebar: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Algorithm-Specific Custom Controls */}
+                {currentAlgo.controls && Array.isArray(currentAlgo.controls) && currentAlgo.controls
+                  .filter((ctrl: any) => !['threshold', 'scale', 'diffusionStrength', 'serpentine', 'noiseAmount'].includes(ctrl.id))
+                  .map((ctrl: any) => {
+                    if (ctrl.type === 'dropdown') {
+                      return (
+                        <div key={ctrl.id} className="picker-row" style={{ marginTop: 8 }}>
+                          <span className="picker-label">{ctrl.label}</span>
+                          <Dropdown
+                            width="100%"
+                            value={String(currentParams[ctrl.id] ?? ctrl.defaultValue ?? (ctrl.options && ctrl.options[0]?.value))}
+                            onChange={(val) => updateCurrentAlgoParam(ctrl.id, val)}
+                            tooltip={ctrl.description || ctrl.tooltip || ctrl.label}
+                            items={(ctrl.options || []).map((opt: any) => ({
+                              id: String(opt.value),
+                              label: opt.label,
+                            }))}
+                          />
+                        </div>
+                      );
+                    }
+                    if (ctrl.type === 'toggle') {
+                      const isChecked = !!(currentParams[ctrl.id] !== undefined ? currentParams[ctrl.id] : ctrl.defaultValue);
+                      return (
+                        <div key={ctrl.id} className="serpentine-row" style={{ marginTop: 8 }}>
+                          <Tooltip text={ctrl.description || ctrl.label}>
+                            <button
+                              type="button"
+                              id={`toggle-${ctrl.id}`}
+                              className={`toggle-square-btn ${isChecked ? 'enabled' : ''}`}
+                              onClick={() => updateCurrentAlgoParam(ctrl.id, !isChecked)}
+                              aria-label={`Toggle ${ctrl.label}`}
+                            >
+                              <span className={`toggle-square ${isChecked ? 'enabled' : ''}`} />
+                            </button>
+                          </Tooltip>
+                          <label
+                            htmlFor={`toggle-${ctrl.id}`}
+                            className="serpentine-label"
+                            onClick={() => updateCurrentAlgoParam(ctrl.id, !isChecked)}
+                          >
+                            {ctrl.label}
+                          </label>
+                        </div>
+                      );
+                    }
+                    // Default to slider
+                    const min = ctrl.min ?? 1;
+                    const max = ctrl.max ?? 10;
+                    const step = ctrl.step ?? 1;
+                    const ctrlVal = currentParams[ctrl.id] !== undefined ? Number(currentParams[ctrl.id]) : Number(ctrl.defaultValue ?? min);
+                    return (
+                      <div key={ctrl.id} className="slider-control-block" style={{ marginTop: 8 }}>
+                        <div className="slider-label-above">
+                          <Tooltip text={`${ctrl.label} (${min} to ${max}). ${ctrl.description || ''}`}>
+                            <span>{ctrl.label}</span>
+                          </Tooltip>
+                        </div>
+                        <div className="slider-track-input-row">
+                          <Tooltip text={ctrl.description || ctrl.label} style={{ flex: 1, display: 'flex' }}>
+                            <input
+                              type="range"
+                              className="control-slider"
+                              min={min}
+                              max={max}
+                              step={step}
+                              value={ctrlVal}
+                              style={getSliderFill(ctrlVal, min, max)}
+                              {...sliderPointerProps}
+                              onChange={(e) => updateCurrentAlgoParam(ctrl.id, Number(e.target.value))}
+                            />
+                          </Tooltip>
+                          <input
+                            type="number"
+                            className="control-num-input"
+                            min={min}
+                            max={max}
+                            step={step}
+                            value={ctrlVal}
+                            onChange={(e) => updateCurrentAlgoParam(ctrl.id, parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -1127,15 +1248,6 @@ export const RightSidebar: React.FC = () => {
                         Brightness
                       </span>
                     </Tooltip>
-                    <Tooltip text={lockedAdjustments.brightness ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
-                      <button
-                        type="button"
-                        className={`adj-lock-btn ${lockedAdjustments.brightness ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('brightness')}
-                      >
-                        {lockedAdjustments.brightness ? <Lock size={14} /> : <Unlock size={14} />}
-                      </button>
-                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
@@ -1146,7 +1258,6 @@ export const RightSidebar: React.FC = () => {
                         max="100"
                         step="1"
                         value={brightness}
-                        disabled={lockedAdjustments.brightness}
                         style={getSliderFill(brightness, -100, 100)}
                         {...sliderPointerProps}
                         onDoubleClick={() => resetAdjustmentParam('brightness')}
@@ -1160,7 +1271,6 @@ export const RightSidebar: React.FC = () => {
                       max="100"
                       step="1"
                       value={brightness}
-                      disabled={lockedAdjustments.brightness}
                       onChange={(e) => setBrightness(parseInt(e.target.value, 10) || 0)}
                     />
                   </div>
@@ -1177,15 +1287,6 @@ export const RightSidebar: React.FC = () => {
                         Contrast
                       </span>
                     </Tooltip>
-                    <Tooltip text={lockedAdjustments.contrast ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
-                      <button
-                        type="button"
-                        className={`adj-lock-btn ${lockedAdjustments.contrast ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('contrast')}
-                      >
-                        {lockedAdjustments.contrast ? <Lock size={14} /> : <Unlock size={14} />}
-                      </button>
-                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
@@ -1196,7 +1297,6 @@ export const RightSidebar: React.FC = () => {
                         max="100"
                         step="1"
                         value={contrast}
-                        disabled={lockedAdjustments.contrast}
                         style={getSliderFill(contrast, -100, 100)}
                         {...sliderPointerProps}
                         onDoubleClick={() => resetAdjustmentParam('contrast')}
@@ -1210,7 +1310,6 @@ export const RightSidebar: React.FC = () => {
                       max="100"
                       step="1"
                       value={contrast}
-                      disabled={lockedAdjustments.contrast}
                       onChange={(e) => setContrast(parseInt(e.target.value, 10) || 0)}
                     />
                   </div>
@@ -1227,15 +1326,6 @@ export const RightSidebar: React.FC = () => {
                         Saturation
                       </span>
                     </Tooltip>
-                    <Tooltip text={lockedAdjustments.saturation ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
-                      <button
-                        type="button"
-                        className={`adj-lock-btn ${lockedAdjustments.saturation ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('saturation')}
-                      >
-                        {lockedAdjustments.saturation ? <Lock size={14} /> : <Unlock size={14} />}
-                      </button>
-                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
@@ -1246,7 +1336,6 @@ export const RightSidebar: React.FC = () => {
                         max="100"
                         step="1"
                         value={saturation}
-                        disabled={lockedAdjustments.saturation}
                         style={getSliderFill(saturation, -100, 100)}
                         {...sliderPointerProps}
                         onDoubleClick={() => resetAdjustmentParam('saturation')}
@@ -1260,7 +1349,6 @@ export const RightSidebar: React.FC = () => {
                       max="100"
                       step="1"
                       value={saturation}
-                      disabled={lockedAdjustments.saturation}
                       onChange={(e) => setSaturation(parseInt(e.target.value, 10) || 0)}
                     />
                   </div>
@@ -1277,15 +1365,6 @@ export const RightSidebar: React.FC = () => {
                         Gamma
                       </span>
                     </Tooltip>
-                    <Tooltip text={lockedAdjustments.gamma ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
-                      <button
-                        type="button"
-                        className={`adj-lock-btn ${lockedAdjustments.gamma ? 'locked' : ''}`}
-                        onClick={() => toggleAdjustmentLock('gamma')}
-                      >
-                        {lockedAdjustments.gamma ? <Lock size={14} /> : <Unlock size={14} />}
-                      </button>
-                    </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
                     <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
@@ -1296,7 +1375,6 @@ export const RightSidebar: React.FC = () => {
                         max="3.0"
                         step="0.05"
                         value={gamma}
-                        disabled={lockedAdjustments.gamma}
                         style={getSliderFill(gamma, 0.1, 3.0)}
                         {...sliderPointerProps}
                         onDoubleClick={() => resetAdjustmentParam('gamma')}
@@ -1310,14 +1388,13 @@ export const RightSidebar: React.FC = () => {
                       max="3.0"
                       step="0.05"
                       value={gamma}
-                      disabled={lockedAdjustments.gamma}
                       onChange={(e) => setGamma(parseFloat(e.target.value) || 1.0)}
                     />
                   </div>
                 </div>
 
-                {/* Color Depth — Only applies to Bit Crush */}
-                {algorithmId === 'bit_crush' && (
+                {/* Color Depth — Applies to Bit Crush / Bit-Tone / Supported Algos */}
+                {(algorithmId === 'bit_crush' || algorithmId === 'bit-tone' || currentAlgo?.features?.supportsColorDepth) && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
                       <Tooltip text="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm.">
@@ -1327,15 +1404,6 @@ export const RightSidebar: React.FC = () => {
                         >
                           Color Depth
                         </span>
-                      </Tooltip>
-                      <Tooltip text={lockedAdjustments.depth ? "Unlocked — click to lock" : "Lock this value (keeps it when randomizing)"}>
-                        <button
-                          type="button"
-                          className={`adj-lock-btn ${lockedAdjustments.depth ? 'locked' : ''}`}
-                          onClick={() => toggleAdjustmentLock('depth')}
-                        >
-                          {lockedAdjustments.depth ? <Lock size={14} /> : <Unlock size={14} />}
-                        </button>
                       </Tooltip>
                     </div>
                     <div className="slider-track-input-row">
@@ -1347,7 +1415,6 @@ export const RightSidebar: React.FC = () => {
                           max="32"
                           step="1"
                           value={depth}
-                          disabled={lockedAdjustments.depth}
                           {...sliderPointerProps}
                           onDoubleClick={() => resetAdjustmentParam('depth')}
                           onChange={(e) => setDepth(Number(e.target.value))}
@@ -1360,7 +1427,6 @@ export const RightSidebar: React.FC = () => {
                         max="32"
                         step="1"
                         value={depth}
-                        disabled={lockedAdjustments.depth}
                         onChange={(e) => setDepth(parseInt(e.target.value, 10) || 8)}
                       />
                     </div>
@@ -1381,7 +1447,7 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-title-text">PALETTE</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                <Tooltip text="Shuffle unlocked swatches">
+                <Tooltip text="Shuffle swatches">
                   <button
                     type="button"
                     className="stepper-btn"
@@ -1441,11 +1507,10 @@ export const RightSidebar: React.FC = () => {
                 {/* Swatch grid: 32x32px each, 4px gaps, wrapping naturally */}
                 <div className="palette-swatches-grid">
                   {workingPalette.map((c: number[], i: number) => {
-                    const isLocked = lockedSwatches.includes(i);
                     const isBeyondDepth = i >= paletteDepth;
                     const hex = rgbaToHex(c[0], c[1], c[2]).toUpperCase();
                     return (
-                      <Tooltip key={i} text={`Swatch ${i + 1}: ${hex}${isLocked ? ' (Locked)' : ''}`}>
+                      <Tooltip key={i} text={`Swatch ${i + 1}: ${hex}`}>
                       <div
                         className="palette-swatch-item"
                         style={{
@@ -1453,13 +1518,7 @@ export const RightSidebar: React.FC = () => {
                           opacity: isBeyondDepth ? 0.35 : 1
                         }}
                         onClick={() => setActiveSwatchIndex(activeSwatchIndex === i ? null : i)}
-                      >
-                        {isLocked && (
-                          <div className="palette-swatch-lock-badge">
-                            <Lock size={10} />
-                          </div>
-                        )}
-                      </div>
+                      />
                     </Tooltip>
                     );
                   })}
@@ -1526,15 +1585,6 @@ export const RightSidebar: React.FC = () => {
                             }
                           }}
                         />
-                        <Tooltip text={lockedSwatches.includes(activeSwatchIndex) ? "Unlock Swatch" : "Lock Swatch"}>
-                          <button
-                            type="button"
-                            className="btn-subtle palette-popover-btn"
-                            onClick={() => toggleLockSwatch(activeSwatchIndex)}
-                          >
-                            {lockedSwatches.includes(activeSwatchIndex) ? <Lock size={16} /> : <Unlock size={16} />}
-                          </button>
-                        </Tooltip>
                         <Tooltip text={workingPalette.length <= 2 ? "Minimum 2 colors required" : "Delete Swatch"}>
                           <button
                             type="button"
@@ -1874,12 +1924,6 @@ export const RightSidebar: React.FC = () => {
                                     ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
                                     : String(val);
 
-                                  const handleStep = (direction: 1 | -1) => {
-                                    const nextRaw = numVal + direction * step;
-                                    const clamped = Math.min(max, Math.max(min, nextRaw));
-                                    const rounded = Number(clamped.toFixed(decimals));
-                                    updateEffectParam(eff.id, key, rounded);
-                                  };
 
                                   return (
                                     <div key={key} className="effect-param-row">
@@ -1913,29 +1957,8 @@ export const RightSidebar: React.FC = () => {
                                               {displayVal}
                                             </span>
                                           </Tooltip>
-                                          <div className="slider-value-spinner">
-                                            <Tooltip text="Increment">
-                                              <button
-                                                type="button"
-                                                className="spinner-btn spinner-up"
-                                                tabIndex={0}
-                                                onClick={() => handleStep(1)}
-                                              >
-                                                <ChevronUp size={12} strokeWidth={2} />
-                                              </button>
-                                            </Tooltip>
-                                            <Tooltip text="Decrement">
-                                              <button
-                                                type="button"
-                                                className="spinner-btn spinner-down"
-                                                tabIndex={0}
-                                                onClick={() => handleStep(-1)}
-                                              >
-                                                <ChevronDown size={12} strokeWidth={2} />
-                                              </button>
-                                            </Tooltip>
-                                          </div>
-                                        </div>                                      </div>
+                                        </div>
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -1968,21 +1991,21 @@ export const RightSidebar: React.FC = () => {
               <div className="section-content presets-section-content">
                 <div className="preset-row preset-dropdown-row">
                   <Dropdown
-                    disabled
                     width="100%"
-                    value=""
+                    value={selectedPresetId}
                     placeholder="Built-in Presets..."
-                    onChange={() => {}}
+                    onChange={(id) => handleApplyPreset(id)}
+                    tooltip="Select a built-in curated preset"
                     items={BUILTIN_PRESETS.map((p: any) => ({
                       id: p.id,
                       label: p.name,
                     }))}
                   />
-                  <Tooltip text="Load Preset (Coming in Phase 6)">
+                  <Tooltip text="Load selected preset">
                     <button 
                       className="btn-default" 
-                      disabled 
-                      style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                      onClick={() => selectedPresetId && handleApplyPreset(selectedPresetId)}
+                      disabled={!selectedPresetId}
                     >
                       Load
                     </button>

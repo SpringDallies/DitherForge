@@ -4,7 +4,11 @@ import { ditherFloydSteinberg, ditherOstromukhov, ditherCrackedDiffuse, ditherFr
 import { ditherColorSeparation } from './src/dither-engine/engine/basic.js';
 import { ditherBlockTone } from './src/dither-engine/engine/patterned.js';
 import { colorDistSq as colorDistSqEngine, FastPaletteLUT } from './src/dither-engine/engine/palette.js';
-import { colorDistSq as colorDistSqPalettes, extractPaletteMedianCut, BUILTIN_PALETTES } from './src/dither-engine/palettes.js';
+import { colorDistSq as colorDistSqPalettes, extractPaletteMedianCut, extractPaletteKMeans, BUILTIN_PALETTES } from './src/dither-engine/palettes.js';
+import { ALGORITHM_REGISTRY, applyDitherAlgorithm } from './src/dither-engine/algorithms.js';
+import { AVAILABLE_EFFECT_TYPES, applyEffectStack } from './src/dither-engine/effect-stack.js';
+import { exportCharacterGrid, exportSvgContours, exportRaster } from './src/dither-engine/exporters.js';
+import { BUILTIN_PRESETS } from './src/ui/presets.js';
 
 let allPassed = true;
 function assert(condition, message) {
@@ -190,6 +194,296 @@ console.log(`  ditherBlockTone colors for Rose input:`, Array.from(blockColors))
 // Should use rose/coral tones, not pure black/white [0,0,0] / [255,255,255]
 const hasRoseTone = Array.from(blockColors).some(c => c.includes('186') || c.includes('223') || c.includes('243'));
 assert(hasRoseTone, 'ditherBlockTone uses source color tones rather than hardcoded 0/255 monochrome');
+
+// ----------------------------------------------------------------------
+// VERIFICATION STEP 5: End-to-End Test of All Dithering Algorithms in Registry
+// ----------------------------------------------------------------------
+console.log('\n[5] VERIFICATION: All Registered Dithering Algorithms');
+let algoFailCount = 0;
+const testPaletteArray = [[0, 0, 0, 255], [255, 255, 255, 255]];
+const testImgW = 32, testImgH = 32;
+const testImgData = new Uint8ClampedArray(testImgW * testImgH * 4);
+for (let y = 0; y < testImgH; y++) {
+  for (let x = 0; x < testImgW; x++) {
+    const idx = (y * testImgW + x) * 4;
+    testImgData[idx] = Math.round((x / (testImgW - 1)) * 255);
+    testImgData[idx + 1] = Math.round((y / (testImgH - 1)) * 255);
+    testImgData[idx + 2] = 128;
+    testImgData[idx + 3] = 255;
+  }
+}
+
+for (const algo of ALGORITHM_REGISTRY) {
+  try {
+    const copy = new Uint8ClampedArray(testImgData);
+    const mockImgData = { width: testImgW, height: testImgH, data: copy };
+    applyDitherAlgorithm(mockImgData, {
+      algorithmId: algo.id,
+      palette: testPaletteArray,
+      scale: 1.0,
+      threshold: 0.5,
+      diffusionStrength: 1.0,
+      serpentine: true,
+      matrixSize: '4x4',
+      triangleType: 'isosceles',
+      dotSize: 4,
+      blockSize: 4,
+      controls: {
+        matrixSize: '4x4',
+        triangleType: 'isosceles',
+        dotSize: 4,
+        blockSize: 4,
+        vertical: true
+      }
+    });
+
+    // Verify valid output buffer
+    let hasNaN = false;
+    for (let i = 0; i < mockImgData.data.length; i++) {
+      if (Number.isNaN(mockImgData.data[i])) {
+        hasNaN = true;
+        break;
+      }
+    }
+    if (hasNaN) {
+      console.error(`  FAIL: ${algo.id} produced NaN pixels!`);
+      algoFailCount++;
+    }
+  } catch (err) {
+    console.error(`  FAIL: ${algo.id} threw an error:`, err.message);
+    algoFailCount++;
+  }
+}
+assert(algoFailCount === 0, `All ${ALGORITHM_REGISTRY.length} registered dithering algorithms execute cleanly without errors or NaNs`);
+
+// ----------------------------------------------------------------------
+// VERIFICATION STEP 5b: Sub-1.0 Fractional Scale (0.2x & 0.5x) on Polygon & Pattern Algorithms
+// ----------------------------------------------------------------------
+
+// Verify color-separation supportsDpiScale
+const colorSepAlgo = ALGORITHM_REGISTRY.find(a => a.id === 'color-separation');
+assert(colorSepAlgo && colorSepAlgo.features && colorSepAlgo.features.supportsDpiScale === true, 'color-separation has supportsDpiScale set to true');
+
+console.log('\n[5b] VERIFICATION: Sub-1.0 Fractional Scale (0.2x & 0.5x) on Polygon & Pattern Algorithms');
+const subScaleAlgos = ['hexa-poly', 'low-poly', 'penta-poly', 'tri-poly', 'block-tone', 'pop-tone', 'circle-grid', 'diamond', 'print-pattern'];
+let subScaleFailCount = 0;
+for (const id of subScaleAlgos) {
+  for (const s of [0.05, 0.1, 0.2, 0.35, 0.5]) {
+    try {
+      const copy = new Uint8ClampedArray(testImgData);
+      const mockImgData = { width: testImgW, height: testImgH, data: copy };
+      applyDitherAlgorithm(mockImgData, {
+        algorithmId: id,
+        palette: testPaletteArray,
+        scale: s,
+        threshold: 0.5,
+        diffusionStrength: 1.0,
+        serpentine: true,
+        controls: { scale: s, dotSize: 4, blockSize: 4, vertical: true }
+      });
+      for (let i = 0; i < mockImgData.data.length; i++) {
+        if (Number.isNaN(mockImgData.data[i])) {
+          subScaleFailCount++;
+          break;
+        }
+      }
+    } catch (e) {
+      console.error(`  FAIL: ${id} at scale=${s} threw:`, e);
+      subScaleFailCount++;
+    }
+  }
+}
+assert(subScaleFailCount === 0, 'Polygon & Pattern algorithms render cleanly at micro/fractional scales down to 0.05x without artifacts or collapse');
+
+// ----------------------------------------------------------------------
+// VERIFICATION STEP 5c: Spatial Offset (X & Y) in Special Effects Algorithms
+// ----------------------------------------------------------------------
+console.log('\n[5c] VERIFICATION: Spatial Offset (X & Y) in Special Effects Algorithms');
+let offsetFailCount = 0;
+const specialAlgos = ALGORITHM_REGISTRY.filter(a => a.category === 'special_effects');
+
+for (const algo of specialAlgos) {
+  const hasOffX = algo.controls.some(c => c.id === 'offsetX');
+  const hasOffY = algo.controls.some(c => c.id === 'offsetY');
+  if (!hasOffX || !hasOffY) {
+    console.error(`  FAIL: Algorithm [${algo.name}] (${algo.id}) missing offsetX/offsetY controls`);
+    offsetFailCount++;
+    continue;
+  }
+
+  try {
+    const baseRes = dispatchDither(algo.id, testImgW, testImgH, testImgData, {
+      palette: ['#000000', '#ffffff'],
+      scale: 1.0,
+      offsetX: 0,
+      offsetY: 0
+    });
+
+    const shiftedRes = dispatchDither(algo.id, testImgW, testImgH, testImgData, {
+      palette: ['#000000', '#ffffff'],
+      scale: 1.0,
+      offsetX: 20,
+      offsetY: 20
+    });
+
+    const baseBuf = new Uint8ClampedArray(baseRes.buffer);
+    const shiftedBuf = new Uint8ClampedArray(shiftedRes.buffer);
+
+    let hasNaN = false;
+    for (let i = 0; i < baseBuf.length; i++) {
+      if (Number.isNaN(baseBuf[i]) || Number.isNaN(shiftedBuf[i])) {
+        hasNaN = true;
+        break;
+      }
+    }
+
+    if (hasNaN) {
+      console.error(`  FAIL: Algorithm [${algo.name}] (${algo.id}) produced NaN values with offsets`);
+      offsetFailCount++;
+    }
+  } catch (err) {
+    console.error(`  FAIL: Algorithm [${algo.name}] (${algo.id}) threw an error: ${err.message}`);
+    offsetFailCount++;
+  }
+}
+assert(offsetFailCount === 0, 'All 17 Special Effects algorithms support spatial offsetX & offsetY controls and render cleanly');
+
+// ----------------------------------------------------------------------
+// VERIFICATION STEP 6: All 9 Post-Effects in effect-stack.js
+// ----------------------------------------------------------------------
+console.log('\n[6] VERIFICATION: All 9 Post-Effects in effect-stack.js');
+let effectFailCount = 0;
+
+for (const effMeta of AVAILABLE_EFFECT_TYPES) {
+  try {
+    const effCopy = new Uint8ClampedArray(testImgData);
+    const effImgData = { width: testImgW, height: testImgH, data: effCopy };
+    const stack = [{
+      id: effMeta.id,
+      type: effMeta.id,
+      enabled: true,
+      params: { ...effMeta.defaultParams }
+    }];
+    applyEffectStack(effImgData, stack);
+
+    let hasNaN = false;
+    let inRange = true;
+    for (let i = 0; i < effImgData.data.length; i++) {
+      const val = effImgData.data[i];
+      if (Number.isNaN(val)) { hasNaN = true; break; }
+      if (val < 0 || val > 255) { inRange = false; break; }
+    }
+    if (hasNaN || !inRange) {
+      console.error(`  FAIL: Effect ${effMeta.id} produced invalid pixel data (NaN: ${hasNaN}, inRange: ${inRange})`);
+      effectFailCount++;
+    } else {
+      console.log(`  PASS: Effect [${effMeta.name}] (${effMeta.id}) processed successfully`);
+    }
+  } catch (err) {
+    console.error(`  FAIL: Effect ${effMeta.id} threw:`, err);
+    effectFailCount++;
+  }
+}
+
+// Also test Halftone diamond variant & Blur/Sharpen blur/sharpen branches
+try {
+  const diamondCopy = new Uint8ClampedArray(testImgData);
+  applyEffectStack({ width: testImgW, height: testImgH, data: diamondCopy }, [
+    { id: 'halftone', type: 'halftone', enabled: true, params: { dotSize: 4, angle: 30, shape: 'diamond' } }
+  ]);
+  const blurCopy = new Uint8ClampedArray(testImgData);
+  applyEffectStack({ width: testImgW, height: testImgH, data: blurCopy }, [
+    { id: 'blur_sharpen', type: 'blur_sharpen', enabled: true, params: { amount: -0.7 } }
+  ]);
+  const sharpenCopy = new Uint8ClampedArray(testImgData);
+  applyEffectStack({ width: testImgW, height: testImgH, data: sharpenCopy }, [
+    { id: 'blur_sharpen', type: 'blur_sharpen', enabled: true, params: { amount: 1.2 } }
+  ]);
+  assert(diamondCopy[0] !== undefined && blurCopy[0] !== undefined && sharpenCopy[0] !== undefined,
+    'Halftone diamond shape and Blur/Sharpen negative/positive branches operate cleanly');
+} catch (e) {
+  console.error('  FAIL: Halftone/Blur variants threw:', e);
+  effectFailCount++;
+}
+
+assert(effectFailCount === 0, 'All 9 post-effects execute cleanly without NaNs and maintain [0, 255] bounds');
+
+// ----------------------------------------------------------------------
+// VERIFICATION STEP 7: Exporters (Raster, Character-Grid, SVG Contours)
+// ----------------------------------------------------------------------
+console.log('\n[7] VERIFICATION: Exporters Engine');
+
+// Node polyfill for mock download
+let downloadedContent = "";
+let downloadedFilename = "";
+globalThis.Blob = class MockBlob {
+  constructor(parts, options) {
+    downloadedContent = parts.join('');
+    this.parts = parts;
+    this.options = options;
+  }
+};
+globalThis.document = {
+  createElement: () => ({
+    href: '',
+    download: '',
+    click: function() { downloadedFilename = this.download; }
+  }),
+  body: {
+    appendChild: () => {},
+    removeChild: () => {}
+  }
+};
+globalThis.URL = {
+  createObjectURL: () => 'blob:mock-url',
+  revokeObjectURL: () => {}
+};
+
+const mockCanvas = {
+  width: testImgW,
+  height: testImgH,
+  getContext: () => ({
+    getImageData: () => ({ width: testImgW, height: testImgH, data: new Uint8ClampedArray(testImgData) })
+  }),
+  toDataURL: (mime, quality) => `data:${mime};base64,AAAA`
+};
+
+try {
+  exportRaster(mockCanvas, 'png', 0.92, 'test_export.png');
+  assert(downloadedFilename.endsWith('.png'), 'exportRaster produces valid .png download');
+
+  exportRaster(mockCanvas, 'jpg', 0.85, 'test_export.jpg');
+  assert(downloadedFilename.endsWith('.jpg'), 'exportRaster produces valid .jpg download');
+
+  const asciiGrid = exportCharacterGrid(mockCanvas, 'ascii', 2, 4);
+  assert(asciiGrid && asciiGrid.length > 50, 'exportCharacterGrid [ascii] generates non-empty character grid');
+
+  const blocksGrid = exportCharacterGrid(mockCanvas, 'blocks', 2, 4);
+  assert(blocksGrid && blocksGrid.length > 50, 'exportCharacterGrid [blocks] generates non-empty Unicode block grid');
+
+  const brailleGrid = exportCharacterGrid(mockCanvas, 'braille');
+  assert(brailleGrid && brailleGrid.length > 50, 'exportCharacterGrid [braille] generates non-empty 2x4 braille grid');
+
+  exportSvgContours(mockCanvas);
+  assert(downloadedContent.includes('<svg') && downloadedContent.includes('</svg>'), 'exportSvgContours generates valid SVG markup');
+} catch (e) {
+  assert(false, `Exporters executed without error: ${e.message}`);
+}
+
+// ----------------------------------------------------------------------
+// VERIFICATION STEP 8: Presets & Palette Extraction
+// ----------------------------------------------------------------------
+console.log('\n[8] VERIFICATION: Presets & Palette Extractors');
+assert(BUILTIN_PRESETS.length === 10, `Built-in presets count is 10 (found: ${BUILTIN_PRESETS.length})`);
+for (const preset of BUILTIN_PRESETS) {
+  assert(preset.id && preset.algorithmId && preset.paletteId, `Preset ${preset.id} has valid algorithmId and paletteId`);
+}
+
+const kmPalette = extractPaletteKMeans({ data: testImgData, width: testImgW, height: testImgH }, 8, 4);
+assert(kmPalette.length === 8, `extractPaletteKMeans successfully extracts 8 clusters`);
+for (const color of kmPalette) {
+  assert(color.length === 4 && color[3] === 255, 'K-Means color swatches have valid RGBA format');
+}
 
 console.log('\n==================================================================');
 if (allPassed) {

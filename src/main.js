@@ -43,7 +43,6 @@ const state = {
 
   // Palette State
   activePalette: [...BUILTIN_PALETTES[0].colors],
-  lockedSwatches: new Set(),
   paletteDepth: 16,
 
   // Effect Stack
@@ -235,7 +234,6 @@ function initPalettes() {
     const selected = BUILTIN_PALETTES.find(p => p.id === e.target.value);
     if (selected) {
       state.activePalette = [...selected.colors];
-      state.lockedSwatches.clear();
       renderPaletteSwatches();
       triggerRender();
     }
@@ -247,7 +245,6 @@ function initPalettes() {
     const origCtx = state.originalCanvas.getContext("2d");
     const imgData = origCtx.getImageData(0, 0, state.originalCanvas.width, state.originalCanvas.height);
     state.activePalette = extractPaletteMedianCut(imgData, 8);
-    state.lockedSwatches.clear();
     renderPaletteSwatches();
     triggerRender();
   });
@@ -258,22 +255,18 @@ function initPalettes() {
     const origCtx = state.originalCanvas.getContext("2d");
     const imgData = origCtx.getImageData(0, 0, state.originalCanvas.width, state.originalCanvas.height);
     state.activePalette = extractPaletteKMeans(imgData, 8);
-    state.lockedSwatches.clear();
     renderPaletteSwatches();
     triggerRender();
   });
 
-  // Shuffle Unlocked Palette Swatches
+  // Shuffle Palette Swatches
   document.getElementById("btnShufflePalette").addEventListener("click", () => {
-    state.activePalette = state.activePalette.map((col, idx) => {
-      if (state.lockedSwatches.has(idx)) return col;
-      return [
-        Math.floor(Math.random() * 256),
-        Math.floor(Math.random() * 256),
-        Math.floor(Math.random() * 256),
-        255
-      ];
-    });
+    state.activePalette = state.activePalette.map(() => [
+      Math.floor(Math.random() * 256),
+      Math.floor(Math.random() * 256),
+      Math.floor(Math.random() * 256),
+      255
+    ]);
     renderPaletteSwatches();
     triggerRender();
   });
@@ -312,7 +305,6 @@ function initPalettes() {
           const parsed = JSON.parse(ev.target.result);
           if (parsed && Array.isArray(parsed.colors)) {
             state.activePalette = parsed.colors;
-            state.lockedSwatches.clear();
             renderPaletteSwatches();
             triggerRender();
           }
@@ -345,15 +337,10 @@ function renderPaletteSwatches() {
     // Editor Item
     const editItem = document.createElement("div");
     editItem.className = "palette-swatch-box";
-    const isLocked = state.lockedSwatches.has(idx);
-
     editItem.innerHTML = `
       <input type="color" value="${hex}" style="width:28px; height:28px; border:none; cursor:pointer; background:none;">
       <span class="swatch-hex">${hex.toUpperCase()}</span>
       <div style="display:flex; gap:4px;">
-        <button class="btn-icon" style="width:18px; height:18px; font-size:10px; ${isLocked ? 'background:var(--accent-cyan); color:#000;' : ''}" title="Lock swatch from shuffle">
-          ${isLocked ? '🔒' : '🔓'}
-        </button>
         <button class="btn-icon btn-del-swatch" style="width:18px; height:18px; font-size:10px;" title="Delete swatch">✕</button>
       </div>
     `;
@@ -367,23 +354,11 @@ function renderPaletteSwatches() {
       triggerRender();
     });
 
-    // Lock toggle
-    const lockBtn = editItem.querySelector("button:first-of-type");
-    lockBtn.addEventListener("click", () => {
-      if (state.lockedSwatches.has(idx)) {
-        state.lockedSwatches.delete(idx);
-      } else {
-        state.lockedSwatches.add(idx);
-      }
-      renderPaletteSwatches();
-    });
-
     // Delete swatch
     const delBtn = editItem.querySelector(".btn-del-swatch");
     delBtn.addEventListener("click", () => {
       if (state.activePalette.length > 2) {
         state.activePalette.splice(idx, 1);
-        state.lockedSwatches.delete(idx);
         renderPaletteSwatches();
         triggerRender();
       }
@@ -929,20 +904,12 @@ function initEvents() {
     triggerRender();
   });
 
-  // Randomize Tweaks (Respecting lock checkboxes)
+  // Randomize Tweaks
   document.getElementById("btnShuffleTweaks").addEventListener("click", () => {
-    if (!document.getElementById("lockBrightness").checked) {
-      state.brightness = (Math.random() - 0.5) * 0.5;
-    }
-    if (!document.getElementById("lockContrast").checked) {
-      state.contrast = (Math.random() - 0.5) * 0.6;
-    }
-    if (!document.getElementById("lockSaturation").checked) {
-      state.saturation = (Math.random() - 0.5) * 0.8;
-    }
-    if (!document.getElementById("lockGamma").checked) {
-      state.gamma = 0.7 + Math.random() * 0.8;
-    }
+    state.brightness = (Math.random() - 0.5) * 0.5;
+    state.contrast = (Math.random() - 0.5) * 0.6;
+    state.saturation = (Math.random() - 0.5) * 0.8;
+    state.gamma = 0.7 + Math.random() * 0.8;
     updateSliderDisplays();
     triggerRender();
   });

@@ -1,60 +1,64 @@
 // Category: Ordered Dithering (5 Algorithms)
-import { FastPaletteLUT, getLuminance } from './palette.js';
+import { FastPaletteLUT } from './palette.js';
 
-// Precomputed normalized Bayer matrices (values in range [0..1])
-const BAYER_2X2 = [0/4, 2/4, 3/4, 1/4];
-const BAYER_4X4 = [
-   0/16,  8/16,  2/16, 10/16,
-  12/16,  4/16, 14/16,  6/16,
-   3/16, 11/16,  1/16,  9/16,
-  15/16,  7/16, 13/16,  5/16
-];
-
-function generateBayer(n) {
-  if (n === 2) return BAYER_2X2;
-  if (n === 4) return BAYER_4X4;
-  const prev = generateBayer(n / 2);
+// Precomputed normalized Bayer matrices centered symmetrically with + 0.5
+function generateRawBayer(n) {
+  if (n === 2) return [0, 2, 3, 1];
+  const prev = generateRawBayer(n / 2);
   const prevN = n / 2;
-  const out = new Float32Array(n * n);
-  const total = n * n;
+  const out = new Int32Array(n * n);
   for (let y = 0; y < prevN; y++) {
     for (let x = 0; x < prevN; x++) {
-      const v = prev[y * prevN + x] * (prevN * prevN);
-      out[y * n + x] = (4 * v) / total;
-      out[y * n + (x + prevN)] = (4 * v + 2) / total;
-      out[(y + prevN) * n + x] = (4 * v + 3) / total;
-      out[(y + prevN) * n + (x + prevN)] = (4 * v + 1) / total;
+      const v = prev[y * prevN + x];
+      out[y * n + x] = 4 * v;
+      out[y * n + (x + prevN)] = 4 * v + 2;
+      out[(y + prevN) * n + x] = 4 * v + 3;
+      out[(y + prevN) * n + (x + prevN)] = 4 * v + 1;
     }
   }
   return out;
 }
 
+function generateBayer(n) {
+  const raw = generateRawBayer(n);
+  const total = n * n;
+  const out = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    out[i] = (raw[i] + 0.5) / total;
+  }
+  return out;
+}
+
+const BAYER_2X2 = generateBayer(2);
+const BAYER_4X4 = generateBayer(4);
 const BAYER_8X8 = generateBayer(8);
 const BAYER_16X16 = generateBayer(16);
 
 export function ditherBayerMatrix(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const sizeStr = controls.matrixSize || '4x4';
+  const scale = Number(controls.scale || 1.0);
+  const rawSize = controls.matrixSize;
   let matrix = BAYER_4X4, size = 4;
-  if (sizeStr === '2x2') { matrix = BAYER_2X2; size = 2; }
-  else if (sizeStr === '8x8') { matrix = BAYER_8X8; size = 8; }
-  else if (sizeStr === '16x16') { matrix = BAYER_16X16; size = 16; }
+  if (rawSize === 2 || rawSize === '2' || rawSize === '2x2') { matrix = BAYER_2X2; size = 2; }
+  else if (rawSize === 8 || rawSize === '8' || rawSize === '8x8') { matrix = BAYER_8X8; size = 8; }
+  else if (rawSize === 16 || rawSize === '16' || rawSize === '16x16') { matrix = BAYER_16X16; size = 16; }
 
   const mask = size - 1;
-  const scale = 255;
 
   for (let y = 0; y < h; y++) {
-    const rowOffset = (y & mask) * size;
+    const sy = scale > 1 ? Math.floor(y / scale) : y;
+    const rowOffset = (sy & mask) * size;
     for (let x = 0; x < w; x++) {
+      const sx = scale > 1 ? Math.floor(x / scale) : x;
       const idx = (y * w + x) * 4;
-      const bayerVal = matrix[rowOffset + (x & mask)] - 0.5;
-      const offset = bayerVal * scale * 0.5;
+      const bayerVal = matrix[rowOffset + (sx & mask)];
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        bayerVal,
         out,
         idx
       );
@@ -65,24 +69,27 @@ export function ditherBayerMatrix(w, h, data, palette, controls = {}) {
 }
 
 export function ditherBayerVoid(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
+  const scale = Number(controls.scale || 1.0);
   const warp = controls.warpIntensity !== undefined ? Number(controls.warpIntensity) : 10;
   const matrix = BAYER_4X4, size = 4, mask = 3;
 
   for (let y = 0; y < h; y++) {
+    const sy = scale > 1 ? Math.floor(y / scale) : y;
     const ny = (2 * y) / h - 1;
     const warpOffset = warp * ny * ny * 5;
     for (let x = 0; x < w; x++) {
+      const sx = scale > 1 ? Math.floor(x / scale) : x;
       const idx = (y * w + x) * 4;
-      const warpedX = Math.round(x + warpOffset);
-      const bayerVal = matrix[(y & mask) * size + (warpedX & mask)] - 0.5;
-      const offset = bayerVal * 128;
+      const warpedX = Math.round(sx + warpOffset);
+      const bayerVal = matrix[(sy & mask) * size + (warpedX & mask)];
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        bayerVal,
         out,
         idx
       );
@@ -93,9 +100,11 @@ export function ditherBayerVoid(w, h, data, palette, controls = {}) {
 }
 
 export function ditherBitTone(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const dotSize = Math.max(1, controls.dotSize !== undefined ? Number(controls.dotSize) : 1);
+  const scale = Number(controls.scale || 1.0);
+  const baseDot = controls.dotSize !== undefined ? Number(controls.dotSize) : 1;
+  const dotSize = Math.max(1, Math.round(baseDot * scale));
   const matrix = BAYER_4X4, size = 4, mask = 3;
 
   for (let y = 0; y < h; y++) {
@@ -103,13 +112,13 @@ export function ditherBitTone(w, h, data, palette, controls = {}) {
     for (let x = 0; x < w; x++) {
       const bx = Math.floor(x / dotSize);
       const idx = (y * w + x) * 4;
-      const bayerVal = matrix[(by & mask) * size + (bx & mask)] - 0.5;
-      const offset = bayerVal * 128;
+      const bayerVal = matrix[(by & mask) * size + (bx & mask)];
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        bayerVal,
         out,
         idx
       );
@@ -120,9 +129,11 @@ export function ditherBitTone(w, h, data, palette, controls = {}) {
 }
 
 export function ditherMosaic(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const blockSize = Math.max(2, controls.blockSize !== undefined ? Number(controls.blockSize) : 10);
+  const scale = Number(controls.scale || 1.0);
+  const baseBlock = controls.blockSize !== undefined ? Number(controls.blockSize) : 10;
+  const blockSize = Math.max(2, Math.round(baseBlock * scale));
 
   for (let by = 0; by < h; by += blockSize) {
     const maxBy = Math.min(h, by + blockSize);
@@ -159,21 +170,23 @@ export function ditherMosaic(w, h, data, palette, controls = {}) {
   return out;
 }
 
-export function ditherRandomOrdered(w, h, data, palette) {
-  const lut = new FastPaletteLUT(palette);
+export function ditherRandomOrdered(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
+  const scale = Number(controls.scale || 1.0);
 
   for (let y = 0; y < h; y++) {
+    const sy = scale > 1 ? Math.floor(y / scale) : y;
     for (let x = 0; x < w; x++) {
+      const sx = scale > 1 ? Math.floor(x / scale) : x;
       const idx = (y * w + x) * 4;
-      // High-frequency deterministic pseudo-random hash
-      const hVal = (((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) + 1) % 1;
-      const offset = (hVal - 0.5) * 128;
+      const hVal = (((Math.sin(sx * 12.9898 + sy * 78.233) * 43758.5453) % 1) + 1) % 1;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        hVal,
         out,
         idx
       );

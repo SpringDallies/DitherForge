@@ -1,6 +1,6 @@
 // Master Dither Algorithm Dispatcher
-// Dispatches all 73 Dither Boy algorithms to their mathematical implementations
-// Fully applies global dither settings: Scale (DPI), Luminance Threshold, Ordered Cycling, and Controls
+// Dispatches all DitherForge algorithms to their mathematical implementations
+// Fully applies global dither settings: Scale, Luminance Threshold, Diffusion Strength, Serpentine, and Controls
 
 import * as Basic from './basic.js';
 import * as ErrorDiff from './error-diffusion.js';
@@ -99,6 +99,40 @@ export const ALGORITHM_DISPATCH = {
   'wave': Special.ditherWave
 };
 
+// Algorithms that operate at the 1-pixel kernel level and require canvas downsampling/upscaling when scale > 1
+const PIXEL_KERNEL_ALGORITHMS = new Set([
+  'artifact-modulation',
+  'atkinson',
+  'burkes',
+  'cracked-diffuse',
+  'floyd-steinberg',
+  'fractal-diffuse',
+  'gaussian',
+  'jarvis-judice-ninke',
+  'ostromukhov',
+  'sierra-lite',
+  'sierra',
+  'stevenson-arce',
+  'stucki',
+  'two-row-sierra',
+  'vortex-diffusion',
+  'atkinson-line-modulation',
+  'atkinson-vhs',
+  'contrast-aware-x',
+  'contrast-aware-y',
+  'modulated-diffuse-x',
+  'modulated-diffuse-y',
+  'smooth-diffuse',
+  'stucki-diffusion-lines',
+  'uniform-modulation-x',
+  'uniform-modulation-y',
+  'wave-modulation-x',
+  'wave-modulation-y',
+  'orb-diffuse',
+  'orb-diffuse-x',
+  'orb-diffuse-y'
+]);
+
 // Fast Area-Averaging Box Downsampler
 function downsampleImage(src, srcW, srcH, dstW, dstH) {
   const dst = new Uint8ClampedArray(dstW * dstH * 4);
@@ -158,11 +192,12 @@ function upscaleNearest(src, srcW, srcH, dstW, dstH) {
   return dst;
 }
 
-// Luminance Threshold Adjustment
+// Luminance Threshold Adjustment (0..100, neutral = 50)
 function applyLuminanceThreshold(data, thresholdVal) {
   if (thresholdVal === undefined || Number(thresholdVal) === 50) return data;
   const t = Number(thresholdVal);
-  const shift = (50 - t) * 2.55;
+  // Shift RGB values across full [-200..+200] range so extreme thresholds reach all palette colors
+  const shift = (50 - t) * 4.0;
 
   const len = data.length;
   for (let i = 0; i < len; i += 4) {
@@ -178,24 +213,50 @@ export function dispatchDither(algorithmId, width, height, inputBuffer, params =
   const fn = ALGORITHM_DISPATCH[normId] || ALGORITHM_DISPATCH[algorithmId] || ALGORITHM_DISPATCH['floyd-steinberg'];
   const palette = params.palette || ['#000000', '#ffffff'];
 
-  const scaleVal = params.scale !== undefined ? Number(params.scale) : (params.scaleDpi !== undefined ? Number(params.scaleDpi) : 1);
+  // Normalize user parameters
+  let rawScale = params.scale !== undefined ? Number(params.scale) : 1.0;
+  if (params.scale === undefined && params.scaleDpi !== undefined) {
+    const dpi = Number(params.scaleDpi);
+    rawScale = dpi > 0 && dpi <= 45 ? 45 / dpi : 1.0;
+  }
+  const scaleVal = Math.max(0.05, Math.min(16.0, rawScale || 1.0));
+  const diffStrength = params.diffusionStrength !== undefined ? Number(params.diffusionStrength) : 1.0;
+  const thresholdNorm = params.threshold !== undefined
+    ? (Number(params.threshold) > 1 ? Number(params.threshold) / 100 : Number(params.threshold))
+    : 0.5;
+
+  const isPixelKernel = PIXEL_KERNEL_ALGORITHMS.has(normId);
+  // Geometric/Pattern algorithms handle scale natively without blurring via downsample;
+  // Pixel-kernel algorithms downsample the image by scaleVal so their dither pixels scale up crisply.
+  const algoScale = isPixelKernel ? 1.0 : scaleVal;
+
+  const userControls = { ...(params.controls || {}), ...params };
+
   const controls = {
-    errorStrength: params.diffusionStrength !== undefined ? Math.round(Number(params.diffusionStrength) * 100) : 100,
-    errorReduction: params.diffusionStrength !== undefined ? Math.max(0, Math.min(100, Math.round((1 - Number(params.diffusionStrength)) * 100))) : 0,
-    diffusionStrength: params.diffusionStrength !== undefined ? Number(params.diffusionStrength) : 1.0,
-    strength: params.diffusionStrength !== undefined ? Number(params.diffusionStrength) : 1.0,
-    serpentine: params.serpentine !== false,
-    lineScale: scaleVal <= 8 ? Math.max(1, Math.round(scaleVal)) : Math.max(1, Math.round(scaleVal / 10)),
-    lineSpacing: scaleVal <= 8 ? Math.max(1, Math.round(scaleVal)) : Math.max(1, Math.round(scaleVal / 10)),
-    dotSize: scaleVal <= 8 ? Math.max(1, Math.round(scaleVal * 4)) : 4,
-    dotScale: scaleVal <= 8 ? scaleVal : 1,
-    checkersSize: scaleVal <= 8 ? Math.max(1, Math.round(scaleVal * 4)) : 4,
-    blockSize: scaleVal <= 8 ? Math.max(1, Math.round(scaleVal * 4)) : 4,
-    cellSize: scaleVal <= 8 ? Math.max(2, Math.round(scaleVal * 6)) : 6,
-    matrixSize: scaleVal <= 8 ? Math.min(16, Math.max(2, Math.round(scaleVal * 2))) : 4,
-    threshold: params.threshold !== undefined ? Number(params.threshold) : 0.5,
-    ...(params.controls || {}),
-    ...params
+    ...userControls,
+    offsetX: userControls.offsetX !== undefined ? Number(userControls.offsetX) : 0,
+    offsetY: userControls.offsetY !== undefined ? Number(userControls.offsetY) : 0,
+    scale: algoScale,
+    rawScale: scaleVal,
+    threshold: thresholdNorm,
+    diffusionStrength: diffStrength,
+    errorStrength: userControls.errorStrength !== undefined ? Number(userControls.errorStrength) : Math.round(diffStrength * 100),
+    errorReduction: userControls.errorReduction !== undefined ? Number(userControls.errorReduction) : diffStrength,
+    strength: userControls.strength !== undefined ? Number(userControls.strength) : Math.round(diffStrength * 100),
+    serpentine: userControls.serpentine !== undefined ? !!userControls.serpentine : false,
+    noiseAmount: userControls.noiseAmount !== undefined ? Number(userControls.noiseAmount) : 0.3,
+    temporalSeed: userControls.temporalSeed !== undefined ? Number(userControls.temporalSeed) : 0,
+    lineScale: userControls.lineScale !== undefined ? Number(userControls.lineScale) : 2,
+    lineSpacing: userControls.lineSpacing !== undefined ? Number(userControls.lineSpacing) : 1,
+    stripeSpacing: userControls.stripeSpacing !== undefined ? Number(userControls.stripeSpacing) : 4,
+    dotSize: userControls.dotSize !== undefined ? Number(userControls.dotSize) : 4,
+    dotScale: userControls.dotScale !== undefined ? Number(userControls.dotScale) : 8,
+    checkersSize: userControls.checkersSize !== undefined ? userControls.checkersSize : 8,
+    blockSize: userControls.blockSize !== undefined ? Number(userControls.blockSize) : 8,
+    cellSize: userControls.cellSize !== undefined ? Number(userControls.cellSize) : 8,
+    cellRadius: userControls.cellRadius !== undefined ? Number(userControls.cellRadius) : (userControls.cellSize !== undefined ? Number(userControls.cellSize) : 8),
+    period: userControls.period !== undefined ? Number(userControls.period) : 8,
+    matrixSize: userControls.matrixSize || '4x4'
   };
 
   let data;
@@ -215,30 +276,26 @@ export function dispatchDither(algorithmId, width, height, inputBuffer, params =
     if (params.luminanceThreshold !== undefined) {
       lumThreshold = Number(params.luminanceThreshold);
     } else if (params.threshold !== undefined) {
-      lumThreshold = Math.round(Number(params.threshold) * 100);
+      lumThreshold = Number(params.threshold) <= 1 ? Math.round(Number(params.threshold) * 100) : Number(params.threshold);
     }
     if (lumThreshold !== 50) {
       applyLuminanceThreshold(data, lumThreshold);
     }
   }
 
-  // 2. Apply Scale (DPI / Pattern Scale)
-  let rawScale = params.scale !== undefined ? Number(params.scale) : (params.scaleDpi !== undefined ? Number(params.scaleDpi) : 45);
-  // Map DitherForge scale (1.0..8.0) to equivalent DPI (45..6)
-  let dpi = rawScale;
-  if (rawScale > 0 && rawScale <= 8.0) {
-    dpi = Math.max(1, Math.round(45 / rawScale));
-  }
-
-  // When DPI is lower than 45 (1..44), downsample to coarser dither resolution, dither, then upscale nearest
-  if (normId !== 'none' && dpi < 45 && dpi >= 1) {
-    const scaleFactor = Math.max(0.02, dpi / 45);
-    const targetW = Math.max(1, Math.round(width * scaleFactor));
-    const targetH = Math.max(1, Math.round(height * scaleFactor));
+  // 2. Apply Pixel-Kernel Scale via Downsample -> Dither -> Nearest Upscale
+  if (normId !== 'none' && isPixelKernel && scaleVal > 1.05) {
+    const targetW = Math.max(1, Math.round(width / scaleVal));
+    const targetH = Math.max(1, Math.round(height / scaleVal));
 
     if (targetW < width || targetH < height) {
+      const downsampleControls = {
+        ...controls,
+        offsetX: controls.offsetX / scaleVal,
+        offsetY: controls.offsetY / scaleVal
+      };
       const downsampled = downsampleImage(data, width, height, targetW, targetH);
-      const ditheredDown = fn(targetW, targetH, downsampled, palette, controls);
+      const ditheredDown = fn(targetW, targetH, downsampled, palette, downsampleControls);
       const fullResResult = upscaleNearest(ditheredDown, targetW, targetH, width, height);
 
       return {
@@ -249,7 +306,7 @@ export function dispatchDither(algorithmId, width, height, inputBuffer, params =
     }
   }
 
-  // Native resolution execution (scale >= 45 or scaling not supported)
+  // Native resolution execution
   const resultClamped = fn(width, height, data, palette, controls);
   return {
     width,

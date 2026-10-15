@@ -2,9 +2,11 @@
 import { FastPaletteLUT, getLuminance } from './palette.js';
 
 export function ditherBlockTone(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const S = Math.max(4, controls.dotSize !== undefined ? Number(controls.dotSize) : 4);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const baseDot = controls.dotSize !== undefined ? Number(controls.dotSize) : 4;
+  const S = Math.max(1, Math.round(baseDot * scale));
   const halfS = S / 2;
 
   for (let by = 0; by < h; by += S) {
@@ -21,12 +23,13 @@ export function ditherBlockTone(w, h, data, palette, controls = {}) {
         for (let x = bx; x < maxBx; x++) {
           const idx = (y * w + x) * 4;
           const dist = Math.hypot(x - cx, y - cy);
-          const isDot = dist <= radius;
-          const offset = isDot ? -64 : 64;
-          lut.inlineMatch(
-            Math.max(0, Math.min(255, Math.round(data[idx] + offset))),
-            Math.max(0, Math.min(255, Math.round(data[idx + 1] + offset))),
-            Math.max(0, Math.min(255, Math.round(data[idx + 2] + offset))),
+          const threshold = dist <= radius ? 0.75 : 0.25;
+
+          lut.inlinePairMatch(
+            data[idx],
+            data[idx + 1],
+            data[idx + 2],
+            threshold,
             out,
             idx
           );
@@ -39,11 +42,12 @@ export function ditherBlockTone(w, h, data, palette, controls = {}) {
 }
 
 export function ditherPopTone(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
   const density = (controls.density !== undefined ? Number(controls.density) : 20) / 100;
   const angle = (controls.variation !== undefined ? Number(controls.variation) : 45) * (Math.PI / 180);
-  const S = 12;
+  const S = Math.max(0.6, 12 * scale);
   const cosA = Math.cos(angle), sinA = Math.sin(angle);
 
   for (let y = 0; y < h; y++) {
@@ -59,12 +63,13 @@ export function ditherPopTone(w, h, data, palette, controls = {}) {
       const radius = maxR * Math.sqrt(Math.max(0, 1 - lum / 255));
 
       const dist = Math.hypot(rx - cx, ry - cy);
-      const offset = dist <= radius ? -96 : 96;
+      const threshold = dist <= radius ? 0.75 : 0.25;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -75,10 +80,11 @@ export function ditherPopTone(w, h, data, palette, controls = {}) {
 }
 
 export function ditherCamo(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
   const density = Math.max(3, controls.density !== undefined ? Number(controls.density) : 30);
-  const S = Math.max(6, Math.round(200 / density));
+  const S = Math.max(0.8, (200 / density) * scale);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -108,23 +114,33 @@ export function ditherCamo(w, h, data, palette, controls = {}) {
 }
 
 export function ditherCheckers(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
   const sizeMap = { small: 4, medium: 8, large: 16 };
-  const S = sizeMap[controls.checkersSize] || 8;
+  let base = 8;
+  if (typeof controls.checkersSize === 'number') {
+    base = controls.checkersSize;
+  } else if (sizeMap[controls.checkersSize]) {
+    base = sizeMap[controls.checkersSize];
+  } else if (!isNaN(Number(controls.checkersSize))) {
+    base = Number(controls.checkersSize);
+  }
+  const S = Math.max(1, Math.round(base * scale));
 
   for (let y = 0; y < h; y++) {
     const cy = Math.floor(y / S);
     for (let x = 0; x < w; x++) {
       const cx = Math.floor(x / S);
       const isAlt = ((cx + cy) & 1) === 1;
-      const offset = isAlt ? 64 : -64;
+      const threshold = isAlt ? 0.35 : 0.65;
       const idx = (y * w + x) * 4;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -134,23 +150,25 @@ export function ditherCheckers(w, h, data, palette, controls = {}) {
   return out;
 }
 
-export function ditherCircleGrid(w, h, data, palette) {
-  const lut = new FastPaletteLUT(palette);
+export function ditherCircleGrid(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const S = 10, r = 4;
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const S = Math.max(0.8, 10 * scale), r = Math.max(0.2, 4 * scale);
 
   for (let y = 0; y < h; y++) {
     const cy = (Math.floor(y / S) + 0.5) * S;
     for (let x = 0; x < w; x++) {
       const cx = (Math.floor(x / S) + 0.5) * S;
       const isCircle = Math.hypot(x - cx, y - cy) <= r;
-      const offset = isCircle ? 64 : -64;
+      const threshold = isCircle ? 0.35 : 0.65;
       const idx = (y * w + x) * 4;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -161,9 +179,11 @@ export function ditherCircleGrid(w, h, data, palette) {
 }
 
 export function ditherCrosshatch(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const spacing = Math.max(1, controls.lineSpacing !== undefined ? Number(controls.lineSpacing) : 1) * 3;
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const baseSpacing = controls.lineSpacing !== undefined ? Number(controls.lineSpacing) : 1;
+  const spacing = Math.max(1, Math.round(baseSpacing * scale * 3));
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -176,11 +196,12 @@ export function ditherCrosshatch(w, h, data, palette, controls = {}) {
       if (lum < 64 && (x + y) % spacing === 0) isLine = true;
       if (lum < 32 && (x - y) % spacing === 0) isLine = true;
 
-      const offset = isLine ? -96 : 48;
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      const threshold = isLine ? 0.75 : 0.25;
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -190,23 +211,25 @@ export function ditherCrosshatch(w, h, data, palette, controls = {}) {
   return out;
 }
 
-export function ditherDiamondGrid(w, h, data, palette) {
-  const lut = new FastPaletteLUT(palette);
+export function ditherDiamondGrid(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const S = 12;
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const S = Math.max(0.6, 12 * scale);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const mx = Math.abs((x % S) - S / 2);
       const my = Math.abs((y % S) - S / 2);
       const isDiamond = (mx + my) <= S / 2.5;
-      const offset = isDiamond ? 64 : -64;
+      const threshold = isDiamond ? 0.35 : 0.65;
       const idx = (y * w + x) * 4;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -217,9 +240,11 @@ export function ditherDiamondGrid(w, h, data, palette) {
 }
 
 export function ditherDiamond(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const S = Math.max(2, controls.period !== undefined ? Number(controls.period) : 8);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const basePeriod = controls.period !== undefined ? Number(controls.period) : 8;
+  const S = Math.max(0.6, basePeriod * scale);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -229,12 +254,13 @@ export function ditherDiamond(w, h, data, palette, controls = {}) {
       const my = Math.abs((y % S) - S / 2);
       const d = (mx + my) / S;
       const target = 1.0 - lum / 255;
-      const offset = d <= target ? -96 : 64;
+      const threshold = d <= target ? 0.75 : 0.25;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -244,18 +270,22 @@ export function ditherDiamond(w, h, data, palette, controls = {}) {
   return out;
 }
 
-export function ditherGridlockTraffic(w, h, data, palette) {
-  const lut = new FastPaletteLUT(palette);
+export function ditherGridlockTraffic(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const step = Math.max(1, Math.round(8 * scale));
+
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const isLine = ((x + y) % 8 === 0) || ((x - y) % 8 === 0);
-      const offset = isLine ? 80 : -40;
+      const isLine = ((x + y) % step === 0) || ((x - y) % step === 0);
+      const threshold = isLine ? 0.75 : 0.25;
       const idx = (y * w + x) * 4;
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -265,10 +295,11 @@ export function ditherGridlockTraffic(w, h, data, palette) {
   return out;
 }
 
-export function ditherHeartGrid(w, h, data, palette) {
-  const lut = new FastPaletteLUT(palette);
+export function ditherHeartGrid(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const S = 16;
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const S = Math.max(0.8, 16 * scale);
 
   for (let y = 0; y < h; y++) {
     const cy = Math.floor(y / S) * S + S / 2;
@@ -276,16 +307,16 @@ export function ditherHeartGrid(w, h, data, palette) {
       const cx = Math.floor(x / S) * S + S / 2;
       const u = (x - cx) / (S * 0.35);
       const v = -(y - cy) / (S * 0.35);
-      // Heart curve: (u^2 + v^2 - 1)^3 - u^2 * v^3 <= 0
       const u2 = u * u, v2 = v * v;
       const isHeart = Math.pow(u2 + v2 - 1, 3) - u2 * Math.pow(v, 3) <= 0;
-      const offset = isHeart ? 80 : -40;
+      const threshold = isHeart ? 0.75 : 0.25;
       const idx = (y * w + x) * 4;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -296,9 +327,11 @@ export function ditherHeartGrid(w, h, data, palette) {
 }
 
 export function ditherPrintPattern(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const S = Math.max(3, controls.dotScale !== undefined ? Number(controls.dotScale) : 8);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const baseScale = controls.dotScale !== undefined ? Number(controls.dotScale) : 8;
+  const S = Math.max(0.4, baseScale * scale);
   const ang45 = Math.PI / 4;
   const cos45 = Math.cos(ang45), sin45 = Math.sin(ang45);
 
@@ -306,13 +339,15 @@ export function ditherPrintPattern(w, h, data, palette, controls = {}) {
     for (let x = 0; x < w; x++) {
       const rx = (x * cos45 - y * sin45);
       const ry = (x * sin45 + y * cos45);
-      const wave = (Math.sin(rx / S * Math.PI) * Math.cos(ry / S * Math.PI)) * 64;
+      const wave = (Math.sin(rx / S * Math.PI) * Math.cos(ry / S * Math.PI));
+      const threshold = 0.5 + wave * 0.4;
       const idx = (y * w + x) * 4;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + wave),
-        Math.round(data[idx + 1] + wave),
-        Math.round(data[idx + 2] + wave),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -322,22 +357,26 @@ export function ditherPrintPattern(w, h, data, palette, controls = {}) {
   return out;
 }
 
-export function ditherSquareMosaic(w, h, data, palette) {
-  const lut = new FastPaletteLUT(palette);
+export function ditherSquareMosaic(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const S = 8, gap = 1;
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
+  const baseBlock = controls.blockSize !== undefined ? Number(controls.blockSize) : 8;
+  const S = Math.max(1, Math.round(baseBlock * scale));
+  const gap = Math.min(S, Math.max(1, Math.round(scale)));
 
   for (let y = 0; y < h; y++) {
     const isGapY = (y % S) < gap;
     for (let x = 0; x < w; x++) {
       const isGap = isGapY || ((x % S) < gap);
+      const threshold = isGap ? 0.75 : 0.25;
       const idx = (y * w + x) * 4;
-      const offset = isGap ? -96 : 32;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );
@@ -348,22 +387,26 @@ export function ditherSquareMosaic(w, h, data, palette) {
 }
 
 export function ditherStippling(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
   const density = controls.dotDensity !== undefined ? Number(controls.dotDensity) : 1;
 
   for (let y = 0; y < h; y++) {
+    const sy = Math.floor(y / scale);
     for (let x = 0; x < w; x++) {
+      const sx = Math.floor(x / scale);
       const idx = (y * w + x) * 4;
       const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-      const rand = (((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) + 1) % 1;
-      const threshold = (1 - lum / 255) * (density * 0.1);
-      const offset = rand < threshold ? -128 : 64;
+      const rand = (((Math.sin(sx * 12.9898 + sy * 78.233) * 43758.5453) % 1) + 1) % 1;
+      const thresholdVal = (1 - lum / 255) * (0.3 + density * 0.07);
+      const threshold = rand < thresholdVal ? 0.8 : 0.2;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + offset),
-        Math.round(data[idx + 1] + offset),
-        Math.round(data[idx + 2] + offset),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        threshold,
         out,
         idx
       );

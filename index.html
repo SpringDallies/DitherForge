@@ -140,7 +140,7 @@
               <span>Pattern Scale / Frequency</span>
               <span class="control-val" id="valScale">1.00x</span>
             </div>
-            <input type="range" class="slider-input" id="sliderScale" min="0.2" max="5.0" step="0.1" value="1.0">
+            <input type="range" class="slider-input" id="sliderScale" min="0.05" max="8.0" step="0.05" value="1.0">
           </div>
 
           <div class="toggle-row">
@@ -184,7 +184,7 @@
         <div class="panel-card">
           <div class="card-title-row">
             <span class="card-title">🎛️ Palette Editor & Depth</span>
-            <button class="btn-icon" id="btnShufflePalette" title="Randomize Unlocked Swatches">🔀</button>
+            <button class="btn-icon" id="btnShufflePalette" title="Randomize Swatches">🔀</button>
           </div>
 
           <div class="control-row">
@@ -197,7 +197,7 @@
 
           <!-- Swatches Editor Grid -->
           <div class="palette-editor-grid" id="paletteEditorGrid">
-            <!-- Swatches with lock toggles, color input & delete -->
+            <!-- Swatches with color input & delete -->
           </div>
 
           <div style="display: flex; gap: 6px; margin-top: 6px;">
@@ -325,15 +325,13 @@
         <div class="panel-card">
           <div class="card-title-row">
             <span class="card-title">🎚️ Image Adjustments</span>
-            <button class="btn-icon" id="btnShuffleTweaks" title="Randomize Unlocked Tweaks">🔀</button>
+            <button class="btn-icon" id="btnShuffleTweaks" title="Randomize Adjustments">🔀</button>
           </div>
 
           <!-- Brightness -->
           <div class="control-row">
             <div class="control-label-row">
-              <span style="display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="lockBrightness" title="Lock when randomizing"> Brightness
-              </span>
+              <span>Brightness</span>
               <span class="control-val" id="valBrightness">0.00</span>
             </div>
             <input type="range" class="slider-input" id="sliderBrightness" min="-1" max="1" step="0.02" value="0">
@@ -342,9 +340,7 @@
           <!-- Contrast -->
           <div class="control-row">
             <div class="control-label-row">
-              <span style="display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="lockContrast" title="Lock when randomizing"> Contrast
-              </span>
+              <span>Contrast</span>
               <span class="control-val" id="valContrast">0.00</span>
             </div>
             <input type="range" class="slider-input" id="sliderContrast" min="-1" max="1" step="0.02" value="0">
@@ -353,9 +349,7 @@
           <!-- Saturation -->
           <div class="control-row">
             <div class="control-label-row">
-              <span style="display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="lockSaturation" title="Lock when randomizing"> Saturation
-              </span>
+              <span>Saturation</span>
               <span class="control-val" id="valSaturation">0.00</span>
             </div>
             <input type="range" class="slider-input" id="sliderSaturation" min="-1" max="1" step="0.02" value="0">
@@ -364,9 +358,7 @@
           <!-- Gamma -->
           <div class="control-row">
             <div class="control-label-row">
-              <span style="display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="lockGamma" title="Lock when randomizing"> Gamma
-              </span>
+              <span>Gamma</span>
               <span class="control-val" id="valGamma">1.00</span>
             </div>
             <input type="range" class="slider-input" id="sliderGamma" min="0.2" max="2.5" step="0.05" value="1.0">

@@ -16,12 +16,13 @@ export interface AlgoParams {
   diffusionStrength: number;
   serpentine: boolean;
   noiseAmount: number;
+  [key: string]: any;
 }
 
 export interface EffectItem {
   id: string;
   type: string;
-  name: string;
+  name?: string;
   enabled: boolean;
   params: Record<string, any>;
 }
@@ -85,12 +86,21 @@ export const getInitialAlgoParams = (id: string): AlgoParams => {
   const algo = ALGORITHM_REGISTRY.find((a: any) => a.id === id || a.id === norm);
   const cat = algo?.category || '';
   const isDiff = cat === 'error_diffusion' || cat === 'glitch_effects';
+  const customDefaults: Record<string, any> = {};
+  if (algo?.controls && Array.isArray(algo.controls)) {
+    for (const ctrl of algo.controls) {
+      if (ctrl.id && ctrl.defaultValue !== undefined) {
+        customDefaults[ctrl.id] = ctrl.defaultValue;
+      }
+    }
+  }
   return {
     threshold: specific.threshold ?? 0.5,
     scale: specific.scale ?? 1.0,
     diffusionStrength: specific.diffusionStrength ?? 1.0,
     serpentine: specific.serpentine ?? isDiff,
-    noiseAmount: specific.noiseAmount ?? 0.3
+    noiseAmount: specific.noiseAmount ?? 0.3,
+    ...customDefaults
   };
 };
 
@@ -125,9 +135,7 @@ interface AppState {
   resetCurrentAlgoParams: () => void;
   resetAlgoParamToDefault: (key: keyof AlgoParams) => void;
 
-  // Adjustment Locks (NEW Phase 3)
-  lockedAdjustments: Record<string, boolean>;
-  toggleAdjustmentLock: (key: string) => void;
+  // Image Adjustments
   resetAdjustmentParam: (key: string) => void;
   resetAllAdjustments: () => void;
 
@@ -166,12 +174,10 @@ interface AppState {
   activePaletteId: string;
   activePalette: string; // compatibility alias
   workingPalette: number[][];
-  lockedSwatches: number[];
   paletteDepth: number;
   setActivePaletteId: (id: string) => void;
   setActivePalette: (id: string) => void; // compatibility alias
   updateSwatchColor: (index: number, rgba: number[]) => void;
-  toggleLockSwatch: (index: number) => void;
   shuffleUnlockedSwatches: () => void;
   addSwatch: () => void;
   removeSwatch: (index: number) => void;
@@ -416,22 +422,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
 
-  // Adjustment Locks
-  lockedAdjustments: {
-    brightness: false,
-    contrast: false,
-    saturation: false,
-    gamma: false,
-    depth: false
-  },
-  toggleAdjustmentLock: (key) => set((state) => ({
-    lockedAdjustments: {
-      ...state.lockedAdjustments,
-      [key]: !state.lockedAdjustments[key]
-    }
-  })),
-  resetAdjustmentParam: (key) => set((state) => {
-    if (state.lockedAdjustments[key]) return state; // Locked params don't reset
+  // Image Adjustments reset
+  resetAdjustmentParam: (key) => set(() => {
     const defaults: Record<string, number> = {
       brightness: 0,
       contrast: 0,
@@ -439,18 +431,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       gamma: 1.0,
       depth: 8
     };
-    if (defaults[key] === undefined) return state;
+    if (defaults[key] === undefined) return {};
     return { [key]: defaults[key] } as any;
   }),
-  resetAllAdjustments: () => set((state) => {
-    const updates: any = {};
-    if (!state.lockedAdjustments.brightness) updates.brightness = 0;
-    if (!state.lockedAdjustments.contrast) updates.contrast = 0;
-    if (!state.lockedAdjustments.saturation) updates.saturation = 0;
-    if (!state.lockedAdjustments.gamma) updates.gamma = 1.0;
-    if (!state.lockedAdjustments.depth) updates.depth = 8;
-    return updates;
-  }),
+  resetAllAdjustments: () => set(() => ({
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    gamma: 1.0,
+    depth: 8
+  })),
 
   // Algorithm selection
   algorithmId: getStoredAlgorithm(),
@@ -510,7 +500,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     const found = BUILTIN_PALETTES.find((p: any) => p.id === initialId) || BUILTIN_PALETTES[0];
     return found ? found.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
   })(),
-  lockedSwatches: [],
   paletteDepth: (() => {
     if (typeof window !== 'undefined') {
       const pdepth = new URLSearchParams(window.location.search).get('pdepth');
@@ -523,7 +512,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     const found = BUILTIN_PALETTES.find((p: any) => p.id === initialId) || BUILTIN_PALETTES[0];
     return found ? found.colors.length : 2;
   })(),
-
   setActivePaletteId: (id: string) => {
     const pal = BUILTIN_PALETTES.find((p: any) => p.id === id);
     if (!pal) return;
@@ -532,7 +520,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       activePaletteId: id,
       activePalette: id,
       workingPalette: colors,
-      lockedSwatches: [],
       paletteDepth: colors.length
     });
   },
@@ -545,7 +532,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       activePaletteId: id,
       activePalette: id,
       workingPalette: colors,
-      lockedSwatches: [],
       paletteDepth: colors.length
     });
   },
@@ -556,27 +542,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { workingPalette: nextPalette };
   }),
 
-  toggleLockSwatch: (index: number) => set((state) => {
-    const isLocked = state.lockedSwatches.includes(index);
-    return {
-      lockedSwatches: isLocked
-        ? state.lockedSwatches.filter((i) => i !== index)
-        : [...state.lockedSwatches, index]
-    };
-  }),
-
   shuffleUnlockedSwatches: () => set((state) => {
-    const nextPalette = state.workingPalette.map((col, idx) => {
-      if (state.lockedSwatches.includes(idx)) {
-        return [...col];
-      }
-      return [
-        Math.floor(Math.random() * 256),
-        Math.floor(Math.random() * 256),
-        Math.floor(Math.random() * 256),
-        255
-      ];
-    });
+    const nextPalette = state.workingPalette.map(() => [
+      Math.floor(Math.random() * 256),
+      Math.floor(Math.random() * 256),
+      Math.floor(Math.random() * 256),
+      255
+    ]);
     return { workingPalette: nextPalette };
   }),
 
@@ -592,13 +564,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   removeSwatch: (index: number) => set((state) => {
     if (state.workingPalette.length <= 2) return state;
     const nextPalette = state.workingPalette.filter((_, i) => i !== index).map((c) => [...c]);
-    const nextLocks = state.lockedSwatches
-      .filter((i) => i !== index)
-      .map((i) => (i > index ? i - 1 : i));
     const nextDepth = Math.min(state.paletteDepth, nextPalette.length);
     return {
       workingPalette: nextPalette,
-      lockedSwatches: nextLocks,
       paletteDepth: Math.max(2, nextDepth)
     };
   }),
@@ -613,7 +581,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     const colors = pal ? pal.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
     return {
       workingPalette: colors,
-      lockedSwatches: [],
       paletteDepth: colors.length
     };
   }),

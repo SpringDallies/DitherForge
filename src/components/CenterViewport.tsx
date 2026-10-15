@@ -280,6 +280,8 @@ export const CenterViewport: React.FC = () => {
     const len = renderSource.data.length;
 
     // (c) Memoize source ImageData & dither parameters by reference / value
+    const currentParamsSerialized = JSON.stringify(currentParams);
+    const currentEffectsSerialized = JSON.stringify(effects);
     const currentDitherInputs = [
       sourceImageData,
       isLiveDrag ? 320 : 'full',
@@ -291,12 +293,8 @@ export const CenterViewport: React.FC = () => {
       paletteDepth,
       workingPalette,
       algorithmId,
-      currentParams.threshold,
-      currentParams.scale,
-      currentParams.diffusionStrength,
-      currentParams.serpentine,
-      currentParams.noiseAmount,
-      effects
+      currentParamsSerialized,
+      currentEffectsSerialized
     ];
 
     const prevInputs = lastDitherInputsRef.current;
@@ -335,6 +333,8 @@ export const CenterViewport: React.FC = () => {
       applyDitherAlgorithm(ditherImageData, {
         algorithmId,
         palette,
+        ...currentParams,
+        controls: { ...currentParams },
         threshold: currentParams.threshold,
         scale: currentParams.scale,
         diffusionStrength: currentParams.diffusionStrength,
@@ -357,10 +357,12 @@ export const CenterViewport: React.FC = () => {
       lastDitherInputsRef.current = currentDitherInputs;
     }
 
-    // Step 5: Render to canvas (Before/After split or full output)
-    // (e) Skip the split-compare compositing loop when showBeforeAfter is false
+    // Step 5: Render to canvas (Original View, Before/After split, or full output)
     const ditherBuffer = cachedDitherBufferRef.current!;
-    if (showBeforeAfter) {
+    if (isOriginalView) {
+      const origImageData = new ImageData(new Uint8ClampedArray(proxyOriginalSource.data), width, height);
+      ctx.putImageData(origImageData, 0, 0);
+    } else if (showBeforeAfter) {
       if (!compositeBufferRef.current || compositeBufferRef.current.length !== len) {
         compositeBufferRef.current = new Uint8ClampedArray(len);
       }
@@ -406,11 +408,8 @@ export const CenterViewport: React.FC = () => {
     workingPalette,
     paletteDepth,
     algorithmId,
-    currentParams.threshold,
-    currentParams.scale,
-    currentParams.diffusionStrength,
-    currentParams.serpentine,
-    currentParams.noiseAmount,
+    currentParams,
+    isOriginalView,
     showBeforeAfter,
     splitRatio,
     effects,
@@ -465,11 +464,7 @@ export const CenterViewport: React.FC = () => {
     executeRenderPipeline,
     updateMode,
     algorithmId,
-    currentParams.threshold,
-    currentParams.scale,
-    currentParams.diffusionStrength,
-    currentParams.serpentine,
-    currentParams.noiseAmount,
+    currentParams,
     brightness,
     contrast,
     saturation,
@@ -477,8 +472,10 @@ export const CenterViewport: React.FC = () => {
     depth,
     workingPalette,
     paletteDepth,
+    isOriginalView,
     showBeforeAfter,
     splitRatio,
+    effects,
     isDraggingSlider
   ]);
 

@@ -225,7 +225,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     if (!canvas) return;
 
     // Trigger export
-    exportRaster(canvas, format, quality);
+    exportRaster(canvas, format, quality, filename);
 
     // Write back defaultExportFormat to localStorage
     try {

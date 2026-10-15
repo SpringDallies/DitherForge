@@ -22,8 +22,10 @@ export function ditherColorSeparation(width, height, data, palette, controls = {
     }
   }
 
-  // Error diffusion across separated color channels to eliminate posterized bands
+  // Error diffusion across separated color channels with clamped error
   const errRing = new Float32Array(2 * width * 3);
+  const maxErr = 128;
+
   for (let y = 0; y < height; y++) {
     const curRow = (y & 1) * width * 3;
     const nextRow = ((y + 1) & 1) * width * 3;
@@ -38,9 +40,9 @@ export function ditherColorSeparation(width, height, data, palette, controls = {
       lut.inlineMatch(Math.round(tr), Math.round(tg), Math.round(tb), out, idx);
       out[idx + 3] = data[idx + 3];
 
-      const errR = tr - out[idx];
-      const errG = tg - out[idx + 1];
-      const errB = tb - out[idx + 2];
+      const errR = Math.max(-maxErr, Math.min(maxErr, tr - out[idx]));
+      const errG = Math.max(-maxErr, Math.min(maxErr, tg - out[idx + 1]));
+      const errB = Math.max(-maxErr, Math.min(maxErr, tb - out[idx + 2]));
 
       if (x + 1 < width) {
         errRing[curRow + (x + 1) * 3] += errR * (7 / 16);

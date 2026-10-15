@@ -88,7 +88,7 @@ export const ALGORITHM_REGISTRY = [
     "features": {
       "supportsColorPalettes": true,
       "supportsColorDepth": true,
-      "supportsDpiScale": false,
+      "supportsDpiScale": true,
       "supportsLuminanceThreshold": false,
       "isDeterministic": true,
       "requiresMultiPass": false
@@ -1975,6 +1975,38 @@ export const ALGORITHM_REGISTRY = [
           "min": 4,
           "max": 20
         }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2006,6 +2038,38 @@ export const ALGORITHM_REGISTRY = [
         "shuffleRange": {
           "min": 2,
           "max": 10
+        }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
         }
       }
     ]
@@ -2080,6 +2144,38 @@ export const ALGORITHM_REGISTRY = [
           "min": 1,
           "max": 3
         }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2140,6 +2236,38 @@ export const ALGORITHM_REGISTRY = [
           "min": 0,
           "max": 360
         }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2157,7 +2285,40 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": []
+    "controls": [
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      }
+    ]
   },
   {
     "id": "orb-diffuse-x",
@@ -2245,25 +2406,36 @@ export const ALGORITHM_REGISTRY = [
         }
       },
       {
-        "id": "orbOffset",
-        "label": "Orb Offset",
+        "id": "offsetX",
+        "label": "Offset X",
         "type": "slider",
-        "min": -100,
-        "max": 100,
+        "min": -200,
+        "max": 200,
         "step": 1,
         "defaultValue": 0,
-        "description": "Slides all orbs along the chosen axis",
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
         "shuffleRange": {
-          "min": -50,
-          "max": 50
+          "min": -100,
+          "max": 100
         }
       },
       {
-        "id": "orbVertical",
-        "label": "Orb Direction",
-        "type": "toggle",
-        "description": "OFF = offset moves orbs left/right, ON = up/down",
-        "defaultValue": false
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2353,25 +2525,36 @@ export const ALGORITHM_REGISTRY = [
         }
       },
       {
-        "id": "orbOffset",
-        "label": "Orb Offset",
+        "id": "offsetX",
+        "label": "Offset X",
         "type": "slider",
-        "min": -100,
-        "max": 100,
+        "min": -200,
+        "max": 200,
         "step": 1,
         "defaultValue": 0,
-        "description": "Slides all orbs along the chosen axis",
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
         "shuffleRange": {
-          "min": -50,
-          "max": 50
+          "min": -100,
+          "max": 100
         }
       },
       {
-        "id": "orbVertical",
-        "label": "Orb Direction",
-        "type": "toggle",
-        "description": "OFF = offset moves orbs left/right, ON = up/down",
-        "defaultValue": false
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2455,25 +2638,36 @@ export const ALGORITHM_REGISTRY = [
         }
       },
       {
-        "id": "orbOffset",
-        "label": "Orb Offset",
+        "id": "offsetX",
+        "label": "Offset X",
         "type": "slider",
-        "min": -100,
-        "max": 100,
+        "min": -200,
+        "max": 200,
         "step": 1,
         "defaultValue": 0,
-        "description": "Slides all orbs along the chosen axis",
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
         "shuffleRange": {
-          "min": -50,
-          "max": 50
+          "min": -100,
+          "max": 100
         }
       },
       {
-        "id": "orbVertical",
-        "label": "Orb Direction",
-        "type": "toggle",
-        "description": "OFF = offset moves orbs left/right, ON = up/down",
-        "defaultValue": false
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2574,25 +2768,36 @@ export const ALGORITHM_REGISTRY = [
         }
       },
       {
-        "id": "orbOffset",
-        "label": "Orb Offset",
+        "id": "offsetX",
+        "label": "Offset X",
         "type": "slider",
-        "min": -100,
-        "max": 100,
+        "min": -200,
+        "max": 200,
         "step": 1,
         "defaultValue": 0,
-        "description": "Slides all orbs along the chosen axis",
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
         "shuffleRange": {
-          "min": -50,
-          "max": 50
+          "min": -100,
+          "max": 100
         }
       },
       {
-        "id": "orbVertical",
-        "label": "Orb Direction",
-        "type": "toggle",
-        "description": "OFF = offset moves orbs left/right, ON = up/down",
-        "defaultValue": false
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2623,6 +2828,38 @@ export const ALGORITHM_REGISTRY = [
         "shuffleRange": {
           "min": 3,
           "max": 12
+        }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
         }
       }
     ]
@@ -2704,6 +2941,38 @@ export const ALGORITHM_REGISTRY = [
         "type": "toggle",
         "description": "Blend all peaks (interference) instead of nearest-peak only",
         "defaultValue": false
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2767,6 +3036,38 @@ export const ALGORITHM_REGISTRY = [
           "min": 0,
           "max": 360
         }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2812,6 +3113,38 @@ export const ALGORITHM_REGISTRY = [
           "min": 5,
           "max": 20
         }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2844,6 +3177,38 @@ export const ALGORITHM_REGISTRY = [
           "min": 3,
           "max": 12
         }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2874,6 +3239,38 @@ export const ALGORITHM_REGISTRY = [
         "shuffleRange": {
           "min": 3,
           "max": 10
+        }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
         }
       }
     ]
@@ -2906,6 +3303,38 @@ export const ALGORITHM_REGISTRY = [
           "min": 3,
           "max": 12
         }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
       }
     ]
   },
@@ -2937,6 +3366,38 @@ export const ALGORITHM_REGISTRY = [
         "shuffleRange": {
           "min": 3,
           "max": 12
+        }
+      },
+      {
+        "id": "offsetX",
+        "label": "Offset X",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Horizontal spatial offset",
+        "tooltip": "Pan pattern horizontally",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
+        }
+      },
+      {
+        "id": "offsetY",
+        "label": "Offset Y",
+        "type": "slider",
+        "min": -200,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "Vertical spatial offset",
+        "tooltip": "Pan pattern vertically",
+        "unit": "px",
+        "shuffleRange": {
+          "min": -100,
+          "max": 100
         }
       }
     ]
@@ -3003,7 +3464,25 @@ export function applyDitherAlgorithm(imageData, settings) {
   const normId = rawId.replace(/_/g, '-');
   const resolvedId = ALGORITHM_ALIASES[rawId] || ALGORITHM_ALIASES[normId] || normId;
 
-  const result = dispatchDither(resolvedId, width, height, data, settings);
+  const bayerSizeMatch = {
+    'bayer_2x2': '2x2',
+    'bayer-2x2': '2x2',
+    'bayer_4x4': '4x4',
+    'bayer-4x4': '4x4',
+    'bayer_8x8': '8x8',
+    'bayer-8x8': '8x8',
+    'bayer_16x16': '16x16',
+    'bayer-16x16': '16x16'
+  };
+
+  const dispatchSettings = { ...settings };
+  const bayerSize = bayerSizeMatch[rawId] || bayerSizeMatch[normId];
+  if (bayerSize) {
+    dispatchSettings.matrixSize = bayerSize;
+    dispatchSettings.controls = { ...(dispatchSettings.controls || {}), matrixSize: bayerSize };
+  }
+
+  const result = dispatchDither(resolvedId, width, height, data, dispatchSettings);
   if (result && result.buffer) {
     data.set(new Uint8ClampedArray(result.buffer));
   }

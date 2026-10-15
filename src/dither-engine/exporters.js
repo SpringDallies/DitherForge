@@ -1,13 +1,21 @@
 // DitherForge Multi-Format Exporters
 // Vector Contours, Character-Grids, High-Res Rasters, and Animated Sequences
 
-export function exportRaster(canvas, format = "png", quality = 0.92) {
+/**
+ * @param {HTMLCanvasElement} canvas
+ * @param {string} [format="png"]
+ * @param {number} [quality=0.92]
+ * @param {string|null} [filename=null]
+ */
+export function exportRaster(canvas, format = "png", quality = 0.92, filename = null) {
   let mime = "image/png";
   if (format === "jpg" || format === "jpeg") mime = "image/jpeg";
   if (format === "webp") mime = "image/webp";
 
   const dataUrl = canvas.toDataURL(mime, quality);
-  downloadDataUrl(dataUrl, `ditherforge_export.${format}`);
+  const baseName = filename && filename.trim() ? filename.trim() : "ditherforge_export";
+  const finalName = baseName.endsWith(`.${format}`) ? baseName : `${baseName}.${format}`;
+  downloadDataUrl(dataUrl, finalName);
 }
 
 export function copyCanvasToClipboard(canvas) {

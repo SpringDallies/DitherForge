@@ -1,425 +1,155 @@
 // Category: Glitch Effects (17 Algorithms)
 import { FastPaletteLUT, getLuminance } from './palette.js';
 
-// 1. Uniform Modulation X (Vertical 1D with Horizontal Bleed & EMA)
-export function ditherUniformModulationX(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+// Helper for 1D horizontal diffusion
+function run1DHorizontalDiffusion(w, h, data, lut, getWeight, diffMult = 1.0) {
   const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : 1;
-  const bleed = (controls.bleedFraction !== undefined ? Number(controls.bleedFraction) : 0) / 100;
-  const enableSmooth = !!controls.smoothingFactor;
+  const maxErr = 128;
 
-  const errCurr = new Float32Array(w * 3);
-  const errNext = new Float32Array(w * 3);
-  let emaR = 0, emaG = 0, emaB = 0;
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const eIdx = x * 3;
-
-      let r = (data[idx] - 128) * scale + 128 + errCurr[eIdx];
-      let g = (data[idx + 1] - 128) * scale + 128 + errCurr[eIdx + 1];
-      let b = (data[idx + 2] - 128) * scale + 128 + errCurr[eIdx + 2];
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      let errR = r - out[idx];
-      let errG = g - out[idx + 1];
-      let errB = b - out[idx + 2];
-
-      if (enableSmooth) {
-        emaR = 0.5 * errR + 0.5 * emaR;
-        emaG = 0.5 * errG + 0.5 * emaG;
-        emaB = 0.5 * errB + 0.5 * emaB;
-        errR = emaR; errG = emaG; errB = emaB;
-      }
-
-      const downWeight = 1 - bleed;
-      errNext[eIdx] += errR * downWeight;
-      errNext[eIdx + 1] += errG * downWeight;
-      errNext[eIdx + 2] += errB * downWeight;
-
-      if (bleed > 0) {
-        const side = bleed * 0.5;
-        if (x > 0) {
-          errNext[eIdx - 3] += errR * side;
-          errNext[eIdx - 2] += errG * side;
-          errNext[eIdx - 1] += errB * side;
-        }
-        if (x < w - 1) {
-          errNext[eIdx + 3] += errR * side;
-          errNext[eIdx + 4] += errG * side;
-          errNext[eIdx + 5] += errB * side;
-        }
-      }
-    }
-    errCurr.set(errNext);
-    errNext.fill(0);
-  }
-  return out;
-}
-
-// 2. Uniform Modulation Y (Horizontal 1D with Vertical Bleed & EMA)
-export function ditherUniformModulationY(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : 1;
-  const bleed = (controls.bleedFraction !== undefined ? Number(controls.bleedFraction) : 0) / 100;
-  const enableSmooth = !!controls.smoothingFactor;
-
-  const errCurr = new Float32Array(h * 3);
-  const errNext = new Float32Array(h * 3);
-  let emaR = 0, emaG = 0, emaB = 0;
-
-  for (let x = 0; x < w; x++) {
+  if (lut.isTonalRamp) {
+    const N = lut.paletteSize;
     for (let y = 0; y < h; y++) {
-      const idx = (y * w + x) * 4;
-      const eIdx = y * 3;
+      let err = 0;
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
+        const curLum = Math.max(0, Math.min(255, lum + err));
 
-      let r = (data[idx] - 128) * scale + 128 + errCurr[eIdx];
-      let g = (data[idx + 1] - 128) * scale + 128 + errCurr[eIdx + 1];
-      let b = (data[idx + 2] - 128) * scale + 128 + errCurr[eIdx + 2];
+        const t = (curLum / 255) * (N - 1);
+        const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+        const col = lut.rawPalette[chosenIdx];
 
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
+        out[idx] = col[0];
+        out[idx + 1] = col[1];
+        out[idx + 2] = col[2];
+        out[idx + 3] = data[idx + 3];
 
-      let errR = r - out[idx];
-      let errG = g - out[idx + 1];
-      let errB = b - out[idx + 2];
-
-      if (enableSmooth) {
-        emaR = 0.5 * errR + 0.5 * emaR;
-        emaG = 0.5 * errG + 0.5 * emaG;
-        emaB = 0.5 * errB + 0.5 * emaB;
-        errR = emaR; errG = emaG; errB = emaB;
-      }
-
-      const forward = 1 - bleed;
-      errNext[eIdx] += errR * forward;
-      errNext[eIdx + 1] += errG * forward;
-      errNext[eIdx + 2] += errB * forward;
-
-      if (bleed > 0) {
-        const side = bleed * 0.5;
-        if (y > 0) {
-          errNext[eIdx - 3] += errR * side;
-          errNext[eIdx - 2] += errG * side;
-          errNext[eIdx - 1] += errB * side;
-        }
-        if (y < h - 1) {
-          errNext[eIdx + 3] += errR * side;
-          errNext[eIdx + 4] += errG * side;
-          errNext[eIdx + 5] += errB * side;
-        }
+        const wgt = getWeight(x, y) * diffMult;
+        err = Math.max(-maxErr, Math.min(maxErr, (curLum - lut.luminances[chosenIdx]) * wgt));
       }
     }
-    errCurr.set(errNext);
-    errNext.fill(0);
+  } else {
+    for (let y = 0; y < h; y++) {
+      let errR = 0, errG = 0, errB = 0;
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        const r = Math.max(0, Math.min(255, data[idx] + errR));
+        const g = Math.max(0, Math.min(255, data[idx + 1] + errG));
+        const b = Math.max(0, Math.min(255, data[idx + 2] + errB));
+
+        lut.inlineMatch(r, g, b, out, idx);
+        out[idx + 3] = data[idx + 3];
+
+        const wgt = getWeight(x, y) * diffMult;
+        errR = Math.max(-maxErr, Math.min(maxErr, (r - out[idx]) * wgt));
+        errG = Math.max(-maxErr, Math.min(maxErr, (g - out[idx + 1]) * wgt));
+        errB = Math.max(-maxErr, Math.min(maxErr, (b - out[idx + 2]) * wgt));
+      }
+    }
   }
   return out;
 }
 
-// 3. Artifact Modulation Glitch (1D Horizontal Streaming)
+// Helper for 1D vertical diffusion
+function run1DVerticalDiffusion(w, h, data, lut, getWeight, diffMult = 1.0) {
+  const out = new Uint8ClampedArray(data.length);
+  const maxErr = 128;
+
+  if (lut.isTonalRamp) {
+    const N = lut.paletteSize;
+    const errBuf = new Float32Array(w);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
+        const curLum = Math.max(0, Math.min(255, lum + errBuf[x]));
+
+        const t = (curLum / 255) * (N - 1);
+        const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+        const col = lut.rawPalette[chosenIdx];
+
+        out[idx] = col[0];
+        out[idx + 1] = col[1];
+        out[idx + 2] = col[2];
+        out[idx + 3] = data[idx + 3];
+
+        const wgt = getWeight(x, y) * diffMult;
+        errBuf[x] = Math.max(-maxErr, Math.min(maxErr, (curLum - lut.luminances[chosenIdx]) * wgt));
+      }
+    }
+  } else {
+    const errBuf = new Float32Array(w * 3);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        const eIdx = x * 3;
+        const r = Math.max(0, Math.min(255, data[idx] + errBuf[eIdx]));
+        const g = Math.max(0, Math.min(255, data[idx + 1] + errBuf[eIdx + 1]));
+        const b = Math.max(0, Math.min(255, data[idx + 2] + errBuf[eIdx + 2]));
+
+        lut.inlineMatch(r, g, b, out, idx);
+        out[idx + 3] = data[idx + 3];
+
+        const wgt = getWeight(x, y) * diffMult;
+        errBuf[eIdx] = Math.max(-maxErr, Math.min(maxErr, (r - out[idx]) * wgt));
+        errBuf[eIdx + 1] = Math.max(-maxErr, Math.min(maxErr, (g - out[idx + 1]) * wgt));
+        errBuf[eIdx + 2] = Math.max(-maxErr, Math.min(maxErr, (b - out[idx + 2]) * wgt));
+      }
+    }
+  }
+  return out;
+}
+
+export function ditherUniformModulationX(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : (controls.intensity !== undefined ? Number(controls.intensity) / 10 : 1);
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const rawSpacing = controls.lineSpacing !== undefined ? Number(controls.lineSpacing) : 1;
+  const spacing = Math.max(1, Math.round(rawSpacing * s));
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
+    return (y % (spacing * 2) < spacing) ? 1.0 * scale : 0.5 * scale;
+  }, diffMult);
+}
+
+export function ditherUniformModulationY(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : (controls.intensity !== undefined ? Number(controls.intensity) / 10 : 1);
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const rawSpacing = controls.lineSpacing !== undefined ? Number(controls.lineSpacing) : 1;
+  const spacing = Math.max(1, Math.round(rawSpacing * s));
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DVerticalDiffusion(w, h, data, lut, (x, y) => {
+    return (x % (spacing * 2) < spacing) ? 1.0 * scale : 0.5 * scale;
+  }, diffMult);
+}
+
 export function ditherArtifactModulationGlitch(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? 1 + Number(controls.lineScale) * 0.15 : 1.5;
+  const intensity = controls.intensity !== undefined ? Number(controls.intensity) : (controls.lineScale !== undefined ? Number(controls.lineScale) * 10 : 50);
+  const s = Math.max(0.05, controls.scale !== undefined ? Number(controls.scale) : 1.0);
+  const shift = (intensity / 100) * 16 * s;
+  const bayer = [0.5/4, 2.5/4, 3.5/4, 1.5/4];
 
   for (let y = 0; y < h; y++) {
-    let errR = 0, errG = 0, errB = 0;
+    const sy = Math.floor(y / s);
+    const isGlitchRow = ((sy ^ (sy >> 2)) % 7 === 0);
+    const rowOffset = isGlitchRow ? Math.round(Math.sin(sy * 12.9898) * shift) : 0;
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
-      const r = (data[idx] - 128) * scale + 128 + errR;
-      const g = (data[idx + 1] - 128) * scale + 128 + errG;
-      const b = (data[idx + 2] - 128) * scale + 128 + errB;
+      const sx = Math.max(0, Math.min(w - 1, x + rowOffset));
+      const sIdx = (y * w + sx) * 4;
 
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
+      const sxCoord = Math.floor(x / s);
+      const bVal = bayer[(sy & 1) * 2 + (sxCoord & 1)];
+      const threshold = isGlitchRow ? (bVal > 0.5 ? 0.3 : 0.7) : bVal;
 
-      errR = r - out[idx];
-      errG = g - out[idx + 1];
-      errB = b - out[idx + 2];
-    }
-  }
-  return out;
-}
-
-// 4. Atkinson Line Modulation
-export function ditherAtkinsonLineModulation(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const modStrength = controls.modulationStrength !== undefined ? Number(controls.modulationStrength) : 5;
-  const hBias = controls.horizontalBias !== undefined ? Number(controls.horizontalBias) : 5;
-  const errRing = new Float32Array(3 * w * 3);
-
-  for (let y = 0; y < h; y++) {
-    const r0 = (y % 3) * w * 3;
-    const r1 = ((y + 1) % 3) * w * 3;
-    const r2 = ((y + 2) % 3) * w * 3;
-
-    // Sinusoidal modulation of horizontal bias
-    const wave = Math.sin((y * modStrength) / 5);
-    const bias = 1.0 + (hBias / 10) * wave;
-    const hWeight = 0.125 * bias;
-    const vWeight = 0.125 * (2 - bias);
-
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const eIdx = r0 + x * 3;
-      const r = data[idx] + errRing[eIdx];
-      const g = data[idx + 1] + errRing[eIdx + 1];
-      const b = data[idx + 2] + errRing[eIdx + 2];
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      const errR = (r - out[idx]) * 0.75;
-      const errG = (g - out[idx + 1]) * 0.75;
-      const errB = (b - out[idx + 2]) * 0.75;
-
-      if (x + 1 < w) {
-        errRing[r0 + (x + 1) * 3] += errR * hWeight;
-        errRing[r0 + (x + 1) * 3 + 1] += errG * hWeight;
-        errRing[r0 + (x + 1) * 3 + 2] += errB * hWeight;
-      }
-      if (x + 2 < w) {
-        errRing[r0 + (x + 2) * 3] += errR * hWeight;
-        errRing[r0 + (x + 2) * 3 + 1] += errG * hWeight;
-        errRing[r0 + (x + 2) * 3 + 2] += errB * hWeight;
-      }
-      if (y + 1 < h) {
-        if (x - 1 >= 0) {
-          errRing[r1 + (x - 1) * 3] += errR * vWeight;
-          errRing[r1 + (x - 1) * 3 + 1] += errG * vWeight;
-          errRing[r1 + (x - 1) * 3 + 2] += errB * vWeight;
-        }
-        errRing[r1 + x * 3] += errR * vWeight;
-        errRing[r1 + x * 3 + 1] += errG * vWeight;
-        errRing[r1 + x * 3 + 2] += errB * vWeight;
-        if (x + 1 < w) {
-          errRing[r1 + (x + 1) * 3] += errR * vWeight;
-          errRing[r1 + (x + 1) * 3 + 1] += errG * vWeight;
-          errRing[r1 + (x + 1) * 3 + 2] += errB * vWeight;
-        }
-      }
-      if (y + 2 < h) {
-        errRing[r2 + x * 3] += errR * vWeight;
-        errRing[r2 + x * 3 + 1] += errG * vWeight;
-        errRing[r2 + x * 3 + 2] += errB * vWeight;
-      }
-    }
-    for (let i = 0; i < w * 3; i++) errRing[r0 + i] = 0;
-  }
-  return out;
-}
-
-// 5. Atkinson VHS
-export function ditherAtkinsonVHS(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const lineCount = controls.lineCount !== undefined ? Number(controls.lineCount) : 1;
-
-  // Pick random glitch rows
-  const glitchRows = new Set();
-  for (let i = 0; i < lineCount; i++) {
-    glitchRows.add(Math.floor(((i * 73 + 17) % h)));
-  }
-
-  for (let y = 0; y < h; y++) {
-    const isGlitch = glitchRows.has(y);
-    const shift = isGlitch ? Math.floor(Math.sin(y * 12.3) * 15) : 0;
-    let errR = 0, errG = 0, errB = 0;
-
-    for (let x = 0; x < w; x++) {
-      const srcX = Math.max(0, Math.min(w - 1, x + shift));
-      const idx = (y * w + srcX) * 4;
-      const targetIdx = (y * w + x) * 4;
-
-      const mult = isGlitch ? 2.5 : 1.0;
-      const r = data[idx] + errR * mult;
-      const g = data[idx + 1] + errG * mult;
-      const b = data[idx + 2] + errB * mult;
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, targetIdx);
-      out[targetIdx + 3] = data[idx + 3];
-
-      errR = (r - out[targetIdx]) * 0.75;
-      errG = (g - out[targetIdx + 1]) * 0.75;
-      errB = (b - out[targetIdx + 2]) * 0.75;
-    }
-  }
-  return out;
-}
-
-// 6. Contrast Aware X (Vertical 1D with edge damping)
-export function ditherContrastAwareX(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : 1;
-  const errBuf = new Float32Array(w * 3);
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const eIdx = x * 3;
-
-      const r = data[idx] + errBuf[eIdx];
-      const g = data[idx + 1] + errBuf[eIdx + 1];
-      const b = data[idx + 2] + errBuf[eIdx + 2];
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      let errR = r - out[idx];
-      let errG = g - out[idx + 1];
-      let errB = b - out[idx + 2];
-
-      // Edge detection with next row
-      let damp = 1.0;
-      if (y + 1 < h) {
-        const nextIdx = ((y + 1) * w + x) * 4;
-        const diff = Math.abs(getLuminance(data[idx], data[idx + 1], data[idx + 2]) -
-                              getLuminance(data[nextIdx], data[nextIdx + 1], data[nextIdx + 2])) / 255;
-        damp = Math.exp(-diff * scale);
-      }
-      errBuf[eIdx] = errR * damp;
-      errBuf[eIdx + 1] = errG * damp;
-      errBuf[eIdx + 2] = errB * damp;
-    }
-  }
-  return out;
-}
-
-// 7. Contrast Aware Y (Horizontal 1D with edge damping)
-export function ditherContrastAwareY(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : 1;
-
-  for (let y = 0; y < h; y++) {
-    let errR = 0, errG = 0, errB = 0;
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const r = data[idx] + errR;
-      const g = data[idx + 1] + errG;
-      const b = data[idx + 2] + errB;
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      const diff = x + 1 < w ? Math.abs(getLuminance(data[idx], data[idx + 1], data[idx + 2]) -
-                                        getLuminance(data[idx + 4], data[idx + 5], data[idx + 6])) / 255 : 0;
-      const damp = Math.exp(-diff * scale);
-
-      errR = (r - out[idx]) * damp;
-      errG = (g - out[idx + 1]) * damp;
-      errB = (b - out[idx + 2]) * damp;
-    }
-  }
-  return out;
-}
-
-// 8. Glitch
-export function ditherGlitch(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const intensity = controls.glitchIntensity !== undefined ? Number(controls.glitchIntensity) : 1;
-
-  for (let y = 0; y < h; y++) {
-    const isGlitchRow = ((y * 17 + 13) % 25) < intensity;
-    const shift = isGlitchRow ? Math.floor(Math.sin(y * 0.5) * intensity * 4) : 0;
-
-    for (let x = 0; x < w; x++) {
-      const srcX = Math.max(0, Math.min(w - 1, x + shift));
-      const idx = (y * w + srcX) * 4;
-      const targetIdx = (y * w + x) * 4;
-
-      let r = data[idx];
-      let g = data[idx + 1];
-      let b = data[idx + 2];
-
-      if (isGlitchRow && (x % 7 === 0)) {
-        r ^= (intensity * 8);
-        g ^= (intensity * 4);
-      }
-
-      lut.inlineMatch(r, g, b, out, targetIdx);
-      out[targetIdx + 3] = data[idx + 3];
-    }
-  }
-  return out;
-}
-
-// 9. Modulated Diffuse X & 10. Modulated Diffuse Y
-export function ditherModulatedDiffuseX(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : 1;
-  const errBuf = new Float32Array(w * 3);
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const eIdx = x * 3;
-      const r = (data[idx] - 128) * scale + 128 + errBuf[eIdx];
-      const g = (data[idx + 1] - 128) * scale + 128 + errBuf[eIdx + 1];
-      const b = (data[idx + 2] - 128) * scale + 128 + errBuf[eIdx + 2];
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      errBuf[eIdx] = r - out[idx];
-      errBuf[eIdx + 1] = g - out[idx + 1];
-      errBuf[eIdx + 2] = b - out[idx + 2];
-    }
-  }
-  return out;
-}
-
-export function ditherModulatedDiffuseY(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : 1;
-
-  for (let y = 0; y < h; y++) {
-    let errR = 0, errG = 0, errB = 0;
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const r = (data[idx] - 128) * scale + 128 + errR;
-      const g = (data[idx + 1] - 128) * scale + 128 + errG;
-      const b = (data[idx + 2] - 128) * scale + 128 + errB;
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      errR = r - out[idx];
-      errG = g - out[idx + 1];
-      errB = b - out[idx + 2];
-    }
-  }
-  return out;
-}
-
-// 11. Ordered Modulation
-export function ditherOrderedModulation(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : 5;
-  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const b = bayer[(y & 3) * 4 + (x & 3)] / 16;
-      const wave = Math.sin((x + y) * 0.25) * (scale * 2.5);
-      const mod = (b - 0.5) * 64 + wave;
-
-      lut.inlineMatch(
-        Math.round(data[idx] + mod),
-        Math.round(data[idx + 1] + mod),
-        Math.round(data[idx + 2] + mod),
+      lut.inlinePairMatch(
+        data[sIdx],
+        data[sIdx + 1],
+        data[sIdx + 2],
+        threshold,
         out,
         idx
       );
@@ -429,158 +159,234 @@ export function ditherOrderedModulation(w, h, data, palette, controls = {}) {
   return out;
 }
 
-// 12. Smooth Diffuse
-export function ditherSmoothDiffuse(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) / 5 : 1.0;
-  const smooth = controls.smoothness !== undefined ? Number(controls.smoothness) : 5;
-  const alpha = 1.0 / (1.0 + smooth);
+export function ditherAtkinsonLineModulation(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const rawSpacing = controls.lineSpacing !== undefined ? Number(controls.lineSpacing) : 4;
+  const spacing = Math.max(2, Math.round(rawSpacing * s));
+  const emphasis = controls.lineEmphasis !== undefined ? Number(controls.lineEmphasis) : (controls.modulationStrength !== undefined ? Number(controls.modulationStrength) : 5);
+  const horizBias = controls.horizontalBias !== undefined ? Number(controls.horizontalBias) / 5 : 1.0;
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
 
-  for (let y = 0; y < h; y++) {
-    let errR = 0, errG = 0, errB = 0;
-    let emaR = 0, emaG = 0, emaB = 0;
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const r = data[idx] + errR * scale;
-      const g = data[idx + 1] + errG * scale;
-      const b = data[idx + 2] + errB * scale;
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      const rawR = r - out[idx];
-      const rawG = g - out[idx + 1];
-      const rawB = b - out[idx + 2];
-
-      emaR = alpha * rawR + (1 - alpha) * emaR;
-      emaG = alpha * rawG + (1 - alpha) * emaG;
-      emaB = alpha * rawB + (1 - alpha) * emaB;
-
-      errR = emaR; errG = emaG; errB = emaB;
-    }
-  }
-  return out;
+  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
+    const isLine = (y % spacing === 0);
+    const weight = isLine ? 0.75 * (1 + emphasis * 0.1) : 0.75 * 0.6;
+    return weight * horizBias;
+  }, diffMult);
 }
 
-// 13. Stucki Diffusion Lines
-export function ditherStuckiDiffusionLines(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const emphasis = controls.lineEmphasis !== undefined ? Number(controls.lineEmphasis) / 5 : 1.0;
-  // Stucki kernel with emphasized horizontal weight
-  const kernel = [
-    [1, 0, 8 * emphasis], [2, 0, 4 * emphasis],
-    [-2, 1, 2], [-1, 1, 4], [0, 1, 8], [1, 1, 4], [2, 1, 2],
-    [-2, 2, 1], [-1, 2, 2], [0, 2, 4], [1, 2, 2], [2, 2, 1]
-  ];
-  let sum = 0;
-  for (const k of kernel) sum += k[2];
+export function ditherAtkinsonVHS(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const rawJitter = controls.lineCount !== undefined ? Number(controls.lineCount) * 2 : (controls.jitter !== undefined ? Number(controls.jitter) : 5);
+  const jitterAmount = rawJitter * s;
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
 
-  const out = new Uint8ClampedArray(data.length);
-  const errRing = new Float32Array(3 * w * 3);
-
+  const shiftedData = new Uint8ClampedArray(data.length);
   for (let y = 0; y < h; y++) {
-    const r0 = (y % 3) * w * 3;
+    const isJitter = Math.sin(y * 78.233) > 0.85;
+    const jx = isJitter ? Math.round((Math.sin(y * 12.9898) - 0.5) * jitterAmount * 2) : 0;
     for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const eIdx = r0 + x * 3;
-      const r = data[idx] + errRing[eIdx];
-      const g = data[idx + 1] + errRing[eIdx + 1];
-      const b = data[idx + 2] + errRing[eIdx + 2];
+      const sx = Math.max(0, Math.min(w - 1, x + jx));
+      const srcIdx = (y * w + sx) * 4;
+      const dstIdx = (y * w + x) * 4;
+      shiftedData[dstIdx] = data[srcIdx];
+      shiftedData[dstIdx + 1] = data[srcIdx + 1];
+      shiftedData[dstIdx + 2] = data[srcIdx + 2];
+      shiftedData[dstIdx + 3] = data[srcIdx + 3];
+    }
+  }
 
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
+  return run1DHorizontalDiffusion(w, h, shiftedData, lut, () => 0.75, diffMult);
+}
 
-      const errR = r - out[idx];
-      const errG = g - out[idx + 1];
-      const errB = b - out[idx + 2];
+export function ditherContrastAwareX(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const sensitivity = controls.lineScale !== undefined ? Number(controls.lineScale) : (controls.contrastSensitivity !== undefined ? Number(controls.contrastSensitivity) : 5);
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
+    const idx = (y * w + x) * 4;
+    const nextIdx = (y * w + Math.min(w - 1, x + 1)) * 4;
+    const l1 = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
+    const l2 = getLuminance(data[nextIdx], data[nextIdx + 1], data[nextIdx + 2]);
+    const edge = Math.abs(l1 - l2) / 255;
+    return Math.max(0.3, Math.min(1.5, 1.0 + edge * sensitivity * 0.2));
+  }, diffMult);
+}
 
-      for (const [kdx, kdy, weight] of kernel) {
-        const tx = x + kdx, ty = y + kdy;
-        if (tx >= 0 && tx < w && ty < h) {
-          const tRow = (ty % 3) * w * 3;
-          const factor = weight / sum;
-          errRing[tRow + tx * 3] += errR * factor;
-          errRing[tRow + tx * 3 + 1] += errG * factor;
-          errRing[tRow + tx * 3 + 2] += errB * factor;
+export function ditherContrastAwareY(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const sensitivity = controls.lineScale !== undefined ? Number(controls.lineScale) : (controls.contrastSensitivity !== undefined ? Number(controls.contrastSensitivity) : 5);
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DVerticalDiffusion(w, h, data, lut, (x, y) => {
+    const idx = (y * w + x) * 4;
+    const nextIdx = (Math.min(h - 1, y + 1) * w + x) * 4;
+    const l1 = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
+    const l2 = getLuminance(data[nextIdx], data[nextIdx + 1], data[nextIdx + 2]);
+    const edge = Math.abs(l1 - l2) / 255;
+    return Math.max(0.3, Math.min(1.5, 1.0 + edge * sensitivity * 0.2));
+  }, diffMult);
+}
+
+export function ditherGlitch(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const out = new Uint8ClampedArray(data.length);
+  const s = Math.max(0.05, controls.scale !== undefined ? Number(controls.scale) : 1.0);
+  const blockSize = Math.max(4, Math.round((controls.blockSize !== undefined ? Number(controls.blockSize) : 8) * s));
+  const rawGlitch = controls.glitchIntensity !== undefined ? Number(controls.glitchIntensity) * 5 : (controls.glitchAmount !== undefined ? Number(controls.glitchAmount) : 30);
+  const glitchAmount = Math.max(0, Math.min(100, rawGlitch)) / 100;
+  const bayer = [0.5/4, 2.5/4, 3.5/4, 1.5/4];
+
+  for (let by = 0; by < h; by += blockSize) {
+    const isGlitchBlock = Math.sin(by * 43.123) > (1.0 - glitchAmount * 0.6);
+    const xOff = isGlitchBlock ? Math.round(Math.sin(by * 12.345) * 12 * s) : 0;
+    const maxBy = Math.min(h, by + blockSize);
+
+    for (let bx = 0; bx < w; bx += blockSize) {
+      const maxBx = Math.min(w, bx + blockSize);
+      for (let y = by; y < maxBy; y++) {
+        const sy = Math.floor(y / s);
+        for (let x = bx; x < maxBx; x++) {
+          const sx = Math.max(0, Math.min(w - 1, x + xOff));
+          const idx = (y * w + x) * 4;
+          const sIdx = (y * w + sx) * 4;
+
+          const sxCoord = Math.floor(x / s);
+          const thresh = bayer[(sy & 1) * 2 + (sxCoord & 1)];
+          lut.inlinePairMatch(
+            data[sIdx],
+            data[sIdx + 1],
+            data[sIdx + 2],
+            thresh,
+            out,
+            idx
+          );
+          out[idx + 3] = data[idx + 3];
         }
       }
     }
-    for (let i = 0; i < w * 3; i++) errRing[r0 + i] = 0;
   }
   return out;
 }
 
-// 14. Wave Modulation X & 15. Wave Modulation Y
-export function ditherWaveModulationX(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+export function ditherModulatedDiffuseX(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const freq = controls.frequency !== undefined ? Number(controls.frequency) : (controls.lineScale !== undefined ? Number(controls.lineScale) * 2 : 10);
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const effFreq = freq / s;
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
+    return 1.0 + 0.4 * Math.sin((x * effFreq * 0.1));
+  }, diffMult);
+}
+
+export function ditherModulatedDiffuseY(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const freq = controls.frequency !== undefined ? Number(controls.frequency) : (controls.lineScale !== undefined ? Number(controls.lineScale) * 2 : 10);
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const effFreq = freq / s;
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DVerticalDiffusion(w, h, data, lut, (x, y) => {
+    return 1.0 + 0.4 * Math.sin((y * effFreq * 0.1));
+  }, diffMult);
+}
+
+export function ditherOrderedModulation(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const freq = controls.frequency !== undefined ? Number(controls.frequency) : 5;
-  const amp = (controls.amplitude !== undefined ? Number(controls.amplitude) : 50) / 100;
-  const errBuf = new Float32Array(w * 3);
+  const s = Math.max(0.05, controls.scale !== undefined ? Number(controls.scale) : 1.0);
+  const lineScale = controls.lineScale !== undefined ? Number(controls.lineScale) : 5;
+  const bayer = [
+     0.5/16,  8.5/16,  2.5/16, 10.5/16,
+    12.5/16,  4.5/16, 14.5/16,  6.5/16,
+     3.5/16, 11.5/16,  1.5/16,  9.5/16,
+    15.5/16,  7.5/16, 13.5/16,  5.5/16
+  ];
 
   for (let y = 0; y < h; y++) {
-    const wave = 1.0 + amp * Math.sin((2 * Math.PI * freq * y) / h);
+    const sy = Math.floor(y / s);
     for (let x = 0; x < w; x++) {
+      const sx = Math.floor(x / s);
       const idx = (y * w + x) * 4;
-      const eIdx = x * 3;
-      const r = data[idx] + errBuf[eIdx];
-      const g = data[idx + 1] + errBuf[eIdx + 1];
-      const b = data[idx + 2] + errBuf[eIdx + 2];
+      const b = bayer[(sy & 3) * 4 + (sx & 3)];
+      const wave = Math.sin((sx + sy) * 0.25) * (lineScale * 0.04);
+      const thresh = Math.max(0.05, Math.min(0.95, b + wave));
 
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        thresh,
+        out,
+        idx
+      );
       out[idx + 3] = data[idx + 3];
-
-      errBuf[eIdx] = (r - out[idx]) * wave;
-      errBuf[eIdx + 1] = (g - out[idx + 1]) * wave;
-      errBuf[eIdx + 2] = (b - out[idx + 2]) * wave;
     }
   }
   return out;
+}
+
+export function ditherSmoothDiffuse(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const smooth = controls.smoothness !== undefined ? Number(controls.smoothness) : (controls.lineScale !== undefined ? Number(controls.lineScale) : 5);
+  const alpha = 1.0 / (1.0 + smooth);
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+
+  return run1DHorizontalDiffusion(w, h, data, lut, () => 0.8 * (1 - alpha * 0.3), diffMult);
+}
+
+export function ditherStuckiDiffusionLines(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const emphasis = (controls.lineEmphasis !== undefined ? Number(controls.lineEmphasis) : (controls.lineScale !== undefined ? Number(controls.lineScale) : 5)) / 5;
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
+    return (y % 4 < 2) ? 0.9 * emphasis : 0.6 * emphasis;
+  }, diffMult);
+}
+
+export function ditherWaveModulationX(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const freq = controls.frequency !== undefined ? Number(controls.frequency) : 5;
+  const amp = (controls.amplitude !== undefined ? Number(controls.amplitude) : 50) / 100;
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const effFreq = freq / s;
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
+    return 1.0 + amp * Math.sin((2 * Math.PI * effFreq * y) / h);
+  }, diffMult);
 }
 
 export function ditherWaveModulationY(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
-  const out = new Uint8ClampedArray(data.length);
+  const lut = new FastPaletteLUT(palette, controls);
   const freq = controls.frequency !== undefined ? Number(controls.frequency) : 5;
   const amp = (controls.amplitude !== undefined ? Number(controls.amplitude) : 50) / 100;
-
-  for (let y = 0; y < h; y++) {
-    let errR = 0, errG = 0, errB = 0;
-    for (let x = 0; x < w; x++) {
-      const wave = 1.0 + amp * Math.sin((2 * Math.PI * freq * x) / w);
-      const idx = (y * w + x) * 4;
-      const r = data[idx] + errR;
-      const g = data[idx + 1] + errG;
-      const b = data[idx + 2] + errB;
-
-      lut.inlineMatch(Math.round(r), Math.round(g), Math.round(b), out, idx);
-      out[idx + 3] = data[idx + 3];
-
-      errR = (r - out[idx]) * wave;
-      errG = (g - out[idx + 1]) * wave;
-      errB = (b - out[idx + 2]) * wave;
-    }
-  }
-  return out;
+  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
+  const effFreq = freq / s;
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+  return run1DVerticalDiffusion(w, h, data, lut, (x, y) => {
+    return 1.0 + amp * Math.sin((2 * Math.PI * effFreq * x) / w);
+  }, diffMult);
 }
 
-// 16. Waveform & 17. Waveform Alt
 export function ditherWaveform(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const density = controls.waveDensity !== undefined ? Number(controls.waveDensity) : 1;
+  const s = Math.max(0.05, controls.scale !== undefined ? Number(controls.scale) : 1.0);
+  const density = controls.waveDensity !== undefined ? Number(controls.waveDensity) : (controls.density !== undefined ? Number(controls.density) : 1);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
       const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-      const wave = Math.sin((x * density) / 10 + (lum / 255) * Math.PI * 2) * 64;
+      const sx = x / s;
+      const wave = Math.sin((sx * density) / 10 + (lum / 255) * Math.PI * 2);
+      const thresh = 0.5 + wave * 0.35;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + wave),
-        Math.round(data[idx + 1] + wave),
-        Math.round(data[idx + 2] + wave),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        thresh,
         out,
         idx
       );
@@ -591,22 +397,26 @@ export function ditherWaveform(w, h, data, palette, controls = {}) {
 }
 
 export function ditherWaveformAlt(w, h, data, palette, controls = {}) {
-  const lut = new FastPaletteLUT(palette);
+  const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);
-  const blend = controls.modulationBlend !== undefined ? Number(controls.modulationBlend) / 10 : 0.5;
+  const blend = (controls.modulationBlend !== undefined ? Number(controls.modulationBlend) : 5) / 10;
+  const s = Math.max(0.05, controls.scale !== undefined ? Number(controls.scale) : 1.0);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
       const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-      const freqWave = Math.sin((x * lum * 0.05) / 10);
-      const ampWave = Math.cos(x * 0.2) * (lum / 255);
-      const wave = (freqWave * blend + ampWave * (1 - blend)) * 64;
+      const sx = x / s;
+      const freqWave = Math.sin((sx * lum * 0.05) / 10);
+      const ampWave = Math.cos(sx * 0.2) * (lum / 255);
+      const wave = freqWave * blend + ampWave * (1 - blend);
+      const thresh = 0.5 + wave * 0.35;
 
-      lut.inlineMatch(
-        Math.round(data[idx] + wave),
-        Math.round(data[idx + 1] + wave),
-        Math.round(data[idx + 2] + wave),
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        thresh,
         out,
         idx
       );

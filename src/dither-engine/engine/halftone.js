@@ -246,7 +246,7 @@ export function processHalftone(w, h, inputBuffer, params = {}) {
       out[dstIdx] = v;
       out[dstIdx + 1] = v;
       out[dstIdx + 2] = v;
-      out[dstIdx + 3] = 255;
+      if (src[dstIdx + 3] > 0) out[dstIdx + 3] = 255;
     }
   } else {
     // CMYK Mode
@@ -283,7 +283,7 @@ export function processHalftone(w, h, inputBuffer, params = {}) {
       out[dstIdx] = Math.round((1 - cInk) * (1 - kInk) * 255);
       out[dstIdx + 1] = Math.round((1 - mInk) * (1 - kInk) * 255);
       out[dstIdx + 2] = Math.round((1 - yInk) * (1 - kInk) * 255);
-      out[dstIdx + 3] = 255;
+      if (src[dstIdx + 3] > 0) out[dstIdx + 3] = 255;
     }
   }
 

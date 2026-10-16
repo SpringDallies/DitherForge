@@ -3464,6 +3464,12 @@ export function applyDitherAlgorithm(imageData, settings) {
   const normId = rawId.replace(/_/g, '-');
   const resolvedId = ALGORITHM_ALIASES[rawId] || ALGORITHM_ALIASES[normId] || normId;
 
+  // Snapshot original alpha channel to preserve transparency
+  const origAlpha = new Uint8ClampedArray(width * height);
+  for (let i = 0, a = 3; i < origAlpha.length; i++, a += 4) {
+    origAlpha[i] = data[a];
+  }
+
   const bayerSizeMatch = {
     'bayer_2x2': '2x2',
     'bayer-2x2': '2x2',
@@ -3486,4 +3492,14 @@ export function applyDitherAlgorithm(imageData, settings) {
   if (result && result.buffer) {
     data.set(new Uint8ClampedArray(result.buffer));
   }
+
+  // Preserve transparency: if original pixel had alpha > 0, set to 255, else leave 0
+  for (let i = 0, a = 3; i < origAlpha.length; i++, a += 4) {
+    if (origAlpha[i] > 0) {
+      data[a] = 255;
+    } else {
+      data[a] = 0;
+    }
+  }
 }
+

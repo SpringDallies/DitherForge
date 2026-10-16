@@ -218,6 +218,7 @@
 | Top-Bar Engine Dropdown: `Live` | `index.html:63` (`#perfModeSelector`) | Top bar dropdown | Bottom Strip segmented switch: `[ Live ]` | [ ] Pending |
 | Top-Bar Engine Dropdown: `Still` | `index.html:64` (`#perfModeSelector`) | Top bar dropdown | Bottom Strip segmented switch: `[ Settle ]` (250ms debounce) | [ ] Pending |
 | Left Icon Rail Placeholder | *[NEW - placeholder; logo asset TBD by user]* | None | Left edge of viewport (32px icon rail) | [ ] Pending |
+| Transparent image import with alpha preservation | `CenterViewport.tsx`, `algorithms.js` | Viewport & Engine | Whole viewport drop target & engine pipeline | [x] Implemented |
 
 ---
 

@@ -19,6 +19,12 @@ export function applyEffectStack(imageData, stack) {
   const height = imageData.height;
   const data = imageData.data;
 
+  // Snapshot original alpha channel to guarantee transparency preservation across all post-effects
+  const origAlpha = new Uint8ClampedArray(width * height);
+  for (let i = 0, a = 3; i < origAlpha.length; i++, a += 4) {
+    origAlpha[i] = data[a];
+  }
+
   for (let i = 0; i < stack.length; i++) {
     const item = stack[i];
     if (!item.enabled) continue;
@@ -52,6 +58,11 @@ export function applyEffectStack(imageData, stack) {
         applyVignette(data, width, height, item.params);
         break;
     }
+  }
+
+  // Restore exact incoming alpha
+  for (let i = 0, a = 3; i < origAlpha.length; i++, a += 4) {
+    data[a] = origAlpha[i];
   }
 }
 

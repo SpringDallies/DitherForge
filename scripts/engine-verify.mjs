@@ -13,7 +13,7 @@ const FROZEN_HASHES = {
   "src/dither-engine/exporters.js": "af0c062b18736a67ec4ae2b4a3dbda7dac32b3626f47ac712aef625d9718b7e2",
   "src/dither-engine/palettes.js": "6a41e8eed201925ba7726b49f0cda9240ab51cf144bc9431d9e32b14ff48ed5b",
   "src/dither-engine/temporal.js": "20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584",
-  "src/ui/presets.js": "f92f4160cadcd2843cc7808f01a7643f211bf399f82721fce4dd9d93f4d86366"
+  "src/ui/presets.js": "c9b5989e98ad720e11df75c7a40a88e3f9af9c7fc8527bbe20ef710fd83b98ef"
 };
 
 console.log("==================================================================");

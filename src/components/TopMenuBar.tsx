@@ -136,9 +136,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
   // Global keyboard shortcuts (Alt+F/E/V/H, Ctrl+O, Ctrl+C, Ctrl+E, Ctrl+=/-, 0, 1, \)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
-      const isInput = activeTag === 'input' || activeTag === 'textarea';
-
       // Alt + Key Menu navigation
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         if (e.key.toLowerCase() === 'f') {
@@ -188,8 +185,18 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
         }
       }
 
-      // If an input is focused, don't trigger canvas shortcuts
-      if (isInput) return;
+      // If a UI control is focused, don't trigger canvas shortcuts
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      const tag = target.tagName;
+      if (
+        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        tag === 'BUTTON' || tag === 'A' ||
+        target.isContentEditable ||
+        target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
 
       // Ctrl / Cmd shortcuts
       if (e.ctrlKey || e.metaKey) {

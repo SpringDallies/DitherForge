@@ -107,7 +107,15 @@ export const CenterViewport: React.FC = () => {
   // Keyboard Navigation: 0 (Fit), 1 (1:1), \ (Compare), Space (Pan)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName) || (e.target as HTMLElement)?.isContentEditable) {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      const tag = target.tagName;
+      if (
+        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        tag === 'BUTTON' || tag === 'A' ||
+        target.isContentEditable ||
+        target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+      ) {
         return;
       }
 
@@ -135,6 +143,18 @@ export const CenterViewport: React.FC = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      const tag = target.tagName;
+      if (
+        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        tag === 'BUTTON' || tag === 'A' ||
+        target.isContentEditable ||
+        target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
+
       if (e.code === 'Space') {
         setIsSpacePressed(false);
       }

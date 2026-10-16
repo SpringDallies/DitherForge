@@ -490,9 +490,15 @@ export const RightSidebar: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isAlgoListboxOpen) return;
-      const activeEl = document.activeElement;
-      const tagName = activeEl?.tagName?.toLowerCase() || '';
-      if (tagName === 'input' || tagName === 'select' || tagName === 'textarea' || (activeEl as HTMLElement)?.isContentEditable) {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      const tag = target.tagName;
+      if (
+        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        tag === 'BUTTON' || tag === 'A' ||
+        target.isContentEditable ||
+        target.closest('button, a, input, textarea, select, [contenteditable="true"]')
+      ) {
         return;
       }
       if (e.key === 'ArrowUp') {

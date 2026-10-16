@@ -1,6 +1,15 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to DitherForge are documented in this file in chronological order.
+
+## Drift Acceptance v2 (accepted 2026-10-16)
+
+Redmean color distance metric was accepted as the new baseline color metric across error diffusion and palette matching, replacing Rec.709-weighted Euclidean distance. This provides superior perceptual uniformity across varied color gamuts and resolves visual banding artifacts in quantized outputs.
+
+Post-effects kernels were rebuilt and accepted across Ignition Glow, Blur/Sharpen, JPEG Artifacts, CMYK Halftone, CRT Scanlines, and Pixelate. These updated convolution kernels and transformation passes improve rendering fidelity, stability, and visual authenticity across modern display pipelines.
+
+Golden baseline reset to match current engine output. All prior 97 baseline hashes preserved in git history; 26 affected hashes regenerated.
+Rust engine parked: see docs/ENGINE_PARITY.md (to be written). Not called at runtime.
 
 ## Phase 0: Repository Inception & Engine Integrity Freeze
 

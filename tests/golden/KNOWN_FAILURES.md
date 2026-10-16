@@ -1,3 +1,5 @@
+## v2 Baseline Accepted — see CHANGELOG.md Drift Acceptance v2
+
 # Golden Verification Known Failures & Drift Report
 
 ## Overview

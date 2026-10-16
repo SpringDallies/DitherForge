@@ -735,6 +735,11 @@ export const RightSidebar: React.FC = () => {
               ]}
             />
           </div>
+          {exportFormat === 'JPEG' && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              JPG flattens transparency to black.
+            </div>
+          )}
         </div>
 
         {/* SECTIONS STACK */}

@@ -195,3 +195,40 @@ export function ditherRandomOrdered(w, h, data, palette, controls = {}) {
   }
   return out;
 }
+
+const CLUSTER_6 = [
+  [32, 28, 24, 25, 29, 33],
+  [20, 12,  8,  9, 13, 21],
+  [16,  4,  0,  1,  5, 17],
+  [18,  6,  2,  3,  7, 19],
+  [22, 14, 10, 11, 15, 23],
+  [34, 30, 26, 27, 31, 35]
+];
+
+export function ditherClusteredDot(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const out = new Uint8ClampedArray(data.length);
+  const scale = Number(controls.scale || 1.0);
+  const size = 6;
+
+  for (let y = 0; y < h; y++) {
+    const sy = scale > 1 ? Math.floor(y / scale) : y;
+    const row = sy % size;
+    for (let x = 0; x < w; x++) {
+      const sx = scale > 1 ? Math.floor(x / scale) : x;
+      const idx = (y * w + x) * 4;
+      const clusterVal = (CLUSTER_6[row][sx % size] + 0.5) / 36;
+
+      lut.inlinePairMatch(
+        data[idx],
+        data[idx + 1],
+        data[idx + 2],
+        clusterVal,
+        out,
+        idx
+      );
+      out[idx + 3] = data[idx + 3];
+    }
+  }
+  return out;
+}

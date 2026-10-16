@@ -10,76 +10,141 @@
 
 ## 1. Feature Inventory & Location Mapping
 
-### 1.1 Dithering Algorithms (63 Total)
-*Directly generated from `ALGORITHM_REGISTRY` in `src/dither-engine/algorithms.js`. All 63 algorithms remain bit-identical. Mapped to Right Panel A: Searchable categorized dropdown with interactive category filter chips, Prev/Next stepping, favorites, and progressive parameter disclosure.*
+### 1.1 Dithering Algorithms (84 Total)
+*Directly generated from ALGORITHM_REGISTRY in src/dither-engine/algorithms.js. Dispatched through clean modular engine submodules in src/dither-engine/engine/. Mapped to Right Panel A: Searchable categorized dropdown with interactive category filter chips, Prev/Next stepping, favorites, and progressive parameter disclosure.*
 
 | # | ID | Algorithm Name (Canonical in Code) | Category | Source (File & Line) | Current Location | New Location | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | `floyd_steinberg` | Floyd–Steinberg | Error Diffusion | `src/dither-engine/algorithms.js:17` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 2 | `atkinson` | Atkinson | Error Diffusion | `src/dither-engine/algorithms.js:18` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 3 | `jarvis_judice_ninke` | Jarvis–Judice–Ninke | Error Diffusion | `src/dither-engine/algorithms.js:19` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 4 | `stucki` | Stucki | Error Diffusion | `src/dither-engine/algorithms.js:20` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 5 | `burkes` | Burkes | Error Diffusion | `src/dither-engine/algorithms.js:21` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 6 | `sierra_3` | Sierra Three-Row | Error Diffusion | `src/dither-engine/algorithms.js:22` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 7 | `sierra_2` | Sierra Two-Row | Error Diffusion | `src/dither-engine/algorithms.js:23` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 8 | `sierra_lite` | Sierra Lite | Error Diffusion | `src/dither-engine/algorithms.js:24` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 9 | `stevenson_arce` | Stevenson–Arce | Error Diffusion | `src/dither-engine/algorithms.js:25` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 10 | `fan` | Fan Adaptive | Error Diffusion | `src/dither-engine/algorithms.js:26` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 11 | `shiau_fan` | Shiau–Fan Balanced | Error Diffusion | `src/dither-engine/algorithms.js:27` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 12 | `shiau_fan_2` | Shiau–Fan 2 (Narrow) | Error Diffusion | `src/dither-engine/algorithms.js:28` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 13 | `false_floyd_steinberg` | False Floyd–Steinberg | Error Diffusion | `src/dither-engine/algorithms.js:29` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 14 | `minimized_avg_error` | Minimized Average Error | Error Diffusion | `src/dither-engine/algorithms.js:30` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 15 | `dynamic_serpentine` | Dynamic Serpentine Lattice | Error Diffusion | `src/dither-engine/algorithms.js:31` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [ ] Pending |
-| 16 | `bayer_2x2` | Bayer 2×2 | Ordered | `src/dither-engine/algorithms.js:34` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [ ] Pending |
-| 17 | `bayer_4x4` | Bayer 4×4 | Ordered | `src/dither-engine/algorithms.js:35` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [ ] Pending |
-| 18 | `bayer_8x8` | Bayer 8×8 | Ordered | `src/dither-engine/algorithms.js:36` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [ ] Pending |
-| 19 | `bayer_16x16` | Bayer 16×16 | Ordered | `src/dither-engine/algorithms.js:37` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [ ] Pending |
-| 20 | `clustered_dot` | Clustered Dot Screen | Ordered | `src/dither-engine/algorithms.js:38` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [ ] Pending |
-| 21 | `checkered` | Checkered Micro-Grid | Pattern | `src/dither-engine/algorithms.js:41` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 22 | `horizontal_lines` | Horizontal Linear Grating | Pattern | `src/dither-engine/algorithms.js:42` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 23 | `vertical_lines` | Vertical Linear Grating | Pattern | `src/dither-engine/algorithms.js:43` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 24 | `crosshatch` | Interlocking Crosshatch | Pattern | `src/dither-engine/algorithms.js:44` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 25 | `diagonal_hatch` | Diagonal 45° Hatch | Pattern | `src/dither-engine/algorithms.js:45` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 26 | `concentric_diamond` | Concentric Diamond Grid | Pattern | `src/dither-engine/algorithms.js:46` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 27 | `woven_basket` | Woven Basket Tile | Pattern | `src/dither-engine/algorithms.js:47` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 28 | `hex_stipple` | Hexagonal Stochastic Stipple | Pattern | `src/dither-engine/algorithms.js:48` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [ ] Pending |
-| 29 | `scanline_jitter` | Scanline Jitter | Glitch | `src/dither-engine/algorithms.js:51` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 30 | `chromatic_offset` | Color Channel Offset | Glitch | `src/dither-engine/algorithms.js:52` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 31 | `pixel_sorting` | Directional Pixel Sorting | Glitch | `src/dither-engine/algorithms.js:53` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 32 | `digital_artifacts` | Digital Compression Artifacts | Glitch | `src/dither-engine/algorithms.js:54` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 33 | `interlacing_tear` | Interlacing Field Tear | Glitch | `src/dither-engine/algorithms.js:55` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 34 | `crt_bloom` | CRT Phosphor Bloom | Glitch | `src/dither-engine/algorithms.js:56` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 35 | `bit_crush` | Bit-Depth Crush Quantizer | Glitch | `src/dither-engine/algorithms.js:57` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 36 | `vhs_tracking` | VHS Tracking Noise | Glitch | `src/dither-engine/algorithms.js:58` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 37 | `bad_ram` | Bad RAM Nibble Inversion | Glitch | `src/dither-engine/algorithms.js:59` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 38 | `wave_distortion` | Sinusoidal Wave Warp | Glitch | `src/dither-engine/algorithms.js:60` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 39 | `quant_slice` | Quantization Step Slicing | Glitch | `src/dither-engine/algorithms.js:61` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 40 | `matrix_rake` | Diagonal Matrix Rake | Glitch | `src/dither-engine/algorithms.js:62` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 41 | `static_snow` | Analog Static Snow | Glitch | `src/dither-engine/algorithms.js:63` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 42 | `sync_pulse_loss` | Sync Pulse Hold Collapse | Glitch | `src/dither-engine/algorithms.js:64` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 43 | `feedback_ringing` | Edge Ringing & Feedback | Glitch | `src/dither-engine/algorithms.js:65` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 44 | `chroma_subsample` | YUV 4:1:1 Degradation | Glitch | `src/dither-engine/algorithms.js:66` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 45 | `moire_glitch` | Moiré Interference Glitch | Glitch | `src/dither-engine/algorithms.js:67` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch | [ ] Pending |
-| 46 | `fixed_threshold` | Fixed Bi-Level Cutoff | Special | `src/dither-engine/algorithms.js:70` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 47 | `random_threshold` | Uniform White Noise Dither | Special | `src/dither-engine/algorithms.js:71` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 48 | `blue_noise` | Void-and-Cluster Blue Noise | Special | `src/dither-engine/algorithms.js:72` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 49 | `gaussian_noise` | Gaussian Normal Distribution | Special | `src/dither-engine/algorithms.js:73` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 50 | `perlin_gradient` | Perlin Gradient Lattice | Special | `src/dither-engine/algorithms.js:74` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 51 | `riemersma` | Riemersma Hilbert Space-Curve | Special | `src/dither-engine/algorithms.js:75` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 52 | `ostromoukhov` | Ostromoukhov Variable Diffusion | Special | `src/dither-engine/algorithms.js:76` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 53 | `tpdf_noise` | Triangular PDF Noise (TPDF) | Special | `src/dither-engine/algorithms.js:77` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 54 | `companding_curve` | Dynamic Companding (A-Law) | Special | `src/dither-engine/algorithms.js:78` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 55 | `spatial_lattice` | Hexagonal Spatial Lattice | Special | `src/dither-engine/algorithms.js:79` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 56 | `sobel_feature` | Sobel Silhouette Preserving | Special | `src/dither-engine/algorithms.js:80` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 57 | `laplacian_mod` | Laplacian Frequency Modulated | Special | `src/dither-engine/algorithms.js:81` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 58 | `directional_gradient` | Directional Gradient Angle | Special | `src/dither-engine/algorithms.js:82` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 59 | `voronoi_cellular` | Voronoi Cellular Stipple | Special | `src/dither-engine/algorithms.js:83` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 60 | `diffusion_blur` | Unsharp Diffusion Quantizer | Special | `src/dither-engine/algorithms.js:84` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 61 | `quantum_stipple` | Quantum Probability Cloud | Special | `src/dither-engine/algorithms.js:85` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [ ] Pending |
-| 62 | `ignition_glow` | Ignition Glow (Bespoke Dither Bloom) | Bespoke | `src/dither-engine/algorithms.js:88` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Bespoke | [ ] Pending |
-| 63 | `temporal_kinetic` | Temporal Kinetic Dither | Bespoke | `src/dither-engine/algorithms.js:89` | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Bespoke | [ ] Pending |
+| 1 | color-separation | Color Separation | Basic | src/dither-engine/engine/basic.js:15 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Basic | [x] Implemented |
+| 2 | none | Original | Basic | src/dither-engine/engine/basic.js:33 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Basic | [x] Implemented |
+| 3 | artifact-modulation | Artifact Modulation | Error Diffusion | src/dither-engine/engine/error-diffusion.js:269 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 4 | atkinson | Atkinson | Error Diffusion | src/dither-engine/engine/error-diffusion.js:110 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 5 | burkes | Burkes | Error Diffusion | src/dither-engine/engine/error-diffusion.js:119 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 6 | cracked-diffuse | Cracked Diffuse | Error Diffusion | src/dither-engine/engine/error-diffusion.js:402 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 7 | floyd-steinberg | Floyd-Steinberg | Error Diffusion | src/dither-engine/engine/error-diffusion.js:101 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 8 | fractal-diffuse | Fractal Diffuse | Error Diffusion | src/dither-engine/engine/error-diffusion.js:549 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 9 | gaussian | Gaussian | Error Diffusion | src/dither-engine/engine/error-diffusion.js:488 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 10 | jarvis-judice-ninke | Jarvis-Judice-Ninke | Error Diffusion | src/dither-engine/engine/error-diffusion.js:175 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 11 | ostromukhov | Ostromukhov | Error Diffusion | src/dither-engine/engine/error-diffusion.js:300 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 12 | sierra-lite | Sierra Lite | Error Diffusion | src/dither-engine/engine/error-diffusion.js:153 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 13 | sierra | Sierra | Error Diffusion | src/dither-engine/engine/error-diffusion.js:128 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 14 | stevenson-arce | Stevenson-Arce | Error Diffusion | src/dither-engine/engine/error-diffusion.js:188 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 15 | stucki | Stucki | Error Diffusion | src/dither-engine/engine/error-diffusion.js:162 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 16 | two-row-sierra | Two-Row Sierra | Error Diffusion | src/dither-engine/engine/error-diffusion.js:141 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 17 | vortex-diffusion | Vortex Diffusion | Error Diffusion | src/dither-engine/engine/error-diffusion.js:642 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 18 | dynamic-serpentine | Dynamic Serpentine Lattice | Error Diffusion | src/dither-engine/engine/error-diffusion.js:255 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 19 | false-floyd-steinberg | False Floyd–Steinberg | Error Diffusion | src/dither-engine/engine/error-diffusion.js:235 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 20 | fan | Fan Adaptive | Error Diffusion | src/dither-engine/engine/error-diffusion.js:202 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 21 | minimized-avg-error | Minimized Average Error | Error Diffusion | src/dither-engine/engine/error-diffusion.js:245 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 22 | shiau-fan | Shiau–Fan Balanced | Error Diffusion | src/dither-engine/engine/error-diffusion.js:210 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 23 | shiau-fan-2 | Shiau–Fan 2 (Narrow) | Error Diffusion | src/dither-engine/engine/error-diffusion.js:223 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Error Diffusion | [x] Implemented |
+| 24 | artifact-modulation-glitch | Artifact Modulation (Glitch) | Glitch Effects | src/dither-engine/engine/glitch.js:127 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 25 | atkinson-line-modulation | Atkinson Line Modulation | Glitch Effects | src/dither-engine/engine/glitch.js:162 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 26 | atkinson-vhs | Atkinson-VHS | Glitch Effects | src/dither-engine/engine/glitch.js:178 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 27 | contrast-aware-x | Contrast Aware X | Glitch Effects | src/dither-engine/engine/glitch.js:203 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 28 | contrast-aware-y | Contrast Aware Y | Glitch Effects | src/dither-engine/engine/glitch.js:217 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 29 | glitch | Glitch | Glitch Effects | src/dither-engine/engine/glitch.js:231 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 30 | modulated-diffuse-x | Modulated Diffuse X | Glitch Effects | src/dither-engine/engine/glitch.js:272 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 31 | modulated-diffuse-y | Modulated Diffuse Y | Glitch Effects | src/dither-engine/engine/glitch.js:283 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 32 | ordered-modulation | Ordered Modulation | Glitch Effects | src/dither-engine/engine/glitch.js:294 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 33 | smooth-diffuse | Smooth Diffuse | Glitch Effects | src/dither-engine/engine/glitch.js:329 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 34 | stucki-diffusion-lines | Stucki Diffusion Lines | Glitch Effects | src/dither-engine/engine/glitch.js:338 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 35 | uniform-modulation-x | Uniform Modulation X | Glitch Effects | src/dither-engine/engine/glitch.js:103 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 36 | uniform-modulation-y | Uniform Modulation Y | Glitch Effects | src/dither-engine/engine/glitch.js:115 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 37 | wave-modulation-x | Wave Modulation X | Glitch Effects | src/dither-engine/engine/glitch.js:347 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 38 | wave-modulation-y | Wave Modulation Y | Glitch Effects | src/dither-engine/engine/glitch.js:359 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 39 | waveform-alt | Waveform Alt | Glitch Effects | src/dither-engine/engine/glitch.js:399 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 40 | waveform | Waveform | Glitch Effects | src/dither-engine/engine/glitch.js:371 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Glitch Effects | [x] Implemented |
+| 41 | bayer-matrix | Bayer Matrix | Ordered | src/dither-engine/engine/ordered.js:37 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 42 | bayer-2x2 | Bayer 2×2 | Ordered | src/dither-engine/engine/ordered.js:37 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 43 | bayer-4x4 | Bayer 4×4 | Ordered | src/dither-engine/engine/ordered.js:37 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 44 | bayer-8x8 | Bayer 8×8 | Ordered | src/dither-engine/engine/ordered.js:37 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 45 | bayer-16x16 | Bayer 16×16 | Ordered | src/dither-engine/engine/ordered.js:37 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 46 | clustered-dot | Clustered Dot Screen | Ordered | src/dither-engine/engine/ordered.js:203 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 47 | bayer-void | Bayer-Void | Ordered | src/dither-engine/engine/ordered.js:71 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 48 | bit-tone | Bit Tone | Ordered | src/dither-engine/engine/ordered.js:102 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 49 | mosaic | Mosaic | Ordered | src/dither-engine/engine/ordered.js:131 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 50 | random-ordered | Random Ordered | Ordered | src/dither-engine/engine/ordered.js:173 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Ordered | [x] Implemented |
+| 51 | block-tone | Block Tone | Pattern | src/dither-engine/engine/patterned.js:4 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 52 | camo | Camo | Pattern | src/dither-engine/engine/patterned.js:82 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 53 | checkers | Checkers | Pattern | src/dither-engine/engine/patterned.js:116 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 54 | circle-grid | Circle Grid | Pattern | src/dither-engine/engine/patterned.js:153 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 55 | crosshatch | Crosshatch | Pattern | src/dither-engine/engine/patterned.js:181 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 56 | diamond-grid | Diamond Grid | Pattern | src/dither-engine/engine/patterned.js:214 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 57 | diamond | Diamond | Pattern | src/dither-engine/engine/patterned.js:214 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 58 | gridlock-traffic | Gridlock/Traffic | Pattern | src/dither-engine/engine/patterned.js:273 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 59 | heart-grid | Heart Grid | Pattern | src/dither-engine/engine/patterned.js:298 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 60 | pop-tone | Pop Tone | Pattern | src/dither-engine/engine/patterned.js:44 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 61 | print-pattern | Print Pattern | Pattern | src/dither-engine/engine/patterned.js:329 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 62 | square-mosaic | Square Mosaic | Pattern | src/dither-engine/engine/patterned.js:360 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 63 | stippling | Stippling | Pattern | src/dither-engine/engine/patterned.js:389 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Pattern | [x] Implemented |
+| 64 | hexa-poly | Hexa-Poly | Polygon | src/dither-engine/engine/polygon.js:4 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Polygon | [x] Implemented |
+| 65 | low-poly | Low-Poly | Polygon | src/dither-engine/engine/polygon.js:33 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Polygon | [x] Implemented |
+| 66 | penta-poly | Penta-Poly | Polygon | src/dither-engine/engine/polygon.js:74 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Polygon | [x] Implemented |
+| 67 | tri-poly | Tri-Poly | Polygon | src/dither-engine/engine/polygon.js:109 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Polygon | [x] Implemented |
+| 68 | beehive | Beehive | Special | src/dither-engine/engine/special.js:37 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 69 | diagonal | Diagonal | Special | src/dither-engine/engine/special.js:65 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 70 | displace-contour | Displace Contour | Special | src/dither-engine/engine/special.js:113 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 71 | dotted-lines | Dotted Lines | Special | src/dither-engine/engine/special.js:156 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 72 | noise | Noise | Special | src/dither-engine/engine/special.js:195 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 73 | orb-diffuse-x | Orb Diffuse X | Special | src/dither-engine/engine/special.js:407 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 74 | orb-diffuse-y | Orb Diffuse Y | Special | src/dither-engine/engine/special.js:471 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 75 | orb-diffuse | Orb Diffuse | Special | src/dither-engine/engine/special.js:272 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 76 | orb-matrix | Orb Matrix | Special | src/dither-engine/engine/special.js:533 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 77 | radial-burst | Radial Burst | Special | src/dither-engine/engine/special.js:571 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 78 | radial-peaks | Radial Peaks | Special | src/dither-engine/engine/special.js:594 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 79 | sine-distort | Sine Distort | Special | src/dither-engine/engine/special.js:663 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 80 | sine-wave-modulation | Sine Wave Modulation | Special | src/dither-engine/engine/special.js:690 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 81 | thresholder | Thresholder | Special | src/dither-engine/engine/special.js:714 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 82 | topography | Topography | Special | src/dither-engine/engine/special.js:740 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 83 | vortex | Vortex | Special | src/dither-engine/engine/error-diffusion.js:642 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
+| 84 | wave | Wave | Special | src/dither-engine/engine/glitch.js:347 | Left Panel > Algorithms | Right Panel A > Algorithm Dropdown > Special | [x] Implemented |
 
----
+### 1.1b Legacy Unimplemented Algorithms [MISSING — needs implementation]
+*Legacy algorithms from v1/v2 that were previously aliased or deferred during the engine modularization pass. Preserved per Rule #1 for future implementation.*
+
+| # | ID | Algorithm Name | Category | Status |
+|---|---|---|---|---|
+| 1 | horizontal_lines | Horizontal Linear Grating | Pattern | [MISSING — needs implementation] |
+| 2 | vertical_lines | Vertical Linear Grating | Pattern | [MISSING — needs implementation] |
+| 3 | diagonal_hatch | Diagonal 45° Hatch | Pattern | [MISSING — needs implementation] |
+| 4 | concentric_diamond | Concentric Diamond Grid | Pattern | [MISSING — needs implementation] |
+| 5 | woven_basket | Woven Basket Tile | Pattern | [MISSING — needs implementation] |
+| 6 | hex_stipple | Hexagonal Stochastic Stipple | Pattern | [MISSING — needs implementation] |
+| 7 | scanline_jitter | Scanline Jitter | Glitch | [MISSING — needs implementation] |
+| 8 | chromatic_offset | Color Channel Offset | Glitch | [MISSING — needs implementation] |
+| 9 | pixel_sorting | Directional Pixel Sorting | Glitch | [MISSING — needs implementation] |
+| 10 | digital_artifacts | Digital Compression Artifacts | Glitch | [MISSING — needs implementation] |
+| 11 | interlacing_tear | Interlacing Field Tear | Glitch | [MISSING — needs implementation] |
+| 12 | crt_bloom | CRT Phosphor Bloom | Glitch | [MISSING — needs implementation] |
+| 13 | bit_crush | Bit-Depth Crush Quantizer | Glitch | [MISSING — needs implementation] |
+| 14 | vhs_tracking | VHS Tracking Noise | Glitch | [MISSING — needs implementation] |
+| 15 | bad_ram | Bad RAM Nibble Inversion | Glitch | [MISSING — needs implementation] |
+| 16 | wave_distortion | Sinusoidal Wave Warp | Glitch | [MISSING — needs implementation] |
+| 17 | quant_slice | Quantization Step Slicing | Glitch | [MISSING — needs implementation] |
+| 18 | matrix_rake | Diagonal Matrix Rake | Glitch | [MISSING — needs implementation] |
+| 19 | static_snow | Analog Static Snow | Glitch | [MISSING — needs implementation] |
+| 20 | sync_pulse_loss | Sync Pulse Hold Collapse | Glitch | [MISSING — needs implementation] |
+| 21 | feedback_ringing | Edge Ringing & Feedback | Glitch | [MISSING — needs implementation] |
+| 22 | chroma_subsample | YUV 4:1:1 Degradation | Glitch | [MISSING — needs implementation] |
+| 23 | moire_glitch | Moiré Interference Glitch | Glitch | [MISSING — needs implementation] |
+| 24 | fixed_threshold | Fixed Bi-Level Cutoff | Special | [MISSING — needs implementation] |
+| 25 | random_threshold | Uniform White Noise Dither | Special | [MISSING — needs implementation] |
+| 26 | blue_noise | Void-and-Cluster Blue Noise | Special | [MISSING — needs implementation] |
+| 27 | gaussian_noise | Gaussian Normal Distribution | Special | [MISSING — needs implementation] |
+| 28 | perlin_gradient | Perlin Gradient Lattice | Special | [MISSING — needs implementation] |
+| 29 | riemersma | Riemersma Hilbert Space-Curve | Special | [MISSING — needs implementation] |
+| 30 | tpdf_noise | Triangular PDF Noise (TPDF) | Special | [MISSING — needs implementation] |
+| 31 | companding_curve | Dynamic Companding (A-Law) | Special | [MISSING — needs implementation] |
+| 32 | spatial_lattice | Hexagonal Spatial Lattice | Special | [MISSING — needs implementation] |
+| 33 | sobel_feature | Sobel Silhouette Preserving | Special | [MISSING — needs implementation] |
+| 34 | laplacian_mod | Laplacian Frequency Modulated | Special | [MISSING — needs implementation] |
+| 35 | directional_gradient | Directional Gradient Angle | Special | [MISSING — needs implementation] |
+| 36 | voronoi_cellular | Voronoi Cellular Stipple | Special | [MISSING — needs implementation] |
+| 37 | diffusion_blur | Unsharp Diffusion Quantizer | Special | [MISSING — needs implementation] |
+| 38 | quantum_stipple | Quantum Probability Cloud | Special | [MISSING — needs implementation] |
+| 39 | ignition_glow | Ignition Glow (Bespoke Dither Bloom) | Bespoke | [MISSING — needs implementation] |
+| 40 | temporal_kinetic | Temporal Kinetic Dither | Bespoke | [MISSING — needs implementation] |
 
 ### 1.2 Algorithm Parameters & Navigation Controls
 
@@ -218,6 +283,7 @@
 | Top-Bar Engine Dropdown: `Live` | `index.html:63` (`#perfModeSelector`) | Top bar dropdown | Bottom Strip segmented switch: `[ Live ]` | [ ] Pending |
 | Top-Bar Engine Dropdown: `Still` | `index.html:64` (`#perfModeSelector`) | Top bar dropdown | Bottom Strip segmented switch: `[ Settle ]` (250ms debounce) | [ ] Pending |
 | Left Icon Rail Placeholder | *[NEW - placeholder; logo asset TBD by user]* | None | Left edge of viewport (32px icon rail) | [ ] Pending |
+| Transparent image import with alpha preservation | `CenterViewport.tsx`, `algorithms.js` | Viewport & Engine | Whole viewport drop target & engine pipeline | [x] Implemented |
 
 ---
 
@@ -304,6 +370,16 @@
 | Favourites Chips Row | Horizontal row of starred algorithm chips above search input | Right Panel A > Top row of Algorithm Dropdown | [x] Implemented |
 | Per-Algorithm Star Toggle | Star icon on each algorithm row in picker (`★` / `☆`) | Right Panel A > Algorithm Listbox items & Stepper | [x] Implemented |
 
+
+---
+
+### 1.13 Future-Phase Utilities (Preserved)
+
+| File | Purpose | Status |
+|---|---|---|
+| src/utils/keyframeEngine.ts | Animation keyframe interpolation engine | [UNUSED — reserved for future phase] |
+| src/utils/gifEncoder.ts | Client-side animated GIF encoding engine | [UNUSED — reserved for future phase] |
+
 ---
 
 ## 2. Evidence & Automated Audit Verification
@@ -315,10 +391,10 @@ Engine files are frozen and cryptographically locked against accidental tamperin
 
 | File | SHA-256 Hash | Status |
 |---|---|---|
-| `src/dither-engine/algorithms.js` | `c3f684abcd8f9054d6fb98afc34748d5ca75953466f837e4d21781e0be0933f9` | Frozen |
-| `src/dither-engine/effect-stack.js` | `8d1bb8c163fc4d99e49ca5496314c839d514d5db9f2d1da29781c42ee6784976` | Frozen |
-| `src/dither-engine/exporters.js` | `1028c7f42d34b7b0a26abceb8c205f613bce1334abc7dda2b1b450b9f55dfeba` | Frozen |
-| `src/dither-engine/palettes.js` | `4802854ee5d13cb44e6be27074c27e1545310d1aec2359ce3b421b591944a867` | Frozen |
+| `src/dither-engine/algorithms.js` | `11d9bfd5398749deba4e65257b00d85f95c38684d4d06c66aa1da3f2425b8334` | Frozen |
+| `src/dither-engine/effect-stack.js` | `b943d25fef517a13ff881a8555849d735e405889bfc071985a6d64ff7f9fe078` | Frozen |
+| `src/dither-engine/exporters.js` | `af0c062b18736a67ec4ae2b4a3dbda7dac32b3626f47ac712aef625d9718b7e2` | Frozen |
+| `src/dither-engine/palettes.js` | `6a41e8eed201925ba7726b49f0cda9240ab51cf144bc9431d9e32b14ff48ed5b` | Frozen |
 | `src/dither-engine/temporal.js` | `20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584` | Frozen |
 | `src/ui/presets.js` | `f92f4160cadcd2843cc7808f01a7643f211bf399f82721fce4dd9d93f4d86366` | Frozen |
 
@@ -328,13 +404,13 @@ Verification output:
          DITHERFORGE ENGINE INTEGRITY VERIFICATION                
 ==================================================================
   PASS: src/dither-engine/algorithms.js
-        SHA-256: c3f684abcd8f9054d6fb98afc34748d5ca75953466f837e4d21781e0be0933f9
+        SHA-256: 11d9bfd5398749deba4e65257b00d85f95c38684d4d06c66aa1da3f2425b8334
   PASS: src/dither-engine/effect-stack.js
-        SHA-256: 8d1bb8c163fc4d99e49ca5496314c839d514d5db9f2d1da29781c42ee6784976
+        SHA-256: b943d25fef517a13ff881a8555849d735e405889bfc071985a6d64ff7f9fe078
   PASS: src/dither-engine/exporters.js
-        SHA-256: 1028c7f42d34b7b0a26abceb8c205f613bce1334abc7dda2b1b450b9f55dfeba
+        SHA-256: af0c062b18736a67ec4ae2b4a3dbda7dac32b3626f47ac712aef625d9718b7e2
   PASS: src/dither-engine/palettes.js
-        SHA-256: 4802854ee5d13cb44e6be27074c27e1545310d1aec2359ce3b421b591944a867
+        SHA-256: 6a41e8eed201925ba7726b49f0cda9240ab51cf144bc9431d9e32b14ff48ed5b
   PASS: src/dither-engine/temporal.js
         SHA-256: 20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584
   PASS: src/ui/presets.js
@@ -351,7 +427,7 @@ Verification output:
 ==================================================================
 
 [1] ALGORITHMS & CATEGORIES (src/dither-engine/algorithms.js)
-  PASS: Algorithms registry count matches expected 63 (found: 63)
+  PASS: Algorithms registry count matches expected 84 (found: 84)
   PASS: Category count matches 6 (found: 6)
 
 [2] PALETTES & EXTRACTORS (src/dither-engine/palettes.js)
@@ -398,7 +474,7 @@ Verification output:
 
 ### 2.3 Bit-Identical Golden Tests (`npm run test:golden`)
 All 97 test cases execute twice to guarantee self-determinism, and are validated against `tests/golden/golden-hashes.json`:
-- **63 Algorithms:** Deterministic, seeded by `temporalSeed: 0`. No PRNG stubbing. (63/63 PASS)
+- **84 Algorithms:** Deterministic, seeded by `temporalSeed: 0`. No PRNG stubbing. (84/84 PASS)
 - **Palette Extractors:** Median Cut (deterministic) + K-Means (stubbed with seeded PRNG 1337). (2/2 PASS)
 - **9 Post-Effects:** Deterministic stack execution. (9/9 PASS)
 - **9 Temporal Patterns:** CRT noise execution stubbed with seeded PRNG 4242. (9/9 PASS)
@@ -411,7 +487,7 @@ All 97 test cases execute twice to guarantee self-determinism, and are validated
 ## 3. Worker Architecture & Thread Separation Confirmation
 
 1. **Web Worker Thread (DOM-Free Engine):**
-   - `algorithms.js` (63 algorithms + tweaks)
+   - `algorithms.js` (84 algorithms + tweaks)
    - `palettes.js` (14 palettes + Median Cut + K-Means)
    - `effect-stack.js` (9 post-effects)
    - `temporal.js` (9 CRT noise patterns)

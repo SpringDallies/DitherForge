@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+// ORPHANED: Rust engine is not invoked by the frontend at runtime.
+// Parked pending docs/ENGINE_PARITY.md. Do not delete, do not wire.
 mod algorithms;
 mod effects;
 mod engine;

@@ -8,9 +8,10 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../..');
 const goldenHashesPath = path.join(__dirname, 'golden-hashes.json');
 
-// Engine imports
+// Engine imports (Read-only, do not modify src/)
 import { ALGORITHM_REGISTRY, applyDitherAlgorithm, applyTweaks } from '../../src/dither-engine/algorithms.js';
 import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans } from '../../src/dither-engine/palettes.js';
+import { FastPaletteLUT } from '../../src/dither-engine/engine/palette.js';
 import { AVAILABLE_EFFECT_TYPES, applyEffectStack } from '../../src/dither-engine/effect-stack.js';
 import { TEMPORAL_PATTERNS, applyTemporalNoise } from '../../src/dither-engine/temporal.js';
 import { BUILTIN_PRESETS } from '../../src/ui/presets.js';
@@ -91,7 +92,7 @@ globalThis.URL = {
 };
 
 console.log("==================================================================");
-console.log("         DITHERFORGE BIT-IDENTICAL GOLDEN TEST RUNNER             ");
+console.log("         DITHERFORGE BIT-IDENTICAL GOLDEN TEST RUNNER (v2)        ");
 console.log("==================================================================");
 
 const updateMode = process.argv.includes('--update') || !fs.existsSync(goldenHashesPath);
@@ -104,12 +105,14 @@ const computedHashes = {};
 let totalCases = 0;
 let passedCases = 0;
 let failedCases = 0;
+let determinismPasses = 0;
+let determinismFailures = 0;
 
 function executeTestCase(category, caseId, name, runFn) {
   totalCases++;
   // Pass 1
   const hash1 = runFn();
-  // Pass 2 (Verify self-determinism)
+  // Pass 2 (Verify strict self-determinism)
   const hash2 = runFn();
 
   if (hash1 !== hash2) {
@@ -117,13 +120,15 @@ function executeTestCase(category, caseId, name, runFn) {
     console.error(`       Run 1: ${hash1}`);
     console.error(`       Run 2: ${hash2}`);
     failedCases++;
+    determinismFailures++;
     return;
   }
+  determinismPasses++;
 
   computedHashes[caseId] = hash1;
 
   if (updateMode && !existingHashes[caseId]) {
-    console.log(`  RECORD: [${category}] ${name} -> ${hash1.slice(0, 16)}...`);
+    console.log(`  RECORD NEW: [${category}] ${name} -> ${hash1.slice(0, 16)}...`);
     passedCases++;
   } else {
     const expected = existingHashes[caseId];
@@ -142,8 +147,8 @@ function executeTestCase(category, caseId, name, runFn) {
 const basePattern = createFixedTestPattern(64, 64);
 const defaultPalette = BUILTIN_PALETTES[0].colors; // Monochrome 1-bit
 
-// 1. 63 ALGORITHMS (Deterministic, seeded by temporalSeed; NO Math.random stubbing)
-console.log("\n[1] 63 ALGORITHMS (Determinism & Golden Match)");
+// 1. DYNAMIC ALGORITHMS REGISTRY (Covers every registered algorithm in ALGORITHM_REGISTRY)
+console.log(`\n[1] ${ALGORITHM_REGISTRY.length} ALGORITHMS (Determinism & Golden Match)`);
 for (const algo of ALGORITHM_REGISTRY) {
   executeTestCase("Algorithm", `algo_${algo.id}`, `${algo.name} (${algo.id})`, () => {
     const img = cloneImageData(basePattern);
@@ -160,8 +165,8 @@ for (const algo of ALGORITHM_REGISTRY) {
   });
 }
 
-// 2. PALETTE EXTRACTORS
-console.log("\n[2] PALETTE EXTRACTORS (Median Cut & K-Means)");
+// 2. PALETTE EXTRACTORS & FASTPALETTELUT
+console.log("\n[2] PALETTE EXTRACTORS & FASTPALETTELUT");
 // Median Cut (Deterministic)
 executeTestCase("Extractor", "extractor_median_cut", "Median Cut (8 colors)", () => {
   const img = cloneImageData(basePattern);
@@ -181,6 +186,32 @@ executeTestCase("Extractor", "extractor_k_means", "K-Means (8 colors, Seeded PRN
     Math.random = origRandom;
   }
 });
+
+// FastPaletteLUT Perceptual Matching (8 colors)
+executeTestCase("Extractor", "fast_palette_lut", "FastPaletteLUT Perceptual Matching (8 colors)", () => {
+  const img = cloneImageData(basePattern);
+  const sinclair = BUILTIN_PALETTES.find(p => p.id === 'sinclair_spectrum') || BUILTIN_PALETTES[0];
+  const lut = new FastPaletteLUT(sinclair.colors, 0.5);
+  for (let i = 0; i < img.data.length; i += 4) {
+    lut.inlineMatch(img.data[i], img.data[i + 1], img.data[i + 2], img.data, i);
+  }
+  return sha256(img.data);
+});
+
+// FastPaletteLUT Pair Matching (8 colors)
+executeTestCase("Extractor", "fast_palette_lut_pair", "FastPaletteLUT Pair Matching (8 colors)", () => {
+  const img = cloneImageData(basePattern);
+  const sinclair = BUILTIN_PALETTES.find(p => p.id === 'sinclair_spectrum') || BUILTIN_PALETTES[0];
+  const lut = new FastPaletteLUT(sinclair.colors, 0.5);
+  for (let i = 0; i < img.data.length; i += 4) {
+    lut.inlinePairMatch(img.data[i], img.data[i + 1], img.data[i + 2], 0.5, img.data, i);
+  }
+  return sha256(img.data);
+});
+
+// Note on CMYK Halftone Engine (src/dither-engine/engine/halftone.js):
+// processHalftone is internal to the engine and not exposed via public API (algorithms.js / effect-stack.js / exporters.js).
+// Post-effect CMYK halftone is tested in effect_halftone. Standalone halftone.js test skipped per specification.
 
 // 3. 9 POST-EFFECTS
 console.log("\n[3] 9 POST-EFFECTS STACK");
@@ -249,7 +280,7 @@ console.log("\n[6] EXPORTERS (ASCII, Blocks, Braille, SVG Contours)");
 // Produce a dithered test image for export
 const ditheredExportPattern = cloneImageData(basePattern);
 applyDitherAlgorithm(ditheredExportPattern, {
-  algorithmId: "floyd_steinberg",
+  algorithmId: "floyd-steinberg",
   palette: defaultPalette,
   temporalSeed: 0
 });
@@ -289,17 +320,31 @@ executeTestCase("Exporter", "export_svg", "SVG Vector Contours", () => {
 // Restore Blob
 globalThis.Blob = origBlob;
 
-// Save hashes if updating
+// Save hashes if updating: strictly DO NOT regenerate existing entries, ONLY add new ones
 if (updateMode) {
-  fs.writeFileSync(goldenHashesPath, JSON.stringify(computedHashes, null, 2), 'utf8');
-  console.log(`\n💾 Saved ${Object.keys(computedHashes).length} golden hashes to ${goldenHashesPath}`);
+  const mergedHashes = { ...existingHashes };
+  let addedCount = 0;
+  for (const [key, val] of Object.entries(computedHashes)) {
+    if (!mergedHashes[key]) {
+      mergedHashes[key] = val;
+      addedCount++;
+    }
+  }
+  fs.writeFileSync(goldenHashesPath, JSON.stringify(mergedHashes, null, 2) + '\n', 'utf8');
+  console.log(`\n💾 Added ${addedCount} new golden hashes (preserved ${Object.keys(existingHashes).length} existing entries, total: ${Object.keys(mergedHashes).length}) to ${goldenHashesPath}`);
 }
 
 console.log("\n==================================================================");
+console.log(`DETERMINISM VERIFICATION: ${determinismPasses} passed, ${determinismFailures} failed / ${totalCases} test cases`);
+if (determinismFailures > 0) {
+  console.error(`❌ CRITICAL: ${determinismFailures} test cases failed strict two-run determinism check!`);
+} else {
+  console.log(`✅ ALL ${determinismPasses} CASES STRICTLY DETERMINISTIC (identical across repeated runs)`);
+}
 console.log(`GOLDEN TEST SUMMARY: ${passedCases} Passed, ${failedCases} Failed / ${totalCases} Total Cases`);
 console.log("==================================================================");
 
-if (failedCases > 0) {
+if (failedCases > 0 || determinismFailures > 0) {
   process.exit(1);
 } else {
   process.exit(0);

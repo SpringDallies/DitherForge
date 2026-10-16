@@ -757,31 +757,23 @@ body {
 
 .sidebar-scrollable-content {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: scroll;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;         /* Firefox */
+  -ms-overflow-style: none;      /* IE/Edge */
   min-height: 0;   /* critical flexbox fix */
   padding: 20px;
+}
+
+.sidebar-scrollable-content > div {
   display: flex;
   flex-direction: column;
   gap: 32px;
 }
 
 .sidebar-scrollable-content::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.sidebar-scrollable-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar-scrollable-content::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 100px;
-}
-
-.sidebar-scrollable-content::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+  display: none;
 }
 
 /* Top Action Block */

@@ -327,6 +327,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
+              {format === 'jpg' && (
+                <div 
+                  className="export-transparency-hint" 
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--text-muted, #888)',
+                    marginBottom: '12px',
+                    padding: '6px 10px',
+                    background: 'rgba(255, 180, 0, 0.08)',
+                    border: '1px solid rgba(255, 180, 0, 0.2)',
+                    borderRadius: '4px'
+                  }}
+                >
+                  💡 <strong>Transparency Notice:</strong> JPEG does not support alpha channels. Transparent areas will be flattened to black. Use <strong>PNG</strong> to preserve transparent pixels.
+                </div>
+              )}
+
               {(format === 'jpg' || format === 'webp') && (
                 <div className="export-form-row">
                   <label className="export-form-label" htmlFor="export-image-quality">Quality</label>

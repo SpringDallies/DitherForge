@@ -127,7 +127,6 @@ const buildInitialEffects = (): EffectItem[] => {
 interface AppState {
   // Algorithm Favourites (Phase 3.1)
   favoriteAlgorithms: string[];
-  favoriteAlgorithmIds: string[];
   addFavorite: (id: string) => void;
   removeFavorite: (id: string) => void;
   toggleFavorite: (id: string) => void;
@@ -374,17 +373,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Favourites
   favoriteAlgorithms: getStoredFavorites(),
-  favoriteAlgorithmIds: getStoredFavorites(),
   addFavorite: (id) => set((state) => {
     if (state.favoriteAlgorithms.includes(id)) return state;
     const next = [...state.favoriteAlgorithms, id];
     try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
-    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
+    return { favoriteAlgorithms: next };
   }),
   removeFavorite: (id) => set((state) => {
     const next = state.favoriteAlgorithms.filter((favId) => favId !== id);
     try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
-    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
+    return { favoriteAlgorithms: next };
   }),
   toggleFavorite: (id) => set((state) => {
     const isFav = state.favoriteAlgorithms.includes(id);
@@ -392,7 +390,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ? state.favoriteAlgorithms.filter((favId) => favId !== id)
       : [...state.favoriteAlgorithms, id];
     try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
-    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
+    return { favoriteAlgorithms: next };
   }),
   toggleFavoriteAlgorithm: (id) => set((state) => {
     const isFav = state.favoriteAlgorithms.includes(id);
@@ -400,7 +398,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ? state.favoriteAlgorithms.filter((favId) => favId !== id)
       : [...state.favoriteAlgorithms, id];
     try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
-    return { favoriteAlgorithms: next, favoriteAlgorithmIds: next };
+    return { favoriteAlgorithms: next };
   }),
   resetCurrentAlgoParams: () => set((state) => ({
     algoParams: {

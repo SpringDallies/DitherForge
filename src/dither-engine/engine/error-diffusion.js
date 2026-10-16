@@ -199,6 +199,73 @@ export function ditherStevensonArce(w, h, data, palette, controls = {}) {
   return runKernelDiffusion(w, h, data, lut, kernel, 200, controls.serpentine !== false, strength);
 }
 
+export function ditherFan(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const kernel = [[1, 0, 7], [-1, 1, 1], [0, 1, 3]];
+  const strength = controls.diffusionStrength !== undefined
+    ? Number(controls.diffusionStrength)
+    : (controls.errorStrength !== undefined ? Number(controls.errorStrength) / 100 : 1.0);
+  return runKernelDiffusion(w, h, data, lut, kernel, 16, controls.serpentine !== false, strength);
+}
+
+export function ditherShiauFan(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const kernel = [
+    [1, 0, 7],
+    [-2, 1, 1], [-1, 1, 3], [0, 1, 5]
+  ];
+  const strength = controls.diffusionStrength !== undefined
+    ? Number(controls.diffusionStrength)
+    : (controls.errorStrength !== undefined ? Number(controls.errorStrength) / 100 : 1.0);
+  return runKernelDiffusion(w, h, data, lut, kernel, 16, controls.serpentine !== false, strength);
+}
+
+export function ditherShiauFan2(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const kernel = [
+    [1, 0, 4],
+    [-1, 1, 1], [0, 1, 3]
+  ];
+  const strength = controls.diffusionStrength !== undefined
+    ? Number(controls.diffusionStrength)
+    : (controls.errorStrength !== undefined ? Number(controls.errorStrength) / 100 : 1.0);
+  return runKernelDiffusion(w, h, data, lut, kernel, 8, controls.serpentine !== false, strength);
+}
+
+export function ditherFalseFloydSteinberg(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const kernel = [
+    [1, 0, 3],
+    [0, 1, 3], [1, 1, 2]
+  ];
+  const strength = controls.diffusionStrength !== undefined
+    ? Number(controls.diffusionStrength)
+    : (controls.errorStrength !== undefined ? Number(controls.errorStrength) / 100 : 1.0);
+  return runKernelDiffusion(w, h, data, lut, kernel, 8, controls.serpentine !== false, strength);
+}
+
+export function ditherMinimizedAvgError(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const kernel = [
+    [1, 0, 7], [2, 0, 2],
+    [-1, 1, 1], [0, 1, 3], [1, 1, 2],
+    [0, 2, 1]
+  ];
+  const strength = controls.diffusionStrength !== undefined
+    ? Number(controls.diffusionStrength)
+    : (controls.errorStrength !== undefined ? Number(controls.errorStrength) / 100 : 1.0);
+  return runKernelDiffusion(w, h, data, lut, kernel, 16, controls.serpentine !== false, strength);
+}
+
+export function ditherDynamicSerpentine(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, controls);
+  const kernel = [[1, 0, 7], [-1, 1, 3], [0, 1, 5], [1, 1, 1]];
+  const strength = controls.diffusionStrength !== undefined
+    ? Number(controls.diffusionStrength)
+    : (controls.errorStrength !== undefined ? Number(controls.errorStrength) / 100 : 1.0);
+  return runKernelDiffusion(w, h, data, lut, kernel, 16, true, strength);
+}
+
 export function ditherArtifactModulation(w, h, data, palette, controls = {}) {
   const lut = new FastPaletteLUT(palette, controls);
   const kernel = [[1, 0, 1], [0, 1, 1], [1, 1, 1]];

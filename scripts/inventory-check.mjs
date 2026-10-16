@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -31,7 +31,7 @@ console.log("=================================================================="
 // Allow test override via CLI arg (e.g. --expect-algorithms=62)
 const args = process.argv.slice(2);
 const expectAlgoOverride = args.find(a => a.startsWith('--expect-algorithms='));
-const EXPECTED_ALGORITHMS = expectAlgoOverride ? parseInt(expectAlgoOverride.split('=')[1], 10) : 63;
+const EXPECTED_ALGORITHMS = expectAlgoOverride ? parseInt(expectAlgoOverride.split('=')[1], 10) : 84;
 
 // 1. Algorithms
 console.log("\n[1] ALGORITHMS & CATEGORIES (src/dither-engine/algorithms.js)");

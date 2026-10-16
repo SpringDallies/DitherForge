@@ -5,6 +5,7 @@ import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
 import { USER_ALGORITHM_DESCRIPTIONS } from '../../ui/algorithm-descriptions';
 import { useAppStore } from '../../state/useAppStore';
+import { useLenis } from '../../hooks/useLenis';
 // Import frozen registries UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY, ALGORITHM_CATEGORIES } from '../../dither-engine/algorithms.js';
@@ -71,6 +72,14 @@ export const RightSidebar: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const scrollWrapperRef = useRef<HTMLDivElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  useLenis({ wrapper: scrollWrapperRef.current, content: scrollContentRef.current });
+
   // App store selectors
   const algorithmId = useAppStore((state) => state.algorithmId);
   const setAlgorithmId = useAppStore((state) => state.setAlgorithmId);
@@ -80,7 +89,6 @@ export const RightSidebar: React.FC = () => {
   const resetAlgoParamToDefault = useAppStore((state) => state.resetAlgoParamToDefault);
   const favoriteAlgorithms = useAppStore((state) => state.favoriteAlgorithms);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
-  const favoriteAlgorithmIds = favoriteAlgorithms;
   const toggleFavoriteAlgorithm = toggleFavorite;
 
 
@@ -325,7 +333,7 @@ export const RightSidebar: React.FC = () => {
 
   const currentAlgo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId) || ALGORITHM_REGISTRY[0];
   const currentIndex = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
-  const isCurrentFavorite = favoriteAlgorithmIds.includes(algorithmId);
+  const isCurrentFavorite = favoriteAlgorithms.includes(algorithmId);
 
   const handlePrevAlgo = useCallback(() => {
     if (filteredAlgos.length === 0) return;
@@ -674,7 +682,8 @@ export const RightSidebar: React.FC = () => {
   };
   return (
     <aside className="right-sidebar" style={{ width: `${sidebarWidth}px` }}>
-      <div className="sidebar-scrollable-content">
+      <div ref={scrollWrapperRef} className="sidebar-scrollable-content">
+        <div ref={scrollContentRef}>
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block">
           <div className="sidebar-brand">
@@ -740,7 +749,6 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.style ? '▶' : '▼'}</span>
                 <span className="section-title-text">STYLE</span>
               </div>
-              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.style && (
@@ -1221,7 +1229,6 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.adjustments ? '▶' : '▼'}</span>
                 <span className="section-title-text">ADJUSTMENTS</span>
               </div>
-              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.adjustments && (
@@ -1984,7 +1991,6 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.presets ? '▶' : '▼'}</span>
                 <span className="section-title-text">PRESETS</span>
               </div>
-              <span className="section-header-more">»</span>
             </div>
 
             {!collapsedSections.presets && (
@@ -2038,6 +2044,7 @@ export const RightSidebar: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </aside>

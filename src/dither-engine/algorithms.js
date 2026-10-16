@@ -1,20 +1,37 @@
-// DitherForge 73-Algorithm Complete Engine
-// Clean-room recreation of all 73 mathematical dithering algorithms from Dither Boy / Dither-girl.
-// Dispatches all algorithms through the unified, high-performance engine.
+// DitherForge 84-Algorithm Complete Engine
+// Dispatches all 84 algorithms through the unified, high-performance engine.
 
 import { dispatchDither, ALGORITHM_DISPATCH } from "./engine/index.js";
 
-export const ALGORITHM_CATEGORIES = {
-  basic: "Basic",
-  error_diffusion: "Error Diffusion",
-  glitch_effects: "Glitch Effects",
-  ordered: "Ordered",
-  patterned: "Patterned",
-  polygon: "Polygon",
-  special_effects: "Special Effects"
+export const ALGORITHM_CATEGORIES = [
+  { id: "basic", name: "Basic" },
+  { id: "error_diffusion", name: "Error Diffusion" },
+  { id: "glitch_effects", name: "Glitch Effects" },
+  { id: "ordered", name: "Ordered" },
+  { id: "patterned", name: "Patterned" },
+  { id: "special_effects", name: "Special Effects" }
+];
+ALGORITHM_CATEGORIES.basic = "Basic";
+ALGORITHM_CATEGORIES.error_diffusion = "Error Diffusion";
+ALGORITHM_CATEGORIES.glitch_effects = "Glitch Effects";
+ALGORITHM_CATEGORIES.ordered = "Ordered";
+ALGORITHM_CATEGORIES.patterned = "Patterned";
+ALGORITHM_CATEGORIES.polygon = "Polygon";
+ALGORITHM_CATEGORIES.special_effects = "Special Effects";
+
+export const ALGORITHM_DEFAULT_CONTROLS = {
+  'bayer_2x2': { matrixSize: '2x2' },
+  'bayer-2x2': { matrixSize: '2x2' },
+  'bayer_4x4': { matrixSize: '4x4' },
+  'bayer-4x4': { matrixSize: '4x4' },
+  'bayer_8x8': { matrixSize: '8x8' },
+  'bayer-8x8': { matrixSize: '8x8' },
+  'bayer_16x16': { matrixSize: '16x16' },
+  'bayer-16x16': { matrixSize: '16x16' }
 };
 
-// Aliases for backward compatibility and snake_case / kebab-case interoperability
+// Aliases for backward compatibility and ID format conversions (snake_case -> kebab-case)
+// Only redirects ID formats, preserving distinct algorithm identities.
 export const ALGORITHM_ALIASES = {
   'floyd_steinberg': 'floyd-steinberg',
   'sierra_3': 'sierra',
@@ -22,59 +39,18 @@ export const ALGORITHM_ALIASES = {
   'sierra_lite': 'sierra-lite',
   'jarvis_judice_ninke': 'jarvis-judice-ninke',
   'stevenson_arce': 'stevenson-arce',
-  'shiau_fan': 'atkinson',
-  'shiau_fan_2': 'burkes',
-  'false_floyd_steinberg': 'floyd-steinberg',
-  'minimized_avg_error': 'burkes',
-  'dynamic_serpentine': 'floyd-steinberg',
-  'fan': 'atkinson',
+  'shiau_fan': 'shiau-fan',
+  'shiau_fan_2': 'shiau-fan-2',
+  'false_floyd_steinberg': 'false-floyd-steinberg',
+  'minimized_avg_error': 'minimized-avg-error',
+  'dynamic_serpentine': 'dynamic-serpentine',
+  'fan': 'fan',
+  'clustered_dot': 'clustered-dot',
   'bayer_2x2': 'bayer-matrix',
   'bayer_4x4': 'bayer-matrix',
   'bayer_8x8': 'bayer-matrix',
   'bayer_16x16': 'bayer-matrix',
-  'clustered_dot': 'mosaic',
-  'checkered': 'checkers',
-  'horizontal_lines': 'uniform-modulation-x',
-  'vertical_lines': 'uniform-modulation-y',
-  'diagonal_hatch': 'diagonal',
-  'concentric_diamond': 'diamond',
-  'woven_basket': 'crosshatch',
-  'hex_stipple': 'stippling',
-  'scanline_jitter': 'atkinson-vhs',
-  'chromatic_offset': 'color-separation',
-  'pixel_sorting': 'glitch',
-  'digital_artifacts': 'artifact-modulation-glitch',
-  'interlacing_tear': 'waveform',
-  'crt_bloom': 'smooth-diffuse',
-  'bit_crush': 'bit-tone',
-  'vhs_tracking': 'atkinson-vhs',
-  'bad_ram': 'artifact-modulation-glitch',
-  'wave_distortion': 'wave-modulation-x',
-  'quant_slice': 'uniform-modulation-x',
-  'matrix_rake': 'uniform-modulation-y',
-  'static_snow': 'noise',
-  'sync_pulse_loss': 'waveform-alt',
-  'feedback_ringing': 'contrast-aware-x',
-  'chroma_subsample': 'color-separation',
-  'moire_glitch': 'wave-modulation-y',
-  'fixed_threshold': 'thresholder',
-  'random_threshold': 'random-ordered',
-  'blue_noise': 'noise',
-  'gaussian_noise': 'noise',
-  'perlin_gradient': 'topography',
-  'riemersma': 'fractal-diffuse',
   'ostromoukhov': 'ostromukhov',
-  'tpdf_noise': 'noise',
-  'companding_curve': 'smooth-diffuse',
-  'spatial_lattice': 'hexa-poly',
-  'sobel_feature': 'diagonal',
-  'laplacian_mod': 'contrast-aware-x',
-  'directional_gradient': 'diagonal',
-  'voronoi_cellular': 'low-poly',
-  'diffusion_blur': 'smooth-diffuse',
-  'quantum_stipple': 'stippling',
-  'ignition_glow': 'radial-peaks',
-  'temporal_kinetic': 'wave',
   'gaussian_diffusion': 'gaussian'
 };
 
@@ -704,6 +680,102 @@ export const ALGORITHM_REGISTRY = [
         }
       }
     ]
+  },
+  {
+    "id": "dynamic-serpentine",
+    "name": "Dynamic Serpentine Lattice",
+    "category": "error_diffusion",
+    "description": "Alternating scanline sweep with dynamic boundary reflection cancelling directional bias",
+    "complexity": "moderate",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": []
+  },
+  {
+    "id": "false-floyd-steinberg",
+    "name": "False Floyd–Steinberg",
+    "category": "error_diffusion",
+    "description": "Asymmetric 3-neighbor matrix creating stylized mechanical cross-hatch texture",
+    "complexity": "moderate",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": []
+  },
+  {
+    "id": "fan",
+    "name": "Fan Adaptive",
+    "category": "error_diffusion",
+    "description": "Modified lower-row distribution suppressing worm-like chain patterns in highlights",
+    "complexity": "moderate",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": []
+  },
+  {
+    "id": "minimized-avg-error",
+    "name": "Minimized Average Error",
+    "category": "error_diffusion",
+    "description": "Oatley 16ths matrix minimizing local mean square variance across delicate gradients",
+    "complexity": "moderate",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": []
+  },
+  {
+    "id": "shiau-fan",
+    "name": "Shiau–Fan Balanced",
+    "category": "error_diffusion",
+    "description": "Suppresses structural patterns in uniform highlight fields between 5% and 20% density",
+    "complexity": "moderate",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": []
+  },
+  {
+    "id": "shiau-fan-2",
+    "name": "Shiau–Fan 2 (Narrow)",
+    "category": "error_diffusion",
+    "description": "Compact 8ths kernel designed for high-efficiency raster processing",
+    "complexity": "moderate",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": []
   },
   {
     "id": "artifact-modulation-glitch",
@@ -1376,6 +1448,134 @@ export const ALGORITHM_REGISTRY = [
         "tooltip": "Larger matrices produce finer, smoother patterns"
       }
     ]
+  },
+  {
+    "id": "bayer-2x2",
+    "name": "Bayer 2×2",
+    "category": "ordered",
+    "description": "Coarse 4-level ordered micro-checkerboard for bold graphic art and 1-bit icons",
+    "complexity": "simple",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": [
+      {
+        "id": "matrixSize",
+        "label": "Matrix Size",
+        "type": "dropdown",
+        "options": [
+          { "value": "2x2", "label": "2x2 (Coarse)" }
+        ],
+        "defaultValue": "2x2",
+        "description": "Size of the Bayer threshold matrix",
+        "tooltip": "2x2 coarse micro-checkerboard"
+      }
+    ]
+  },
+  {
+    "id": "bayer-4x4",
+    "name": "Bayer 4×4",
+    "category": "ordered",
+    "description": "Classic 16-level matrix emulating early Macintosh & PC CGA/EGA graphics adapters",
+    "complexity": "simple",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": [
+      {
+        "id": "matrixSize",
+        "label": "Matrix Size",
+        "type": "dropdown",
+        "options": [
+          { "value": "4x4", "label": "4x4 (Standard)" }
+        ],
+        "defaultValue": "4x4",
+        "description": "Size of the Bayer threshold matrix",
+        "tooltip": "4x4 standard crosshatch matrix"
+      }
+    ]
+  },
+  {
+    "id": "bayer-8x8",
+    "name": "Bayer 8×8",
+    "category": "ordered",
+    "description": "64-level matrix providing smooth tones with quintessential vintage crosshatching",
+    "complexity": "simple",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": [
+      {
+        "id": "matrixSize",
+        "label": "Matrix Size",
+        "type": "dropdown",
+        "options": [
+          { "value": "8x8", "label": "8x8 (Fine)" }
+        ],
+        "defaultValue": "8x8",
+        "description": "Size of the Bayer threshold matrix",
+        "tooltip": "8x8 fine crosshatch matrix"
+      }
+    ]
+  },
+  {
+    "id": "bayer-16x16",
+    "name": "Bayer 16×16",
+    "category": "ordered",
+    "description": "256-level full range recursive matrix for seamless gradients without banding",
+    "complexity": "simple",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": [
+      {
+        "id": "matrixSize",
+        "label": "Matrix Size",
+        "type": "dropdown",
+        "options": [
+          { "value": "16x16", "label": "16x16 (Very Fine)" }
+        ],
+        "defaultValue": "16x16",
+        "description": "Size of the Bayer threshold matrix",
+        "tooltip": "16x16 very fine recursive matrix"
+      }
+    ]
+  },
+  {
+    "id": "clustered-dot",
+    "name": "Clustered Dot Screen",
+    "category": "ordered",
+    "description": "Simulates mechanical photogravure printing, rotogravure, and newsprint halftone screens",
+    "complexity": "moderate",
+    "features": {
+      "supportsColorPalettes": true,
+      "supportsColorDepth": true,
+      "supportsDpiScale": true,
+      "supportsLuminanceThreshold": true,
+      "isDeterministic": true,
+      "requiresMultiPass": false
+    },
+    "controls": []
   },
   {
     "id": "bayer-void",
@@ -3407,13 +3607,21 @@ export const ALGORITHM_REGISTRY = [
 export function findAlgorithm(id) {
   if (!id) return ALGORITHM_REGISTRY[0];
   const exact = ALGORITHM_REGISTRY.find(a => a.id === id);
-  if (exact) return exact;
+  if (exact) {
+    const defaults = ALGORITHM_DEFAULT_CONTROLS[id];
+    return defaults ? { ...exact, defaultControls: defaults } : exact;
+  }
   const norm = id.replace(/_/g, '-');
   const foundNorm = ALGORITHM_REGISTRY.find(a => a.id === norm);
-  if (foundNorm) return foundNorm;
+  if (foundNorm) {
+    const defaults = ALGORITHM_DEFAULT_CONTROLS[id] || ALGORITHM_DEFAULT_CONTROLS[norm];
+    return defaults ? { ...foundNorm, defaultControls: defaults } : foundNorm;
+  }
   const aliasTarget = ALGORITHM_ALIASES[id] || ALGORITHM_ALIASES[norm];
   if (aliasTarget) {
-    return ALGORITHM_REGISTRY.find(a => a.id === aliasTarget) || ALGORITHM_REGISTRY[0];
+    const foundAlias = ALGORITHM_REGISTRY.find(a => a.id === aliasTarget) || ALGORITHM_REGISTRY[0];
+    const defaults = ALGORITHM_DEFAULT_CONTROLS[id] || ALGORITHM_DEFAULT_CONTROLS[norm] || ALGORITHM_DEFAULT_CONTROLS[aliasTarget];
+    return defaults ? { ...foundAlias, defaultControls: defaults } : foundAlias;
   }
   return ALGORITHM_REGISTRY[0];
 }
@@ -3464,26 +3672,32 @@ export function applyDitherAlgorithm(imageData, settings) {
   const normId = rawId.replace(/_/g, '-');
   const resolvedId = ALGORITHM_ALIASES[rawId] || ALGORITHM_ALIASES[normId] || normId;
 
-  const bayerSizeMatch = {
-    'bayer_2x2': '2x2',
-    'bayer-2x2': '2x2',
-    'bayer_4x4': '4x4',
-    'bayer-4x4': '4x4',
-    'bayer_8x8': '8x8',
-    'bayer-8x8': '8x8',
-    'bayer_16x16': '16x16',
-    'bayer-16x16': '16x16'
-  };
-
-  const dispatchSettings = { ...settings };
-  const bayerSize = bayerSizeMatch[rawId] || bayerSizeMatch[normId];
-  if (bayerSize) {
-    dispatchSettings.matrixSize = bayerSize;
-    dispatchSettings.controls = { ...(dispatchSettings.controls || {}), matrixSize: bayerSize };
+  // Snapshot original alpha channel to preserve transparency
+  const origAlpha = new Uint8ClampedArray(width * height);
+  for (let i = 0, a = 3; i < origAlpha.length; i++, a += 4) {
+    origAlpha[i] = data[a];
   }
+
+  const defaultControls = ALGORITHM_DEFAULT_CONTROLS[rawId] || ALGORITHM_DEFAULT_CONTROLS[normId] || ALGORITHM_DEFAULT_CONTROLS[resolvedId] || {};
+  const dispatchSettings = {
+    ...defaultControls,
+    ...settings,
+    controls: { ...defaultControls, ...(settings.controls || {}) }
+  };
 
   const result = dispatchDither(resolvedId, width, height, data, dispatchSettings);
   if (result && result.buffer) {
     data.set(new Uint8ClampedArray(result.buffer));
   }
+
+  // Preserve transparency: if original pixel had alpha > 0, set to 255, else leave 0
+  for (let i = 0, a = 3; i < origAlpha.length; i++, a += 4) {
+    if (origAlpha[i] > 0) {
+      data[a] = 255;
+    } else {
+      data[a] = 0;
+    }
+  }
 }
+
+

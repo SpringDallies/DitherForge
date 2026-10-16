@@ -1,5 +1,5 @@
-// DitherForge Complete Engine
-// Dispatches all algorithms through the unified, high-performance engine.
+// DitherForge 84-Algorithm Complete Engine
+// Dispatches all 84 algorithms through the unified, high-performance engine.
 
 import { dispatchDither, ALGORITHM_DISPATCH } from "./engine/index.js";
 

@@ -501,27 +501,25 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
               tabIndex={-1}
               onKeyDown={(e) => handleMenuKeyDown(e, 'edit')}
             >
-              <Tooltip text="Coming in 7.3" side="right" style={{ width: '100%' }}>
-                <button 
-                  className={`dropdown-menu-item ${focusedIndex === 0 ? 'focused' : ''}`}
-                  disabled
-                  role="menuitem"
-                >
-                  <span>Undo</span>
-                  <span className="menu-shortcut">Ctrl+Z</span>
-                </button>
-              </Tooltip>
+              <button 
+                className={`dropdown-menu-item ${focusedIndex === 0 ? 'focused' : ''}`}
+                disabled
+                title="Not implemented"
+                role="menuitem"
+              >
+                <span>Undo</span>
+                <span className="menu-shortcut">Ctrl+Z</span>
+              </button>
 
-              <Tooltip text="Coming in 7.3" side="right" style={{ width: '100%' }}>
-                <button 
-                  className={`dropdown-menu-item ${focusedIndex === 1 ? 'focused' : ''}`}
-                  disabled
-                  role="menuitem"
-                >
-                  <span>Redo</span>
-                  <span className="menu-shortcut">Ctrl+Y</span>
-                </button>
-              </Tooltip>
+              <button 
+                className={`dropdown-menu-item ${focusedIndex === 1 ? 'focused' : ''}`}
+                disabled
+                title="Not implemented"
+                role="menuitem"
+              >
+                <span>Redo</span>
+                <span className="menu-shortcut">Ctrl+Y</span>
+              </button>
 
               <div className="dropdown-divider" />
 

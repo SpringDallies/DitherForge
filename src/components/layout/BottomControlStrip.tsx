@@ -113,14 +113,6 @@ export const BottomControlStrip: React.FC = () => {
             Fit
           </button>
         </Tooltip>
-        <Tooltip text="Reset zoom and pan to defaults" side="top">
-          <button
-            className="zoom-btn"
-            onClick={resetZoom}
-          >
-            ↺
-          </button>
-        </Tooltip>
       </div>
     </footer>
   );

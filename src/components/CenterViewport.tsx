@@ -1,4 +1,3 @@
-import { LoadingScreen } from './common/LoadingScreen';
 import { Tooltip } from './common/Tooltip';
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../state/useAppStore';
@@ -40,20 +39,7 @@ export const CenterViewport: React.FC = () => {
   const workingPalette = useAppStore((state) => state.workingPalette);
   const paletteDepth = useAppStore((state) => state.paletteDepth);
   const effects = useAppStore((state) => state.effects);
-  const toggleEffectEnabled = useAppStore((state) => state.toggleEffectEnabled);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const preset = new URLSearchParams(window.location.search).get('effects_preset');
-      if (preset === 'tri_effects') {
-        // Enable scanlines and chromatic if not already enabled
-        const scanlines = effects.find(e => e.type === 'scanlines' || e.id === 'scanlines');
-        if (scanlines && !scanlines.enabled) toggleEffectEnabled(scanlines.id);
-        const chromatic = effects.find(e => e.type === 'chromatic_aberration' || e.id === 'chromatic_aberration');
-        if (chromatic && !chromatic.enabled) toggleEffectEnabled(chromatic.id);
-      }
-    }
-  }, []);
 
   const updateMode = useAppStore((state) => state.updateMode);
   const isDraggingSlider = useAppStore((state) => state.isDraggingSlider);
@@ -94,7 +80,7 @@ export const CenterViewport: React.FC = () => {
   // Keyboard Navigation: 0 (Fit), 1 (1:1), \ (Compare), Space (Pan)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName) || (e.target as HTMLElement)?.isContentEditable) {
         return;
       }
 

@@ -370,6 +370,16 @@
 | Favourites Chips Row | Horizontal row of starred algorithm chips above search input | Right Panel A > Top row of Algorithm Dropdown | [x] Implemented |
 | Per-Algorithm Star Toggle | Star icon on each algorithm row in picker (`★` / `☆`) | Right Panel A > Algorithm Listbox items & Stepper | [x] Implemented |
 
+
+---
+
+### 1.13 Future-Phase Utilities (Preserved)
+
+| File | Purpose | Status |
+|---|---|---|
+| src/utils/keyframeEngine.ts | Animation keyframe interpolation engine | [UNUSED — reserved for future phase] |
+| src/utils/gifEncoder.ts | Client-side animated GIF encoding engine | [UNUSED — reserved for future phase] |
+
 ---
 
 ## 2. Evidence & Automated Audit Verification
@@ -381,10 +391,10 @@ Engine files are frozen and cryptographically locked against accidental tamperin
 
 | File | SHA-256 Hash | Status |
 |---|---|---|
-| `src/dither-engine/algorithms.js` | `c3f684abcd8f9054d6fb98afc34748d5ca75953466f837e4d21781e0be0933f9` | Frozen |
-| `src/dither-engine/effect-stack.js` | `8d1bb8c163fc4d99e49ca5496314c839d514d5db9f2d1da29781c42ee6784976` | Frozen |
-| `src/dither-engine/exporters.js` | `1028c7f42d34b7b0a26abceb8c205f613bce1334abc7dda2b1b450b9f55dfeba` | Frozen |
-| `src/dither-engine/palettes.js` | `4802854ee5d13cb44e6be27074c27e1545310d1aec2359ce3b421b591944a867` | Frozen |
+| `src/dither-engine/algorithms.js` | `11d9bfd5398749deba4e65257b00d85f95c38684d4d06c66aa1da3f2425b8334` | Frozen |
+| `src/dither-engine/effect-stack.js` | `b943d25fef517a13ff881a8555849d735e405889bfc071985a6d64ff7f9fe078` | Frozen |
+| `src/dither-engine/exporters.js` | `af0c062b18736a67ec4ae2b4a3dbda7dac32b3626f47ac712aef625d9718b7e2` | Frozen |
+| `src/dither-engine/palettes.js` | `6a41e8eed201925ba7726b49f0cda9240ab51cf144bc9431d9e32b14ff48ed5b` | Frozen |
 | `src/dither-engine/temporal.js` | `20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584` | Frozen |
 | `src/ui/presets.js` | `f92f4160cadcd2843cc7808f01a7643f211bf399f82721fce4dd9d93f4d86366` | Frozen |
 
@@ -394,13 +404,13 @@ Verification output:
          DITHERFORGE ENGINE INTEGRITY VERIFICATION                
 ==================================================================
   PASS: src/dither-engine/algorithms.js
-        SHA-256: c3f684abcd8f9054d6fb98afc34748d5ca75953466f837e4d21781e0be0933f9
+        SHA-256: 11d9bfd5398749deba4e65257b00d85f95c38684d4d06c66aa1da3f2425b8334
   PASS: src/dither-engine/effect-stack.js
-        SHA-256: 8d1bb8c163fc4d99e49ca5496314c839d514d5db9f2d1da29781c42ee6784976
+        SHA-256: b943d25fef517a13ff881a8555849d735e405889bfc071985a6d64ff7f9fe078
   PASS: src/dither-engine/exporters.js
-        SHA-256: 1028c7f42d34b7b0a26abceb8c205f613bce1334abc7dda2b1b450b9f55dfeba
+        SHA-256: af0c062b18736a67ec4ae2b4a3dbda7dac32b3626f47ac712aef625d9718b7e2
   PASS: src/dither-engine/palettes.js
-        SHA-256: 4802854ee5d13cb44e6be27074c27e1545310d1aec2359ce3b421b591944a867
+        SHA-256: 6a41e8eed201925ba7726b49f0cda9240ab51cf144bc9431d9e32b14ff48ed5b
   PASS: src/dither-engine/temporal.js
         SHA-256: 20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584
   PASS: src/ui/presets.js
@@ -477,7 +487,7 @@ All 97 test cases execute twice to guarantee self-determinism, and are validated
 ## 3. Worker Architecture & Thread Separation Confirmation
 
 1. **Web Worker Thread (DOM-Free Engine):**
-   - `algorithms.js` (63 algorithms + tweaks)
+   - `algorithms.js` (84 algorithms + tweaks)
    - `palettes.js` (14 palettes + Median Cut + K-Means)
    - `effect-stack.js` (9 post-effects)
    - `temporal.js` (9 CRT noise patterns)

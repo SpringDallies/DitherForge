@@ -174,5 +174,7 @@
   "algo_thresholder": "8403305d0eb5910f30b0a234b3e6a82aced57fdf093daab8cfbd0afdf4954ad6",
   "algo_topography": "f6bb7715ad248709ab89a20743f2d41a3ddd8965a681b3945e7b7939c2739590",
   "algo_vortex": "3724e5203cac73a98afd9140889d3bb9ab6c9cc325f293c71d0781aaeab42e0c",
-  "algo_wave": "fb4db469fd369ffa128bd360a21c84bf8be5ecf11720a74dc045f79ed212ec58"
+  "algo_wave": "fb4db469fd369ffa128bd360a21c84bf8be5ecf11720a74dc045f79ed212ec58",
+  "fast_palette_lut": "1975a9f6cfa8499851460ed2a1fb8b9b16f77db2d14653ec87a940b38408daca",
+  "fast_palette_lut_pair": "40cc67ac12b88fc5dbc31db7e4328aaf9d0accba565c522d3ec6dc5381a35662"
 }

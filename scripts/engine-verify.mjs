@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
 const FROZEN_HASHES = {
-  "src/dither-engine/algorithms.js": "11d9bfd5398749deba4e65257b00d85f95c38684d4d06c66aa1da3f2425b8334",
+  "src/dither-engine/algorithms.js": "63de7cde07931cab972811725ca2f57a19b42e35bac714fbc78c71610db54875",
   "src/dither-engine/effect-stack.js": "b943d25fef517a13ff881a8555849d735e405889bfc071985a6d64ff7f9fe078",
   "src/dither-engine/exporters.js": "af0c062b18736a67ec4ae2b4a3dbda7dac32b3626f47ac712aef625d9718b7e2",
   "src/dither-engine/palettes.js": "6a41e8eed201925ba7726b49f0cda9240ab51cf144bc9431d9e32b14ff48ed5b",

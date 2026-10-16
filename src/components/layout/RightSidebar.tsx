@@ -5,6 +5,7 @@ import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
 import { USER_ALGORITHM_DESCRIPTIONS } from '../../ui/algorithm-descriptions';
 import { useAppStore } from '../../state/useAppStore';
+import { useLenis } from '../../hooks/useLenis';
 // Import frozen registries UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY, ALGORITHM_CATEGORIES } from '../../dither-engine/algorithms.js';
@@ -70,6 +71,14 @@ export const RightSidebar: React.FC = () => {
   });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const scrollWrapperRef = useRef<HTMLDivElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  useLenis({ wrapper: scrollWrapperRef.current, content: scrollContentRef.current });
 
   // App store selectors
   const algorithmId = useAppStore((state) => state.algorithmId);
@@ -674,7 +683,8 @@ export const RightSidebar: React.FC = () => {
   };
   return (
     <aside className="right-sidebar" style={{ width: `${sidebarWidth}px` }}>
-      <div className="sidebar-scrollable-content">
+      <div ref={scrollWrapperRef} className="sidebar-scrollable-content">
+        <div ref={scrollContentRef}>
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block">
           <div className="sidebar-brand">
@@ -2038,6 +2048,7 @@ export const RightSidebar: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </aside>

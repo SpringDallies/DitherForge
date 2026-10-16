@@ -3690,13 +3690,9 @@ export function applyDitherAlgorithm(imageData, settings) {
     data.set(new Uint8ClampedArray(result.buffer));
   }
 
-  // Preserve transparency: if original pixel had alpha > 0, set to 255, else leave 0
+  // Restore snapshot into the output alpha channel
   for (let i = 0, a = 3; i < origAlpha.length; i++, a += 4) {
-    if (origAlpha[i] > 0) {
-      data[a] = 255;
-    } else {
-      data[a] = 0;
-    }
+    data[a] = origAlpha[i];
   }
 }
 

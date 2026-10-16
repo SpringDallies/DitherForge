@@ -71,3 +71,7 @@ Rust engine parked: see docs/ENGINE_PARITY.md (to be written). Not called at run
 - `3429e1b` — fix(brand): remove left topbar anvil, enlarge sidebar anvil to 140px
 - `8134008` — fix(ui): render Help modal as a fixed overlay
 - `67bd385` — merge: brand, polish, and fix passes
+
+## Housekeeping (2026-10-16)
+- Added docs/ENGINE_PARITY.md scaffold tracking JS vs Rust algorithm coverage.
+- No source changes. No test changes. No build changes.

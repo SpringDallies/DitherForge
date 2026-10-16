@@ -1,6 +1,7 @@
 import { Tooltip } from './common/Tooltip';
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../state/useAppStore';
+import { getStoredSettings } from './dialogs/SettingsDialog';
 // Import real frozen dither engine UNCHANGED via allowJs
 // @ts-ignore
 import { applyDitherAlgorithm, applyTweaks } from '../dither-engine/algorithms.js';
@@ -264,6 +265,7 @@ export const CenterViewport: React.FC = () => {
   const throttleTimerRef = useRef<number | null>(null);
 
   const proxyCacheRef = useRef<{ source: ImageData; proxy: ImageData } | null>(null);
+  const proxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Pipeline execution core
   const executeRenderPipeline = useCallback(() => {
@@ -272,10 +274,14 @@ export const CenterViewport: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Read liveProxyEnabled setting
+    const settings = getStoredSettings();
+    const proxyAllowed = settings.liveProxyEnabled === true;
+    const isLiveDrag = proxyAllowed && updateMode === 'live' && isDraggingSlider;
+
     // (a) In Live Mode during active slider dragging, downsample to fast proxy (capped at 320px)
     let renderSource = sourceImageData;
     let proxyOriginalSource = sourceImageData;
-    const isLiveDrag = updateMode === 'live' && isDraggingSlider;
     if (isLiveDrag) {
       if (proxyCacheRef.current?.source !== sourceImageData) {
         const proxyResult = createProxyImageData(sourceImageData, 320);
@@ -285,12 +291,15 @@ export const CenterViewport: React.FC = () => {
       proxyOriginalSource = proxyCacheRef.current.proxy;
     }
 
+    const fullWidth = sourceImageData.width;
+    const fullHeight = sourceImageData.height;
+    if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
+      canvas.width = fullWidth;
+      canvas.height = fullHeight;
+    }
+
     const width = renderSource.width;
     const height = renderSource.height;
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
 
     const len = renderSource.data.length;
 
@@ -375,9 +384,31 @@ export const CenterViewport: React.FC = () => {
 
     // Step 5: Render to canvas (Original View, Before/After split, or full output)
     const ditherBuffer = cachedDitherBufferRef.current!;
+
+    const drawToCanvas = (imgData: ImageData) => {
+      if (width === fullWidth && height === fullHeight) {
+        ctx.putImageData(imgData, 0, 0);
+      } else {
+        if (!proxyCanvasRef.current) {
+          proxyCanvasRef.current = document.createElement('canvas');
+        }
+        const offscreen = proxyCanvasRef.current;
+        if (offscreen.width !== width || offscreen.height !== height) {
+          offscreen.width = width;
+          offscreen.height = height;
+        }
+        const offCtx = offscreen.getContext('2d');
+        if (offCtx) {
+          offCtx.putImageData(imgData, 0, 0);
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
+        }
+      }
+    };
+
     if (isOriginalView) {
       const origImageData = new ImageData(new Uint8ClampedArray(proxyOriginalSource.data), width, height);
-      ctx.putImageData(origImageData, 0, 0);
+      drawToCanvas(origImageData);
     } else if (showBeforeAfter) {
       if (!compositeBufferRef.current || compositeBufferRef.current.length !== len) {
         compositeBufferRef.current = new Uint8ClampedArray(len);
@@ -406,10 +437,10 @@ export const CenterViewport: React.FC = () => {
         }
       }
       const compositeData = new ImageData(comp as any, width, height);
-      ctx.putImageData(compositeData, 0, 0);
+      drawToCanvas(compositeData);
     } else {
       const ditherImageData = new ImageData(ditherBuffer as any, width, height);
-      ctx.putImageData(ditherImageData, 0, 0);
+      drawToCanvas(ditherImageData);
     }
     lastRenderTimeRef.current = performance.now();
   }, [

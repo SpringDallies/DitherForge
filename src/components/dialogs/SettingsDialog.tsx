@@ -7,6 +7,7 @@ import { useAppStore } from '../../state/useAppStore';
 
 export interface DitherForgeSettings {
   defaultUpdateMode: 'precise' | 'live' | 'settle';
+  liveProxyEnabled: boolean;
   language: string;
   defaultExportFormat: 'png' | 'jpg' | 'webp' | 'svg';
   recentFilesLimit: number;
@@ -14,6 +15,7 @@ export interface DitherForgeSettings {
 
 export const DEFAULT_SETTINGS: DitherForgeSettings = {
   defaultUpdateMode: 'precise',
+  liveProxyEnabled: false,
   language: 'en',
   defaultExportFormat: 'png',
   recentFilesLimit: 8,
@@ -142,6 +144,24 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                   { id: 'precise', label: 'Precise' },
                   { id: 'live', label: 'Live' },
                   { id: 'settle', label: 'Settle' }
+                ]}
+              />
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Enable live drag proxy</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Faster slider drags on large images; preview is blurry while dragging.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.liveProxyEnabled ? 'on' : 'off'}
+                onChange={(val) => updateSetting('liveProxyEnabled', val === 'on')}
+                items={[
+                  { id: 'off', label: 'Off' },
+                  { id: 'on', label: 'On' }
                 ]}
               />
             </div>

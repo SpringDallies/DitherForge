@@ -17,6 +17,33 @@ Columns,
   MoveHorizontal
 } from 'lucide-react';
 
+function shallowEqualParams(a: Record<string, any> | null, b: Record<string, any> | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (let i = 0; i < keysA.length; i++) {
+    const k = keysA[i];
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+function shallowEqualEffects(a: any[] | null, b: any[] | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const effA = a[i];
+    const effB = b[i];
+    if (!effA || !effB) return false;
+    if (effA.id !== effB.id || effA.type !== effB.type || effA.enabled !== effB.enabled) return false;
+    if (!shallowEqualParams(effA.params, effB.params)) return false;
+  }
+  return true;
+}
+
 export const CenterViewport: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -231,6 +258,8 @@ export const CenterViewport: React.FC = () => {
   const compositeBufferRef = useRef<Uint8ClampedArray | null>(null);
   const cachedDitherBufferRef = useRef<Uint8ClampedArray | null>(null);
   const lastDitherInputsRef = useRef<any[] | null>(null);
+  const lastParamsRef = useRef<Record<string, any> | null>(null);
+  const lastEffectsRef = useRef<any[] | null>(null);
   const lastRenderTimeRef = useRef<number>(0);
   const throttleTimerRef = useRef<number | null>(null);
 
@@ -265,9 +294,10 @@ export const CenterViewport: React.FC = () => {
 
     const len = renderSource.data.length;
 
-    // (c) Memoize source ImageData & dither parameters by reference / value
-    const currentParamsSerialized = JSON.stringify(currentParams);
-    const currentEffectsSerialized = JSON.stringify(effects);
+    // (c) Memoize source ImageData & dither parameters by cheap shallow comparison
+    const paramsEqual = shallowEqualParams(lastParamsRef.current, currentParams);
+    const effectsEqual = shallowEqualEffects(lastEffectsRef.current, effects);
+
     const currentDitherInputs = [
       sourceImageData,
       isLiveDrag ? 320 : 'full',
@@ -278,13 +308,11 @@ export const CenterViewport: React.FC = () => {
       depth,
       paletteDepth,
       workingPalette,
-      algorithmId,
-      currentParamsSerialized,
-      currentEffectsSerialized
+      algorithmId
     ];
 
     const prevInputs = lastDitherInputsRef.current;
-    let ditherNeedsCompute = !prevInputs || !cachedDitherBufferRef.current || cachedDitherBufferRef.current.length !== len;
+    let ditherNeedsCompute = !prevInputs || !paramsEqual || !effectsEqual || !cachedDitherBufferRef.current || cachedDitherBufferRef.current.length !== len;
     if (!ditherNeedsCompute && prevInputs) {
       for (let i = 0; i < currentDitherInputs.length; i++) {
         if (currentDitherInputs[i] !== prevInputs[i]) {
@@ -341,6 +369,8 @@ export const CenterViewport: React.FC = () => {
       }
       cachedDitherBufferRef.current.set(workingData);
       lastDitherInputsRef.current = currentDitherInputs;
+      lastParamsRef.current = { ...currentParams };
+      lastEffectsRef.current = effects.map((e) => ({ ...e, params: { ...e.params } }));
     }
 
     // Step 5: Render to canvas (Original View, Before/After split, or full output)
@@ -411,29 +441,42 @@ export const CenterViewport: React.FC = () => {
       const timer = setTimeout(() => {
         executeRenderPipeline();
       }, 180);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        if (throttleTimerRef.current !== null) {
+          clearTimeout(throttleTimerRef.current);
+          throttleTimerRef.current = null;
+        }
+      };
     } else if (updateMode === 'live' && isDraggingSlider) {
-      // (d) In Live mode, throttle renders to at most 30 fps (not every rAF).
-      // Use a timestamp check: if less than 33ms since last render, skip and schedule trailing call.
+      // In Live mode, throttle renders using rAF at ~30 fps
       const now = performance.now();
       const elapsed = now - lastRenderTimeRef.current;
       if (elapsed < 33) {
         if (throttleTimerRef.current !== null) {
           clearTimeout(throttleTimerRef.current);
-        }
-        throttleTimerRef.current = window.setTimeout(() => {
-          executeRenderPipeline();
           throttleTimerRef.current = null;
-        }, 33 - elapsed) as unknown as number;
-        return () => {
-          if (throttleTimerRef.current !== null) {
-            clearTimeout(throttleTimerRef.current);
-          }
-        };
+        }
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        rafIdRef.current = requestAnimationFrame(() => {
+          executeRenderPipeline();
+          rafIdRef.current = null;
+        });
       } else {
         if (throttleTimerRef.current !== null) {
           clearTimeout(throttleTimerRef.current);
           throttleTimerRef.current = null;
+        }
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
         }
         executeRenderPipeline();
       }
@@ -443,8 +486,23 @@ export const CenterViewport: React.FC = () => {
         clearTimeout(throttleTimerRef.current);
         throttleTimerRef.current = null;
       }
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
       executeRenderPipeline();
     }
+
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (throttleTimerRef.current !== null) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
+      }
+    };
   }, [
     sourceImageData,
     executeRenderPipeline,

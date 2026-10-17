@@ -158,11 +158,13 @@ interface AppState {
   brightness: number;
   contrast: number;
   saturation: number;
+  hue: number;
   gamma: number;
   depth: number;
   setBrightness: (v: number) => void;
   setContrast: (v: number) => void;
   setSaturation: (v: number) => void;
+  setHue: (n: number) => void;
   setGamma: (v: number) => void;
   setDepth: (v: number) => void;
 
@@ -426,6 +428,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       brightness: 0,
       contrast: 0,
       saturation: 0,
+      hue: 0,
       gamma: 1.0,
       depth: 8
     };
@@ -436,6 +439,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     brightness: 0,
     contrast: 0,
     saturation: 0,
+    hue: 0,
     gamma: 1.0,
     depth: 8
   })),
@@ -465,11 +469,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   brightness: 0,
   contrast: 0,
   saturation: 0,
+  hue: 0,
   gamma: 1.0,
   depth: 8,
   setBrightness: (brightness) => set({ brightness }),
   setContrast: (contrast) => set({ contrast }),
   setSaturation: (saturation) => set({ saturation }),
+  setHue: (hue) => set({ hue: Math.max(-180, Math.min(180, hue)) }),
   setGamma: (gamma) => set({ gamma }),
   setDepth: (depth) => set({ depth }),
 
@@ -738,6 +744,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     brightness: 0,
     contrast: 0,
     saturation: 0,
+    hue: 0,
     gamma: 1.0,
     depth: 8,
     algoParams: {

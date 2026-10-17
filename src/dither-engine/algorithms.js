@@ -3632,6 +3632,14 @@ export function applyTweaks(data, width, height, settings) {
   const cFactor = (settings.contrast || 0) >= 0 ? 1 + (settings.contrast || 0) * 2 : 1 + (settings.contrast || 0) * 0.8;
   const sFactor = 1 + (settings.saturation || 0);
   const invGamma = 1 / Math.max(0.01, settings.gamma || 1.0);
+  const hue = settings.hue || 0;
+
+  let cos = 1, sin = 0;
+  if (hue !== 0) {
+    const angle = (hue * Math.PI) / 180;
+    cos = Math.cos(angle);
+    sin = Math.sin(angle);
+  }
 
   const len = width * height * 4;
   for (let i = 0; i < len; i += 4) {
@@ -3649,6 +3657,20 @@ export function applyTweaks(data, width, height, settings) {
     r = luma + (r - luma) * sFactor;
     g = luma + (g - luma) * sFactor;
     b = luma + (b - luma) * sFactor;
+
+    // Hue rotation via YIQ matrix
+    if (hue !== 0) {
+      const y = 0.299 * r + 0.587 * g + 0.114 * b;
+      const iVal = 0.595716 * r - 0.274453 * g - 0.321263 * b;
+      const qVal = 0.211456 * r - 0.522591 * g + 0.311135 * b;
+
+      const iRot = iVal * cos - qVal * sin;
+      const qRot = iVal * sin + qVal * cos;
+
+      r = y + 0.9563 * iRot + 0.6210 * qRot;
+      g = y - 0.2721 * iRot - 0.6474 * qRot;
+      b = y - 1.1070 * iRot + 1.7046 * qRot;
+    }
 
     // Gamma
     if (invGamma !== 1.0) {

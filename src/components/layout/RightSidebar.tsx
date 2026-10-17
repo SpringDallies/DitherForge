@@ -100,11 +100,13 @@ export const RightSidebar: React.FC = () => {
   const brightness = useAppStore((state) => state.brightness);
   const contrast = useAppStore((state) => state.contrast);
   const saturation = useAppStore((state) => state.saturation);
+  const hue = useAppStore((state) => state.hue);
   const gamma = useAppStore((state) => state.gamma);
   const depth = useAppStore((state) => state.depth);
   const setBrightness = useAppStore((state) => state.setBrightness);
   const setContrast = useAppStore((state) => state.setContrast);
   const setSaturation = useAppStore((state) => state.setSaturation);
+  const setHue = useAppStore((state) => state.setHue);
   const setGamma = useAppStore((state) => state.setGamma);
   const setDepth = useAppStore((state) => state.setDepth);
 
@@ -1368,6 +1370,45 @@ export const RightSidebar: React.FC = () => {
                       step="1"
                       value={saturation}
                       onChange={(e) => setSaturation(parseInt(e.target.value, 10) || 0)}
+                    />
+                  </div>
+                </div>
+
+                {/* Hue */}
+                <div className="slider-control-block">
+                  <div className="slider-label-above">
+                    <Tooltip text="Hue (-180 to +180). Double-click to reset.">
+                      <span
+                        onDoubleClick={() => resetAdjustmentParam('hue')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        Hue
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <div className="slider-track-input-row">
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                      <input
+                        type="range"
+                        className="control-slider"
+                        min="-180"
+                        max="180"
+                        step="1"
+                        value={hue}
+                        style={getSliderFill(hue, -180, 180)}
+                        {...sliderPointerProps}
+                        onDoubleClick={() => resetAdjustmentParam('hue')}
+                        onChange={(e) => setHue(Number(e.target.value))}
+                      />
+                    </Tooltip>
+                    <input
+                      type="number"
+                      className="control-num-input"
+                      min="-180"
+                      max="180"
+                      step="1"
+                      value={hue}
+                      onChange={(e) => setHue(parseInt(e.target.value, 10) || 0)}
                     />
                   </div>
                 </div>

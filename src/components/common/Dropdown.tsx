@@ -210,6 +210,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
         style={{ display: isOpen ? 'flex' : 'none' }}
         onWheel={(e) => e.stopPropagation()}
         onKeyDown={handlePanelKeyDown}
+        data-lenis-prevent-wheel
       >
         {searchable && (
           <div className="custom-dropdown-search-container">
@@ -248,6 +249,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
           className="custom-dropdown-items"
           tabIndex={-1}
           onKeyDown={handlePanelKeyDown}
+          data-lenis-prevent
         >
           {filteredItems.map((item, idx) => {
             const isSelected = item.id === value;

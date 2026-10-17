@@ -20,7 +20,7 @@ export function useLenis<T extends HTMLElement>(
     const lenis = new Lenis({
       wrapper: options?.wrapper ?? undefined,
       content: options?.content ?? undefined,
-      lerp: prefersReducedMotion ? 1 : (options?.lerp ?? 0.1),
+      lerp: prefersReducedMotion ? 1 : (options?.lerp ?? 0.15),
       duration: prefersReducedMotion ? 0 : (options?.duration ?? 1.2),
       smoothWheel: !prefersReducedMotion,
       syncTouch: false,

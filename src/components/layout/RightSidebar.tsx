@@ -811,6 +811,7 @@ export const RightSidebar: React.FC = () => {
                         ref={listboxPanelRef}
                         style={{ display: isAlgoListboxOpen ? 'flex' : 'none' }}
                         onWheel={(e) => e.stopPropagation()}
+                        data-lenis-prevent-wheel
                       >
                         {/* Favourites Row */}
                         {favoriteAlgorithms.length > 0 && (
@@ -865,7 +866,7 @@ export const RightSidebar: React.FC = () => {
                         </div>
 
                         {/* Scrollable Items List */}
-                        <div className="algo-listbox-items" tabIndex={-1} onKeyDown={handleListboxKeyDown}>
+                        <div className="algo-listbox-items" tabIndex={-1} onKeyDown={handleListboxKeyDown} data-lenis-prevent>
                           {searchFilteredAlgos.map((a: any, idx: number) => {
                             const isSelected = a.id === algorithmId;
                             const isFocused = idx === focusedAlgoIndex;
@@ -1885,7 +1886,7 @@ export const RightSidebar: React.FC = () => {
 
                             {/* Indented parameter panel below row */}
                             {isExpanded && (
-                              <div className="effect-row-params">
+                              <div className="effect-row-params" data-lenis-prevent>
                                 {Object.keys(defaultParams).map((key) => {
                                   const val = eff.params[key] !== undefined ? eff.params[key] : defaultParams[key];
 

@@ -1453,8 +1453,8 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Color Depth — Applies to Bit Crush / Bit-Tone / Supported Algos */}
-                {(algorithmId === 'bit_crush' || algorithmId === 'bit-tone' || currentAlgo?.features?.supportsColorDepth) && (
+                {/* Color Depth — Only applies to Bit Crush */}
+                {algorithmId === 'bit_crush' && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
                       <Tooltip text="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm.">

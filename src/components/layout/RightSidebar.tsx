@@ -12,11 +12,10 @@ import { ALGORITHM_REGISTRY, ALGORITHM_CATEGORIES } from '../../dither-engine/al
 // @ts-ignore
 import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToRgba, rgbaToHex } from '../../dither-engine/palettes.js';
 // @ts-ignore
-import { BUILTIN_PRESETS } from '../../ui/presets.js';
-// @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 // @ts-ignore
 import { exportRaster } from '../../dither-engine/exporters.js';
+import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { 
   ArrowDown,
   ArrowUp,
@@ -30,7 +29,9 @@ import {
   Square,
   Layers,
   Download,
-  Upload
+  Upload,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 const CATEGORY_KEYS = [
@@ -47,6 +48,69 @@ const CATEGORY_KEYS = [
 const getSliderFill = (val: number, min: number, max: number): React.CSSProperties => {
   const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
   return { '--slider-fill': `${pct.toFixed(1)}%` } as React.CSSProperties;
+};
+
+// Pure RGB <-> HSL helpers for zero-lag custom HSL color picker
+const rgbToHsl = (r: number, g: number, b: number): [number, number, number] => {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      case b:
+        h = (r - g) / d + 4;
+        break;
+    }
+    h /= 6;
+  }
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+};
+
+const hslToRgb = (h: number, s: number, l: number): [number, number, number] => {
+  h = ((h % 360) + 360) % 360;
+  const sNorm = Math.max(0, Math.min(100, s)) / 100;
+  const lNorm = Math.max(0, Math.min(100, l)) / 100;
+
+  const c = (1 - Math.abs(2 * lNorm - 1)) * sNorm;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lNorm - c / 2;
+  let rPrime = 0;
+  let gPrime = 0;
+  let bPrime = 0;
+
+  if (h >= 0 && h < 60) {
+    rPrime = c; gPrime = x; bPrime = 0;
+  } else if (h >= 60 && h < 120) {
+    rPrime = x; gPrime = c; bPrime = 0;
+  } else if (h >= 120 && h < 180) {
+    rPrime = 0; gPrime = c; bPrime = x;
+  } else if (h >= 180 && h < 240) {
+    rPrime = 0; gPrime = x; bPrime = c;
+  } else if (h >= 240 && h < 300) {
+    rPrime = x; gPrime = 0; bPrime = c;
+  } else {
+    rPrime = c; gPrime = 0; bPrime = x;
+  }
+
+  return [
+    Math.max(0, Math.min(255, Math.round((rPrime + m) * 255))),
+    Math.max(0, Math.min(255, Math.round((gPrime + m) * 255))),
+    Math.max(0, Math.min(255, Math.round((bPrime + m) * 255)))
+  ];
 };
 
 export const RightSidebar: React.FC = () => {
@@ -69,6 +133,9 @@ export const RightSidebar: React.FC = () => {
       presets: false
     };
   });
+
+  const [userPresets, setUserPresets] = useState<any[]>(() => loadUserPresets());
+  const [newPresetName, setNewPresetName] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -124,6 +191,11 @@ export const RightSidebar: React.FC = () => {
   const removeSwatch = useAppStore((state) => state.removeSwatch);
   const setPaletteDepth = useAppStore((state) => state.setPaletteDepth);
   const resetToBuiltin = useAppStore((state) => state.resetToBuiltin);
+  const savedPalettes = useAppStore((state) => state.savedPalettes);
+  const saveCurrentPaletteLocally = useAppStore((state) => state.saveCurrentPaletteLocally);
+  const addAdjustedSwatch = useAppStore((state) => state.addAdjustedSwatch);
+  const invertPalette = useAppStore((state) => state.invertPalette);
+  const flipPalette = useAppStore((state) => state.flipPalette);
   const imageFileName = useAppStore((state) => state.imageFileName);
   const sourceImageData = useAppStore((state) => state.sourceImageData);
   const hasImage = useAppStore((state) => state.hasImage);
@@ -143,15 +215,19 @@ export const RightSidebar: React.FC = () => {
   const [expandedEffectId, setExpandedEffectId] = useState<string | null>('glow');
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
+  const previewPaletteId = useAppStore((state) => state.previewPaletteId);
+  const setPreviewPaletteId = useAppStore((state) => state.setPreviewPaletteId);
+  const [confirmResetEffects, setConfirmResetEffects] = useState<boolean>(false);
+  const [confirmResetPalette, setConfirmResetPalette] = useState<boolean>(false);
 
   // Dropdown open/closed state persists in localStorage under 'ditherforge_effects_open'. Default: closed on first load.
   const [isEffectsDropdownOpen, setIsEffectsDropdownOpen] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem('ditherforge_effects_open') === 'true';
-      } catch {}
+    try {
+      const stored = localStorage.getItem('ditherforge_effects_open');
+      return stored === null ? false : stored === 'true';
+    } catch {
+      return false;
     }
-    return false;
   });
 
   const toggleEffectsDropdown = useCallback(() => {
@@ -177,23 +253,14 @@ export const RightSidebar: React.FC = () => {
 
   // Reset Effects with confirmation if modified
   const handleResetEffects = () => {
-    const isModified = effects.length !== 9 || effects.some((e, idx) => {
-      const typeMeta = AVAILABLE_EFFECT_TYPES[idx];
-      if (!typeMeta || e.type !== typeMeta.id) return true;
-      const expectedEnabled = typeMeta.id === 'glow';
-      if (e.enabled !== expectedEnabled) return true;
-      for (const k of Object.keys(typeMeta.defaultParams)) {
-        if (e.params[k] !== (typeMeta.defaultParams as any)[k]) return true;
-      }
-      return false;
-    });
-
-    if (isModified) {
-      const confirmed = window.confirm('Reset effect stack to default (Glow enabled)?');
-      if (!confirmed) return;
+    if (!confirmResetEffects) {
+      setConfirmResetEffects(true);
+      setTimeout(() => setConfirmResetEffects(false), 3000);
+      return;
     }
     resetEffects();
     setExpandedEffectId('glow');
+    setConfirmResetEffects(false);
   };
 
   const [activeSwatchIndex, setActiveSwatchIndex] = useState<number | null>(() => {
@@ -204,8 +271,97 @@ export const RightSidebar: React.FC = () => {
     return null;
   });
   const [swatchError, setSwatchError] = useState<string | null>(null);
+  const [confirmDeleteSwatch, setConfirmDeleteSwatch] = useState<boolean>(false);
+  const [localHsl, setLocalHsl] = useState<[number, number, number]>([0, 0, 50]);
+  const [localHex, setLocalHex] = useState<string>('#808080');
+  const colorPickerTimerRef = useRef<number | null>(null);
+  const [isSavePaletteModalOpen, setIsSavePaletteModalOpen] = useState<boolean>(false);
+  const [newPaletteName, setNewPaletteName] = useState<string>('My Custom Palette');
   const popoverRef = useRef<HTMLDivElement>(null);
   const paletteFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync local HSL/Hex state ONLY when switching activeSwatchIndex (prevents RGB->HSL roundtrip snapping sliders to 0)
+  useEffect(() => {
+    setConfirmDeleteSwatch(false);
+    setSwatchError(null);
+    if (activeSwatchIndex !== null) {
+      const swatch = useAppStore.getState().workingPalette[activeSwatchIndex];
+      if (swatch) {
+        const [r, g, b] = swatch;
+        setLocalHsl(rgbToHsl(r, g, b));
+        setLocalHex(rgbaToHex(r, g, b).toUpperCase());
+      }
+    }
+  }, [activeSwatchIndex]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (colorPickerTimerRef.current !== null) {
+        window.clearTimeout(colorPickerTimerRef.current);
+      }
+    };
+  }, []);
+
+  const commitDebouncedSwatchColor = useCallback((idx: number, rgba: number[]) => {
+    if (colorPickerTimerRef.current !== null) {
+      window.clearTimeout(colorPickerTimerRef.current);
+    }
+    colorPickerTimerRef.current = window.setTimeout(() => {
+      updateSwatchColor(idx, rgba);
+      colorPickerTimerRef.current = null;
+    }, 16);
+  }, [updateSwatchColor]);
+
+  // Task 7: Two-Dropdown System (Category -> Palette)
+  const paletteCategories = useMemo(() => {
+    const cats = new Set<string>();
+    BUILTIN_PALETTES.forEach((p: any) => {
+      cats.add(p.category || 'Built-in');
+    });
+    const list = Array.from(cats);
+    if (!list.includes('Saved')) list.push('Saved');
+    return list;
+  }, []);
+
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    const foundBuiltin = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
+    if (foundBuiltin) return foundBuiltin.category || 'Monochrome';
+    return 'Saved';
+  });
+
+  // Keep selectedCategory in sync when activePaletteId changes externally
+  useEffect(() => {
+    const foundBuiltin = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
+    if (foundBuiltin && foundBuiltin.category) {
+      setSelectedCategory(foundBuiltin.category);
+    } else if (savedPalettes.some((p) => p.id === activePaletteId)) {
+      setSelectedCategory('Saved');
+    }
+  }, [activePaletteId, savedPalettes]);
+
+  const palettesInSelectedCategory = useMemo(() => {
+    if (selectedCategory === 'Saved') {
+      return savedPalettes.map((pal) => ({
+        id: pal.id,
+        label: pal.name,
+        hint: `${pal.colors.length} colors`
+      }));
+    }
+    return BUILTIN_PALETTES
+      .filter((pal: any) => (pal.category || 'Built-in') === selectedCategory)
+      .map((pal: any) => ({
+        id: pal.id,
+        label: pal.name,
+        hint: `${pal.colors.length} colors`
+      }));
+  }, [selectedCategory, savedPalettes]);
+
+  // Task 11: Consolidate inverse_glow & inverse_vignette into a toggle inside glow & vignette
+  const visibleEffectsList = useMemo(
+    () => effects.filter((e) => e.id !== 'inverse_glow' && e.id !== 'inverse_vignette'),
+    [effects]
+  );
 
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
 
@@ -269,27 +425,6 @@ export const RightSidebar: React.FC = () => {
   };
 
   const [exportFormat, setExportFormat] = useState<string>('PNG');
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('');
-
-  const handleApplyPreset = (presetId: string) => {
-    setSelectedPresetId(presetId);
-    const preset = BUILTIN_PRESETS.find((p: any) => p.id === presetId);
-    if (!preset) return;
-    if (preset.algorithmId) setAlgorithmId(preset.algorithmId);
-    if (preset.paletteId) setActivePaletteId(preset.paletteId);
-    if (preset.brightness !== undefined) setBrightness(preset.brightness * 100);
-    if (preset.contrast !== undefined) setContrast(preset.contrast * 100);
-    if (preset.saturation !== undefined) setSaturation(preset.saturation * 100);
-    if (preset.gamma !== undefined) setGamma(preset.gamma);
-    if (preset.depth !== undefined) setDepth(preset.depth);
-    if (preset.threshold !== undefined) updateCurrentAlgoParam('threshold', preset.threshold);
-    if (preset.scale !== undefined) updateCurrentAlgoParam('scale', preset.scale);
-    if (preset.diffusionStrength !== undefined) updateCurrentAlgoParam('diffusionStrength', preset.diffusionStrength);
-    if (preset.serpentine !== undefined) updateCurrentAlgoParam('serpentine', preset.serpentine);
-    if (preset.effects && Array.isArray(preset.effects)) {
-      useAppStore.setState({ effects: preset.effects });
-    }
-  };
 
   const categoryDropdownItems = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -516,29 +651,28 @@ export const RightSidebar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handlePrevAlgo, handleNextAlgo]);
 
-  // Palette stepping
-  const paletteIndex = BUILTIN_PALETTES.findIndex((p: any) => p.id === activePaletteId);
   const handlePrevPalette = () => {
-    if (BUILTIN_PALETTES.length === 0) return;
-    const prev = (paletteIndex - 1 + BUILTIN_PALETTES.length) % BUILTIN_PALETTES.length;
-    setActivePaletteId(BUILTIN_PALETTES[prev].id);
+    if (palettesInSelectedCategory.length === 0) return;
+    const idx = palettesInSelectedCategory.findIndex((p) => p.id === activePaletteId);
+    const prev = idx <= 0 ? palettesInSelectedCategory.length - 1 : idx - 1;
+    setActivePaletteId(palettesInSelectedCategory[prev].id);
   };
+
   const handleNextPalette = () => {
-    if (BUILTIN_PALETTES.length === 0) return;
-    const next = (paletteIndex + 1) % BUILTIN_PALETTES.length;
-    setActivePaletteId(BUILTIN_PALETTES[next].id);
+    if (palettesInSelectedCategory.length === 0) return;
+    const idx = palettesInSelectedCategory.findIndex((p) => p.id === activePaletteId);
+    const next = (idx + 1) % palettesInSelectedCategory.length;
+    setActivePaletteId(palettesInSelectedCategory[next].id);
   };
 
   const handleResetPalette = () => {
-    const pal = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || BUILTIN_PALETTES[0];
-    const isModified = JSON.stringify(workingPalette) !== JSON.stringify(pal.colors);
-    if (isModified) {
-      if (window.confirm('Reset palette to built-in default colors?')) {
-        resetToBuiltin();
-      }
-    } else {
-      resetToBuiltin();
+    if (!confirmResetPalette) {
+      setConfirmResetPalette(true);
+      setTimeout(() => setConfirmResetPalette(false), 3000);
+      return;
     }
+    resetToBuiltin();
+    setConfirmResetPalette(false);
   };
 
   const handleExportPalette = () => {
@@ -580,10 +714,10 @@ export const RightSidebar: React.FC = () => {
             paletteDepth: Math.min(32, parsed.colors.length)
           });
         } else {
-          alert('Invalid palette file');
+          setSwatchError('Invalid palette file');
         }
       } catch (err) {
-        alert('Invalid palette file');
+        setSwatchError('Invalid palette file');
       }
     };
     reader.readAsText(file);
@@ -846,7 +980,7 @@ export const RightSidebar: React.FC = () => {
                             ref={searchInputRef}
                             type="text"
                             className="algo-search-input"
-                            placeholder="Search 63 algorithms…"
+                            placeholder={`Search ${ALGORITHM_REGISTRY.length || 84} algorithms…`}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onKeyDown={handleSearchKeyDown}
@@ -953,14 +1087,12 @@ export const RightSidebar: React.FC = () => {
 
                 {/* Reset button */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Tooltip text="Reset algorithm parameters">
-                    <button
-                      className="btn-subtle"
-                      onClick={resetCurrentAlgoParams}
-                    >
-                      Reset
-                    </button>
-                  </Tooltip>
+                  <button
+                    className="btn-subtle"
+                    onClick={resetCurrentAlgoParams}
+                  >
+                    Reset
+                  </button>
                 </div>
 
                 {/* Progressive Parameters */}
@@ -1249,14 +1381,12 @@ export const RightSidebar: React.FC = () => {
             {!collapsedSections.adjustments && (
               <div className="section-content">
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Tooltip text="Reset adjustments">
-                    <button
-                      className="btn-subtle"
-                      onClick={resetAllAdjustments}
-                    >
-                      Reset
-                    </button>
-                  </Tooltip>
+                  <button
+                    className="btn-subtle"
+                    onClick={resetAllAdjustments}
+                  >
+                    Reset
+                  </button>
                 </div>
 
                 {/* Brightness */}
@@ -1508,25 +1638,22 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-title-text">PALETTE</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                <Tooltip text="Shuffle swatches">
-                  <button
-                    type="button"
-                    className="stepper-btn"
-                    onClick={(e) => { e.stopPropagation(); shuffleUnlockedSwatches(); }}
-                    style={{ width: '22px', height: '22px' }}
-                  >
-                    <Shuffle size={14} />
-                  </button>
-                </Tooltip>
-                <Tooltip text="Reset to built-in palette">
-                  <button
-                    type="button"
-                    className="btn-subtle"
-                    onClick={(e) => { e.stopPropagation(); handleResetPalette(); }}
-                  >
-                    Reset
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  className="stepper-btn"
+                  onClick={(e) => { e.stopPropagation(); shuffleUnlockedSwatches(); }}
+                  style={{ width: '22px', height: '22px' }}
+                  aria-label="Shuffle swatches"
+                >
+                  <Shuffle size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="btn-subtle"
+                  onClick={(e) => { e.stopPropagation(); handleResetPalette(); }}
+                >
+                  {confirmResetPalette ? 'Confirm?' : 'Reset'}
+                </button>
               </div>
             </div>
 
@@ -1535,33 +1662,56 @@ export const RightSidebar: React.FC = () => {
                 {isExtractingPalette && (
                   <LoadingScreen />
                 )}
-                {/* Built-in Dropdown */}
+                {/* Two-Dropdown System (Category -> Palette) */}
                 <div className="picker-row">
-                  <span className="picker-label">Built-in</span>
+                  <span className="picker-label">Category</span>
+                  <Dropdown
+                    className="palette-category-dropdown"
+                    width="100%"
+                    value={selectedCategory}
+                    onChange={(cat) => {
+                      setSelectedCategory(cat);
+                      if (cat === 'Saved') {
+                        if (savedPalettes.length > 0) {
+                          setActivePaletteId(savedPalettes[0].id);
+                        }
+                      } else {
+                        const firstPal = BUILTIN_PALETTES.find((p: any) => (p.category || 'Built-in') === cat);
+                        if (firstPal) {
+                          setActivePaletteId(firstPal.id);
+                        }
+                      }
+                    }}
+                    items={paletteCategories.map((cat) => ({
+                      id: cat,
+                      label: cat
+                    }))}
+                  />
+                </div>
+
+                <div className="picker-row">
+                  <span className="picker-label">Palette</span>
                   <div className="select-with-steppers">
-                    <Tooltip text="Previous Palette">
-                      <button className="stepper-btn" onClick={handlePrevPalette}>&lt;</button>
-                    </Tooltip>
+                    <button className="stepper-btn" onClick={handlePrevPalette} aria-label="Previous Palette">&lt;</button>
                     <Dropdown
                       className="palette-builtin-dropdown"
                       width="100%"
-                      value={activePaletteId}
-                      onChange={(palId) => setActivePaletteId(palId)}
-                      tooltip="Choose built-in palette"
+                      value={previewPaletteId || activePaletteId}
+                      placeholder={selectedCategory === 'Saved' && palettesInSelectedCategory.length === 0 ? 'No saved palettes yet' : 'Select palette...'}
+                      onChange={(palId) => {
+                        setPreviewPaletteId(null);
+                        setActivePaletteId(palId);
+                      }}
+                      onHoverItem={(palId) => setPreviewPaletteId(palId)}
+                      onClose={() => setPreviewPaletteId(null)}
                       items={[
                         ...(activePaletteId === 'custom'
                           ? [{ id: 'custom', label: 'Custom Palette', hint: `${workingPalette.length} colors` }]
                           : []),
-                        ...BUILTIN_PALETTES.map((pal: any) => ({
-                          id: pal.id,
-                          label: pal.name,
-                          hint: `${pal.colors.length} colors`,
-                        })),
+                        ...palettesInSelectedCategory
                       ]}
                     />
-                    <Tooltip text="Next Palette">
-                      <button className="stepper-btn" onClick={handleNextPalette}>&gt;</button>
-                    </Tooltip>
+                    <button className="stepper-btn" onClick={handleNextPalette} aria-label="Next Palette">&gt;</button>
                   </div>
                 </div>
 
@@ -1572,230 +1722,216 @@ export const RightSidebar: React.FC = () => {
                     const hex = rgbaToHex(c[0], c[1], c[2]).toUpperCase();
                     return (
                       <Tooltip key={i} text={`Swatch ${i + 1}: ${hex}`}>
-                      <div
-                        className="palette-swatch-item"
-                        style={{
-                          backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})`,
-                          opacity: isBeyondDepth ? 0.35 : 1
-                        }}
-                        onClick={() => setActiveSwatchIndex(activeSwatchIndex === i ? null : i)}
-                      />
-                    </Tooltip>
+                        <div
+                          className={`palette-swatch-item ${activeSwatchIndex === i ? 'active-swatch' : ''}`}
+                          style={{
+                            backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})`,
+                            opacity: isBeyondDepth ? 0.35 : 1,
+                            outline: activeSwatchIndex === i ? '2px solid var(--accent-cyan)' : 'none',
+                            outlineOffset: '1px'
+                          }}
+                          onClick={() => setActiveSwatchIndex(activeSwatchIndex === i ? null : i)}
+                        />
+                      </Tooltip>
                     );
                   })}
 
                   {/* Add swatch button if < 32 */}
                   {workingPalette.length < 32 && (
                     <Tooltip text="Add color swatch (up to 32)">
-                    <button
-                      type="button"
-                      className="palette-swatch-item"
-                      onClick={addSwatch}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'transparent',
-                        color: 'var(--text-muted)',
-                        fontSize: '1rem',
-                        borderStyle: 'dashed'
-                      }}
-                    >
-                      +
-                    </button>
-                  </Tooltip>
+                      <button
+                        type="button"
+                        className="palette-swatch-item"
+                        onClick={() => {
+                          const newIdx = workingPalette.length;
+                          addSwatch();
+                          setActiveSwatchIndex(newIdx);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'transparent',
+                          color: 'var(--text-muted)',
+                          fontSize: '1rem',
+                          borderStyle: 'dashed'
+                        }}
+                      >
+                        +
+                      </button>
+                    </Tooltip>
                   )}
 
-                  {/* Swatch Edit Popover */}
+                  {/* Clean Zero-Lag HSL Color Picker Popover */}
                   {activeSwatchIndex !== null && activeSwatchIndex < workingPalette.length && (
                     <div
                       ref={popoverRef}
                       className="palette-swatch-popover"
                       style={{
                         top: Math.floor(activeSwatchIndex / 7) * 36 + 40,
-                        left: Math.min(60, (activeSwatchIndex % 7) * 36),
-                        width: 240
+                        left: Math.min(60, (activeSwatchIndex % 7) * 36)
                       }}
                     >
-                      <input
-                        type="color"
-                        className="palette-color-picker-input"
-                        value={rgbaToHex(
-                          workingPalette[activeSwatchIndex][0],
-                          workingPalette[activeSwatchIndex][1],
-                          workingPalette[activeSwatchIndex][2]
-                        )}
-                        onChange={(e) => {
-                          const rgba = hexToRgba(e.target.value);
-                          updateSwatchColor(activeSwatchIndex, rgba);
-                          setSwatchError(null);
+                      {/* Live Color Preview Banner */}
+                      <div
+                        className="custom-hsl-preview-banner"
+                        style={{
+                          backgroundColor: `hsl(${localHsl[0]}, ${localHsl[1]}%, ${localHsl[2]}%)`
                         }}
-                      />
+                      >
+                        <span className="custom-hsl-preview-tag">{localHex}</span>
+                      </div>
 
-                      {/* RGB Sliders */}
-                      <div className="swatch-rgb-sliders">
-                        <div className="swatch-rgb-row">
-                          <span className="swatch-rgb-label">R</span>
+                      {/* Custom HSL Sliders */}
+                      <div className="custom-hsl-sliders">
+                        {/* Hue 0-360 */}
+                        <div className="custom-hsl-row">
+                          <span className="custom-hsl-label">H</span>
                           <input
                             type="range"
-                            className="control-slider"
+                            className="custom-hsl-slider hue-track"
                             min={0}
-                            max={255}
+                            max={360}
                             step={1}
-                            value={workingPalette[activeSwatchIndex][0]}
-                            style={getSliderFill(workingPalette[activeSwatchIndex][0], 0, 255)}
-                            onInput={(e) => {
-                              const val = parseInt((e.target as HTMLInputElement).value, 10);
-                              updateSwatchColor(activeSwatchIndex, [
-                                val,
-                                workingPalette[activeSwatchIndex][1],
-                                workingPalette[activeSwatchIndex][2],
-                                255
-                              ]);
-                              setSwatchError(null);
-                            }}
+                            value={localHsl[0]}
+                            {...sliderPointerProps}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              updateSwatchColor(activeSwatchIndex, [
-                                val,
-                                workingPalette[activeSwatchIndex][1],
-                                workingPalette[activeSwatchIndex][2],
-                                255
-                              ]);
-                              setSwatchError(null);
+                              const newH = parseInt(e.target.value, 10);
+                              const nextHsl: [number, number, number] = [newH, localHsl[1], localHsl[2]];
+                              setLocalHsl(nextHsl);
+                              const [r, g, b] = hslToRgb(nextHsl[0], nextHsl[1], nextHsl[2]);
+                              setLocalHex(rgbaToHex(r, g, b).toUpperCase());
+                              commitDebouncedSwatchColor(activeSwatchIndex, [r, g, b, 255]);
                             }}
                           />
-                          <span className="swatch-rgb-value">{workingPalette[activeSwatchIndex][0]}</span>
+                          <span className="custom-hsl-val">{localHsl[0]}°</span>
                         </div>
-                        <div className="swatch-rgb-row">
-                          <span className="swatch-rgb-label">G</span>
+
+                        {/* Saturation 0-100 */}
+                        <div className="custom-hsl-row">
+                          <span className="custom-hsl-label">S</span>
                           <input
                             type="range"
-                            className="control-slider"
+                            className="custom-hsl-slider sat-track"
                             min={0}
-                            max={255}
+                            max={100}
                             step={1}
-                            value={workingPalette[activeSwatchIndex][1]}
-                            style={getSliderFill(workingPalette[activeSwatchIndex][1], 0, 255)}
-                            onInput={(e) => {
-                              const val = parseInt((e.target as HTMLInputElement).value, 10);
-                              updateSwatchColor(activeSwatchIndex, [
-                                workingPalette[activeSwatchIndex][0],
-                                val,
-                                workingPalette[activeSwatchIndex][2],
-                                255
-                              ]);
-                              setSwatchError(null);
-                            }}
+                            value={localHsl[1]}
+                            style={{
+                              '--sat-color': `hsl(${localHsl[0]}, 100%, ${localHsl[2]}%)`
+                            } as React.CSSProperties}
+                            {...sliderPointerProps}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              updateSwatchColor(activeSwatchIndex, [
-                                workingPalette[activeSwatchIndex][0],
-                                val,
-                                workingPalette[activeSwatchIndex][2],
-                                255
-                              ]);
-                              setSwatchError(null);
+                              const newS = parseInt(e.target.value, 10);
+                              const nextHsl: [number, number, number] = [localHsl[0], newS, localHsl[2]];
+                              setLocalHsl(nextHsl);
+                              const [r, g, b] = hslToRgb(nextHsl[0], nextHsl[1], nextHsl[2]);
+                              setLocalHex(rgbaToHex(r, g, b).toUpperCase());
+                              commitDebouncedSwatchColor(activeSwatchIndex, [r, g, b, 255]);
                             }}
                           />
-                          <span className="swatch-rgb-value">{workingPalette[activeSwatchIndex][1]}</span>
+                          <span className="custom-hsl-val">{localHsl[1]}%</span>
                         </div>
-                        <div className="swatch-rgb-row">
-                          <span className="swatch-rgb-label">B</span>
+
+                        {/* Lightness 0-100 */}
+                        <div className="custom-hsl-row">
+                          <span className="custom-hsl-label">L</span>
                           <input
                             type="range"
-                            className="control-slider"
+                            className="custom-hsl-slider light-track"
                             min={0}
-                            max={255}
+                            max={100}
                             step={1}
-                            value={workingPalette[activeSwatchIndex][2]}
-                            style={getSliderFill(workingPalette[activeSwatchIndex][2], 0, 255)}
-                            onInput={(e) => {
-                              const val = parseInt((e.target as HTMLInputElement).value, 10);
-                              updateSwatchColor(activeSwatchIndex, [
-                                workingPalette[activeSwatchIndex][0],
-                                workingPalette[activeSwatchIndex][1],
-                                val,
-                                255
-                              ]);
-                              setSwatchError(null);
-                            }}
+                            value={localHsl[2]}
+                            style={{
+                              '--light-mid': `hsl(${localHsl[0]}, ${localHsl[1]}%, 50%)`
+                            } as React.CSSProperties}
+                            {...sliderPointerProps}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              updateSwatchColor(activeSwatchIndex, [
-                                workingPalette[activeSwatchIndex][0],
-                                workingPalette[activeSwatchIndex][1],
-                                val,
-                                255
-                              ]);
-                              setSwatchError(null);
+                              const newL = parseInt(e.target.value, 10);
+                              const nextHsl: [number, number, number] = [localHsl[0], localHsl[1], newL];
+                              setLocalHsl(nextHsl);
+                              const [r, g, b] = hslToRgb(nextHsl[0], nextHsl[1], nextHsl[2]);
+                              setLocalHex(rgbaToHex(r, g, b).toUpperCase());
+                              commitDebouncedSwatchColor(activeSwatchIndex, [r, g, b, 255]);
                             }}
                           />
-                          <span className="swatch-rgb-value">{workingPalette[activeSwatchIndex][2]}</span>
+                          <span className="custom-hsl-val">{localHsl[2]}%</span>
                         </div>
                       </div>
 
+                      {/* Compact Action Row: Hex Input + Light/Dark Variant Icons + Worded Reset + Trash Icon */}
                       <div className="palette-popover-row swatch-hex-row">
                         <input
                           type="text"
                           className="palette-hex-input"
                           maxLength={7}
-                          value={rgbaToHex(
-                            workingPalette[activeSwatchIndex][0],
-                            workingPalette[activeSwatchIndex][1],
-                            workingPalette[activeSwatchIndex][2]
-                          ).toUpperCase()}
+                          value={localHex}
                           onChange={(e) => {
-                            const val = e.target.value;
-                            if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-                              updateSwatchColor(activeSwatchIndex, hexToRgba(val));
+                            const val = e.target.value.toUpperCase();
+                            setLocalHex(val);
+                            if (/^#[0-9A-FA-f]{6}$/.test(val)) {
+                              const rgba = hexToRgba(val);
+                              setLocalHsl(rgbToHsl(rgba[0], rgba[1], rgba[2]));
+                              commitDebouncedSwatchColor(activeSwatchIndex, rgba);
                               setSwatchError(null);
                             }
                           }}
                         />
-                        <div className="swatch-hex-actions">
+                        <Tooltip text="Add 35% lighter swatch">
                           <button
                             type="button"
+                            className="palette-popover-btn swatch-icon-btn"
+                            disabled={workingPalette.length >= 32}
                             onClick={() => {
-                              const hex = rgbaToHex(
-                                workingPalette[activeSwatchIndex][0],
-                                workingPalette[activeSwatchIndex][1],
-                                workingPalette[activeSwatchIndex][2]
-                              ).toUpperCase();
-                              if (navigator?.clipboard?.writeText) {
-                                navigator.clipboard.writeText(hex).catch(() => {});
+                              const currentLen = useAppStore.getState().workingPalette.length;
+                              if (currentLen >= 32) return;
+                              if (colorPickerTimerRef.current !== null) {
+                                window.clearTimeout(colorPickerTimerRef.current);
+                                colorPickerTimerRef.current = null;
+                              }
+                              addAdjustedSwatch(activeSwatchIndex, 0.35);
+                              const updatedPalette = useAppStore.getState().workingPalette;
+                              const newIdx = updatedPalette.length - 1;
+                              setActiveSwatchIndex(newIdx);
+                              if (updatedPalette[newIdx]) {
+                                const [nr, ng, nb] = updatedPalette[newIdx];
+                                setLocalHsl(rgbToHsl(nr, ng, nb));
+                                setLocalHex(rgbaToHex(nr, ng, nb).toUpperCase());
                               }
                             }}
+                            aria-label="Add lighter swatch"
                           >
-                            Copy
+                            <Sun size={13} />
                           </button>
+                        </Tooltip>
+                        <Tooltip text="Add 35% darker swatch">
                           <button
                             type="button"
-                            onClick={async () => {
-                              try {
-                                if (!navigator?.clipboard?.readText) {
-                                  setSwatchError('Clipboard access failed');
-                                  return;
-                                }
-                                const text = (await navigator.clipboard.readText()).trim();
-                                if (/^#?[0-9a-fA-F]{6}$/.test(text)) {
-                                  const hex = text.startsWith('#') ? text : `#${text}`;
-                                  updateSwatchColor(activeSwatchIndex, hexToRgba(hex));
-                                  setSwatchError(null);
-                                } else {
-                                  setSwatchError('Invalid hex');
-                                }
-                              } catch {
-                                setSwatchError('Clipboard access failed');
+                            className="palette-popover-btn swatch-icon-btn"
+                            disabled={workingPalette.length >= 32}
+                            onClick={() => {
+                              const currentLen = useAppStore.getState().workingPalette.length;
+                              if (currentLen >= 32) return;
+                              if (colorPickerTimerRef.current !== null) {
+                                window.clearTimeout(colorPickerTimerRef.current);
+                                colorPickerTimerRef.current = null;
+                              }
+                              addAdjustedSwatch(activeSwatchIndex, -0.35);
+                              const updatedPalette = useAppStore.getState().workingPalette;
+                              const newIdx = updatedPalette.length - 1;
+                              setActiveSwatchIndex(newIdx);
+                              if (updatedPalette[newIdx]) {
+                                const [nr, ng, nb] = updatedPalette[newIdx];
+                                setLocalHsl(rgbToHsl(nr, ng, nb));
+                                setLocalHex(rgbaToHex(nr, ng, nb).toUpperCase());
                               }
                             }}
+                            aria-label="Add darker swatch"
                           >
-                            Paste
+                            <Moon size={13} />
                           </button>
-                        </div>
-                      </div>
-
-                      <div className="palette-popover-row swatch-bottom-actions">
+                        </Tooltip>
                         <button
                           type="button"
                           className="palette-popover-btn swatch-reset-btn"
@@ -1806,32 +1942,39 @@ export const RightSidebar: React.FC = () => {
                           onClick={() => {
                             const pal = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
                             if (pal && pal.colors[activeSwatchIndex]) {
-                              updateSwatchColor(activeSwatchIndex, [
+                              const orig = [
                                 pal.colors[activeSwatchIndex][0],
                                 pal.colors[activeSwatchIndex][1],
                                 pal.colors[activeSwatchIndex][2],
                                 255
-                              ]);
+                              ];
+                              updateSwatchColor(activeSwatchIndex, orig);
+                              setLocalHsl(rgbToHsl(orig[0], orig[1], orig[2]));
+                              setLocalHex(rgbaToHex(orig[0], orig[1], orig[2]).toUpperCase());
                               setSwatchError(null);
                             }
                           }}
                         >
                           Reset
                         </button>
-                        <Tooltip text={workingPalette.length <= 2 ? "Minimum 2 colors required" : "Delete Swatch"}>
-                          <button
-                            type="button"
-                            className="btn-subtle palette-popover-btn"
-                            disabled={workingPalette.length <= 2}
-                            onClick={() => {
-                              removeSwatch(activeSwatchIndex);
-                              setActiveSwatchIndex(null);
-                              setSwatchError(null);
-                            }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </Tooltip>
+                        <button
+                          type="button"
+                          className={`palette-popover-btn swatch-delete-btn ${confirmDeleteSwatch ? 'confirming' : ''}`}
+                          disabled={workingPalette.length <= 2}
+                          onClick={() => {
+                            if (!confirmDeleteSwatch) {
+                              setConfirmDeleteSwatch(true);
+                              return;
+                            }
+                            removeSwatch(activeSwatchIndex);
+                            setActiveSwatchIndex(null);
+                            setConfirmDeleteSwatch(false);
+                            setSwatchError(null);
+                          }}
+                          aria-label="Delete swatch"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                       {swatchError && (
                         <div className="swatch-popover-error">{swatchError}</div>
@@ -1845,27 +1988,27 @@ export const RightSidebar: React.FC = () => {
                   <span className="palette-actions-label">From Image</span>
                   <div className="palette-buttons-row">
                     <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"} style={{ flex: 1 }}>
-                    <button
-                      type="button"
-                      className="palette-action-btn"
-                      disabled={!hasImage || !sourceImageData}
-                      onClick={handleExtractMedianCut}
-                      style={{ width: '100%' }}
-                    >
-                      Median Cut
-                    </button>
-                  </Tooltip>
+                      <button
+                        type="button"
+                        className="palette-action-btn"
+                        disabled={!hasImage || !sourceImageData}
+                        onClick={handleExtractMedianCut}
+                        style={{ width: '100%' }}
+                      >
+                        Median Cut
+                      </button>
+                    </Tooltip>
                     <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"} style={{ flex: 1 }}>
-                    <button
-                      type="button"
-                      className="palette-action-btn"
-                      disabled={!hasImage || !sourceImageData}
-                      onClick={handleExtractKMeans}
-                      style={{ width: '100%' }}
-                    >
-                      K-Means
-                    </button>
-                  </Tooltip>
+                      <button
+                        type="button"
+                        className="palette-action-btn"
+                        disabled={!hasImage || !sourceImageData}
+                        onClick={handleExtractKMeans}
+                        style={{ width: '100%' }}
+                      >
+                        K-Means
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
 
@@ -1903,8 +2046,32 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Import / Export JSON */}
+                {/* Invert & Flip Palette Row */}
                 <div className="palette-buttons-row" style={{ marginTop: '10px' }}>
+                  <Tooltip text="Convert palette colors into their complementary opposite colors" style={{ flex: 1 }}>
+                    <button
+                      type="button"
+                      className="btn-default"
+                      onClick={invertPalette}
+                      style={{ width: '100%' }}
+                    >
+                      Invert Palette
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Inverse light, midtone, and dark properties across the palette" style={{ flex: 1 }}>
+                    <button
+                      type="button"
+                      className="btn-default"
+                      onClick={flipPalette}
+                      style={{ width: '100%' }}
+                    >
+                      Flip Palette
+                    </button>
+                  </Tooltip>
+                </div>
+
+                {/* Save, Import & Export Row */}
+                <div className="palette-buttons-row" style={{ marginTop: '8px' }}>
                   <input
                     type="file"
                     ref={paletteFileInputRef}
@@ -1912,27 +2079,90 @@ export const RightSidebar: React.FC = () => {
                     style={{ display: 'none' }}
                     onChange={handleImportPalette}
                   />
-                  <Tooltip text="Import custom palette JSON" style={{ flex: 1 }}>
+                  <button
+                    type="button"
+                    className="btn-default"
+                    onClick={() => {
+                      setNewPaletteName(`Custom Palette ${savedPalettes.length + 1}`);
+                      setIsSavePaletteModalOpen(true);
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    Save
+                  </button>
                   <button
                     type="button"
                     className="btn-default"
                     onClick={() => paletteFileInputRef.current?.click()}
-                    style={{ width: '100%' }}
+                    style={{ flex: 1 }}
                   >
                     <ArrowDown size={14} /> Import
                   </button>
-                </Tooltip>
-                  <Tooltip text="Export current working palette to JSON" style={{ flex: 1 }}>
                   <button
                     type="button"
                     className="btn-default"
                     onClick={handleExportPalette}
-                    style={{ width: '100%' }}
+                    style={{ flex: 1 }}
                   >
                     <ArrowUp size={14} /> Export
                   </button>
-                </Tooltip>
                 </div>
+
+                {/* Custom In-App Popup Modal for Saving Palettes */}
+                {isSavePaletteModalOpen && (
+                  <div className="modal-backdrop" onClick={() => setIsSavePaletteModalOpen(false)}>
+                    <div
+                      className="modal-dialog custom-popup-dialog"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="modal-header">
+                        <span className="section-title-text" style={{ color: 'var(--text-main)' }}>SAVE CUSTOM PALETTE</span>
+                      </div>
+                      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Palette Name</label>
+                        <input
+                          type="text"
+                          className="export-input"
+                          value={newPaletteName}
+                          autoFocus
+                          onChange={(e) => setNewPaletteName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newPaletteName.trim()) {
+                              saveCurrentPaletteLocally(newPaletteName.trim());
+                              setSelectedCategory('Saved');
+                              setIsSavePaletteModalOpen(false);
+                            } else if (e.key === 'Escape') {
+                              setIsSavePaletteModalOpen(false);
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="modal-footer">
+                        <button
+                          type="button"
+                          className="btn-default"
+                          onClick={() => setIsSavePaletteModalOpen(false)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{ width: 'auto', padding: '0 16px', height: '32px' }}
+                          onClick={() => {
+                            if (newPaletteName.trim()) {
+                              saveCurrentPaletteLocally(newPaletteName.trim());
+                              setSelectedCategory('Saved');
+                              setIsSavePaletteModalOpen(false);
+                            }
+                          }}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1946,19 +2176,19 @@ export const RightSidebar: React.FC = () => {
               <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.effects ? '▶' : '▼'}</span>
                 <span className="section-title-text">EFFECTS STACK</span>
-                <span className="section-counter-text">{effects.filter(e => e.enabled).length} active / {effects.length} total</span>
+                <span className="section-counter-text">
+                  {effects.filter((e) => e.enabled).length} active / {visibleEffectsList.length} total
+                </span>
               </div>
               <div onClick={(e) => e.stopPropagation()}>
-                <Tooltip text="Reset effect stack to default">
-                  <button
-                    type="button"
-                    className="btn-subtle"
-                    onClick={(e) => { e.stopPropagation(); handleResetEffects(); }}
-                  >
-                    <RotateCcw size={12} className="btn-icon" />
-                    <span>Reset</span>
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  className="btn-subtle"
+                  onClick={(e) => { e.stopPropagation(); handleResetEffects(); }}
+                >
+                  <RotateCcw size={12} className="btn-icon" />
+                  <span>{confirmResetEffects ? 'Confirm?' : 'Reset'}</span>
+                </button>
               </div>
             </div>
 
@@ -1989,7 +2219,11 @@ export const RightSidebar: React.FC = () => {
                             {effects.filter(e => e.enabled).length} {effects.filter(e => e.enabled).length === 1 ? 'effect' : 'effects'} enabled
                           </span>
                           <span className="effects-dropdown-names">
-                            ({effects.filter(e => e.enabled).map(e => e.name).join(', ')})
+                            ({effects.filter(e => e.enabled).map(e => {
+                              if (e.id === 'inverse_glow') return 'Ignition Glow (Inverse)';
+                              if (e.id === 'inverse_vignette') return 'Vignette Falloff (Inverse)';
+                              return e.name;
+                            }).join(', ')})
                           </span>
                         </>
                       ) : (
@@ -2004,8 +2238,14 @@ export const RightSidebar: React.FC = () => {
 
                   {isEffectsDropdownOpen && (
                     <div className="effects-dropdown-panel">
-                      {effects.map((eff, index) => {
+                      {visibleEffectsList.map((eff, index) => {
                         const isExpanded = expandedEffectId === eff.id;
+                        const inversePairId = eff.id === 'glow' ? 'inverse_glow' : eff.id === 'vignette' ? 'inverse_vignette' : null;
+                        const inversePairEff = inversePairId ? effects.find((e) => e.id === inversePairId) : null;
+                        const isInverseActive = Boolean(inversePairEff?.enabled);
+                        const activeEff = isInverseActive && inversePairEff ? inversePairEff : eff;
+                        const isRowEnabled = eff.enabled || isInverseActive;
+
                         const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
                         const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
 
@@ -2025,7 +2265,11 @@ export const RightSidebar: React.FC = () => {
                             onDrop={(e) => {
                               e.preventDefault();
                               if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
-                                reorderEffects(draggedEffectIndex, index);
+                                const fromRealIdx = effects.findIndex((item) => item.id === visibleEffectsList[draggedEffectIndex]?.id);
+                                const toRealIdx = effects.findIndex((item) => item.id === eff.id);
+                                if (fromRealIdx !== -1 && toRealIdx !== -1) {
+                                  reorderEffects(fromRealIdx, toRealIdx);
+                                }
                               }
                               setDraggedEffectIndex(null);
                               setDragOverEffectIndex(null);
@@ -2044,7 +2288,7 @@ export const RightSidebar: React.FC = () => {
                                 }
                               }}
                             >
-                              {/* Drag handle (dot grid) at left, 16px slot */}
+                              {/* Drag handle */}
                               <Tooltip text="Drag to reorder">
                                 <span
                                   className="effect-row-drag"
@@ -2060,55 +2304,90 @@ export const RightSidebar: React.FC = () => {
                                     setDragOverEffectIndex(null);
                                   }}
                                 >
-                                <svg
-                                  width="8"
-                                  height="14"
-                                  viewBox="0 0 8 14"
-                                  fill="currentColor"
-                                  aria-hidden="true"
-                                >
-                                  <circle cx="1.5" cy="1.5" r="1.5" />
-                                  <circle cx="6.5" cy="1.5" r="1.5" />
-                                  <circle cx="1.5" cy="7" r="1.5" />
-                                  <circle cx="6.5" cy="7" r="1.5" />
-                                  <circle cx="1.5" cy="12.5" r="1.5" />
-                                  <circle cx="6.5" cy="12.5" r="1.5" />
-                                </svg>
-                              </span>
+                                  <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">
+                                    <circle cx="1.5" cy="1.5" r="1.5" />
+                                    <circle cx="6.5" cy="1.5" r="1.5" />
+                                    <circle cx="1.5" cy="7" r="1.5" />
+                                    <circle cx="6.5" cy="7" r="1.5" />
+                                    <circle cx="1.5" cy="12.5" r="1.5" />
+                                    <circle cx="6.5" cy="12.5" r="1.5" />
+                                  </svg>
+                                </span>
                               </Tooltip>
 
                               {/* Toggle square */}
-                              <Tooltip text={eff.enabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}>
+                              <Tooltip text={isRowEnabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}>
                                 <button
                                   type="button"
-                                  className={`effect-row-toggle ${eff.enabled ? 'enabled' : ''}`}
+                                  className={`effect-row-toggle ${isRowEnabled ? 'enabled' : ''}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    toggleEffectEnabled(eff.id);
+                                    if (isInverseActive && inversePairEff) {
+                                      toggleEffectEnabled(inversePairEff.id);
+                                    } else {
+                                      toggleEffectEnabled(eff.id);
+                                    }
                                   }}
                                 >
-                                <span className="effect-toggle-square" />
+                                  <span className="effect-toggle-square" />
                                 </button>
                               </Tooltip>
 
                               {/* Effect name */}
-                              <span className={`effect-row-name ${!eff.enabled ? 'disabled' : ''}`}>
-                                {eff.name}
+                              <span className={`effect-row-name ${!isRowEnabled ? 'disabled' : ''}`}>
+                                {eff.name} {isInverseActive ? '(Inverse)' : ''}
                               </span>
 
-                              {/* Chevron › on right (expands params inline, one at a time) */}
+                              {/* Chevron › on right */}
                               <span className={`effect-row-chevron ${isExpanded ? 'expanded' : ''}`}>
                                 <ChevronRight size={14} strokeWidth={1.75} />
                               </span>
                             </div>
 
-                            {/* Indented parameter panel below row */}
+                            {/* Indented parameter panel below row (Note 10: No data-lenis-prevent so sidebar scroll works seamlessly) */}
                             {isExpanded && (
-                              <div className="effect-row-params" data-lenis-prevent>
-                                {Object.keys(defaultParams).map((key) => {
-                                  const val = eff.params[key] !== undefined ? eff.params[key] : defaultParams[key];
+                              <div className="effect-row-params">
+                                {/* Note 11: Inverse Toggle inside Glow and Vignette */}
+                                {inversePairEff && (
+                                  <div className="serpentine-row" style={{ marginTop: 2, marginBottom: 4 }}>
+                                    <Tooltip text={`Invert ${eff.name} (applies ${inversePairEff.name})`}>
+                                      <button
+                                        type="button"
+                                        className={`toggle-square-btn ${isInverseActive ? 'enabled' : ''}`}
+                                        onClick={() => {
+                                          if (isInverseActive) {
+                                            toggleEffectEnabled(inversePairEff.id);
+                                            if (!eff.enabled) toggleEffectEnabled(eff.id);
+                                          } else {
+                                            if (eff.enabled) toggleEffectEnabled(eff.id);
+                                            toggleEffectEnabled(inversePairEff.id);
+                                          }
+                                        }}
+                                      >
+                                        <span className={`toggle-square ${isInverseActive ? 'enabled' : ''}`} />
+                                      </button>
+                                    </Tooltip>
+                                    <span
+                                      className="serpentine-label"
+                                      style={{ fontSize: '0.78rem' }}
+                                      onClick={() => {
+                                        if (isInverseActive) {
+                                          toggleEffectEnabled(inversePairEff.id);
+                                          if (!eff.enabled) toggleEffectEnabled(eff.id);
+                                        } else {
+                                          if (eff.enabled) toggleEffectEnabled(eff.id);
+                                          toggleEffectEnabled(inversePairEff.id);
+                                        }
+                                      }}
+                                    >
+                                      Invert Effect
+                                    </span>
+                                  </div>
+                                )}
 
-                                  // Shape segmented control
+                                {Object.keys(defaultParams).map((key) => {
+                                  const val = activeEff.params[key] !== undefined ? activeEff.params[key] : defaultParams[key];
+
                                   if (key === 'shape' && typeof defaultParams[key] === 'string') {
                                     return (
                                       <div key={key} className="effect-param-row">
@@ -2119,14 +2398,14 @@ export const RightSidebar: React.FC = () => {
                                           <button
                                             type="button"
                                             className={`effect-param-segment-btn ${val === 'circle' ? 'active' : ''}`}
-                                            onClick={() => updateEffectParam(eff.id, 'shape', 'circle')}
+                                            onClick={() => updateEffectParam(activeEff.id, 'shape', 'circle')}
                                           >
                                             Circle
                                           </button>
                                           <button
                                             type="button"
                                             className={`effect-param-segment-btn ${val === 'diamond' ? 'active' : ''}`}
-                                            onClick={() => updateEffectParam(eff.id, 'shape', 'diamond')}
+                                            onClick={() => updateEffectParam(activeEff.id, 'shape', 'diamond')}
                                           >
                                             Diamond
                                           </button>
@@ -2135,7 +2414,6 @@ export const RightSidebar: React.FC = () => {
                                     );
                                   }
 
-                                  // Numerical Slider Params
                                   let min = 0;
                                   let max = 1;
                                   let step = 0.05;
@@ -2161,13 +2439,15 @@ export const RightSidebar: React.FC = () => {
                                     ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
                                     : String(val);
 
-
                                   return (
                                     <div key={key} className="effect-param-row">
                                       <div className="effect-param-label">
                                         <Tooltip text={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}>
                                           <span
-                                            onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
+                                            onDoubleClick={() => {
+                                              updateEffectParam(eff.id, key, defaultParams[key]);
+                                              if (inversePairEff) updateEffectParam(inversePairEff.id, key, defaultParams[key]);
+                                            }}
                                           >
                                             {labelText}
                                           </span>
@@ -2183,14 +2463,19 @@ export const RightSidebar: React.FC = () => {
                                           value={numVal}
                                           style={getSliderFill(numVal, min, max)}
                                           {...sliderPointerProps}
-                                          onDoubleClick={() => updateEffectParam(eff.id, key, defaultParams[key])}
-                                          onChange={(e) => updateEffectParam(eff.id, key, Number(e.target.value))}
+                                          onDoubleClick={() => {
+                                            updateEffectParam(eff.id, key, defaultParams[key]);
+                                            if (inversePairEff) updateEffectParam(inversePairEff.id, key, defaultParams[key]);
+                                          }}
+                                          onChange={(e) => {
+                                            const nextVal = Number(e.target.value);
+                                            updateEffectParam(eff.id, key, nextVal);
+                                            if (inversePairEff) updateEffectParam(inversePairEff.id, key, nextVal);
+                                          }}
                                         />
                                         <div className="slider-value-box">
                                           <Tooltip text="Double-click slider to reset">
-                                            <span
-                                              className="slider-value-number"
-                                            >
+                                            <span className="slider-value-number">
                                               {displayVal}
                                             </span>
                                           </Tooltip>
@@ -2219,57 +2504,82 @@ export const RightSidebar: React.FC = () => {
             >
               <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.presets ? '▶' : '▼'}</span>
-                <span className="section-title-text">PRESETS</span>
+                <span className="section-title-text">USER PRESETS</span>
               </div>
             </div>
 
             {!collapsedSections.presets && (
               <div className="section-content presets-section-content">
-                <div className="preset-row preset-dropdown-row">
-                  <Dropdown
-                    width="100%"
-                    value={selectedPresetId}
-                    placeholder="Built-in Presets..."
-                    onChange={(id) => handleApplyPreset(id)}
-                    tooltip="Select a built-in curated preset"
-                    items={BUILTIN_PRESETS.map((p: any) => ({
-                      id: p.id,
-                      label: p.name,
-                    }))}
+                {userPresets.length > 0 ? (
+                  <div className="preset-row preset-dropdown-row" style={{ marginBottom: '12px' }}>
+                    <Dropdown
+                      width="100%"
+                      value=""
+                      placeholder="Load User Preset..."
+                      onChange={(presetId) => {
+                        const preset = userPresets.find((p) => p.id === presetId);
+                        if (!preset) return;
+                        
+                        if (preset.algorithmId) setAlgorithmId(preset.algorithmId);
+                        if (preset.paletteId) setActivePaletteId(preset.paletteId);
+                        if (preset.brightness !== undefined) setBrightness(preset.brightness * 100);
+                        if (preset.contrast !== undefined) setContrast(preset.contrast * 100);
+                        if (preset.saturation !== undefined) setSaturation(preset.saturation * 100);
+                        if (preset.gamma !== undefined) setGamma(preset.gamma);
+                        if (preset.depth !== undefined) setDepth(preset.depth);
+                        
+                        if (preset.threshold !== undefined) updateCurrentAlgoParam('threshold', preset.threshold);
+                        if (preset.scale !== undefined) updateCurrentAlgoParam('scale', preset.scale);
+                        if (preset.diffusionStrength !== undefined) updateCurrentAlgoParam('diffusionStrength', preset.diffusionStrength);
+                        if (preset.serpentine !== undefined) updateCurrentAlgoParam('serpentine', preset.serpentine);
+                        if (preset.effects) useAppStore.setState({ effects: preset.effects });
+                      }}
+                      items={userPresets.map((p) => ({ id: p.id, label: p.name }))}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                    No saved presets yet.
+                  </div>
+                )}
+
+                <div className="preset-row preset-save-row" style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    className="search-input-box"
+                    placeholder="Preset name..."
+                    value={newPresetName}
+                    onChange={(e) => setNewPresetName(e.target.value)}
                   />
-                  <Tooltip text="Load selected preset">
-                    <button 
-                      className="btn-default" 
-                      onClick={() => selectedPresetId && handleApplyPreset(selectedPresetId)}
-                      disabled={!selectedPresetId}
-                    >
-                      Load
-                    </button>
-                  </Tooltip>
-                </div>
-
-                <div className="preset-row preset-save-row">
-                  <Tooltip text="Save Preset (Coming in Phase 6)" style={{ width: '100%' }}>
-                    <button
-                      className="btn-default"
-                      disabled
-                      style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}
-                    >
-                      Save Preset
-                    </button>
-                  </Tooltip>
-                </div>
-
-                <div className="preset-row preset-reset-row">
-                  <Tooltip text="Reset all settings to default" style={{ width: '100%' }}>
-                    <button
-                      className="btn-default"
-                      onClick={resetAll}
-                      style={{ width: '100%' }}
-                    >
-                      Reset to Default
-                    </button>
-                  </Tooltip>
+                  <button
+                    className="btn-default"
+                    onClick={() => {
+                      if (!newPresetName.trim()) return;
+                      const newPreset = {
+                        id: `user_${Date.now()}`,
+                        name: newPresetName.trim(),
+                        algorithmId,
+                        paletteId: activePaletteId,
+                        brightness: brightness / 100,
+                        contrast: contrast / 100,
+                        saturation: saturation / 100,
+                        gamma,
+                        depth,
+                        threshold: currentParams.threshold,
+                        scale: currentParams.scale,
+                        diffusionStrength: currentParams.diffusionStrength,
+                        serpentine: currentParams.serpentine,
+                        effects: JSON.parse(JSON.stringify(effects)),
+                        palette: [...workingPalette]
+                      };
+                      const updated = [...userPresets, newPreset];
+                      saveUserPresets(updated);
+                      setUserPresets(updated);
+                      setNewPresetName('');
+                    }}
+                  >
+                    Save
+                  </button>
                 </div>
               </div>
             )}

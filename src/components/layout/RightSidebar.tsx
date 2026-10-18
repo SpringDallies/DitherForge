@@ -203,6 +203,7 @@ export const RightSidebar: React.FC = () => {
     }
     return null;
   });
+  const [swatchError, setSwatchError] = useState<string | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const paletteFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1612,7 +1613,8 @@ export const RightSidebar: React.FC = () => {
                       className="palette-swatch-popover"
                       style={{
                         top: Math.floor(activeSwatchIndex / 7) * 36 + 40,
-                        left: Math.min(60, (activeSwatchIndex % 7) * 36)
+                        left: Math.min(60, (activeSwatchIndex % 7) * 36),
+                        width: 260
                       }}
                     >
                       <input
@@ -1626,8 +1628,113 @@ export const RightSidebar: React.FC = () => {
                         onChange={(e) => {
                           const rgba = hexToRgba(e.target.value);
                           updateSwatchColor(activeSwatchIndex, rgba);
+                          setSwatchError(null);
                         }}
                       />
+
+                      {/* RGB Sliders */}
+                      <div className="swatch-rgb-sliders">
+                        <div className="swatch-rgb-row">
+                          <span className="swatch-rgb-label">R</span>
+                          <input
+                            type="range"
+                            className="control-slider"
+                            min={0}
+                            max={255}
+                            step={1}
+                            value={workingPalette[activeSwatchIndex][0]}
+                            style={getSliderFill(workingPalette[activeSwatchIndex][0], 0, 255)}
+                            onInput={(e) => {
+                              const val = parseInt((e.target as HTMLInputElement).value, 10);
+                              updateSwatchColor(activeSwatchIndex, [
+                                val,
+                                workingPalette[activeSwatchIndex][1],
+                                workingPalette[activeSwatchIndex][2],
+                                255
+                              ]);
+                              setSwatchError(null);
+                            }}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              updateSwatchColor(activeSwatchIndex, [
+                                val,
+                                workingPalette[activeSwatchIndex][1],
+                                workingPalette[activeSwatchIndex][2],
+                                255
+                              ]);
+                              setSwatchError(null);
+                            }}
+                          />
+                          <span className="swatch-rgb-value">{workingPalette[activeSwatchIndex][0]}</span>
+                        </div>
+                        <div className="swatch-rgb-row">
+                          <span className="swatch-rgb-label">G</span>
+                          <input
+                            type="range"
+                            className="control-slider"
+                            min={0}
+                            max={255}
+                            step={1}
+                            value={workingPalette[activeSwatchIndex][1]}
+                            style={getSliderFill(workingPalette[activeSwatchIndex][1], 0, 255)}
+                            onInput={(e) => {
+                              const val = parseInt((e.target as HTMLInputElement).value, 10);
+                              updateSwatchColor(activeSwatchIndex, [
+                                workingPalette[activeSwatchIndex][0],
+                                val,
+                                workingPalette[activeSwatchIndex][2],
+                                255
+                              ]);
+                              setSwatchError(null);
+                            }}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              updateSwatchColor(activeSwatchIndex, [
+                                workingPalette[activeSwatchIndex][0],
+                                val,
+                                workingPalette[activeSwatchIndex][2],
+                                255
+                              ]);
+                              setSwatchError(null);
+                            }}
+                          />
+                          <span className="swatch-rgb-value">{workingPalette[activeSwatchIndex][1]}</span>
+                        </div>
+                        <div className="swatch-rgb-row">
+                          <span className="swatch-rgb-label">B</span>
+                          <input
+                            type="range"
+                            className="control-slider"
+                            min={0}
+                            max={255}
+                            step={1}
+                            value={workingPalette[activeSwatchIndex][2]}
+                            style={getSliderFill(workingPalette[activeSwatchIndex][2], 0, 255)}
+                            onInput={(e) => {
+                              const val = parseInt((e.target as HTMLInputElement).value, 10);
+                              updateSwatchColor(activeSwatchIndex, [
+                                workingPalette[activeSwatchIndex][0],
+                                workingPalette[activeSwatchIndex][1],
+                                val,
+                                255
+                              ]);
+                              setSwatchError(null);
+                            }}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              updateSwatchColor(activeSwatchIndex, [
+                                workingPalette[activeSwatchIndex][0],
+                                workingPalette[activeSwatchIndex][1],
+                                val,
+                                255
+                              ]);
+                              setSwatchError(null);
+                            }}
+                          />
+                          <span className="swatch-rgb-value">{workingPalette[activeSwatchIndex][2]}</span>
+                        </div>
+                      </div>
+
                       <div className="palette-popover-row">
                         <input
                           type="text"
@@ -1642,9 +1749,71 @@ export const RightSidebar: React.FC = () => {
                             const val = e.target.value;
                             if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
                               updateSwatchColor(activeSwatchIndex, hexToRgba(val));
+                              setSwatchError(null);
                             }
                           }}
                         />
+                        <div className="swatch-hex-actions">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const hex = rgbaToHex(
+                                workingPalette[activeSwatchIndex][0],
+                                workingPalette[activeSwatchIndex][1],
+                                workingPalette[activeSwatchIndex][2]
+                              ).toUpperCase();
+                              if (navigator?.clipboard?.writeText) {
+                                navigator.clipboard.writeText(hex).catch(() => {});
+                              }
+                            }}
+                          >
+                            Copy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                if (!navigator?.clipboard?.readText) {
+                                  setSwatchError('Clipboard access failed');
+                                  return;
+                                }
+                                const text = (await navigator.clipboard.readText()).trim();
+                                if (/^#?[0-9a-fA-F]{6}$/.test(text)) {
+                                  const hex = text.startsWith('#') ? text : `#${text}`;
+                                  updateSwatchColor(activeSwatchIndex, hexToRgba(hex));
+                                  setSwatchError(null);
+                                } else {
+                                  setSwatchError('Invalid hex');
+                                }
+                              } catch {
+                                setSwatchError('Clipboard access failed');
+                              }
+                            }}
+                          >
+                            Paste
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              activePaletteId === 'custom' ||
+                              !BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId)?.colors[activeSwatchIndex]
+                            }
+                            onClick={() => {
+                              const pal = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
+                              if (pal && pal.colors[activeSwatchIndex]) {
+                                updateSwatchColor(activeSwatchIndex, [
+                                  pal.colors[activeSwatchIndex][0],
+                                  pal.colors[activeSwatchIndex][1],
+                                  pal.colors[activeSwatchIndex][2],
+                                  255
+                                ]);
+                                setSwatchError(null);
+                              }
+                            }}
+                          >
+                            Reset
+                          </button>
+                        </div>
                         <Tooltip text={workingPalette.length <= 2 ? "Minimum 2 colors required" : "Delete Swatch"}>
                           <button
                             type="button"
@@ -1653,12 +1822,16 @@ export const RightSidebar: React.FC = () => {
                             onClick={() => {
                               removeSwatch(activeSwatchIndex);
                               setActiveSwatchIndex(null);
+                              setSwatchError(null);
                             }}
                           >
                             <Trash2 size={16} />
                           </button>
                         </Tooltip>
                       </div>
+                      {swatchError && (
+                        <div className="swatch-popover-error">{swatchError}</div>
+                      )}
                     </div>
                   )}
                 </div>

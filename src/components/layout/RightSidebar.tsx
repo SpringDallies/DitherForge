@@ -1272,7 +1272,7 @@ export const RightSidebar: React.FC = () => {
                     </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                       <input
                         type="range"
                         className="control-slider"
@@ -1311,7 +1311,7 @@ export const RightSidebar: React.FC = () => {
                     </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                       <input
                         type="range"
                         className="control-slider"
@@ -1350,7 +1350,7 @@ export const RightSidebar: React.FC = () => {
                     </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                       <input
                         type="range"
                         className="control-slider"
@@ -1389,7 +1389,7 @@ export const RightSidebar: React.FC = () => {
                     </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                       <input
                         type="range"
                         className="control-slider"
@@ -1428,7 +1428,7 @@ export const RightSidebar: React.FC = () => {
                     </Tooltip>
                   </div>
                   <div className="slider-track-input-row">
-                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                    <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                       <input
                         type="range"
                         className="control-slider"
@@ -1614,7 +1614,7 @@ export const RightSidebar: React.FC = () => {
                       style={{
                         top: Math.floor(activeSwatchIndex / 7) * 36 + 40,
                         left: Math.min(60, (activeSwatchIndex % 7) * 36),
-                        width: 260
+                        width: 240
                       }}
                     >
                       <input
@@ -1735,7 +1735,7 @@ export const RightSidebar: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="palette-popover-row">
+                      <div className="palette-popover-row swatch-hex-row">
                         <input
                           type="text"
                           className="palette-hex-input"
@@ -1792,28 +1792,32 @@ export const RightSidebar: React.FC = () => {
                           >
                             Paste
                           </button>
-                          <button
-                            type="button"
-                            disabled={
-                              activePaletteId === 'custom' ||
-                              !BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId)?.colors[activeSwatchIndex]
-                            }
-                            onClick={() => {
-                              const pal = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
-                              if (pal && pal.colors[activeSwatchIndex]) {
-                                updateSwatchColor(activeSwatchIndex, [
-                                  pal.colors[activeSwatchIndex][0],
-                                  pal.colors[activeSwatchIndex][1],
-                                  pal.colors[activeSwatchIndex][2],
-                                  255
-                                ]);
-                                setSwatchError(null);
-                              }
-                            }}
-                          >
-                            Reset
-                          </button>
                         </div>
+                      </div>
+
+                      <div className="palette-popover-row swatch-bottom-actions">
+                        <button
+                          type="button"
+                          className="palette-popover-btn swatch-reset-btn"
+                          disabled={
+                            activePaletteId === 'custom' ||
+                            !BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId)?.colors[activeSwatchIndex]
+                          }
+                          onClick={() => {
+                            const pal = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
+                            if (pal && pal.colors[activeSwatchIndex]) {
+                              updateSwatchColor(activeSwatchIndex, [
+                                pal.colors[activeSwatchIndex][0],
+                                pal.colors[activeSwatchIndex][1],
+                                pal.colors[activeSwatchIndex][2],
+                                255
+                              ]);
+                              setSwatchError(null);
+                            }
+                          }}
+                        >
+                          Reset
+                        </button>
                         <Tooltip text={workingPalette.length <= 2 ? "Minimum 2 colors required" : "Delete Swatch"}>
                           <button
                             type="button"

@@ -1045,6 +1045,12 @@ body {
   height: 36px;
 }
 
+.slider-track-input-row > .themed-tooltip-wrapper,
+.slider-track-input-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .control-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -2055,36 +2061,44 @@ button .btn-icon:hover,
 
 .palette-swatch-popover {
   position: absolute;
-  width: 200px;
+  width: 240px;
+  box-sizing: border-box;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  padding: 10px;
+  padding: 12px;
   z-index: 300;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center; /* Centers everything horizontally */
+  gap: 10px;
 }
 
 .palette-popover-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .palette-color-picker-input {
   width: 100%;
   height: 32px;
+  margin: 0 auto;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
   padding: 0;
+  box-sizing: border-box;
 }
 
 .palette-hex-input {
   flex: 1;
+  min-width: 0;
   height: 28px;
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border-color);
@@ -2094,6 +2108,8 @@ button .btn-icon:hover,
   font-size: 0.75rem;
   color: var(--text-main);
   text-transform: uppercase;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 .palette-hex-input:focus {
   border-color: var(--border-focus);
@@ -2667,12 +2683,101 @@ body {
 
 [data-lenis-prevent] { overscroll-behavior: contain; }
 
-.swatch-rgb-sliders { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
-.swatch-rgb-row { display: flex; align-items: center; gap: 8px; }
-.swatch-rgb-label { width: 14px; font-size: 0.72rem; color: var(--text-muted); }
-.swatch-rgb-value { width: 32px; text-align: right; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-main); }
-.swatch-hex-actions { display: flex; gap: 4px; }
-.swatch-hex-actions button { height: 22px; padding: 0 8px; font-size: 0.7rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-main); cursor: pointer; }
-.swatch-hex-actions button:hover:not(:disabled) { background: var(--bg-hover); }
-.swatch-hex-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
-.swatch-popover-error { color: var(--accent-red, #ef4444); font-size: 0.68rem; }
+.swatch-rgb-sliders {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  box-sizing: border-box;
+}
+.swatch-rgb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.swatch-rgb-row .control-slider {
+  flex: 1;
+  min-width: 0;
+}
+.swatch-rgb-label {
+  width: 14px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.swatch-rgb-value {
+  width: 32px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-main);
+}
+.swatch-hex-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.swatch-hex-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.swatch-hex-actions button {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 0.7rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.swatch-hex-actions button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.swatch-hex-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.swatch-bottom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.swatch-reset-btn {
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 0.72rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  cursor: pointer;
+}
+.swatch-reset-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.swatch-reset-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.swatch-popover-error {
+  color: var(--accent-red, #ef4444);
+  font-size: 0.68rem;
+  text-align: center;
+  width: 100%;
+}

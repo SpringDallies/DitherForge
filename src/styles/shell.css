@@ -2666,3 +2666,13 @@ body {
 }
 
 [data-lenis-prevent] { overscroll-behavior: contain; }
+
+.swatch-rgb-sliders { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.swatch-rgb-row { display: flex; align-items: center; gap: 8px; }
+.swatch-rgb-label { width: 14px; font-size: 0.72rem; color: var(--text-muted); }
+.swatch-rgb-value { width: 32px; text-align: right; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-main); }
+.swatch-hex-actions { display: flex; gap: 4px; }
+.swatch-hex-actions button { height: 22px; padding: 0 8px; font-size: 0.7rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-main); cursor: pointer; }
+.swatch-hex-actions button:hover:not(:disabled) { background: var(--bg-hover); }
+.swatch-hex-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+.swatch-popover-error { color: var(--accent-red, #ef4444); font-size: 0.68rem; }

@@ -2,48 +2,193 @@
 import { FastPaletteLUT, getLuminance } from './palette.js';
 
 // Helper for 1D horizontal diffusion
-function run1DHorizontalDiffusion(w, h, data, lut, getWeight, diffMult = 1.0) {
-  const out = new Uint8ClampedArray(data.length);
+function run1DHorizontalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
   const maxErr = 128;
+  if (typeof controlsOrFn === 'function') {
+    const getWeight = controlsOrFn;
+    const diffMult = typeof arg6 === 'number' ? arg6 : 1.0;
+    const out = new Uint8ClampedArray(data.length);
+    if (lut.isTonalRamp) {
+      const N = lut.paletteSize;
+      for (let y = 0; y < h; y++) {
+        let err = 0;
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
+          const curLum = Math.max(0, Math.min(255, lum + err));
+          const t = (curLum / 255) * (N - 1);
+          const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+          const col = lut.rawPalette[chosenIdx];
+          out[idx] = col[0]; out[idx + 1] = col[1]; out[idx + 2] = col[2]; out[idx + 3] = data[idx + 3];
+          const wgt = getWeight(x, y) * diffMult;
+          err = Math.max(-maxErr, Math.min(maxErr, (curLum - lut.luminances[chosenIdx]) * wgt));
+        }
+      }
+    } else {
+      for (let y = 0; y < h; y++) {
+        let errR = 0, errG = 0, errB = 0;
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const r = Math.max(0, Math.min(255, data[idx] + errR));
+          const g = Math.max(0, Math.min(255, data[idx + 1] + errG));
+          const b = Math.max(0, Math.min(255, data[idx + 2] + errB));
+          lut.inlineMatch(r, g, b, out, idx);
+          out[idx + 3] = data[idx + 3];
+          const wgt = getWeight(x, y) * diffMult;
+          errR = Math.max(-maxErr, Math.min(maxErr, (r - out[idx]) * wgt));
+          errG = Math.max(-maxErr, Math.min(maxErr, (g - out[idx + 1]) * wgt));
+          errB = Math.max(-maxErr, Math.min(maxErr, (b - out[idx + 2]) * wgt));
+        }
+      }
+    }
+    return out;
+  }
+
+  const controls = controlsOrFn || {};
+  const threshold = Math.max(
+    0.001,
+    controls.threshold !== undefined
+      ? (Number(controls.threshold) > 1 ? Number(controls.threshold) / 100 : Number(controls.threshold))
+      : (controls.luminanceThreshold !== undefined ? Number(controls.luminanceThreshold) / 100 : 0.5)
+  );
+  const scale = Math.max(
+    0.2,
+    controls.lineScale !== undefined
+      ? Number(controls.lineScale)
+      : (controls.scale !== undefined ? Number(controls.scale) : 1.0)
+  );
+  const bleed = Math.max(
+    0,
+    Math.min(
+      1.0,
+      controls.bleed !== undefined
+        ? Number(controls.bleed)
+        : (controls.bleedFraction !== undefined
+            ? Number(controls.bleedFraction) / 100
+            : (controls.bleedAmount !== undefined ? Number(controls.bleedAmount) / 100 : (controls.smoothingFactor ? 1.0 : 0.0)))
+    )
+  );
+  const smoothing = Math.max(
+    0,
+    controls.smoothing !== undefined
+      ? Number(controls.smoothing)
+      : (controls.smoothness !== undefined
+          ? Number(controls.smoothness)
+          : (controls.smoothingFactor ? 10 : 0))
+  );
+  const noise = !!(controls.noise || controls.noiseToggle || (controls.noiseAmount !== undefined && controls.enableNoise));
+  const getMod = controls.getModulation || (() => 0);
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+
+  const out = new Uint8ClampedArray(data.length);
+  const period = h * threshold;
+  const alpha = smoothing === 0 ? 1.0 : 1.0 / (1.0 + smoothing * 2.0);
 
   if (lut.isTonalRamp) {
     const N = lut.paletteSize;
+    const nextScanlineErr = new Float32Array(w);
     for (let y = 0; y < h; y++) {
-      let err = 0;
+      let scanErr = 0;
+      const basePhase = (y / h) * (1 / threshold);
+      let emaPhase = basePhase;
       for (let x = 0; x < w; x++) {
         const idx = (y * w + x) * 4;
         const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-        const curLum = Math.max(0, Math.min(255, lum + err));
+        const inErr = scanErr + nextScanlineErr[x];
+        nextScanlineErr[x] = 0;
+        const curLum = Math.max(0, Math.min(255, lum + inErr));
 
-        const t = (curLum / 255) * (N - 1);
-        const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+        let noiseOffset = 0;
+        if (noise) {
+          const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+        }
+
+        const modVal = getMod(x, y, curLum);
+        const errPerturbation = (inErr / 128) * bleed * 0.7;
+        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+
+        if (x === 0 && smoothing > 0) emaPhase = basePhase;
+        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
+
+        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
+        const isLine = distInPixels <= scale;
+
+        let chosenIdx;
+        if (!isLine) {
+          chosenIdx = N - 1;
+        } else {
+          const t = (curLum / 255) * (N - 1);
+          chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+        }
+
         const col = lut.rawPalette[chosenIdx];
+        out[idx] = col[0]; out[idx + 1] = col[1]; out[idx + 2] = col[2]; out[idx + 3] = data[idx + 3];
 
-        out[idx] = col[0];
-        out[idx + 1] = col[1];
-        out[idx + 2] = col[2];
-        out[idx + 3] = data[idx + 3];
-
-        const wgt = getWeight(x, y) * diffMult;
-        err = Math.max(-maxErr, Math.min(maxErr, (curLum - lut.luminances[chosenIdx]) * wgt));
+        const diff = curLum - lut.luminances[chosenIdx];
+        const err = Math.max(-maxErr, Math.min(maxErr, diff * diffMult));
+        scanErr = err * (1 - bleed);
+        nextScanlineErr[x] = err * bleed;
       }
     }
   } else {
+    const nextScanlineErr = new Float32Array(w * 3);
     for (let y = 0; y < h; y++) {
-      let errR = 0, errG = 0, errB = 0;
+      let scanErrR = 0, scanErrG = 0, scanErrB = 0;
+      const basePhase = (y / h) * (1 / threshold);
+      let emaPhase = basePhase;
       for (let x = 0; x < w; x++) {
         const idx = (y * w + x) * 4;
-        const r = Math.max(0, Math.min(255, data[idx] + errR));
-        const g = Math.max(0, Math.min(255, data[idx + 1] + errG));
-        const b = Math.max(0, Math.min(255, data[idx + 2] + errB));
+        const eIdx = x * 3;
+        const inErrR = scanErrR + nextScanlineErr[eIdx];
+        const inErrG = scanErrG + nextScanlineErr[eIdx + 1];
+        const inErrB = scanErrB + nextScanlineErr[eIdx + 2];
+        nextScanlineErr[eIdx] = 0;
+        nextScanlineErr[eIdx + 1] = 0;
+        nextScanlineErr[eIdx + 2] = 0;
 
-        lut.inlineMatch(r, g, b, out, idx);
+        const curR = Math.max(0, Math.min(255, data[idx] + inErrR));
+        const curG = Math.max(0, Math.min(255, data[idx + 1] + inErrG));
+        const curB = Math.max(0, Math.min(255, data[idx + 2] + inErrB));
+        const inErrLum = getLuminance(inErrR, inErrG, inErrB);
+        const curLum = getLuminance(curR, curG, curB);
+
+        let noiseOffset = 0;
+        if (noise) {
+          const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+        }
+
+        const modVal = getMod(x, y, curLum);
+        const errPerturbation = (inErrLum / 128) * bleed * 0.7;
+        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+
+        if (x === 0 && smoothing > 0) emaPhase = basePhase;
+        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
+
+        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
+        const isLine = distInPixels <= scale;
+
+        if (!isLine) {
+          lut.inlineMatch(255, 255, 255, out, idx);
+        } else {
+          lut.inlineMatch(curR, curG, curB, out, idx);
+        }
         out[idx + 3] = data[idx + 3];
 
-        const wgt = getWeight(x, y) * diffMult;
-        errR = Math.max(-maxErr, Math.min(maxErr, (r - out[idx]) * wgt));
-        errG = Math.max(-maxErr, Math.min(maxErr, (g - out[idx + 1]) * wgt));
-        errB = Math.max(-maxErr, Math.min(maxErr, (b - out[idx + 2]) * wgt));
+        const diffR = curR - out[idx];
+        const diffG = curG - out[idx + 1];
+        const diffB = curB - out[idx + 2];
+        const errR = Math.max(-maxErr, Math.min(maxErr, diffR * diffMult));
+        const errG = Math.max(-maxErr, Math.min(maxErr, diffG * diffMult));
+        const errB = Math.max(-maxErr, Math.min(maxErr, diffB * diffMult));
+
+        scanErrR = errR * (1 - bleed);
+        scanErrG = errG * (1 - bleed);
+        scanErrB = errB * (1 - bleed);
+        nextScanlineErr[eIdx] = errR * bleed;
+        nextScanlineErr[eIdx + 1] = errG * bleed;
+        nextScanlineErr[eIdx + 2] = errB * bleed;
       }
     }
   }
@@ -51,49 +196,194 @@ function run1DHorizontalDiffusion(w, h, data, lut, getWeight, diffMult = 1.0) {
 }
 
 // Helper for 1D vertical diffusion
-function run1DVerticalDiffusion(w, h, data, lut, getWeight, diffMult = 1.0) {
-  const out = new Uint8ClampedArray(data.length);
+function run1DVerticalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
   const maxErr = 128;
+  if (typeof controlsOrFn === 'function') {
+    const getWeight = controlsOrFn;
+    const diffMult = typeof arg6 === 'number' ? arg6 : 1.0;
+    const out = new Uint8ClampedArray(data.length);
+    if (lut.isTonalRamp) {
+      const N = lut.paletteSize;
+      const errBuf = new Float32Array(w);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
+          const curLum = Math.max(0, Math.min(255, lum + errBuf[x]));
+          const t = (curLum / 255) * (N - 1);
+          const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+          const col = lut.rawPalette[chosenIdx];
+          out[idx] = col[0]; out[idx + 1] = col[1]; out[idx + 2] = col[2]; out[idx + 3] = data[idx + 3];
+          const wgt = getWeight(x, y) * diffMult;
+          errBuf[x] = Math.max(-maxErr, Math.min(maxErr, (curLum - lut.luminances[chosenIdx]) * wgt));
+        }
+      }
+    } else {
+      const errBuf = new Float32Array(w * 3);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const eIdx = x * 3;
+          const r = Math.max(0, Math.min(255, data[idx] + errBuf[eIdx]));
+          const g = Math.max(0, Math.min(255, data[idx + 1] + errBuf[eIdx + 1]));
+          const b = Math.max(0, Math.min(255, data[idx + 2] + errBuf[eIdx + 2]));
+          lut.inlineMatch(r, g, b, out, idx);
+          out[idx + 3] = data[idx + 3];
+          const wgt = getWeight(x, y) * diffMult;
+          errBuf[eIdx] = Math.max(-maxErr, Math.min(maxErr, (r - out[idx]) * wgt));
+          errBuf[eIdx + 1] = Math.max(-maxErr, Math.min(maxErr, (g - out[idx + 1]) * wgt));
+          errBuf[eIdx + 2] = Math.max(-maxErr, Math.min(maxErr, (b - out[idx + 2]) * wgt));
+        }
+      }
+    }
+    return out;
+  }
+
+  const controls = controlsOrFn || {};
+  const threshold = Math.max(
+    0.001,
+    controls.threshold !== undefined
+      ? (Number(controls.threshold) > 1 ? Number(controls.threshold) / 100 : Number(controls.threshold))
+      : (controls.luminanceThreshold !== undefined ? Number(controls.luminanceThreshold) / 100 : 0.5)
+  );
+  const scale = Math.max(
+    0.2,
+    controls.lineScale !== undefined
+      ? Number(controls.lineScale)
+      : (controls.scale !== undefined ? Number(controls.scale) : 1.0)
+  );
+  const bleed = Math.max(
+    0,
+    Math.min(
+      1.0,
+      controls.bleed !== undefined
+        ? Number(controls.bleed)
+        : (controls.bleedFraction !== undefined
+            ? Number(controls.bleedFraction) / 100
+            : (controls.bleedAmount !== undefined ? Number(controls.bleedAmount) / 100 : (controls.smoothingFactor ? 1.0 : 0.0)))
+    )
+  );
+  const smoothing = Math.max(
+    0,
+    controls.smoothing !== undefined
+      ? Number(controls.smoothing)
+      : (controls.smoothness !== undefined
+          ? Number(controls.smoothness)
+          : (controls.smoothingFactor ? 10 : 0))
+  );
+  const noise = !!(controls.noise || controls.noiseToggle || (controls.noiseAmount !== undefined && controls.enableNoise));
+  const getMod = controls.getModulation || (() => 0);
+  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
+
+  const out = new Uint8ClampedArray(data.length);
+  const period = w * threshold;
+  const alpha = smoothing === 0 ? 1.0 : 1.0 / (1.0 + smoothing * 2.0);
 
   if (lut.isTonalRamp) {
     const N = lut.paletteSize;
-    const errBuf = new Float32Array(w);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
+    const nextScanlineErr = new Float32Array(h);
+    for (let x = 0; x < w; x++) {
+      let scanErr = 0;
+      const basePhase = (x / w) * (1 / threshold);
+      let emaPhase = basePhase;
+      for (let y = 0; y < h; y++) {
         const idx = (y * w + x) * 4;
         const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-        const curLum = Math.max(0, Math.min(255, lum + errBuf[x]));
+        const inErr = scanErr + nextScanlineErr[y];
+        nextScanlineErr[y] = 0;
+        const curLum = Math.max(0, Math.min(255, lum + inErr));
 
-        const t = (curLum / 255) * (N - 1);
-        const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+        let noiseOffset = 0;
+        if (noise) {
+          const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+        }
+
+        const modVal = getMod(x, y, curLum);
+        const errPerturbation = (inErr / 128) * bleed * 0.7;
+        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+
+        if (y === 0 && smoothing > 0) emaPhase = basePhase;
+        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
+
+        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
+        const isLine = distInPixels <= scale;
+
+        let chosenIdx;
+        if (!isLine) {
+          chosenIdx = N - 1;
+        } else {
+          const t = (curLum / 255) * (N - 1);
+          chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
+        }
+
         const col = lut.rawPalette[chosenIdx];
+        out[idx] = col[0]; out[idx + 1] = col[1]; out[idx + 2] = col[2]; out[idx + 3] = data[idx + 3];
 
-        out[idx] = col[0];
-        out[idx + 1] = col[1];
-        out[idx + 2] = col[2];
-        out[idx + 3] = data[idx + 3];
-
-        const wgt = getWeight(x, y) * diffMult;
-        errBuf[x] = Math.max(-maxErr, Math.min(maxErr, (curLum - lut.luminances[chosenIdx]) * wgt));
+        const diff = curLum - lut.luminances[chosenIdx];
+        const err = Math.max(-maxErr, Math.min(maxErr, diff * diffMult));
+        scanErr = err * (1 - bleed);
+        nextScanlineErr[y] = err * bleed;
       }
     }
   } else {
-    const errBuf = new Float32Array(w * 3);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
+    const nextScanlineErr = new Float32Array(h * 3);
+    for (let x = 0; x < w; x++) {
+      let scanErrR = 0, scanErrG = 0, scanErrB = 0;
+      const basePhase = (x / w) * (1 / threshold);
+      let emaPhase = basePhase;
+      for (let y = 0; y < h; y++) {
         const idx = (y * w + x) * 4;
-        const eIdx = x * 3;
-        const r = Math.max(0, Math.min(255, data[idx] + errBuf[eIdx]));
-        const g = Math.max(0, Math.min(255, data[idx + 1] + errBuf[eIdx + 1]));
-        const b = Math.max(0, Math.min(255, data[idx + 2] + errBuf[eIdx + 2]));
+        const eIdx = y * 3;
+        const inErrR = scanErrR + nextScanlineErr[eIdx];
+        const inErrG = scanErrG + nextScanlineErr[eIdx + 1];
+        const inErrB = scanErrB + nextScanlineErr[eIdx + 2];
+        nextScanlineErr[eIdx] = 0;
+        nextScanlineErr[eIdx + 1] = 0;
+        nextScanlineErr[eIdx + 2] = 0;
 
-        lut.inlineMatch(r, g, b, out, idx);
+        const curR = Math.max(0, Math.min(255, data[idx] + inErrR));
+        const curG = Math.max(0, Math.min(255, data[idx + 1] + inErrG));
+        const curB = Math.max(0, Math.min(255, data[idx + 2] + inErrB));
+        const inErrLum = getLuminance(inErrR, inErrG, inErrB);
+        const curLum = getLuminance(curR, curG, curB);
+
+        let noiseOffset = 0;
+        if (noise) {
+          const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+        }
+
+        const modVal = getMod(x, y, curLum);
+        const errPerturbation = (inErrLum / 128) * bleed * 0.7;
+        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+
+        if (y === 0 && smoothing > 0) emaPhase = basePhase;
+        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
+
+        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
+        const isLine = distInPixels <= scale;
+
+        if (!isLine) {
+          lut.inlineMatch(255, 255, 255, out, idx);
+        } else {
+          lut.inlineMatch(curR, curG, curB, out, idx);
+        }
         out[idx + 3] = data[idx + 3];
 
-        const wgt = getWeight(x, y) * diffMult;
-        errBuf[eIdx] = Math.max(-maxErr, Math.min(maxErr, (r - out[idx]) * wgt));
-        errBuf[eIdx + 1] = Math.max(-maxErr, Math.min(maxErr, (g - out[idx + 1]) * wgt));
-        errBuf[eIdx + 2] = Math.max(-maxErr, Math.min(maxErr, (b - out[idx + 2]) * wgt));
+        const diffR = curR - out[idx];
+        const diffG = curG - out[idx + 1];
+        const diffB = curB - out[idx + 2];
+        const errR = Math.max(-maxErr, Math.min(maxErr, diffR * diffMult));
+        const errG = Math.max(-maxErr, Math.min(maxErr, diffG * diffMult));
+        const errB = Math.max(-maxErr, Math.min(maxErr, diffB * diffMult));
+
+        scanErrR = errR * (1 - bleed);
+        scanErrG = errG * (1 - bleed);
+        scanErrB = errB * (1 - bleed);
+        nextScanlineErr[eIdx] = errR * bleed;
+        nextScanlineErr[eIdx + 1] = errG * bleed;
+        nextScanlineErr[eIdx + 2] = errB * bleed;
       }
     }
   }
@@ -102,26 +392,12 @@ function run1DVerticalDiffusion(w, h, data, lut, getWeight, diffMult = 1.0) {
 
 export function ditherUniformModulationX(w, h, data, palette, controls = {}) {
   const lut = new FastPaletteLUT(palette, controls);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : (controls.intensity !== undefined ? Number(controls.intensity) / 10 : 1);
-  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
-  const rawSpacing = controls.lineSpacing !== undefined ? Number(controls.lineSpacing) : 1;
-  const spacing = Math.max(1, Math.round(rawSpacing * s));
-  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
-  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
-    return (y % (spacing * 2) < spacing) ? 1.0 * scale : 0.5 * scale;
-  }, diffMult);
+  return run1DHorizontalDiffusion(w, h, data, lut, controls);
 }
 
 export function ditherUniformModulationY(w, h, data, palette, controls = {}) {
   const lut = new FastPaletteLUT(palette, controls);
-  const scale = controls.lineScale !== undefined ? Number(controls.lineScale) : (controls.intensity !== undefined ? Number(controls.intensity) / 10 : 1);
-  const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
-  const rawSpacing = controls.lineSpacing !== undefined ? Number(controls.lineSpacing) : 1;
-  const spacing = Math.max(1, Math.round(rawSpacing * s));
-  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
-  return run1DVerticalDiffusion(w, h, data, lut, (x, y) => {
-    return (x % (spacing * 2) < spacing) ? 1.0 * scale : 0.5 * scale;
-  }, diffMult);
+  return run1DVerticalDiffusion(w, h, data, lut, controls);
 }
 
 export function ditherArtifactModulationGlitch(w, h, data, palette, controls = {}) {
@@ -274,10 +550,10 @@ export function ditherModulatedDiffuseX(w, h, data, palette, controls = {}) {
   const freq = controls.frequency !== undefined ? Number(controls.frequency) : (controls.lineScale !== undefined ? Number(controls.lineScale) * 2 : 10);
   const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
   const effFreq = freq / s;
-  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
-  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
-    return 1.0 + 0.4 * Math.sin((x * effFreq * 0.1));
-  }, diffMult);
+  return run1DHorizontalDiffusion(w, h, data, lut, {
+    ...controls,
+    getModulation: (x, y) => 0.4 * Math.sin(x * effFreq * 0.1)
+  });
 }
 
 export function ditherModulatedDiffuseY(w, h, data, palette, controls = {}) {
@@ -285,10 +561,10 @@ export function ditherModulatedDiffuseY(w, h, data, palette, controls = {}) {
   const freq = controls.frequency !== undefined ? Number(controls.frequency) : (controls.lineScale !== undefined ? Number(controls.lineScale) * 2 : 10);
   const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
   const effFreq = freq / s;
-  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
-  return run1DVerticalDiffusion(w, h, data, lut, (x, y) => {
-    return 1.0 + 0.4 * Math.sin((y * effFreq * 0.1));
-  }, diffMult);
+  return run1DVerticalDiffusion(w, h, data, lut, {
+    ...controls,
+    getModulation: (x, y) => 0.4 * Math.sin(y * effFreq * 0.1)
+  });
 }
 
 export function ditherOrderedModulation(w, h, data, palette, controls = {}) {
@@ -328,11 +604,17 @@ export function ditherOrderedModulation(w, h, data, palette, controls = {}) {
 
 export function ditherSmoothDiffuse(w, h, data, palette, controls = {}) {
   const lut = new FastPaletteLUT(palette, controls);
-  const smooth = controls.smoothness !== undefined ? Number(controls.smoothness) : (controls.lineScale !== undefined ? Number(controls.lineScale) : 5);
-  const alpha = 1.0 / (1.0 + smooth);
-  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
-
-  return run1DHorizontalDiffusion(w, h, data, lut, () => 0.8 * (1 - alpha * 0.3), diffMult);
+  const smoothness = controls.smoothness !== undefined
+    ? Number(controls.smoothness)
+    : (controls.smoothing !== undefined
+        ? Number(controls.smoothing)
+        : (controls.lineScale !== undefined ? Number(controls.lineScale) : 5));
+  const bleed = controls.bleed !== undefined ? Number(controls.bleed) : 1.0;
+  return run1DHorizontalDiffusion(w, h, data, lut, {
+    ...controls,
+    bleed,
+    smoothing: smoothness
+  });
 }
 
 export function ditherStuckiDiffusionLines(w, h, data, palette, controls = {}) {
@@ -350,10 +632,10 @@ export function ditherWaveModulationX(w, h, data, palette, controls = {}) {
   const amp = (controls.amplitude !== undefined ? Number(controls.amplitude) : 50) / 100;
   const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
   const effFreq = freq / s;
-  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
-  return run1DHorizontalDiffusion(w, h, data, lut, (x, y) => {
-    return 1.0 + amp * Math.sin((2 * Math.PI * effFreq * y) / h);
-  }, diffMult);
+  return run1DHorizontalDiffusion(w, h, data, lut, {
+    ...controls,
+    getModulation: (x, y) => amp * Math.sin((2 * Math.PI * effFreq * x) / w)
+  });
 }
 
 export function ditherWaveModulationY(w, h, data, palette, controls = {}) {
@@ -362,66 +644,33 @@ export function ditherWaveModulationY(w, h, data, palette, controls = {}) {
   const amp = (controls.amplitude !== undefined ? Number(controls.amplitude) : 50) / 100;
   const s = controls.scale !== undefined ? Number(controls.scale) : 1.0;
   const effFreq = freq / s;
-  const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
-  return run1DVerticalDiffusion(w, h, data, lut, (x, y) => {
-    return 1.0 + amp * Math.sin((2 * Math.PI * effFreq * x) / w);
-  }, diffMult);
+  return run1DVerticalDiffusion(w, h, data, lut, {
+    ...controls,
+    getModulation: (x, y) => amp * Math.sin((2 * Math.PI * effFreq * y) / h)
+  });
 }
 
 export function ditherWaveform(w, h, data, palette, controls = {}) {
   const lut = new FastPaletteLUT(palette, controls);
-  const out = new Uint8ClampedArray(data.length);
   const s = Math.max(0.05, controls.scale !== undefined ? Number(controls.scale) : 1.0);
   const density = controls.waveDensity !== undefined ? Number(controls.waveDensity) : (controls.density !== undefined ? Number(controls.density) : 1);
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-      const sx = x / s;
-      const wave = Math.sin((sx * density) / 10 + (lum / 255) * Math.PI * 2);
-      const thresh = 0.5 + wave * 0.35;
-
-      lut.inlinePairMatch(
-        data[idx],
-        data[idx + 1],
-        data[idx + 2],
-        thresh,
-        out,
-        idx
-      );
-      out[idx + 3] = data[idx + 3];
-    }
-  }
-  return out;
+  return run1DHorizontalDiffusion(w, h, data, lut, {
+    ...controls,
+    getModulation: (x, y, lum) => 0.35 * Math.sin(((x / s) * density) / 10 + (lum / 255) * Math.PI * 2)
+  });
 }
 
 export function ditherWaveformAlt(w, h, data, palette, controls = {}) {
   const lut = new FastPaletteLUT(palette, controls);
-  const out = new Uint8ClampedArray(data.length);
   const blend = (controls.modulationBlend !== undefined ? Number(controls.modulationBlend) : 5) / 10;
   const s = Math.max(0.05, controls.scale !== undefined ? Number(controls.scale) : 1.0);
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
+  return run1DHorizontalDiffusion(w, h, data, lut, {
+    ...controls,
+    getModulation: (x, y, lum) => {
       const sx = x / s;
       const freqWave = Math.sin((sx * lum * 0.05) / 10);
       const ampWave = Math.cos(sx * 0.2) * (lum / 255);
-      const wave = freqWave * blend + ampWave * (1 - blend);
-      const thresh = 0.5 + wave * 0.35;
-
-      lut.inlinePairMatch(
-        data[idx],
-        data[idx + 1],
-        data[idx + 2],
-        thresh,
-        out,
-        idx
-      );
-      out[idx + 3] = data[idx + 3];
+      return 0.35 * (freqWave * blend + ampWave * (1 - blend));
     }
-  }
-  return out;
+  });
 }

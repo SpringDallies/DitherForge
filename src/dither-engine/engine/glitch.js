@@ -45,17 +45,13 @@ function run1DHorizontalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
   }
 
   const controls = controlsOrFn || {};
-  const threshold = Math.max(
-    0.001,
-    controls.threshold !== undefined
-      ? (Number(controls.threshold) > 1 ? Number(controls.threshold) / 100 : Number(controls.threshold))
-      : (controls.luminanceThreshold !== undefined ? Number(controls.luminanceThreshold) / 100 : 0.5)
-  );
   const scale = Math.max(
-    0.2,
-    controls.lineScale !== undefined
-      ? Number(controls.lineScale)
-      : (controls.scale !== undefined ? Number(controls.scale) : 1.0)
+    1,
+    Math.round(
+      controls.lineScale !== undefined
+        ? Number(controls.lineScale)
+        : (controls.scale !== undefined ? Number(controls.scale) : 1.0)
+    )
   );
   const bleed = Math.max(
     0,
@@ -63,9 +59,11 @@ function run1DHorizontalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
       1.0,
       controls.bleed !== undefined
         ? Number(controls.bleed)
-        : (controls.bleedFraction !== undefined
+        : (controls.bleedFraction !== undefined && Number(controls.bleedFraction) > 0
             ? Number(controls.bleedFraction) / 100
-            : (controls.bleedAmount !== undefined ? Number(controls.bleedAmount) / 100 : (controls.smoothingFactor ? 1.0 : 0.0)))
+            : (controls.bleedAmount !== undefined && Number(controls.bleedAmount) > 0
+                ? Number(controls.bleedAmount) / 100
+                : (controls.smoothingFactor ? 1.0 : 0.0)))
     )
   );
   const smoothing = Math.max(
@@ -76,20 +74,27 @@ function run1DHorizontalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
           ? Number(controls.smoothness)
           : (controls.smoothingFactor ? 10 : 0))
   );
-  const noise = !!(controls.noise || controls.noiseToggle || (controls.noiseAmount !== undefined && controls.enableNoise));
+  const noise = !!(
+    controls.noisyLines ||
+    controls.noise ||
+    controls.noiseToggle ||
+    (controls.noiseAmount !== undefined && controls.enableNoise)
+  );
   const getMod = controls.getModulation || (() => 0);
   const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
 
   const out = new Uint8ClampedArray(data.length);
-  const period = w * threshold;
   const alpha = smoothing === 0 ? 1.0 : 1.0 / (1.0 + smoothing * 2.0);
+  // Clean damped weight (0.3) by default; full noisy carry (0.95) when noise option is enabled
+  const baseWeight = noise ? 0.95 : 0.3;
 
   if (lut.isTonalRamp) {
     const N = lut.paletteSize;
     const nextScanlineErr = new Float32Array(w);
     for (let y = 0; y < h; y++) {
       let scanErr = 0;
-      let emaPhase = 0;
+      let emaMod = 0;
+      const sy = Math.floor(y / scale);
       for (let x = 0; x < w; x++) {
         const idx = (y * w + x) * 4;
         const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
@@ -100,38 +105,31 @@ function run1DHorizontalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
         let noiseOffset = 0;
         if (noise) {
           const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 32;
         }
 
-        const basePhase = (x / w) * (1 / threshold);
-        const modVal = getMod(x, y, curLum);
-        const errPerturbation = (inErr / 128) * bleed * 0.7;
-        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+        const modVal = getMod(x, sy, curLum);
+        emaMod = (x === 0 && smoothing > 0) ? modVal : (emaMod * (1 - alpha) + modVal * alpha);
 
-        if (x === 0 && smoothing > 0) emaPhase = basePhase;
-        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
-
-        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
-        const isLine = distInPixels <= scale;
-
-        const t = (curLum / 255) * (N - 1);
+        const effLum = Math.max(0, Math.min(255, curLum + emaMod * 32 + noiseOffset));
+        const t = (effLum / 255) * (N - 1);
         const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
 
         const col = lut.rawPalette[chosenIdx];
         out[idx] = col[0]; out[idx + 1] = col[1]; out[idx + 2] = col[2]; out[idx + 3] = data[idx + 3];
 
-        const lineWeight = isLine ? 1.0 : 0.3;
-        const diff = curLum - lut.luminances[chosenIdx];
-        const err = Math.max(-maxErr, Math.min(maxErr, diff * diffMult));
-        scanErr = err * (1 - bleed) * lineWeight;
-        nextScanlineErr[x] = err * bleed * lineWeight;
+        const diff = effLum - lut.luminances[chosenIdx];
+        const err = Math.max(-maxErr, Math.min(maxErr, diff * diffMult * baseWeight));
+        scanErr = err * (1 - bleed);
+        nextScanlineErr[x] = err * bleed;
       }
     }
   } else {
     const nextScanlineErr = new Float32Array(w * 3);
     for (let y = 0; y < h; y++) {
       let scanErrR = 0, scanErrG = 0, scanErrB = 0;
-      let emaPhase = 0;
+      let emaMod = 0;
+      const sy = Math.floor(y / scale);
       for (let x = 0; x < w; x++) {
         const idx = (y * w + x) * 4;
         const eIdx = x * 3;
@@ -142,46 +140,41 @@ function run1DHorizontalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
         nextScanlineErr[eIdx + 1] = 0;
         nextScanlineErr[eIdx + 2] = 0;
 
-        const curR = Math.max(0, Math.min(255, data[idx] + inErrR));
-        const curG = Math.max(0, Math.min(255, data[idx + 1] + inErrG));
-        const curB = Math.max(0, Math.min(255, data[idx + 2] + inErrB));
-        const inErrLum = getLuminance(inErrR, inErrG, inErrB);
-        const curLum = getLuminance(curR, curG, curB);
-
         let noiseOffset = 0;
         if (noise) {
           const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 32;
         }
 
-        const basePhase = (x / w) * (1 / threshold);
-        const modVal = getMod(x, y, curLum);
-        const errPerturbation = (inErrLum / 128) * bleed * 0.7;
-        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+        const prelimR = Math.max(0, Math.min(255, data[idx] + inErrR));
+        const prelimG = Math.max(0, Math.min(255, data[idx + 1] + inErrG));
+        const prelimB = Math.max(0, Math.min(255, data[idx + 2] + inErrB));
+        const curLum = getLuminance(prelimR, prelimG, prelimB);
 
-        if (x === 0 && smoothing > 0) emaPhase = basePhase;
-        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
+        const modVal = getMod(x, sy, curLum);
+        emaMod = (x === 0 && smoothing > 0) ? modVal : (emaMod * (1 - alpha) + modVal * alpha);
+        const bias = emaMod * 32 + noiseOffset;
 
-        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
-        const isLine = distInPixels <= scale;
+        const curR = Math.max(0, Math.min(255, prelimR + bias));
+        const curG = Math.max(0, Math.min(255, prelimG + bias));
+        const curB = Math.max(0, Math.min(255, prelimB + bias));
 
         lut.inlineMatch(curR, curG, curB, out, idx);
         out[idx + 3] = data[idx + 3];
 
-        const lineWeight = isLine ? 1.0 : 0.3;
         const diffR = curR - out[idx];
         const diffG = curG - out[idx + 1];
         const diffB = curB - out[idx + 2];
-        const errR = Math.max(-maxErr, Math.min(maxErr, diffR * diffMult));
-        const errG = Math.max(-maxErr, Math.min(maxErr, diffG * diffMult));
-        const errB = Math.max(-maxErr, Math.min(maxErr, diffB * diffMult));
+        const errR = Math.max(-maxErr, Math.min(maxErr, diffR * diffMult * baseWeight));
+        const errG = Math.max(-maxErr, Math.min(maxErr, diffG * diffMult * baseWeight));
+        const errB = Math.max(-maxErr, Math.min(maxErr, diffB * diffMult * baseWeight));
 
-        scanErrR = errR * (1 - bleed) * lineWeight;
-        scanErrG = errG * (1 - bleed) * lineWeight;
-        scanErrB = errB * (1 - bleed) * lineWeight;
-        nextScanlineErr[eIdx] = errR * bleed * lineWeight;
-        nextScanlineErr[eIdx + 1] = errG * bleed * lineWeight;
-        nextScanlineErr[eIdx + 2] = errB * bleed * lineWeight;
+        scanErrR = errR * (1 - bleed);
+        scanErrG = errG * (1 - bleed);
+        scanErrB = errB * (1 - bleed);
+        nextScanlineErr[eIdx] = errR * bleed;
+        nextScanlineErr[eIdx + 1] = errG * bleed;
+        nextScanlineErr[eIdx + 2] = errB * bleed;
       }
     }
   }
@@ -233,17 +226,13 @@ function run1DVerticalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
   }
 
   const controls = controlsOrFn || {};
-  const threshold = Math.max(
-    0.001,
-    controls.threshold !== undefined
-      ? (Number(controls.threshold) > 1 ? Number(controls.threshold) / 100 : Number(controls.threshold))
-      : (controls.luminanceThreshold !== undefined ? Number(controls.luminanceThreshold) / 100 : 0.5)
-  );
   const scale = Math.max(
-    0.2,
-    controls.lineScale !== undefined
-      ? Number(controls.lineScale)
-      : (controls.scale !== undefined ? Number(controls.scale) : 1.0)
+    1,
+    Math.round(
+      controls.lineScale !== undefined
+        ? Number(controls.lineScale)
+        : (controls.scale !== undefined ? Number(controls.scale) : 1.0)
+    )
   );
   const bleed = Math.max(
     0,
@@ -251,9 +240,11 @@ function run1DVerticalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
       1.0,
       controls.bleed !== undefined
         ? Number(controls.bleed)
-        : (controls.bleedFraction !== undefined
+        : (controls.bleedFraction !== undefined && Number(controls.bleedFraction) > 0
             ? Number(controls.bleedFraction) / 100
-            : (controls.bleedAmount !== undefined ? Number(controls.bleedAmount) / 100 : (controls.smoothingFactor ? 1.0 : 0.0)))
+            : (controls.bleedAmount !== undefined && Number(controls.bleedAmount) > 0
+                ? Number(controls.bleedAmount) / 100
+                : (controls.smoothingFactor ? 1.0 : 0.0)))
     )
   );
   const smoothing = Math.max(
@@ -264,20 +255,27 @@ function run1DVerticalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
           ? Number(controls.smoothness)
           : (controls.smoothingFactor ? 10 : 0))
   );
-  const noise = !!(controls.noise || controls.noiseToggle || (controls.noiseAmount !== undefined && controls.enableNoise));
+  const noise = !!(
+    controls.noisyLines ||
+    controls.noise ||
+    controls.noiseToggle ||
+    (controls.noiseAmount !== undefined && controls.enableNoise)
+  );
   const getMod = controls.getModulation || (() => 0);
   const diffMult = controls.diffusionStrength !== undefined ? Number(controls.diffusionStrength) : 1.0;
 
   const out = new Uint8ClampedArray(data.length);
-  const period = h * threshold;
   const alpha = smoothing === 0 ? 1.0 : 1.0 / (1.0 + smoothing * 2.0);
+  // Clean damped weight (0.3) by default; full noisy carry (0.95) when noise option is enabled
+  const baseWeight = noise ? 0.95 : 0.3;
 
   if (lut.isTonalRamp) {
     const N = lut.paletteSize;
     const nextScanlineErr = new Float32Array(h);
     for (let x = 0; x < w; x++) {
       let scanErr = 0;
-      let emaPhase = 0;
+      let emaMod = 0;
+      const sx = Math.floor(x / scale);
       for (let y = 0; y < h; y++) {
         const idx = (y * w + x) * 4;
         const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
@@ -288,38 +286,31 @@ function run1DVerticalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
         let noiseOffset = 0;
         if (noise) {
           const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 32;
         }
 
-        const basePhase = (y / h) * (1 / threshold);
-        const modVal = getMod(x, y, curLum);
-        const errPerturbation = (inErr / 128) * bleed * 0.7;
-        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+        const modVal = getMod(sx, y, curLum);
+        emaMod = (y === 0 && smoothing > 0) ? modVal : (emaMod * (1 - alpha) + modVal * alpha);
 
-        if (y === 0 && smoothing > 0) emaPhase = basePhase;
-        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
-
-        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
-        const isLine = distInPixels <= scale;
-
-        const t = (curLum / 255) * (N - 1);
+        const effLum = Math.max(0, Math.min(255, curLum + emaMod * 32 + noiseOffset));
+        const t = (effLum / 255) * (N - 1);
         const chosenIdx = Math.max(0, Math.min(N - 1, Math.round(t)));
 
         const col = lut.rawPalette[chosenIdx];
         out[idx] = col[0]; out[idx + 1] = col[1]; out[idx + 2] = col[2]; out[idx + 3] = data[idx + 3];
 
-        const lineWeight = isLine ? 1.0 : 0.3;
-        const diff = curLum - lut.luminances[chosenIdx];
-        const err = Math.max(-maxErr, Math.min(maxErr, diff * diffMult));
-        scanErr = err * (1 - bleed) * lineWeight;
-        nextScanlineErr[y] = err * bleed * lineWeight;
+        const diff = effLum - lut.luminances[chosenIdx];
+        const err = Math.max(-maxErr, Math.min(maxErr, diff * diffMult * baseWeight));
+        scanErr = err * (1 - bleed);
+        nextScanlineErr[y] = err * bleed;
       }
     }
   } else {
     const nextScanlineErr = new Float32Array(h * 3);
     for (let x = 0; x < w; x++) {
       let scanErrR = 0, scanErrG = 0, scanErrB = 0;
-      let emaPhase = 0;
+      let emaMod = 0;
+      const sx = Math.floor(x / scale);
       for (let y = 0; y < h; y++) {
         const idx = (y * w + x) * 4;
         const eIdx = y * 3;
@@ -330,46 +321,41 @@ function run1DVerticalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
         nextScanlineErr[eIdx + 1] = 0;
         nextScanlineErr[eIdx + 2] = 0;
 
-        const curR = Math.max(0, Math.min(255, data[idx] + inErrR));
-        const curG = Math.max(0, Math.min(255, data[idx + 1] + inErrG));
-        const curB = Math.max(0, Math.min(255, data[idx + 2] + inErrB));
-        const inErrLum = getLuminance(inErrR, inErrG, inErrB);
-        const curLum = getLuminance(curR, curG, curB);
-
         let noiseOffset = 0;
         if (noise) {
           const pseudo = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 0.5;
+          noiseOffset = (pseudo - Math.floor(pseudo) - 0.5) * 32;
         }
 
-        const basePhase = (y / h) * (1 / threshold);
-        const modVal = getMod(x, y, curLum);
-        const errPerturbation = (inErrLum / 128) * bleed * 0.7;
-        const rawPhase = basePhase + modVal + errPerturbation + noiseOffset;
+        const prelimR = Math.max(0, Math.min(255, data[idx] + inErrR));
+        const prelimG = Math.max(0, Math.min(255, data[idx + 1] + inErrG));
+        const prelimB = Math.max(0, Math.min(255, data[idx + 2] + inErrB));
+        const curLum = getLuminance(prelimR, prelimG, prelimB);
 
-        if (y === 0 && smoothing > 0) emaPhase = basePhase;
-        else emaPhase = emaPhase * (1 - alpha) + rawPhase * alpha;
+        const modVal = getMod(sx, y, curLum);
+        emaMod = (y === 0 && smoothing > 0) ? modVal : (emaMod * (1 - alpha) + modVal * alpha);
+        const bias = emaMod * 32 + noiseOffset;
 
-        const distInPixels = Math.abs(((emaPhase % 1 + 1) % 1) - 0.5) * period;
-        const isLine = distInPixels <= scale;
+        const curR = Math.max(0, Math.min(255, prelimR + bias));
+        const curG = Math.max(0, Math.min(255, prelimG + bias));
+        const curB = Math.max(0, Math.min(255, prelimB + bias));
 
         lut.inlineMatch(curR, curG, curB, out, idx);
         out[idx + 3] = data[idx + 3];
 
-        const lineWeight = isLine ? 1.0 : 0.3;
         const diffR = curR - out[idx];
         const diffG = curG - out[idx + 1];
         const diffB = curB - out[idx + 2];
-        const errR = Math.max(-maxErr, Math.min(maxErr, diffR * diffMult));
-        const errG = Math.max(-maxErr, Math.min(maxErr, diffG * diffMult));
-        const errB = Math.max(-maxErr, Math.min(maxErr, diffB * diffMult));
+        const errR = Math.max(-maxErr, Math.min(maxErr, diffR * diffMult * baseWeight));
+        const errG = Math.max(-maxErr, Math.min(maxErr, diffG * diffMult * baseWeight));
+        const errB = Math.max(-maxErr, Math.min(maxErr, diffB * diffMult * baseWeight));
 
-        scanErrR = errR * (1 - bleed) * lineWeight;
-        scanErrG = errG * (1 - bleed) * lineWeight;
-        scanErrB = errB * (1 - bleed) * lineWeight;
-        nextScanlineErr[eIdx] = errR * bleed * lineWeight;
-        nextScanlineErr[eIdx + 1] = errG * bleed * lineWeight;
-        nextScanlineErr[eIdx + 2] = errB * bleed * lineWeight;
+        scanErrR = errR * (1 - bleed);
+        scanErrG = errG * (1 - bleed);
+        scanErrB = errB * (1 - bleed);
+        nextScanlineErr[eIdx] = errR * bleed;
+        nextScanlineErr[eIdx + 1] = errG * bleed;
+        nextScanlineErr[eIdx + 2] = errB * bleed;
       }
     }
   }

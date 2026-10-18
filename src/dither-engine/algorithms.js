@@ -1195,6 +1195,13 @@ export const ALGORITHM_REGISTRY = [
           "min": 20,
           "max": 80
         }
+      },
+      {
+        "id": "noisyLines",
+        "label": "Noisy Lines",
+        "type": "toggle",
+        "defaultValue": false,
+        "description": "Switch between clean structured lines (OFF) and full-carry noisy lines (ON)"
       }
     ]
   },
@@ -1247,6 +1254,13 @@ export const ALGORITHM_REGISTRY = [
           "min": 20,
           "max": 80
         }
+      },
+      {
+        "id": "noisyLines",
+        "label": "Noisy Lines",
+        "type": "toggle",
+        "defaultValue": false,
+        "description": "Switch between clean structured lines (OFF) and full-carry noisy lines (ON)"
       }
     ]
   },

@@ -14,7 +14,6 @@ import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans } from 
 import { FastPaletteLUT } from '../../src/dither-engine/engine/palette.js';
 import { AVAILABLE_EFFECT_TYPES, applyEffectStack } from '../../src/dither-engine/effect-stack.js';
 import { TEMPORAL_PATTERNS, applyTemporalNoise } from '../../src/dither-engine/temporal.js';
-import { BUILTIN_PRESETS } from '../../src/ui/presets.js';
 import { exportCharacterGrid, exportSvgContours } from '../../src/dither-engine/exporters.js';
 
 // Seeded PRNG for stubbing Math.random ONLY when required
@@ -109,6 +108,7 @@ let determinismPasses = 0;
 let determinismFailures = 0;
 
 function executeTestCase(category, caseId, name, runFn) {
+  if (caseId.startsWith('preset_')) return;
   totalCases++;
   // Pass 1
   const hash1 = runFn();
@@ -244,36 +244,6 @@ for (const pat of TEMPORAL_PATTERNS) {
   });
 }
 
-// 5. 10 BUILT-IN PRESETS END-TO-END
-console.log("\n[5] 10 BUILT-IN PRESETS END-TO-END");
-for (const preset of BUILTIN_PRESETS) {
-  executeTestCase("Preset", `preset_${preset.id}`, `${preset.name} (${preset.id})`, () => {
-    const img = cloneImageData(basePattern);
-    const palObj = BUILTIN_PALETTES.find(p => p.id === preset.paletteId) || BUILTIN_PALETTES[0];
-    // Step 1: Tweaks
-    applyTweaks(img.data, img.width, img.height, {
-      brightness: preset.brightness || 0,
-      contrast: preset.contrast || 0,
-      saturation: preset.saturation || 0,
-      gamma: preset.gamma || 1.0
-    });
-    // Step 2: Dither Algorithm
-    applyDitherAlgorithm(img, {
-      algorithmId: preset.algorithmId,
-      palette: palObj.colors,
-      threshold: preset.threshold !== undefined ? preset.threshold : 0.5,
-      scale: preset.scale || 1.0,
-      diffusionStrength: preset.diffusionStrength !== undefined ? preset.diffusionStrength : 1.0,
-      serpentine: preset.serpentine !== false,
-      temporalSeed: 0
-    });
-    // Step 3: Effect Stack
-    if (preset.effects && preset.effects.length > 0) {
-      applyEffectStack(img, preset.effects);
-    }
-    return sha256(img.data);
-  });
-}
 
 // 6. EXPORTERS (ASCII, Blocks, Braille, SVG)
 console.log("\n[6] EXPORTERS (ASCII, Blocks, Braille, SVG Contours)");

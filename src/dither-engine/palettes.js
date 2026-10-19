@@ -82,7 +82,7 @@ export const BUILTIN_PALETTES = [
   {
     id: "pico_fantasy",
     name: "PICO Fantasy 16",
-    category: "Fantasy Console",
+    category: "Fantasy",
     colors: [
       [0, 0, 0, 255],
       [29, 43, 83, 255],
@@ -117,7 +117,7 @@ export const BUILTIN_PALETTES = [
   {
     id: "vaporwave_neon",
     name: "Vaporwave Neon",
-    category: "Aesthetic",
+    category: "Sci-Fi",
     colors: [
       [36, 20, 60, 255],
       [140, 48, 130, 255],
@@ -164,7 +164,7 @@ export const BUILTIN_PALETTES = [
   {
     id: "sepia_daguerreotype",
     name: "Sepia Daguerreotype",
-    category: "Historical",
+    category: "Monochrome",
     colors: [
       [28, 20, 14, 255],
       [78, 54, 38, 255],
@@ -191,7 +191,7 @@ export const BUILTIN_PALETTES = [
   {
     id: "mac_classic_1984",
     name: "Macintosh 1984 Classic",
-    category: "Historical",
+    category: "Monochrome",
     colors: [
       [17, 17, 17, 255],
       [238, 238, 238, 255]

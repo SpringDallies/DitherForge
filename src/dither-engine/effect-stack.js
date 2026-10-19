@@ -3,14 +3,16 @@
 
 export const AVAILABLE_EFFECT_TYPES = [
   { id: "glow", name: "Ignition Glow", defaultParams: { radius: 3, intensity: 0.6 } },
-  { id: "blur_sharpen", name: "Blur / Sharpen", defaultParams: { amount: 0.8 } }, // < 0 blur, > 0 sharpen
+  { id: "inverse_glow", name: "Inverse Glow", defaultParams: { radius: 3, intensity: 0.6 } },
+  { id: "blur_sharpen", name: "Blur / Sharpen", defaultParams: { amount: 0.8 } },
   { id: "chromatic_aberration", name: "Chromatic Aberration", defaultParams: { offsetX: 4, offsetY: 0 } },
   { id: "jpeg_artifacts", name: "JPEG Artifacts", defaultParams: { quality: 0.3 } },
   { id: "halftone", name: "CMYK Halftone", defaultParams: { dotSize: 5, angle: 45, shape: "circle" } },
   { id: "scanlines", name: "CRT Scanlines", defaultParams: { thickness: 2, intensity: 0.4 } },
   { id: "pixelate", name: "Pixelate", defaultParams: { blockSize: 4 } },
   { id: "curves_levels", name: "Curves & Levels", defaultParams: { blackPoint: 0.05, whitePoint: 0.95, gamma: 1.1 } },
-  { id: "vignette", name: "Vignette Falloff", defaultParams: { radius: 0.8, softness: 0.4 } }
+  { id: "vignette", name: "Vignette Falloff", defaultParams: { radius: 0.8, softness: 0.4 } },
+  { id: "inverse_vignette", name: "Inverse Vignette", defaultParams: { radius: 0.8, softness: 0.4 } }
 ];
 
 export function applyEffectStack(imageData, stack) {
@@ -32,6 +34,9 @@ export function applyEffectStack(imageData, stack) {
     switch (item.type) {
       case "glow":
         applyGlow(data, width, height, item.params);
+        break;
+      case "inverse_glow":
+        applyInverseGlow(data, width, height, item.params);
         break;
       case "blur_sharpen":
         applyBlurSharpen(data, width, height, item.params);
@@ -56,6 +61,9 @@ export function applyEffectStack(imageData, stack) {
         break;
       case "vignette":
         applyVignette(data, width, height, item.params);
+        break;
+      case "inverse_vignette":
+        applyInverseVignette(data, width, height, item.params);
         break;
     }
   }
@@ -542,3 +550,106 @@ function applyVignette(data, width, height, params) {
     }
   }
 }
+
+function applyInverseGlow(data, width, height, params) {
+  const rad = Math.max(1, Math.min(24, Math.floor(params.radius || 3)));
+  const intensity = params.intensity !== undefined ? Number(params.intensity) : 0.6;
+  const sigma = Math.max(0.8, rad * 0.55);
+
+  const numPixels = width * height;
+  const darkR = new Float32Array(numPixels);
+  const darkG = new Float32Array(numPixels);
+  const darkB = new Float32Array(numPixels);
+
+  // Extract low-luminance (dark) pixels (luma < 159)
+  for (let i = 0; i < numPixels; i++) {
+    const idx = i * 4;
+    const r = data[idx];
+    const g = data[idx + 1];
+    const b = data[idx + 2];
+    const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (luma < 159) {
+      const w = Math.pow((159 - luma) / 159, 1.25);
+      darkR[i] = (255 - r) * w;
+      darkG[i] = (255 - g) * w;
+      darkB[i] = (255 - b) * w;
+    }
+  }
+
+  const kSize = rad * 2 + 1;
+  const kernel = new Float32Array(kSize);
+  let kSum = 0;
+  for (let d = -rad; d <= rad; d++) {
+    const kVal = Math.exp(-(d * d) / (2 * sigma * sigma));
+    kernel[d + rad] = kVal;
+    kSum += kVal;
+  }
+  for (let k = 0; k < kSize; k++) kernel[k] /= kSum;
+
+  const tempR = new Float32Array(numPixels);
+  const tempG = new Float32Array(numPixels);
+  const tempB = new Float32Array(numPixels);
+
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * width;
+    for (let x = 0; x < width; x++) {
+      let accR = 0, accG = 0, accB = 0;
+      for (let d = -rad; d <= rad; d++) {
+        const nx = Math.max(0, Math.min(width - 1, x + d));
+        const sOffset = rowOffset + nx;
+        const kw = kernel[d + rad];
+        accR += darkR[sOffset] * kw;
+        accG += darkG[sOffset] * kw;
+        accB += darkB[sOffset] * kw;
+      }
+      const dOffset = rowOffset + x;
+      tempR[dOffset] = accR;
+      tempG[dOffset] = accG;
+      tempB[dOffset] = accB;
+    }
+  }
+
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) {
+      let accR = 0, accG = 0, accB = 0;
+      for (let d = -rad; d <= rad; d++) {
+        const ny = Math.max(0, Math.min(height - 1, y + d));
+        const sOffset = ny * width + x;
+        const kw = kernel[d + rad];
+        accR += tempR[sOffset] * kw;
+        accG += tempG[sOffset] * kw;
+        accB += tempB[sOffset] * kw;
+      }
+      const idx = (y * width + x) * 4;
+      const shadowR = Math.max(0, Math.min(255, accR * intensity));
+      const shadowG = Math.max(0, Math.min(255, accG * intensity));
+      const shadowB = Math.max(0, Math.min(255, accB * intensity));
+
+      // Multiply dark bloom onto original pixels
+      data[idx] = Math.max(0, Math.min(255, Math.round((data[idx] * (255 - shadowR)) / 255)));
+      data[idx + 1] = Math.max(0, Math.min(255, Math.round((data[idx + 1] * (255 - shadowG)) / 255)));
+      data[idx + 2] = Math.max(0, Math.min(255, Math.round((data[idx + 2] * (255 - shadowB)) / 255)));
+    }
+  }
+}
+
+function applyInverseVignette(data, width, height, params) {
+  const rad = params.radius || 0.8;
+  const softness = params.softness || 0.4;
+  const cx = width * 0.5;
+  const cy = height * 0.5;
+  const maxD = Math.sqrt(cx * cx + cy * cy) * rad;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+      // 0 at center, 1 at outer edges
+      const edgeFactor = Math.max(0, Math.min(1, Math.pow(dist / maxD, 1 / (softness + 0.01))));
+      const idx = (y * width + x) * 4;
+      data[idx] = Math.min(255, Math.round(data[idx] + (255 - data[idx]) * edgeFactor));
+      data[idx + 1] = Math.min(255, Math.round(data[idx + 1] + (255 - data[idx + 1]) * edgeFactor));
+      data[idx + 2] = Math.min(255, Math.round(data[idx + 2] + (255 - data[idx + 2]) * edgeFactor));
+    }
+  }
+}
+

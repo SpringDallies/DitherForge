@@ -11,6 +11,8 @@ export interface DitherForgeSettings {
   language: string;
   defaultExportFormat: 'png' | 'jpg' | 'webp' | 'svg';
   recentFilesLimit: number;
+  scrollTightness: number;
+  scrollDuration: number;
 }
 
 export const DEFAULT_SETTINGS: DitherForgeSettings = {
@@ -19,6 +21,8 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   language: 'en',
   defaultExportFormat: 'png',
   recentFilesLimit: 8,
+  scrollTightness: 0.25,
+  scrollDuration: 1.2,
 };
 
 const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
@@ -37,6 +41,9 @@ export function getStoredSettings(): DitherForgeSettings {
 export function saveStoredSettings(settings: DitherForgeSettings): void {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ditherforge_settings_changed', { detail: settings }));
+    }
   } catch {}
 }
 
@@ -181,6 +188,97 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                   />
                 </div>
               </Tooltip>
+            </div>
+          </div>
+
+          {/* Section: EXPERIMENTAL */}
+          <div className="settings-section">
+            <div className="settings-section-title">EXPERIMENTAL</div>
+
+            <div className="settings-row">
+              <div style={{ flex: 1, paddingRight: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="settings-label">Scroll tightness</span>
+                  <span style={{
+                    fontSize: '0.62rem',
+                    textTransform: 'uppercase',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    background: 'rgba(234, 179, 8, 0.15)',
+                    color: '#eab308',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em'
+                  }}>
+                    Experimental
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Higher values make smooth scrolling snappier and tighter
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                <input
+                  type="range"
+                  className="control-slider"
+                  min="0.05"
+                  max="1.0"
+                  step="0.05"
+                  value={settings.scrollTightness ?? 0.25}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    '--slider-fill': `${(((settings.scrollTightness ?? 0.25) - 0.05) / 0.95) * 100}%`
+                  } as React.CSSProperties}
+                  onChange={(e) => updateSetting('scrollTightness', parseFloat(e.target.value))}
+                  aria-label="Scroll tightness"
+                />
+                <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)', flexShrink: 0 }}>
+                  {Math.round((settings.scrollTightness ?? 0.25) * 100)}%
+                </span>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <div style={{ flex: 1, paddingRight: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="settings-label">Scroll duration</span>
+                  <span style={{
+                    fontSize: '0.62rem',
+                    textTransform: 'uppercase',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    background: 'rgba(234, 179, 8, 0.15)',
+                    color: '#eab308',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em'
+                  }}>
+                    Experimental
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Duration in seconds for smooth wheel scrolls
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                <input
+                  type="range"
+                  className="control-slider"
+                  min="0.1"
+                  max="3.0"
+                  step="0.1"
+                  value={settings.scrollDuration ?? 1.2}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    '--slider-fill': `${(((settings.scrollDuration ?? 1.2) - 0.1) / 2.9) * 100}%`
+                  } as React.CSSProperties}
+                  onChange={(e) => updateSetting('scrollDuration', parseFloat(e.target.value))}
+                  aria-label="Scroll duration"
+                />
+                <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)', flexShrink: 0 }}>
+                  {(settings.scrollDuration ?? 1.2).toFixed(1)}s
+                </span>
+              </div>
             </div>
           </div>
 

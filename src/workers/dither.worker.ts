@@ -84,13 +84,22 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
       height
     } as unknown as ImageData;
 
+    const mappedControls = {
+      ...params,
+      bleed: params.bleed ?? (params.bleedFraction ?? 0) / 100,
+      smoothing: params.smoothing ?? params.smoothingFactor,
+      scale: params.scale ?? 1.0
+    };
+
     applyDitherAlgorithm(dummyImgData, {
       algorithmId,
       palette,
-      ...params,
-      controls: { ...params },
+      ...mappedControls,
+      controls: mappedControls,
       threshold: params.threshold ?? 0.5,
-      scale: params.scale ?? 1.0,
+      scale: mappedControls.scale,
+      bleed: mappedControls.bleed,
+      smoothing: mappedControls.smoothing,
       diffusionStrength: params.diffusionStrength ?? 1.0,
       serpentine: params.serpentine ?? false,
       noiseAmount: params.noiseAmount ?? 0.3,

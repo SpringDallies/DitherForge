@@ -10,8 +10,6 @@ import { applyEffectStack } from '../dither-engine/effect-stack.js';
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import { createProxyImageData } from '../utils/samplePattern';
 import {
-Columns, 
-  Grid,
   UploadCloud,
   FolderOpen,
   Sparkles,
@@ -62,6 +60,7 @@ export const CenterViewport: React.FC = () => {
   const brightness = useAppStore((state) => state.brightness);
   const contrast = useAppStore((state) => state.contrast);
   const saturation = useAppStore((state) => state.saturation);
+  const hue = useAppStore((state) => state.hue);
   const gamma = useAppStore((state) => state.gamma);
   const depth = useAppStore((state) => state.depth);
   const workingPalette = useAppStore((state) => state.workingPalette);
@@ -84,14 +83,13 @@ export const CenterViewport: React.FC = () => {
   const showBeforeAfter = useAppStore((state) => state.showBeforeAfter);
   const toggleBeforeAfter = useAppStore((state) => state.toggleBeforeAfter);
   const isOriginalView = useAppStore((state) => state.isOriginalView);
-  const toggleOriginalView = useAppStore((state) => state.toggleOriginalView);
   const splitRatio = useAppStore((state) => state.splitRatio);
   const setSplitRatio = useAppStore((state) => state.setSplitRatio);
+  const previewPaletteId = useAppStore((state) => state.previewPaletteId);
+  const savedPalettes = useAppStore((state) => state.savedPalettes);
 
   // Local interaction states
   const [isDragOver, setIsDragOver] = useState(false);
-  const [isImageLoading, setIsImageLoading] = useState(false);
-  const loadingTimerRef = useRef<number | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -144,18 +142,6 @@ export const CenterViewport: React.FC = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target) return;
-      const tag = target.tagName;
-      if (
-        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
-        tag === 'BUTTON' || tag === 'A' ||
-        target.isContentEditable ||
-        target.closest('button, a, input, textarea, select, [contenteditable="true"]')
-      ) {
-        return;
-      }
-
       if (e.code === 'Space') {
         setIsSpacePressed(false);
       }
@@ -232,7 +218,6 @@ export const CenterViewport: React.FC = () => {
 
   // Handle Image File Loading
   const processImageFile = useCallback((file: File) => {
-    setIsImageLoading(true);
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -240,7 +225,8 @@ export const CenterViewport: React.FC = () => {
         const offscreen = document.createElement('canvas');
         offscreen.width = img.naturalWidth;
         offscreen.height = img.naturalHeight;
-        const ctx = offscreen.getContext('2d')!;
+        const ctx = offscreen.getContext('2d');
+        if (!ctx) return;
         ctx.drawImage(img, 0, 0);
         const imgData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
         loadImageFromData(imgData, file.name);
@@ -249,7 +235,6 @@ export const CenterViewport: React.FC = () => {
         if (container) {
           fitToViewport(container.clientWidth, container.clientHeight);
         }
-        setIsImageLoading(false);
       };
       img.src = e.target?.result as string;
     };
@@ -299,6 +284,20 @@ export const CenterViewport: React.FC = () => {
     const proxyAllowed = settings.liveProxyEnabled === true;
     const isLiveDrag = proxyAllowed && updateMode === 'live' && isDraggingSlider;
 
+    const getEffectivePalette = (): number[][] => {
+      const state = useAppStore.getState();
+      if (state.previewPaletteId) {
+        const previewPal =
+          BUILTIN_PALETTES.find((p: any) => p.id === state.previewPaletteId) ||
+          state.savedPalettes.find((p) => p.id === state.previewPaletteId);
+        if (previewPal) return previewPal.colors.slice(0, Math.min(state.paletteDepth, previewPal.colors.length));
+      }
+      const base = state.workingPalette && state.workingPalette.length > 0
+        ? state.workingPalette
+        : BUILTIN_PALETTES[0].colors;
+      return base.slice(0, Math.max(2, Math.min(state.paletteDepth || base.length, base.length)));
+    };
+
     // (a) In Live Mode during active slider dragging, downsample to fast proxy (capped at 320px)
     let renderSource = sourceImageData;
     let proxyOriginalSource = sourceImageData;
@@ -333,10 +332,13 @@ export const CenterViewport: React.FC = () => {
       brightness,
       contrast,
       saturation,
+      hue,
       gamma,
       depth,
       paletteDepth,
       workingPalette,
+      previewPaletteId,
+      savedPalettes,
       algorithmId
     ];
 
@@ -364,27 +366,39 @@ export const CenterViewport: React.FC = () => {
         brightness: brightness / 100,
         contrast: contrast / 100,
         saturation: saturation / 100,
-        gamma: gamma
+        gamma: gamma,
+        hue: hue
       });
 
       // Step 3: Use effective working palette (sliced to paletteDepth)
-      const palette = workingPalette.slice(0, paletteDepth);
+      const palette = getEffectivePalette();
 
       // Step 4: Apply Dither Algorithm
       const ditherImageData = new ImageData(workingData as any, width, height);
       const t0 = performance.now();
+      const mappedControls = {
+        ...currentParams,
+        bleed: (currentParams.bleedFraction ?? 0) / 100,
+        smoothing: currentParams.smoothingFactor,
+        scale: currentParams.scale ?? 1.0
+      };
+
       applyDitherAlgorithm(ditherImageData, {
         algorithmId,
         palette,
-        ...currentParams,
-        controls: { ...currentParams },
-        threshold: currentParams.threshold,
-        scale: currentParams.scale,
-        diffusionStrength: currentParams.diffusionStrength,
-        serpentine: currentParams.serpentine,
+        ...mappedControls,
+        controls: mappedControls,
+        threshold: currentParams.threshold ?? 0.5,
+        scale: mappedControls.scale,
+        bleed: mappedControls.bleed,
+        smoothing: mappedControls.smoothing,
+        diffusionStrength: currentParams.diffusionStrength ?? 1.0,
+        serpentine: currentParams.serpentine ?? false,
         noiseAmount: currentParams.noiseAmount ?? 0.3,
         depth: depth,
-        temporalSeed: 0
+        temporalSeed: 0,
+        offsetX: currentParams.offsetX ?? 0,
+        offsetY: currentParams.offsetY ?? 0
       });
 
       // Step 4b: Apply Stackable Post-Effects Stack (after dithering)
@@ -470,9 +484,12 @@ export const CenterViewport: React.FC = () => {
     brightness,
     contrast,
     saturation,
+    hue,
     gamma,
     depth,
     workingPalette,
+    previewPaletteId,
+    savedPalettes,
     paletteDepth,
     algorithmId,
     currentParams,
@@ -563,9 +580,12 @@ export const CenterViewport: React.FC = () => {
     brightness,
     contrast,
     saturation,
+    hue,
     gamma,
     depth,
     workingPalette,
+    previewPaletteId,
+    savedPalettes,
     paletteDepth,
     isOriginalView,
     showBeforeAfter,
@@ -600,6 +620,13 @@ export const CenterViewport: React.FC = () => {
     setIsPanning(false);
   };
 
+  useEffect(() => {
+    if (!isPanning) return;
+    const handleWindowMouseUp = () => setIsPanning(false);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    return () => window.removeEventListener('mouseup', handleWindowMouseUp);
+  }, [isPanning]);
+
   // Split Divider Dragging Trigger
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -624,29 +651,6 @@ export const CenterViewport: React.FC = () => {
           e.target.value = '';
         }}
       />
-
-      {/* Viewport Toolbar */}
-      <div className="viewport-toolbar">
-        <div className="toolbar-group">
-          <Tooltip text="Toggle Split-Screen Compare View (Key: \)">
-            <button 
-              className={`tool-icon-btn ${showBeforeAfter ? 'active' : ''}`} 
-              onClick={toggleBeforeAfter}
-            >
-              <Columns size={13} /> Compare
-            </button>
-          </Tooltip>
-          <Tooltip text="Pixel-grid overlay (Phase 7)">
-            <button 
-              className="tool-icon-btn" 
-              disabled={true}
-              style={{ opacity: 0.5, cursor: 'not-allowed' }}
-            >
-              <Grid size={13} /> Grid
-            </button>
-          </Tooltip>
-        </div>
-      </div>
 
       {/* Main Canvas / Empty State Dropzone Area */}
       <div 

@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
 import { X, Search, BookOpen } from 'lucide-react';
-import { Tooltip } from './common/Tooltip';
 
 interface AlgorithmReferenceModalProps {
   isOpen: boolean;

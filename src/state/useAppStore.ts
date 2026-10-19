@@ -174,6 +174,8 @@ interface AppState {
   // Color & Palette (Phase 4 - Working palette architecture)
   activePaletteId: string;
   activePalette: string; // compatibility alias
+  previewPaletteId: string | null;
+  setPreviewPaletteId: (id: string | null) => void;
   workingPalette: number[][];
   paletteDepth: number;
   setActivePaletteId: (id: string) => void;
@@ -184,6 +186,11 @@ interface AppState {
   removeSwatch: (index: number) => void;
   setPaletteDepth: (n: number) => void;
   resetToBuiltin: () => void;
+  savedPalettes: Array<{ id: string; name: string; category: string; colors: number[][] }>;
+  saveCurrentPaletteLocally: (name: string) => void;
+  addAdjustedSwatch: (sourceIndex: number, delta: number) => void;
+  invertPalette: () => void;
+  flipPalette: () => void;
 
   // Post-Effects Stack (Phase 5 full stack editor)
   effects: EffectItem[];
@@ -328,6 +335,16 @@ const getStoredUpdateMode = (): UpdateMode => {
     }
   } catch {}
   return 'precise';
+};
+
+const STORAGE_KEY_CUSTOM_PALETTES = 'ditherforge_custom_palettes';
+const getStoredCustomPalettes = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_PALETTES);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -516,16 +533,151 @@ export const useAppStore = create<AppState>((set, get) => ({
     const found = BUILTIN_PALETTES.find((p: any) => p.id === initialId) || BUILTIN_PALETTES[0];
     return found ? found.colors.length : 2;
   })(),
+  savedPalettes: getStoredCustomPalettes(),
+  previewPaletteId: null,
+  setPreviewPaletteId: (id: string | null) => set({ previewPaletteId: id }),
+
   setActivePaletteId: (id: string) => {
-    const pal = BUILTIN_PALETTES.find((p: any) => p.id === id);
+    const state = get();
+    const pal =
+      BUILTIN_PALETTES.find((p: any) => p.id === id) ||
+      state.savedPalettes.find((p) => p.id === id);
     if (!pal) return;
     const colors = pal.colors.map((c: number[]) => [...c]);
     set({
       activePaletteId: id,
       activePalette: id,
       workingPalette: colors,
-      paletteDepth: colors.length
+      paletteDepth: colors.length,
+      previewPaletteId: null
     });
+    (get() as any).pushHistorySnapshot?.();
+  },
+
+  saveCurrentPaletteLocally: (name: string) => {
+    const state = get();
+    const newPal = {
+      id: `saved_pal_${Date.now()}`,
+      name: name.trim() || `Saved Palette ${state.savedPalettes.length + 1}`,
+      category: 'Saved Palettes',
+      colors: state.workingPalette.map((c) => [...c])
+    };
+    const next = [...state.savedPalettes, newPal];
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_PALETTES, JSON.stringify(next));
+    } catch {}
+    set({
+      savedPalettes: next,
+      activePaletteId: newPal.id,
+      activePalette: newPal.id
+    });
+  },
+
+  // Uses ±0.35 (35% lighter/darker) and clamps strictly to [0, 255]
+  addAdjustedSwatch: (sourceIndex: number, delta = 0.35) => {
+    set((state) => {
+      if (state.workingPalette.length >= 32) return state;
+      const base = state.workingPalette[sourceIndex];
+      if (!base) return state;
+      const sign = delta >= 0 ? 1 : -1;
+      const amount = Math.abs(delta) === 0.2 ? 0.35 : Math.abs(delta);
+      const effectiveDelta = sign * amount;
+      const adjust = (ch: number) => {
+        const val = effectiveDelta > 0
+          ? Math.round(ch + (255 - ch) * effectiveDelta)
+          : Math.round(ch * (1 + effectiveDelta));
+        return Math.max(0, Math.min(255, val));
+      };
+      const newSwatch = [adjust(base[0]), adjust(base[1]), adjust(base[2]), 255];
+      const nextPalette = [...state.workingPalette.map((c) => [...c]), newSwatch];
+      return {
+        workingPalette: nextPalette,
+        paletteDepth: Math.max(state.paletteDepth, nextPalette.length)
+      };
+    });
+    (get() as any).pushHistorySnapshot?.();
+  },
+
+  // Invert Palette: converts palette colors into their complementary colors (255 - R, 255 - G, 255 - B) in place
+  invertPalette: () => {
+    set((state) => {
+      const nextPalette = state.workingPalette.map((c) => [
+        Math.max(0, Math.min(255, 255 - c[0])),
+        Math.max(0, Math.min(255, 255 - c[1])),
+        Math.max(0, Math.min(255, 255 - c[2])),
+        c[3] ?? 255
+      ]);
+      return { workingPalette: nextPalette };
+    });
+    (get() as any).pushHistorySnapshot?.();
+  },
+
+  // Flip Palette: inverses light/midtone/dark properties (reverses swatch order and inverts lightness)
+  flipPalette: () => {
+    set((state) => {
+      const flipLightness = (r: number, g: number, b: number, a = 255): number[] => {
+        const rN = r / 255;
+        const gN = g / 255;
+        const bN = b / 255;
+        const max = Math.max(rN, gN, bN);
+        const min = Math.min(rN, gN, bN);
+        let h = 0;
+        let s = 0;
+        const l = (max + min) / 2;
+
+        if (max !== min) {
+          const d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          switch (max) {
+            case rN:
+              h = (gN - bN) / d + (gN < bN ? 6 : 0);
+              break;
+            case gN:
+              h = (bN - rN) / d + 2;
+              break;
+            case bN:
+              h = (rN - gN) / d + 4;
+              break;
+          }
+          h /= 6;
+        }
+
+        const invL = 1 - l;
+        const c = (1 - Math.abs(2 * invL - 1)) * s;
+        const hDeg = h * 360;
+        const x = c * (1 - Math.abs(((hDeg / 60) % 2) - 1));
+        const m = invL - c / 2;
+        let rP = 0, gP = 0, bP = 0;
+
+        if (hDeg >= 0 && hDeg < 60) {
+          rP = c; gP = x; bP = 0;
+        } else if (hDeg >= 60 && hDeg < 120) {
+          rP = x; gP = c; bP = 0;
+        } else if (hDeg >= 120 && hDeg < 180) {
+          rP = 0; gP = c; bP = x;
+        } else if (hDeg >= 180 && hDeg < 240) {
+          rP = 0; gP = x; bP = c;
+        } else if (hDeg >= 240 && hDeg < 300) {
+          rP = x; gP = 0; bP = c;
+        } else {
+          rP = c; gP = 0; bP = x;
+        }
+
+        return [
+          Math.max(0, Math.min(255, Math.round((rP + m) * 255))),
+          Math.max(0, Math.min(255, Math.round((gP + m) * 255))),
+          Math.max(0, Math.min(255, Math.round((bP + m) * 255))),
+          a
+        ];
+      };
+
+      const nextPalette = state.workingPalette
+        .slice()
+        .reverse()
+        .map((c) => flipLightness(c[0], c[1], c[2], c[3] ?? 255));
+      return { workingPalette: nextPalette };
+    });
+    (get() as any).pushHistorySnapshot?.();
   },
 
   setActivePalette: (id: string) => {

@@ -1,10 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Dropdown } from './common/Dropdown';
 import { Tooltip } from './common/Tooltip';
 import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
-import { AboutModal } from './dialogs/AboutModal';
-import { ShortcutsModal } from './dialogs/ShortcutsModal';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
 import { 
@@ -12,26 +9,23 @@ import {
   Sparkles, 
   Copy,
   Download, 
-  RotateCcw, 
-  Maximize,
-  Minimize,
+  RotateCcw,
   ZoomIn,
   ZoomOut,
   Maximize2,
   Check,
   ChevronRight,
-  Keyboard,
-  BookOpen,
-  Info,
+  Columns,
+  Grid,
   Settings
 } from 'lucide-react';
 
 interface TopMenuBarProps {
-  onOpenManual: () => void;
+  onOpenManual?: () => void;
   onOpenSettings?: () => void;
 }
 
-type MenuType = 'file' | 'edit' | 'view' | 'help' | null;
+type MenuType = 'file' | 'edit' | 'view' | null;
 
 const THEMES = [
   { id: 'dark_pro', label: 'Dark Pro' },
@@ -50,19 +44,22 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
 
   // Modals state
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
-  const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
-  const [isShortcutsOpen, setIsShortcutsOpen] = useState<boolean>(false);
 
   // Trigger refs for focus management
   const fileBtnRef = useRef<HTMLButtonElement | null>(null);
   const editBtnRef = useRef<HTMLButtonElement | null>(null);
   const viewBtnRef = useRef<HTMLButtonElement | null>(null);
-  const helpBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const activeTheme = useAppStore((state) => state.activeTheme);
   const setActiveTheme = useAppStore((state) => state.setActiveTheme);
-  const isFullScreen = useAppStore((state) => state.isFullScreen);
   const toggleFullScreen = useAppStore((state) => state.toggleFullScreen);
+  const showBeforeAfter = useAppStore((state) => state.showBeforeAfter);
+  const toggleBeforeAfter = useAppStore((state) => state.toggleBeforeAfter);
+  const imageWidth = useAppStore((state) => state.imageWidth);
+  const imageHeight = useAppStore((state) => state.imageHeight);
+  const lastRenderMs = useAppStore((state) => state.lastRenderMs);
+  const updateMode = useAppStore((state) => state.updateMode);
+  const setUpdateMode = useAppStore((state) => state.setUpdateMode);
 
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
   const loadSampleImage = useAppStore((state) => state.loadSampleImage);
@@ -73,13 +70,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
   const resetZoom = useAppStore((state) => state.resetZoom);
   const zoom = useAppStore((state) => state.zoom);
   const setZoom = useAppStore((state) => state.setZoom);
-  const toggleBeforeAfter = useAppStore((state) => state.toggleBeforeAfter);
 
-  const setBrightness = useAppStore((state) => state.setBrightness);
-  const setContrast = useAppStore((state) => state.setContrast);
-  const setSaturation = useAppStore((state) => state.setSaturation);
-  const setGamma = useAppStore((state) => state.setGamma);
-  const setDepth = useAppStore((state) => state.setDepth);
+  const resetAllAdjustments = useAppStore((state) => state.resetAllAdjustments);
 
   const handleOpenFileDialog = useCallback(() => {
     fileInputRef.current?.click();
@@ -112,12 +104,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
   }, [zoom, setZoom]);
 
   const handleResetAdjustments = useCallback(() => {
-    setBrightness(0);
-    setContrast(0);
-    setSaturation(0);
-    setGamma(1.0);
-    setDepth(8);
-  }, [setBrightness, setContrast, setSaturation, setGamma, setDepth]);
+    resetAllAdjustments();
+  }, [resetAllAdjustments]);
 
   // Close menus on click outside
   useEffect(() => {
@@ -131,9 +119,9 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
   }, []);
 
   // Menu lists definitions for keyboard navigation
-  const menusOrder: MenuType[] = ['file', 'edit', 'view', 'help'];
+  const menusOrder: MenuType[] = ['file', 'edit', 'view'];
 
-  // Global keyboard shortcuts (Alt+F/E/V/H, Ctrl+O, Ctrl+C, Ctrl+E, Ctrl+=/-, 0, 1, \)
+  // Global keyboard shortcuts (Alt+F/E/V, Ctrl+O, Ctrl+C, Ctrl+E, Ctrl+=/-, 0, 1, \)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // Alt + Key Menu navigation
@@ -159,13 +147,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
           setIsThemesSubmenuOpen(false);
           return;
         }
-        if (e.key.toLowerCase() === 'h') {
-          e.preventDefault();
-          setActiveMenu((curr) => (curr === 'help' ? null : 'help'));
-          setFocusedIndex(0);
-          setIsThemesSubmenuOpen(false);
-          return;
-        }
       }
 
       // Esc closes open menu
@@ -180,7 +161,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
           if (closedMenu === 'file') fileBtnRef.current?.focus();
           else if (closedMenu === 'edit') editBtnRef.current?.focus();
           else if (closedMenu === 'view') viewBtnRef.current?.focus();
-          else if (closedMenu === 'help') helpBtnRef.current?.focus();
           return;
         }
       }
@@ -319,7 +299,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
       case 'file': return 5;
       case 'edit': return 5;
       case 'view': return 7;
-      case 'help': return 3;
       default: return 0;
     }
   };
@@ -344,10 +323,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
       else if (index === 4) { toggleBeforeAfter(); setActiveMenu(null); }
       else if (index === 5) { toggleFullScreen(); setActiveMenu(null); }
       else if (index === 6) { setIsThemesSubmenuOpen(!isThemesSubmenuOpen); }
-    } else if (menu === 'help') {
-      if (index === 0) { setIsShortcutsOpen(true); setActiveMenu(null); }
-      else if (index === 1) { onOpenManual(); setActiveMenu(null); }
-      else if (index === 2) { setIsAboutOpen(true); setActiveMenu(null); }
     }
   };
 
@@ -362,7 +337,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
         const offscreen = document.createElement('canvas');
         offscreen.width = img.naturalWidth;
         offscreen.height = img.naturalHeight;
-        const ctx = offscreen.getContext('2d')!;
+        const ctx = offscreen.getContext('2d');
+        if (!ctx) return;
         ctx.drawImage(img, 0, 0);
         const imgData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
         loadImageFromData(imgData, file.name);
@@ -692,79 +668,78 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
             </div>
           )}
         </div>
-
-        {/* 4. HELP MENU */}
-        <div style={{ position: 'relative' }}>
-          <button 
-            ref={helpBtnRef}
-            className={`menu-btn ${activeMenu === 'help' ? 'active' : ''}`}
-            onClick={() => toggleMenu('help')}
-            onMouseEnter={() => handleMenuTriggerHover('help')}
-            onKeyDown={(e) => handleMenuKeyDown(e, 'help')}
-            aria-haspopup="menu"
-            aria-expanded={activeMenu === 'help'}
-          >
-            Help
-          </button>
-          {activeMenu === 'help' && (
-            <div 
-              className="dropdown-menu-popover" 
-              role="menu"
-              tabIndex={-1}
-              onKeyDown={(e) => handleMenuKeyDown(e, 'help')}
-            >
-              <button 
-                className={`dropdown-menu-item ${focusedIndex === 0 ? 'focused' : ''}`}
-                onClick={() => { setIsShortcutsOpen(true); setActiveMenu(null); }}
-                onMouseEnter={() => setFocusedIndex(0)}
-                role="menuitem"
-              >
-                <Keyboard size={13} />
-                <span>Keyboard Shortcuts</span>
-              </button>
-
-              <button 
-                className={`dropdown-menu-item ${focusedIndex === 1 ? 'focused' : ''}`}
-                onClick={() => { onOpenManual(); setActiveMenu(null); }}
-                onMouseEnter={() => setFocusedIndex(1)}
-                role="menuitem"
-              >
-                <BookOpen size={13} />
-                <span>Algorithm Reference</span>
-              </button>
-
-              <div className="dropdown-divider" />
-
-              <button 
-                className={`dropdown-menu-item ${focusedIndex === 2 ? 'focused' : ''}`}
-                onClick={() => { setIsAboutOpen(true); setActiveMenu(null); }}
-                onMouseEnter={() => setFocusedIndex(2)}
-                role="menuitem"
-              >
-                <Info size={13} />
-                <span>About DitherForge</span>
-              </button>
-            </div>
-          )}
-        </div>
       </nav>
 
-      {/* Far-Right Compact Cluster: Theme selector + Fullscreen */}
+      {/* Center Viewport Mode Switcher */}
+      <div 
+        className="topbar-viewport-mode" 
+        style={{ 
+          position: 'absolute', 
+          left: '50%', 
+          transform: 'translateX(-50%)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px' 
+        }}
+      >
+        <span className="strip-viewport-label" style={{ fontSize: '0.68rem' }}>VIEWPORT:</span>
+        <div className="segmented-switch" role="group" aria-label="Update Mode">
+          <Tooltip text="Precise Mode: Full-resolution render on every change" side="bottom">
+            <button
+              className={`switch-btn ${updateMode === 'precise' ? 'active' : ''}`}
+              onClick={() => setUpdateMode('precise')}
+              style={{ padding: '0 8px', fontSize: '0.68rem' }}
+            >
+              Precise
+            </button>
+          </Tooltip>
+          <Tooltip text="Live Mode: Responsive fast proxy during slider drags, full on release" side="bottom">
+            <button
+              className={`switch-btn ${updateMode === 'live' ? 'active' : ''}`}
+              onClick={() => setUpdateMode('live')}
+              style={{ padding: '0 8px', fontSize: '0.68rem' }}
+            >
+              Live
+            </button>
+          </Tooltip>
+          <Tooltip text="Settle Mode: Debounces slider movements (180ms), full-res on idle" side="bottom">
+            <button
+              className={`switch-btn ${updateMode === 'settle' ? 'active' : ''}`}
+              onClick={() => setUpdateMode('settle')}
+              style={{ padding: '0 8px', fontSize: '0.68rem' }}
+            >
+              Settle
+            </button>
+          </Tooltip>
+        </div>
+      </div>
+
+      {/* Top Bar Controls: Status info + Viewport toggles (Compare / Grid) */}
       <div className="top-right-controls">
-        <Dropdown
-          className="theme-dropdown-compact"
-          width={160}
-          value={activeTheme}
-          onChange={(newTheme) => setActiveTheme(newTheme)}
-          items={[
-            { id: 'dark_pro', label: 'Dark Pro' },
-            { id: 'crt_green', label: 'CRT Phosphor' },
-            { id: 'cyberpunk_neon', label: 'Cyberpunk Neon' },
-            { id: 'gameboy_olive', label: 'GameBoy Olive' },
-            { id: 'retro_mac', label: 'Retro Mac OS' },
-            { id: 'vaporwave_pink', label: 'Vaporwave' },
-          ]}
-        />
+        <div className="strip-status" style={{ marginRight: '4px' }}>
+          <span>{imageWidth > 0 ? `${imageWidth}×${imageHeight}` : 'Ready'}</span>
+          <span className="dot-sep">•</span>
+          <span>{lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)}ms` : '<1ms'}</span>
+        </div>
+
+        <Tooltip text="Toggle Split-Screen Compare View (Key: \)" side="bottom">
+          <button 
+            className={`tool-icon-btn ${showBeforeAfter ? 'active' : ''}`} 
+            onClick={toggleBeforeAfter}
+          >
+            <Columns size={13} /> Compare
+          </button>
+        </Tooltip>
+
+        <Tooltip text="Pixel-grid overlay (Phase 7)" side="bottom">
+          <button 
+            className="tool-icon-btn" 
+            disabled={true}
+            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+          >
+            <Grid size={13} /> Grid
+          </button>
+        </Tooltip>
 
         <Tooltip text="Settings" side="bottom">
           <button 
@@ -776,32 +751,12 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
             <Settings size={16} />
           </button>
         </Tooltip>
-
-        <Tooltip text={isFullScreen ? "Exit Fullscreen (F11)" : "Enter Fullscreen (F11)"} side="bottom">
-          <button 
-            className="tool-icon-btn" 
-            onClick={toggleFullScreen}
-            style={{ height: '22px', width: '24px', padding: 0, justifyContent: 'center' }}
-          >
-            {isFullScreen ? <Minimize size={12} /> : <Maximize size={12} />}
-          </button>
-        </Tooltip>
       </div>
 
       {/* Modals */}
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-      />
-
-      <AboutModal
-        isOpen={isAboutOpen}
-        onClose={() => setIsAboutOpen(false)}
-      />
-
-      <ShortcutsModal
-        isOpen={isShortcutsOpen}
-        onClose={() => setIsShortcutsOpen(false)}
       />
     </header>
   );

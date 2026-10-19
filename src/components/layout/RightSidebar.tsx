@@ -8,7 +8,7 @@ import { useAppStore } from '../../state/useAppStore';
 import { useLenis } from '../../hooks/useLenis';
 // Import frozen registries UNCHANGED
 // @ts-ignore
-import { ALGORITHM_REGISTRY, ALGORITHM_CATEGORIES } from '../../dither-engine/algorithms.js';
+import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 // @ts-ignore
 import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToRgba, rgbaToHex } from '../../dither-engine/palettes.js';
 // @ts-ignore
@@ -141,10 +141,6 @@ export const RightSidebar: React.FC = () => {
 
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
   useLenis({ wrapper: scrollWrapperRef.current, content: scrollContentRef.current });
 
   // App store selectors
@@ -156,7 +152,6 @@ export const RightSidebar: React.FC = () => {
   const resetAlgoParamToDefault = useAppStore((state) => state.resetAlgoParamToDefault);
   const favoriteAlgorithms = useAppStore((state) => state.favoriteAlgorithms);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
-  const toggleFavoriteAlgorithm = toggleFavorite;
 
 
 
@@ -490,7 +485,6 @@ export const RightSidebar: React.FC = () => {
   const [focusedAlgoIndex, setFocusedAlgoIndex] = useState(0);
   const listboxRef = useRef<HTMLDivElement>(null);
   const listboxPanelRef = useRef<HTMLDivElement>(null);
-  const listboxTriggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Click outside listener for listbox
@@ -649,7 +643,7 @@ export const RightSidebar: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlePrevAlgo, handleNextAlgo]);
+  }, [isAlgoListboxOpen, handlePrevAlgo, handleNextAlgo]);
 
   const handlePrevPalette = () => {
     if (palettesInSelectedCategory.length === 0) return;
@@ -765,18 +759,61 @@ export const RightSidebar: React.FC = () => {
       return { threshold: false, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: false };
     }
 
-    const supportsScale = algo.features?.supportsDpiScale !== false && norm !== 'color-separation';
+    // Hide global Pattern Scale if the algorithm already provides its own dedicated size/spacing/frequency slider
+    const DEDICATED_SCALE_CONTROLS = [
+      'dotSize',
+      'blockSize',
+      'checkersSize',
+      'lineSpacing',
+      'period',
+      'dotScale',
+      'cellSize',
+      'divisor',
+      'lineDensity',
+      'waveFrequency',
+      'modulationFrequency',
+      'frequency',
+      'waveDensity'
+    ];
+    const hasDedicatedScaleControl = Boolean(
+      algo.controls?.some((c: any) => DEDICATED_SCALE_CONTROLS.includes(c.id))
+    );
+    const supportsScale =
+      algo.features?.supportsDpiScale !== false &&
+      norm !== 'color-separation' &&
+      !hasDedicatedScaleControl;
+
     const isErrorDiff = algo.category === 'error_diffusion';
     const isGlitch = algo.category === 'glitch_effects';
-    const hasErrorStrength = algo.controls?.some((c: any) => c.id === 'errorStrength' || c.id === 'errorReduction' || c.id === 'strength') || isErrorDiff;
-    const hasSerpentine = algo.controls?.some((c: any) => c.id === 'serpentine') || isErrorDiff;
-    const hasNoise = algo.controls?.some((c: any) => c.id === 'noise' || c.id === 'randomVal') || norm === 'noise';
+    const nonDiffGlitch = ['artifact-modulation-glitch', 'glitch', 'ordered-modulation'].includes(norm);
+    const orbDiffusion = ['orb-diffuse', 'orb-diffuse-x', 'orb-diffuse-y'].includes(norm);
+    const fixedScanErrorDiff = [
+      'cracked-diffuse',
+      'fractal-diffuse',
+      'gaussian',
+      'vortex-diffusion',
+      'dynamic-serpentine'
+    ].includes(norm);
+
+    const hasErrorStrength =
+      isErrorDiff ||
+      (isGlitch && !nonDiffGlitch) ||
+      orbDiffusion ||
+      Boolean(algo.controls?.some((c: any) => ['errorStrength', 'errorReduction', 'strength'].includes(c.id)));
+
+    const hasSerpentine =
+      (isErrorDiff && !fixedScanErrorDiff) ||
+      Boolean(algo.controls?.some((c: any) => c.id === 'serpentine'));
+
+    const hasNoise =
+      Boolean(algo.controls?.some((c: any) => c.id === 'noise' || c.id === 'randomVal')) ||
+      norm === 'noise';
 
     return {
-      threshold: true,
+      threshold: algo.features?.supportsLuminanceThreshold !== false && norm !== 'color-separation',
       scale: supportsScale,
-      diffusionStrength: hasErrorStrength || isGlitch,
-      serpentine: hasSerpentine || isGlitch,
+      diffusionStrength: hasErrorStrength,
+      serpentine: hasSerpentine,
       noiseAmount: hasNoise
     };
   };
@@ -896,6 +933,16 @@ export const RightSidebar: React.FC = () => {
               <div className="section-header-left">
                 <span className="section-collapse-icon">{collapsedSections.style ? '▶' : '▼'}</span>
                 <span className="section-title-text">STYLE</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="stepper-btn section-header-icon-btn"
+                  onClick={(e) => { e.stopPropagation(); resetCurrentAlgoParams(); }}
+                  aria-label="Reset algorithm parameters"
+                >
+                  <RotateCcw size={13} />
+                </button>
               </div>
             </div>
 
@@ -1052,7 +1099,7 @@ export const RightSidebar: React.FC = () => {
                     <Tooltip text={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}>
                       <button
                         className="stepper-btn"
-                        onClick={() => toggleFavoriteAlgorithm(algorithmId)}
+                        onClick={() => toggleFavorite(algorithmId)}
                         style={{ color: isCurrentFavorite ? 'var(--accent-cyan)' : 'var(--text-muted)' }}
                       >
                         ★
@@ -1260,6 +1307,7 @@ export const RightSidebar: React.FC = () => {
                           max="1.0"
                           step="0.05"
                           value={currentParams.noiseAmount ?? 0.3}
+                          style={getSliderFill(currentParams.noiseAmount ?? 0.3, 0, 1)}
                           {...sliderPointerProps}
                           onDoubleClick={() => resetAlgoParamToDefault('noiseAmount')}
                           onChange={(e) => updateCurrentAlgoParam('noiseAmount', Number(e.target.value))}
@@ -1278,9 +1326,18 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 )}
 
-                {/* Algorithm-Specific Custom Controls */}
+                {/* Algorithm-Specific Custom Controls (excludes duplicates of global progressive controls) */}
                 {currentAlgo.controls && Array.isArray(currentAlgo.controls) && currentAlgo.controls
-                  .filter((ctrl: any) => !['threshold', 'scale', 'diffusionStrength', 'serpentine', 'noiseAmount'].includes(ctrl.id))
+                  .filter((ctrl: any) => ![
+                    'threshold',
+                    'scale',
+                    'diffusionStrength',
+                    'errorStrength',
+                    'errorReduction',
+                    'strength',
+                    'serpentine',
+                    'noiseAmount'
+                  ].includes(ctrl.id))
                   .map((ctrl: any) => {
                     if (ctrl.type === 'dropdown') {
                       return (
@@ -1376,18 +1433,20 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.adjustments ? '▶' : '▼'}</span>
                 <span className="section-title-text">ADJUSTMENTS</span>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="stepper-btn section-header-icon-btn"
+                  onClick={(e) => { e.stopPropagation(); resetAllAdjustments(); }}
+                  aria-label="Reset adjustments"
+                >
+                  <RotateCcw size={13} />
+                </button>
+              </div>
             </div>
 
             {!collapsedSections.adjustments && (
               <div className="section-content">
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn-subtle"
-                    onClick={resetAllAdjustments}
-                  >
-                    Reset
-                  </button>
-                </div>
 
                 {/* Brightness */}
                 <div className="slider-control-block">
@@ -1606,6 +1665,7 @@ export const RightSidebar: React.FC = () => {
                           max="32"
                           step="1"
                           value={depth}
+                          style={getSliderFill(depth, 1, 32)}
                           {...sliderPointerProps}
                           onDoubleClick={() => resetAdjustmentParam('depth')}
                           onChange={(e) => setDepth(Number(e.target.value))}
@@ -1637,22 +1697,22 @@ export const RightSidebar: React.FC = () => {
                 <span className="section-collapse-icon">{collapsedSections.palette ? '▶' : '▼'}</span>
                 <span className="section-title-text">PALETTE</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
-                  className="stepper-btn"
+                  className="stepper-btn section-header-icon-btn"
                   onClick={(e) => { e.stopPropagation(); shuffleUnlockedSwatches(); }}
-                  style={{ width: '22px', height: '22px' }}
                   aria-label="Shuffle swatches"
                 >
-                  <Shuffle size={14} />
+                  <Shuffle size={13} />
                 </button>
                 <button
                   type="button"
-                  className="btn-subtle"
+                  className={`stepper-btn section-header-icon-btn ${confirmResetPalette ? 'confirming' : ''}`}
                   onClick={(e) => { e.stopPropagation(); handleResetPalette(); }}
+                  aria-label="Reset palette"
                 >
-                  {confirmResetPalette ? 'Confirm?' : 'Reset'}
+                  <RotateCcw size={13} />
                 </button>
               </div>
             </div>
@@ -1990,7 +2050,7 @@ export const RightSidebar: React.FC = () => {
                     <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"} style={{ flex: 1 }}>
                       <button
                         type="button"
-                        className="palette-action-btn"
+                        className="btn-default"
                         disabled={!hasImage || !sourceImageData}
                         onClick={handleExtractMedianCut}
                         style={{ width: '100%' }}
@@ -2001,7 +2061,7 @@ export const RightSidebar: React.FC = () => {
                     <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"} style={{ flex: 1 }}>
                       <button
                         type="button"
-                        className="palette-action-btn"
+                        className="btn-default"
                         disabled={!hasImage || !sourceImageData}
                         onClick={handleExtractKMeans}
                         style={{ width: '100%' }}
@@ -2180,14 +2240,14 @@ export const RightSidebar: React.FC = () => {
                   {effects.filter((e) => e.enabled).length} active / {visibleEffectsList.length} total
                 </span>
               </div>
-              <div onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
-                  className="btn-subtle"
+                  className={`stepper-btn section-header-icon-btn ${confirmResetEffects ? 'confirming' : ''}`}
                   onClick={(e) => { e.stopPropagation(); handleResetEffects(); }}
+                  aria-label="Reset effects stack"
                 >
-                  <RotateCcw size={12} className="btn-icon" />
-                  <span>{confirmResetEffects ? 'Confirm?' : 'Reset'}</span>
+                  <RotateCcw size={13} />
                 </button>
               </div>
             </div>

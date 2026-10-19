@@ -1,7 +1,7 @@
 // DitherForge 84-Algorithm Complete Engine
 // Dispatches all 84 algorithms through the unified, high-performance engine.
 
-import { dispatchDither, ALGORITHM_DISPATCH } from "./engine/index.js";
+import { dispatchDither } from "./engine/index.js";
 
 export const ALGORITHM_CATEGORIES = [
   { id: "basic", name: "Basic" },
@@ -101,32 +101,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": false
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower values = more contrast, higher values = more error diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "atkinson",
@@ -142,32 +117,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern (non-traditional for Atkinson)",
-        "tooltip": "Classic Atkinson uses left-to-right only, but serpentine can reduce artifacts",
-        "defaultValue": false
-      },
-      {
-        "id": "errorReduction",
-        "label": "Error Reduction",
-        "type": "slider",
-        "min": 0.5,
-        "max": 2,
-        "step": 0.1,
-        "defaultValue": 1,
-        "description": "Controls the intentional error loss (1.0 = classic 75% error retention)",
-        "tooltip": "Higher values create more contrast, lower values closer to Floyd-Steinberg",
-        "unit": "x",
-        "shuffleRange": {
-          "min": 0.8,
-          "max": 1.5
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "burkes",
@@ -183,32 +133,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "cracked-diffuse",
@@ -256,16 +181,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": false
-      }
-    ]
+    "controls": []
   },
   {
     "id": "fractal-diffuse",
@@ -281,23 +197,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "strength",
-        "label": "Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 100,
-        "step": 1,
-        "defaultValue": 75,
-        "description": "Error propagation strength along the curve",
-        "tooltip": "0 = no error propagation, 100 = full propagation",
-        "shuffleRange": {
-          "min": 40,
-          "max": 90
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "gaussian",
@@ -328,22 +228,6 @@ export const ALGORITHM_REGISTRY = [
           "min": 3,
           "max": 12
         }
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
       }
     ]
   },
@@ -361,32 +245,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "ostromukhov",
@@ -402,32 +261,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "sierra-lite",
@@ -443,32 +277,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "sierra",
@@ -484,32 +293,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "stevenson-arce",
@@ -525,32 +309,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "stucki",
@@ -566,32 +325,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "two-row-sierra",
@@ -607,32 +341,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "serpentine",
-        "label": "Serpentine Scan",
-        "type": "toggle",
-        "description": "Use zigzag scanning pattern to reduce directional artifacts",
-        "tooltip": "Alternates left-to-right and right-to-left scanning per row",
-        "defaultValue": true
-      },
-      {
-        "id": "errorStrength",
-        "label": "Error Strength",
-        "type": "slider",
-        "min": 0,
-        "max": 200,
-        "step": 5,
-        "defaultValue": 100,
-        "description": "Controls error diffusion intensity",
-        "tooltip": "Lower = more contrast, Higher = more diffusion",
-        "unit": "%",
-        "shuffleRange": {
-          "min": 50,
-          "max": 150
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "vortex-diffusion",
@@ -869,17 +578,45 @@ export const ALGORITHM_REGISTRY = [
     },
     "controls": [
       {
-        "id": "lineCount",
-        "label": "Line Count",
+        "id": "lineLength",
+        "label": "Line Length",
         "type": "slider",
         "min": 1,
         "max": 20,
         "step": 1,
-        "defaultValue": 1,
-        "description": "Number of VHS glitch lines",
+        "defaultValue": 5,
+        "description": "Horizontal displacement length of VHS glitch lines",
         "shuffleRange": {
           "min": 3,
-          "max": 12
+          "max": 15
+        }
+      },
+      {
+        "id": "lineCount",
+        "label": "Line Count",
+        "type": "slider",
+        "min": 1,
+        "max": 30,
+        "step": 1,
+        "defaultValue": 8,
+        "description": "Amount of VHS glitch lines",
+        "shuffleRange": {
+          "min": 3,
+          "max": 20
+        }
+      },
+      {
+        "id": "lineScale",
+        "label": "Line Scale",
+        "type": "slider",
+        "min": 1,
+        "max": 20,
+        "step": 1,
+        "defaultValue": 2,
+        "description": "Vertical size of VHS glitch lines",
+        "shuffleRange": {
+          "min": 1,
+          "max": 10
         }
       }
     ]
@@ -898,22 +635,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "lineScale",
-        "label": "Line Scale",
-        "type": "slider",
-        "min": 1,
-        "max": 20,
-        "step": 1,
-        "defaultValue": 1,
-        "description": "Contrast and warp intensity",
-        "shuffleRange": {
-          "min": 3,
-          "max": 12
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "contrast-aware-y",
@@ -929,22 +651,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "lineScale",
-        "label": "Line Scale",
-        "type": "slider",
-        "min": 1,
-        "max": 20,
-        "step": 1,
-        "defaultValue": 1,
-        "description": "Contrast and warp intensity",
-        "shuffleRange": {
-          "min": 3,
-          "max": 12
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "glitch",
@@ -965,13 +672,27 @@ export const ALGORITHM_REGISTRY = [
         "id": "glitchIntensity",
         "label": "Glitch Intensity",
         "type": "slider",
+        "min": 0,
+        "max": 35,
+        "step": 1,
+        "defaultValue": 10,
+        "description": "Number of glitch lines across the image",
+        "shuffleRange": {
+          "min": 5,
+          "max": 25
+        }
+      },
+      {
+        "id": "lineScale",
+        "label": "Line Scale",
+        "type": "slider",
         "min": 1,
         "max": 20,
         "step": 1,
-        "defaultValue": 1,
-        "description": "Intensity of glitch corruption",
+        "defaultValue": 4,
+        "description": "Size and displacement of glitch lines",
         "shuffleRange": {
-          "min": 3,
+          "min": 2,
           "max": 12
         }
       }
@@ -997,13 +718,13 @@ export const ALGORITHM_REGISTRY = [
         "label": "Line Scale",
         "type": "slider",
         "min": 1,
-        "max": 20,
+        "max": 30,
         "step": 1,
-        "defaultValue": 1,
-        "description": "Contrast adjustment",
+        "defaultValue": 6,
+        "description": "Number of modulated lines",
         "shuffleRange": {
           "min": 3,
-          "max": 12
+          "max": 20
         }
       }
     ]
@@ -1028,13 +749,13 @@ export const ALGORITHM_REGISTRY = [
         "label": "Line Scale",
         "type": "slider",
         "min": 1,
-        "max": 20,
+        "max": 30,
         "step": 1,
-        "defaultValue": 1,
-        "description": "Contrast adjustment",
+        "defaultValue": 6,
+        "description": "Number of modulated lines",
         "shuffleRange": {
           "min": 3,
-          "max": 12
+          "max": 20
         }
       }
     ]
@@ -1053,22 +774,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "lineScale",
-        "label": "Line Scale",
-        "type": "slider",
-        "min": 1,
-        "max": 20,
-        "step": 1,
-        "defaultValue": 5,
-        "description": "Wave amplitude and contrast",
-        "shuffleRange": {
-          "min": 3,
-          "max": 12
-        }
-      }
-    ]
+    "controls": []
   },
   {
     "id": "smooth-diffuse",
@@ -1086,20 +792,6 @@ export const ALGORITHM_REGISTRY = [
     },
     "controls": [
       {
-        "id": "lineScale",
-        "label": "Line Scale",
-        "type": "slider",
-        "min": 1,
-        "max": 10,
-        "step": 1,
-        "defaultValue": 5,
-        "description": "Contrast adjustment",
-        "shuffleRange": {
-          "min": 3,
-          "max": 8
-        }
-      },
-      {
         "id": "smoothness",
         "label": "Smoothness",
         "type": "slider",
@@ -1107,7 +799,7 @@ export const ALGORITHM_REGISTRY = [
         "max": 10,
         "step": 1,
         "defaultValue": 5,
-        "description": "Error attenuation factor",
+        "description": "Horizontal scanline smoothing intensity",
         "shuffleRange": {
           "min": 3,
           "max": 8
@@ -1477,19 +1169,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "matrixSize",
-        "label": "Matrix Size",
-        "type": "dropdown",
-        "options": [
-          { "value": "2x2", "label": "2x2 (Coarse)" }
-        ],
-        "defaultValue": "2x2",
-        "description": "Size of the Bayer threshold matrix",
-        "tooltip": "2x2 coarse micro-checkerboard"
-      }
-    ]
+    "controls": []
   },
   {
     "id": "bayer-4x4",
@@ -1505,19 +1185,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "matrixSize",
-        "label": "Matrix Size",
-        "type": "dropdown",
-        "options": [
-          { "value": "4x4", "label": "4x4 (Standard)" }
-        ],
-        "defaultValue": "4x4",
-        "description": "Size of the Bayer threshold matrix",
-        "tooltip": "4x4 standard crosshatch matrix"
-      }
-    ]
+    "controls": []
   },
   {
     "id": "bayer-8x8",
@@ -1533,19 +1201,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "matrixSize",
-        "label": "Matrix Size",
-        "type": "dropdown",
-        "options": [
-          { "value": "8x8", "label": "8x8 (Fine)" }
-        ],
-        "defaultValue": "8x8",
-        "description": "Size of the Bayer threshold matrix",
-        "tooltip": "8x8 fine crosshatch matrix"
-      }
-    ]
+    "controls": []
   },
   {
     "id": "bayer-16x16",
@@ -1561,19 +1217,7 @@ export const ALGORITHM_REGISTRY = [
       "isDeterministic": true,
       "requiresMultiPass": false
     },
-    "controls": [
-      {
-        "id": "matrixSize",
-        "label": "Matrix Size",
-        "type": "dropdown",
-        "options": [
-          { "value": "16x16", "label": "16x16 (Very Fine)" }
-        ],
-        "defaultValue": "16x16",
-        "description": "Size of the Bayer threshold matrix",
-        "tooltip": "16x16 very fine recursive matrix"
-      }
-    ]
+    "controls": []
   },
   {
     "id": "clustered-dot",
@@ -3640,19 +3284,38 @@ export function findAlgorithm(id) {
   return ALGORITHM_REGISTRY[0];
 }
 
-// Pre-Dithering Color/Tone Adjustments
+// // Pre-Dithering Color/Tone Adjustments
 export function applyTweaks(data, width, height, settings) {
-  const bOffset = (settings.brightness || 0) * 128;
-  const cFactor = (settings.contrast || 0) >= 0 ? 1 + (settings.contrast || 0) * 2 : 1 + (settings.contrast || 0) * 0.8;
-  const sFactor = 1 + (settings.saturation || 0);
-  const invGamma = 1 / Math.max(0.01, settings.gamma || 1.0);
+  const rawB = settings.brightness || 0;
+  const rawC = settings.contrast || 0;
+  const rawS = settings.saturation || 0;
+  const rawG = settings.gamma || 1.0;
   const hue = settings.hue || 0;
+
+  // Fast exit when all adjustments are at default values
+  if (rawB === 0 && rawC === 0 && rawS === 0 && hue === 0 && Math.abs(rawG - 1.0) < 0.001) {
+    return;
+  }
+
+  const bOffset = rawB * 128;
+  const cFactor = rawC >= 0 ? 1 + rawC * 2 : 1 + rawC * 0.8;
+  const sFactor = 1 + rawS;
+  const invGamma = 1 / Math.max(0.01, rawG);
 
   let cos = 1, sin = 0;
   if (hue !== 0) {
     const angle = (hue * Math.PI) / 180;
     cos = Math.cos(angle);
     sin = Math.sin(angle);
+  }
+
+  // Precompute 256-entry Gamma LUT to avoid 3 * W * H Math.pow calls per frame
+  let gammaLUT = null;
+  if (Math.abs(invGamma - 1.0) >= 0.001) {
+    gammaLUT = new Uint8Array(256);
+    for (let v = 0; v < 256; v++) {
+      gammaLUT[v] = Math.round(255 * Math.pow(v / 255, invGamma));
+    }
   }
 
   const len = width * height * 4;
@@ -3667,10 +3330,12 @@ export function applyTweaks(data, width, height, settings) {
     b = (b - 128) * cFactor + 128 + bOffset;
 
     // Saturation
-    const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    r = luma + (r - luma) * sFactor;
-    g = luma + (g - luma) * sFactor;
-    b = luma + (b - luma) * sFactor;
+    if (sFactor !== 1) {
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      r = luma + (r - luma) * sFactor;
+      g = luma + (g - luma) * sFactor;
+      b = luma + (b - luma) * sFactor;
+    }
 
     // Hue rotation via YIQ matrix
     if (hue !== 0) {
@@ -3686,18 +3351,55 @@ export function applyTweaks(data, width, height, settings) {
       b = y - 1.1070 * iRot + 1.7046 * qRot;
     }
 
-    // Gamma
-    if (invGamma !== 1.0) {
-      r = 255 * Math.pow(Math.max(0, Math.min(255, r)) / 255, invGamma);
-      g = 255 * Math.pow(Math.max(0, Math.min(255, g)) / 255, invGamma);
-      b = 255 * Math.pow(Math.max(0, Math.min(255, b)) / 255, invGamma);
-    }
+    const cr = r < 0 ? 0 : r > 255 ? 255 : Math.round(r);
+    const cg = g < 0 ? 0 : g > 255 ? 255 : Math.round(g);
+    const cb = b < 0 ? 0 : b > 255 ? 255 : Math.round(b);
 
-    data[i] = Math.max(0, Math.min(255, r));
-    data[i + 1] = Math.max(0, Math.min(255, g));
-    data[i + 2] = Math.max(0, Math.min(255, b));
+    if (gammaLUT) {
+      data[i] = gammaLUT[cr];
+      data[i + 1] = gammaLUT[cg];
+      data[i + 2] = gammaLUT[cb];
+    } else {
+      data[i] = cr;
+      data[i + 1] = cg;
+      data[i + 2] = cb;
+    }
   }
 }
+
+// Algorithms that receive pixel-grid block scaling when Pattern Scale != 1.0
+// (Orb algorithms are intentionally excluded)
+const ENGINE_GRID_SCALED_ALGOS = new Set([
+  'artifact-modulation',
+  'atkinson',
+  'burkes',
+  'cracked-diffuse',
+  'floyd-steinberg',
+  'fractal-diffuse',
+  'gaussian',
+  'jarvis-judice-ninke',
+  'ostromukhov',
+  'sierra-lite',
+  'sierra',
+  'stevenson-arce',
+  'stucki',
+  'two-row-sierra',
+  'vortex-diffusion',
+  'dynamic-serpentine',
+  'false-floyd-steinberg',
+  'fan',
+  'minimized-avg-error',
+  'shiau-fan',
+  'shiau-fan-2',
+  'contrast-aware-x',
+  'contrast-aware-y',
+  'stucki-diffusion-lines',
+  'uniform-modulation-x',
+  'uniform-modulation-y',
+  'smooth-diffuse',
+  'modulated-diffuse-x',
+  'modulated-diffuse-y'
+]);
 
 // Master Algorithm Dispatcher - Fully applies settings & mutates imageData buffer in place
 export function applyDitherAlgorithm(imageData, settings) {
@@ -3715,15 +3417,78 @@ export function applyDitherAlgorithm(imageData, settings) {
   }
 
   const defaultControls = ALGORITHM_DEFAULT_CONTROLS[rawId] || ALGORITHM_DEFAULT_CONTROLS[normId] || ALGORITHM_DEFAULT_CONTROLS[resolvedId] || {};
+  const mergedControls = { ...defaultControls, ...(settings.controls || {}) };
+  const rawScale = Number(mergedControls.scale ?? settings.scale ?? 1.0);
   const dispatchSettings = {
     ...defaultControls,
     ...settings,
-    controls: { ...defaultControls, ...(settings.controls || {}) }
+    controls: mergedControls
   };
 
-  const result = dispatchDither(resolvedId, width, height, data, dispatchSettings);
-  if (result && result.buffer) {
-    data.set(new Uint8ClampedArray(result.buffer));
+  if (ENGINE_GRID_SCALED_ALGOS.has(resolvedId) && Math.abs(rawScale - 1.0) > 0.01 && rawScale >= 0.05) {
+    const sw = Math.max(1, Math.min(width * 2, Math.round(width / rawScale)));
+    const sh = Math.max(1, Math.min(height * 2, Math.round(height / rawScale)));
+    const smallData = new Uint8ClampedArray(sw * sh * 4);
+
+    // Precompute X-coordinate mappings to avoid inner-loop divisions
+    const downXMap = new Int32Array(sw);
+    for (let x = 0; x < sw; x++) {
+      downXMap[x] = Math.min(width - 1, Math.floor((x * width) / sw)) * 4;
+    }
+
+    for (let y = 0; y < sh; y++) {
+      const srcRowOff = Math.min(height - 1, Math.floor((y * height) / sh)) * width * 4;
+      const dstRowOff = y * sw * 4;
+      for (let x = 0; x < sw; x++) {
+        const sIdx = srcRowOff + downXMap[x];
+        const dIdx = dstRowOff + x * 4;
+        smallData[dIdx] = data[sIdx];
+        smallData[dIdx + 1] = data[sIdx + 1];
+        smallData[dIdx + 2] = data[sIdx + 2];
+        smallData[dIdx + 3] = data[sIdx + 3];
+      }
+    }
+
+    const scaledDispatchSettings = {
+      ...dispatchSettings,
+      scale: 1.0,
+      controls: {
+        ...dispatchSettings.controls,
+        scale: 1.0,
+        rawScale: rawScale
+      }
+    };
+    const result = dispatchDither(resolvedId, sw, sh, smallData, scaledDispatchSettings);
+    const ditheredSmall =
+      result instanceof Uint8ClampedArray
+        ? result
+        : result && result.buffer
+        ? new Uint8ClampedArray(result.buffer, result.byteOffset || 0, result.byteLength || smallData.length)
+        : smallData;
+
+    const upXMap = new Int32Array(width);
+    for (let x = 0; x < width; x++) {
+      upXMap[x] = Math.min(sw - 1, Math.floor((x * sw) / width)) * 4;
+    }
+
+    for (let y = 0; y < height; y++) {
+      const srcRowOff = Math.min(sh - 1, Math.floor((y * sh) / height)) * sw * 4;
+      const dstRowOff = y * width * 4;
+      for (let x = 0; x < width; x++) {
+        const sIdx = srcRowOff + upXMap[x];
+        const dIdx = dstRowOff + x * 4;
+        data[dIdx] = ditheredSmall[sIdx];
+        data[dIdx + 1] = ditheredSmall[sIdx + 1];
+        data[dIdx + 2] = ditheredSmall[sIdx + 2];
+      }
+    }
+  } else {
+    const result = dispatchDither(resolvedId, width, height, data, dispatchSettings);
+    if (result instanceof Uint8ClampedArray) {
+      data.set(result);
+    } else if (result && result.buffer) {
+      data.set(new Uint8ClampedArray(result.buffer, result.byteOffset || 0, result.byteLength || data.length));
+    }
   }
 
   // Restore snapshot into the output alpha channel

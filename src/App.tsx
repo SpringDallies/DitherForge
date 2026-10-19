@@ -4,10 +4,8 @@ import './styles/logo.css';
 import './styles/loading.css';
 import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
-import { LeftIconRail } from './components/layout/LeftIconRail';
 import { CenterViewport } from './components/CenterViewport';
 import { RightSidebar } from './components/layout/RightSidebar';
-import { BottomControlStrip } from './components/layout/BottomControlStrip';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
 import { Tooltip } from './components/common/Tooltip';
 import './styles/preferences.css';
@@ -19,11 +17,9 @@ export const App: React.FC = () => {
   const toggleFullScreen = useAppStore((state) => state.toggleFullScreen);
   const isManualOpen = useAppStore((state) => state.isManualOpen);
   const setIsManualOpen = useAppStore((state) => state.setIsManualOpen);
-  const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const setSidebarWidth = useAppStore((state) => state.setSidebarWidth);
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
 
-  const [booted, setBooted] = useState<boolean>(false);
   const [isPeekOpen, setIsPeekOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('settings') === 'true');
 
@@ -45,18 +41,17 @@ export const App: React.FC = () => {
   // App boot: dismiss static boot-loader once fonts are ready & painted
   useEffect(() => {
     let active = true;
+    let raf2: number | null = null;
     const finishBoot = () => {
       if (active) {
         const loader = document.getElementById('boot-loader');
         if (loader) loader.remove();
-        setBooted(true);
       }
     };
 
     // Remove boot-loader as soon as React mounts and paints the first frame
     const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(finishBoot);
-      return () => cancelAnimationFrame(raf2);
+      raf2 = requestAnimationFrame(finishBoot);
     });
 
     if (document.fonts && document.fonts.ready) {
@@ -66,6 +61,7 @@ export const App: React.FC = () => {
     return () => {
       active = false;
       cancelAnimationFrame(raf1);
+      if (raf2 !== null) cancelAnimationFrame(raf2);
     };
   }, []);
 
@@ -128,6 +124,12 @@ export const App: React.FC = () => {
     }, 1500);
   };
 
+  useEffect(() => {
+    return () => {
+      if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
+    };
+  }, []);
+
   return (
     <div
       className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
@@ -158,9 +160,6 @@ export const App: React.FC = () => {
 
       {/* Main Workspace Layout */}
       <div className="workspace-container">
-        {/* Left Icon Rail (Placeholder for Phase 6/7) */}
-        <LeftIconRail />
-
         {/* Viewport (takes remaining width, canvas centered) */}
         <CenterViewport />
 
@@ -177,9 +176,6 @@ export const App: React.FC = () => {
         {/* Single Right Panel (Algorithm, Adjustments, Palette, Effects Stack) */}
         <RightSidebar />
       </div>
-
-      {/* Bottom Control Strip */}
-      <BottomControlStrip />
 
       {/* Algorithm Reference Manual Modal */}
       <AlgorithmReferenceModal

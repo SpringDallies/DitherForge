@@ -225,7 +225,7 @@ interface AppState {
   showBeforeAfter: boolean;
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
-  fitToViewport: (containerWidth: number, containerHeight: number) => void;
+  fitToViewport: (containerWidth?: number, containerHeight?: number) => void;
   resetZoom: () => void;
   setSplitRatio: (ratio: number) => void;
   setShowBeforeAfter: (show: boolean) => void;
@@ -851,11 +851,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   showBeforeAfter: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare') === 'true',
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(3200, zoom)) }),
   setPan: (panX, panY) => set({ panX, panY }),
-  fitToViewport: (containerWidth, containerHeight) => {
+  fitToViewport: (containerWidth?: number, containerHeight?: number) => {
     const { imageWidth, imageHeight } = get();
     if (!imageWidth || !imageHeight) return;
-    const availableW = Math.max(100, containerWidth - 40);
-    const availableH = Math.max(100, containerHeight - 40);
+    let w = containerWidth;
+    let h = containerHeight;
+    if (typeof document !== 'undefined') {
+      const canvasArea = document.querySelector('.canvas-area') as HTMLElement | null;
+      if (canvasArea) {
+        const style = window.getComputedStyle(canvasArea);
+        const paddingRight = parseFloat(style.paddingRight) || 0;
+        const paddingLeft = parseFloat(style.paddingLeft) || 0;
+        const contentW = Math.max(100, canvasArea.clientWidth - paddingRight - paddingLeft);
+        if (!w || Math.abs(w - canvasArea.clientWidth) < 2) {
+          w = contentW;
+        }
+        if (!h) {
+          h = canvasArea.clientHeight;
+        }
+      }
+    }
+    const finalW = w || (typeof window !== 'undefined' ? window.innerWidth - 400 : 800);
+    const finalH = h || (typeof window !== 'undefined' ? window.innerHeight - 100 : 600);
+    const availableW = Math.max(100, finalW - 40);
+    const availableH = Math.max(100, finalH - 40);
     const scale = Math.min(availableW / imageWidth, availableH / imageHeight, 1.0);
     const fitZoom = Math.max(25, Math.round(scale * 100));
     set({ zoom: fitZoom, panX: 0, panY: 0 });

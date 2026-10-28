@@ -652,7 +652,9 @@ canvas#mainViewportCanvas {
 }
 
 .modal-dialog {
-  background: var(--bg-secondary);
+  background: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 90%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   max-width: 900px;

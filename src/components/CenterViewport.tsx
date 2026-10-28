@@ -105,10 +105,19 @@ export const CenterViewport: React.FC = () => {
 
   // Initial mount: fit and center default image in viewport
   useEffect(() => {
-    const container = containerRef.current;
-    if (container && sourceImageData) {
-      fitToViewport(container.clientWidth, container.clientHeight);
-    }
+    const fit = () => {
+      const container = containerRef.current;
+      if (container && sourceImageData) {
+        const style = window.getComputedStyle(container);
+        const paddingRight = parseFloat(style.paddingRight) || 0;
+        const paddingLeft = parseFloat(style.paddingLeft) || 0;
+        const contentWidth = Math.max(100, container.clientWidth - paddingRight - paddingLeft);
+        fitToViewport(contentWidth, container.clientHeight);
+      }
+    };
+    fit();
+    const rafId = requestAnimationFrame(fit);
+    return () => cancelAnimationFrame(rafId);
   }, [fitToViewport]);
 
   // Keyboard Navigation: Space (Pan) — Zoom/Fit/Compare shortcuts are handled globally in TopMenuBar
@@ -186,10 +195,15 @@ export const CenterViewport: React.FC = () => {
       if (newZoom === currentZoom) return;
 
       // Pointer-centered zoom math:
-      // Point under cursor relative to container center
+      // Point under cursor relative to container content center
       const rect = container.getBoundingClientRect();
-      const cursorX = e.clientX - (rect.left + rect.width / 2);
-      const cursorY = e.clientY - (rect.top + rect.height / 2);
+      const style = window.getComputedStyle(container);
+      const paddingRight = parseFloat(style.paddingRight) || 0;
+      const paddingLeft = parseFloat(style.paddingLeft) || 0;
+      const contentCenterX = rect.left + paddingLeft + (rect.width - paddingRight - paddingLeft) / 2;
+      const contentCenterY = rect.top + rect.height / 2;
+      const cursorX = e.clientX - contentCenterX;
+      const cursorY = e.clientY - contentCenterY;
 
       // Adjust pan so the image point under the cursor remains invariant:
       const zoomRatio = newZoom / currentZoom;
@@ -223,7 +237,11 @@ export const CenterViewport: React.FC = () => {
 
         const container = containerRef.current;
         if (container) {
-          fitToViewport(container.clientWidth, container.clientHeight);
+          const style = window.getComputedStyle(container);
+          const paddingRight = parseFloat(style.paddingRight) || 0;
+          const paddingLeft = parseFloat(style.paddingLeft) || 0;
+          const contentWidth = Math.max(100, container.clientWidth - paddingRight - paddingLeft);
+          fitToViewport(contentWidth, container.clientHeight);
         }
       };
       img.src = e.target?.result as string;
@@ -676,7 +694,11 @@ export const CenterViewport: React.FC = () => {
                   loadSampleImage();
                   const container = containerRef.current;
                   if (container) {
-                    fitToViewport(container.clientWidth, container.clientHeight);
+                    const style = window.getComputedStyle(container);
+                    const paddingRight = parseFloat(style.paddingRight) || 0;
+                    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+                    const contentWidth = Math.max(100, container.clientWidth - paddingRight - paddingLeft);
+                    fitToViewport(contentWidth, container.clientHeight);
                   }
                 }}
               >

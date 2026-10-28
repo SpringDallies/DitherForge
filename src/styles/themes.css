@@ -6,6 +6,10 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
+  /* ─── Glass Tokens ─── */
+  --glass-blur-radius: 16px;
+  --glass-opacity: 82%;
+
   /* ─── Spacing ─── */
   --space-1: 4px;
   --space-2: 8px;

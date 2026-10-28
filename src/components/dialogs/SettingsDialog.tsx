@@ -15,6 +15,8 @@ export interface DitherForgeSettings {
   scrollTightness: number;
   scrollDuration: number;
   glassBlur: boolean;
+  glassBlurRadius: number;
+  glassOpacity: number;
   shadows: boolean;
   animations: boolean;
 }
@@ -28,6 +30,8 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   scrollTightness: 0.25,
   scrollDuration: 1.2,
   glassBlur: true,
+  glassBlurRadius: 16,
+  glassOpacity: 0.82,
   shadows: true,
   animations: true,
 };
@@ -36,9 +40,15 @@ const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
 
 export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   if (typeof document === 'undefined') return;
-  document.documentElement.setAttribute('data-glass-blur', settings.glassBlur !== false ? 'true' : 'false');
+  const isGlass = settings.glassBlur !== false;
+  document.documentElement.setAttribute('data-glass-blur', isGlass ? 'true' : 'false');
   document.documentElement.setAttribute('data-shadows', settings.shadows !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-animations', settings.animations !== false ? 'true' : 'false');
+
+  const blurRadius = settings.glassBlurRadius ?? 16;
+  const opacity = settings.glassOpacity ?? 0.82;
+  document.documentElement.style.setProperty('--glass-blur-radius', `${blurRadius}px`);
+  document.documentElement.style.setProperty('--glass-opacity', `${Math.round(opacity * 100)}%`);
 }
 
 export function areAnimationsEnabled(): boolean {
@@ -234,6 +244,78 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                   { id: 'disabled', label: 'Disabled' }
                 ]}
               />
+            </div>
+
+            <div 
+              className="settings-row"
+              style={{
+                opacity: settings.glassBlur !== false ? 1 : 0.45,
+                pointerEvents: settings.glassBlur !== false ? 'auto' : 'none',
+                transition: 'opacity 0.15s ease'
+              }}
+            >
+              <div style={{ flex: 1, paddingRight: '16px' }}>
+                <div className="settings-label">Glass blur strength</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Backdrop blur radius for frosted glass panels.
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                <input
+                  type="range"
+                  className="control-slider"
+                  min="0"
+                  max="40"
+                  step="1"
+                  value={settings.glassBlurRadius ?? 16}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    '--slider-fill': `${((settings.glassBlurRadius ?? 16) / 40) * 100}%`
+                  } as React.CSSProperties}
+                  onChange={(e) => updateSetting('glassBlurRadius', parseInt(e.target.value, 10))}
+                  aria-label="Glass blur strength"
+                />
+                <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)', flexShrink: 0 }}>
+                  {settings.glassBlurRadius ?? 16}px
+                </span>
+              </div>
+            </div>
+
+            <div 
+              className="settings-row"
+              style={{
+                opacity: settings.glassBlur !== false ? 1 : 0.45,
+                pointerEvents: settings.glassBlur !== false ? 'auto' : 'none',
+                transition: 'opacity 0.15s ease'
+              }}
+            >
+              <div style={{ flex: 1, paddingRight: '16px' }}>
+                <div className="settings-label">Glass opacity</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Surface opacity and tint of translucent panels.
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                <input
+                  type="range"
+                  className="control-slider"
+                  min="0.30"
+                  max="0.98"
+                  step="0.02"
+                  value={settings.glassOpacity ?? 0.82}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    '--slider-fill': `${(((settings.glassOpacity ?? 0.82) - 0.30) / 0.68) * 100}%`
+                  } as React.CSSProperties}
+                  onChange={(e) => updateSetting('glassOpacity', parseFloat(e.target.value))}
+                  aria-label="Glass opacity"
+                />
+                <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)', flexShrink: 0 }}>
+                  {Math.round((settings.glassOpacity ?? 0.82) * 100)}%
+                </span>
+              </div>
             </div>
 
             <div className="settings-row">

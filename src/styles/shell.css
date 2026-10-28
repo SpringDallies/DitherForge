@@ -111,19 +111,23 @@ body {
 }
 .menu-btn {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-dim);
   font-size: 0.85rem;
   font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: color 140ms ease, background-color 140ms ease;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 .menu-btn:hover,
 .menu-btn.active {
-  background-color: var(--bg-control);
-  color: var(--text-dim);
+  background-color: color-mix(in srgb, var(--bg-control) 65%, transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 12px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 12px));
+  border-color: color-mix(in srgb, var(--border-color) 70%, rgba(255, 255, 255, 0.15));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--text-main);
 }
 .topbar-center-controls {
   position: absolute;
@@ -818,27 +822,41 @@ body {
   gap: 6px;
 }
 .tool-icon-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-muted);
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
+  background-color: color-mix(in srgb, var(--bg-control) var(--glass-opacity, 65%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 10px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 10px));
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, rgba(255, 255, 255, 0.12));
+  color: var(--text-dim);
+  padding: 3px 10px;
+  border-radius: 7px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 0.73rem;
   font-family: var(--font-sans);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
-.tool-icon-btn.active {
-  background-color: var(--bg-hover);
+.tool-icon-btn:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--bg-hover) 75%, transparent);
   border-color: var(--border-focus);
   color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.tool-icon-btn.active {
+  background-color: color-mix(in srgb, var(--bg-hover) 85%, transparent);
+  border-color: var(--border-focus);
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 .tool-icon-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
   border-color: var(--border-color);
+  background-color: transparent;
+  box-shadow: none;
 }
 .canvas-area {
   flex: 1;
@@ -2228,6 +2246,12 @@ button .btn-icon:hover,
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 0.7rem;
+  background-color: color-mix(in srgb, var(--bg-panel) 50%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--border-color) 60%, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  padding: 2px 8px;
 }
 /* Segmented Switch (Top Bar Pill Containers) */
 .segmented-switch,
@@ -2235,14 +2259,17 @@ button .btn-icon:hover,
   display: inline-flex;
   align-items: stretch;
   height: 26px;
-  background-color: var(--bg-panel);
-  border: 1.5px solid var(--border-color);
-  border-radius: 6px;
+  background-color: color-mix(in srgb, var(--bg-panel) var(--glass-opacity, 75%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 12px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 12px));
+  border: 1.5px solid color-mix(in srgb, var(--border-color) 70%, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 .topbar-compare-grid-switch,
 .topbar-viewport-switch {
-  background-color: var(--bg-control);
+  background-color: color-mix(in srgb, var(--bg-control) 65%, transparent);
 }
 .switch-btn,
 .strip-viewport-btn {
@@ -2250,7 +2277,7 @@ button .btn-icon:hover,
   padding: 0 11px;
   background: transparent;
   border: none;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
   color: var(--text-dim);
   font-size: 0.78rem;
   font-weight: 600;
@@ -2259,7 +2286,7 @@ button .btn-icon:hover,
   align-items: center;
   justify-content: center;
   user-select: none;
-  transition: color 140ms ease, background-color 140ms ease;
+  transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
 .topbar-compare-grid-switch .switch-btn {
   padding: 0 15px;
@@ -2270,12 +2297,13 @@ button .btn-icon:hover,
 }
 .switch-btn:hover:not(:disabled),
 .strip-viewport-btn:hover:not(:disabled) {
-  color: var(--text-muted);
-  background-color: var(--bg-secondary);
+  color: var(--text-main);
+  background-color: color-mix(in srgb, var(--bg-hover) 55%, transparent);
 }
 .switch-btn.active,
 .strip-viewport-btn.active {
-  background-color: var(--bg-raised);
+  background-color: color-mix(in srgb, var(--bg-raised) 85%, transparent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   color: var(--text-main);
   font-weight: 600;
 }
@@ -2324,20 +2352,20 @@ button .btn-icon:hover,
 /* Popover menus (Phase 7.1) */
 .dropdown-menu-popover {
   position: absolute;
-  top: 30px;
+  top: calc(100% + 4px);
   left: 0;
-  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 88%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 16px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 20px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 20px));
+  border: 1.5px solid color-mix(in srgb, var(--border-color) 75%, rgba(255, 255, 255, 0.15));
+  border-radius: 12px;
   min-width: 220px;
   width: max-content;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  padding: 4px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 6px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform-origin: top left;
   will-change: opacity, transform;
@@ -2349,20 +2377,23 @@ button .btn-icon:hover,
   font-family: var(--font-sans);
   font-size: 0.76rem;
   height: 32px;
-  padding: 0 12px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   width: 100%;
   text-align: left;
-  transition: background-color var(--transition-fast);
+  border-radius: 7px;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   user-select: none;
+  box-sizing: border-box;
 }
 .dropdown-menu-item:hover,
 .dropdown-menu-item.focused,
 .dropdown-menu-item.active {
-  background-color: var(--bg-hover);
+  background-color: color-mix(in srgb, var(--bg-hover) 70%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   color: var(--text-main);
 }
 .dropdown-menu-item:disabled {
@@ -3248,6 +3279,41 @@ body {
   background-color: var(--bg-secondary) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+[data-topbar-glass="false"] .top-menu-bar .menu-btn:hover,
+[data-topbar-glass="false"] .top-menu-bar .menu-btn.active,
+[data-glass-blur="false"] .top-menu-bar .menu-btn:hover,
+[data-glass-blur="false"] .top-menu-bar .menu-btn.active {
+  background-color: var(--bg-control) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+[data-topbar-glass="false"] .top-menu-bar .segmented-switch,
+[data-glass-blur="false"] .top-menu-bar .segmented-switch {
+  background-color: var(--bg-panel) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+[data-topbar-glass="false"] .top-menu-bar .switch-btn.active,
+[data-glass-blur="false"] .top-menu-bar .switch-btn.active {
+  background-color: var(--bg-raised) !important;
+}
+[data-topbar-glass="false"] .top-menu-bar .tool-icon-btn,
+[data-glass-blur="false"] .top-menu-bar .tool-icon-btn {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+[data-topbar-glass="false"] .top-menu-bar .strip-status,
+[data-glass-blur="false"] .top-menu-bar .strip-status {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
 }
 
 /* Disabled Glass Blur */

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './styles/shell.css';
 import './styles/logo.css';
 import './styles/loading.css';
@@ -7,9 +7,8 @@ import { TopMenuBar } from './components/TopMenuBar';
 import { CenterViewport } from './components/CenterViewport';
 import { RightSidebar } from './components/layout/RightSidebar';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
-import { Tooltip } from './components/common/Tooltip';
 import './styles/preferences.css';
-import { SettingsDialog, getStoredSettings } from './components/dialogs/SettingsDialog';
+import { SettingsDialog, getStoredSettings, applyPerformanceSettings } from './components/dialogs/SettingsDialog';
 
 export const App: React.FC = () => {
   const activeTheme = useAppStore((state) => state.activeTheme);
@@ -17,8 +16,7 @@ export const App: React.FC = () => {
   const toggleFullScreen = useAppStore((state) => state.toggleFullScreen);
   const isManualOpen = useAppStore((state) => state.isManualOpen);
   const setIsManualOpen = useAppStore((state) => state.setIsManualOpen);
-  const setSidebarWidth = useAppStore((state) => state.setSidebarWidth);
-  const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
+  const sidebarWidth = useAppStore((state) => state.sidebarWidth);
 
   const [isPeekOpen, setIsPeekOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('settings') === 'true');
@@ -35,33 +33,50 @@ export const App: React.FC = () => {
       }
     } catch {}
   }, []);
-  const [isDraggingSplitter, setIsDraggingSplitter] = useState<boolean>(false);
   const peekTimerRef = useRef<number | null>(null);
 
-  // App boot: dismiss static boot-loader once fonts are ready & painted
+  // App boot: dismiss boot-loader only after everything is fully loaded
   useEffect(() => {
     let active = true;
-    let raf2: number | null = null;
+    let cleanupDone = false;
+
     const finishBoot = () => {
-      if (active) {
+      if (active && !cleanupDone) {
+        cleanupDone = true;
         const loader = document.getElementById('boot-loader');
         if (loader) loader.remove();
       }
     };
 
-    // Remove boot-loader as soon as React mounts and paints the first frame
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(finishBoot);
-    });
+    const checkAllLoaded = () => {
+          // Wait for fonts
+          const fontsReady = document.fonts?.ready ? document.fonts.ready : Promise.resolve();
 
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(finishBoot).catch(finishBoot);
-    }
+          // Wait for all images in the document to load
+          const images = Array.from(document.images);
+          const imagesLoaded = Promise.all(images.map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+              img.onload = img.onerror = resolve;
+            });
+          }));
+
+          // Wait for next paint after everything else
+          const nextPaint = new Promise(resolve => requestAnimationFrame(resolve));
+
+          Promise.all([fontsReady, imagesLoaded, nextPaint])
+            .then(finishBoot)
+            .catch(finishBoot);
+        };
+
+    // Start checking after React has mounted and painted
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(checkAllLoaded);
+    });
 
     return () => {
       active = false;
       cancelAnimationFrame(raf1);
-      if (raf2 !== null) cancelAnimationFrame(raf2);
     };
   }, []);
 
@@ -70,6 +85,20 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', activeTheme);
     document.body.setAttribute('data-theme', activeTheme);
   }, [activeTheme]);
+
+  // Sync performance settings (glass blur & shadows) with document root
+  useEffect(() => {
+    applyPerformanceSettings(getStoredSettings());
+
+    const handleSettingsChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      if (customEvent.detail) {
+        applyPerformanceSettings(customEvent.detail);
+      }
+    };
+    window.addEventListener('ditherforge_settings_changed', handleSettingsChanged);
+    return () => window.removeEventListener('ditherforge_settings_changed', handleSettingsChanged);
+  }, []);
 
   // Bind F11 to Full-Screen toggle (Requirement #3)
   useEffect(() => {
@@ -85,32 +114,6 @@ export const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullScreen, toggleFullScreen]);
-
-  // Draggable Splitter mouse handlers (Requirement #4)
-  const handleSplitterMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDraggingSplitter(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isDraggingSplitter) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = window.innerWidth - e.clientX;
-      setSidebarWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsDraggingSplitter(false);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDraggingSplitter, setSidebarWidth]);
 
   // Edge-peek logic in full-screen mode
   const handleMouseEnterPeek = () => {
@@ -159,21 +162,14 @@ export const App: React.FC = () => {
       </div>
 
       {/* Main Workspace Layout */}
-      <div className="workspace-container">
+      <div 
+        className="workspace-container"
+        style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
+      >
         {/* Viewport (takes remaining width, canvas centered) */}
         <CenterViewport />
 
-        {/* 4px Draggable Splitter */}
-        {!isSidebarCollapsed && (
-          <Tooltip text="Drag to resize sidebar (persisted)">
-            <div
-              className={`splitter ${isDraggingSplitter ? 'dragging' : ''}`}
-              onMouseDown={handleSplitterMouseDown}
-            />
-          </Tooltip>
-        )}
-
-        {/* Single Right Panel (Algorithm, Adjustments, Palette, Effects Stack) */}
+        {/* Single Right Floating Card (Algorithm, Adjustments, Palette, Effects Stack) */}
         <RightSidebar />
       </div>
 

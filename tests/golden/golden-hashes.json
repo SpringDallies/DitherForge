@@ -176,5 +176,7 @@
   "algo_vortex": "3724e5203cac73a98afd9140889d3bb9ab6c9cc325f293c71d0781aaeab42e0c",
   "algo_wave": "fb4db469fd369ffa128bd360a21c84bf8be5ecf11720a74dc045f79ed212ec58",
   "fast_palette_lut": "1975a9f6cfa8499851460ed2a1fb8b9b16f77db2d14653ec87a940b38408daca",
-  "fast_palette_lut_pair": "40cc67ac12b88fc5dbc31db7e4328aaf9d0accba565c522d3ec6dc5381a35662"
+  "fast_palette_lut_pair": "40cc67ac12b88fc5dbc31db7e4328aaf9d0accba565c522d3ec6dc5381a35662",
+  "effect_inverse_glow": "de6059079674ea26a295e5769b46dc7d746efb55e42d4f59eec495d04bf2f0d6",
+  "effect_inverse_vignette": "48d669553b10f59d2d09ab89b94e9d4855f0e19030ebf8c731e146ef8d120190"
 }

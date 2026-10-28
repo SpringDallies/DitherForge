@@ -1,11 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════
    DitherForge Theme Tokens
-   Every theme declares the same set of variables.
-   To add a token, add it to all six blocks.
+   Parent/Child Theme Architecture:
+   - Light Base: :root, [data-theme="light_pro"]
+   - Dark Base:  [data-theme="dark_pro"] + 7 Dark Child Themes
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ─── Group 7: Spacing (identical across themes, listed once) ─── */
+  /* ─── Spacing ─── */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -13,9 +14,9 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  /* ─── Group 8: Typography (identical across themes) ─── */
+  /* ─── Typography ─── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --font-mono: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --text-xs: 0.68rem;
   --text-sm: 0.75rem;
   --text-base: 0.85rem;
@@ -24,363 +25,471 @@
   --line-tight: 1.2;
   --line-normal: 1.5;
 
-  /* ─── Group 9: Radii (identical across themes) ─── */
-  --radius-xs: 3px;
-  --radius-sm: 3px;
-  --radius-md: 5px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
-  --radius-pill: 100px;
+  /* ─── Radii ─── */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-pill: 9999px;
+  --corner-shape: squircle;
 
-  /* ─── Group 10: Motion (identical across themes) ─── */
+  /* ─── Motion ─── */
   --transition-fast: 120ms ease;
   --transition-mid: 180ms ease;
-
-  /* Default theme fallbacks (dark_pro) */
-  --bg-primary: #0a0a0b;
-  --bg-secondary: #0d0d0f;
-  --bg-tertiary: #121214;
-  --bg-hover: #1c1c20;
-  --bg-active: #26262b;
-  --bg-panel: #0d0d0f;
-
-  --border-color: rgba(140, 170, 205, 0.12);
-  --border-focus: rgba(138, 171, 204, 0.50);
-  --border-hover: rgba(140, 170, 205, 0.22);
-  --border-secondary: rgba(140, 170, 205, 0.06);
-
-  --text-main: rgba(215, 225, 235, 0.92);
-  --text-muted: rgba(185, 195, 210, 0.68);
-  --text-dim: rgba(155, 165, 180, 0.44);
-  --text-disabled: rgba(135, 145, 160, 0.26);
-  --text-secondary: rgba(185, 195, 210, 0.68);
-
-  --accent-primary: #8aabcc;
-  --accent-hover: #a3c2e0;
-  --accent-secondary: #6e8fad;
-  --accent-cyan: #8aabcc;
-  --accent-amber: #8aabcc;
-  --accent-pink: #8aabcc;
-  --accent-blue: #8aabcc;
-  --accent-glow: transparent;
-
-  --canvas-bg: #060608;
-  --canvas-checker-1: #0a0a0c;
-  --canvas-checker-2: #141416;
-
-  --status-info: #8aabcc;
-  --status-warning: #e5c07b;
-  --status-error: #e06c75;
-  --status-ok: #98c379;
-
-  --scrollbar-thumb: rgba(140, 170, 205, 0.14);
-  --scrollbar-thumb-hover: rgba(140, 170, 205, 0.25);
-  color-scheme: dark;
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   THEME 1: DARK PRO (Default Workstation)
+   PARENT 1: LIGHT PRO (:root & light_pro)
    ═══════════════════════════════════════════════════════════════ */
-[data-theme="dark_pro"] {
-  /* ─── Group 1: Backgrounds ─── */
-  --bg-primary: #0a0a0b;
-  --bg-secondary: #0d0d0f;
-  --bg-tertiary: #121214;
-  --bg-hover: #1c1c20;
-  --bg-active: #26262b;
-  --bg-panel: #0d0d0f;
+:root,
+[data-theme="light_pro"] {
+  --bg-primary: #DDDDE3;
+  --bg-secondary: #E6E6ED;
+  --bg-tertiary: #CFCFD0;
+  --bg-panel: #E1E1E7;
+  --bg-control: #E6E6ED;
+  --bg-raised: #F2F2F7;
+  --bg-hover: #D8D8E0;
+  --bg-active: #CFD4DD;
 
-  /* ─── Group 2: Borders ─── */
-  --border-color: rgba(140, 170, 205, 0.12);
-  --border-focus: rgba(138, 171, 204, 0.50);
-  --border-hover: rgba(140, 170, 205, 0.22);
-  --border-secondary: rgba(140, 170, 205, 0.06);
+  --border-color: #CFD4DD;
+  --border-secondary: #CFD4DD;
+  --border-soft: #C2C7D0;
+  --border-raised: #DCE0E6;
+  --border-hover: #9DA0A5;
+  --border-focus: #9DA0A5;
 
-  /* ─── Group 3: Text ─── */
-  --text-main: rgba(215, 225, 235, 0.92);
-  --text-muted: rgba(185, 195, 210, 0.68);
-  --text-dim: rgba(155, 165, 180, 0.44);
-  --text-disabled: rgba(135, 145, 160, 0.26);
-  --text-secondary: rgba(185, 195, 210, 0.68);
+  --text-main: #2D3139;
+  --text-secondary: #727783;
+  --text-muted: #8A8F99;
+  --text-dim: #9DA0A5;
+  --text-disabled: #CFCFD0;
+  --text-on-accent: #FFFFFF;
 
-  /* ─── Group 4: Accent ─── */
-  --accent-primary: #8aabcc;
-  --accent-hover: #a3c2e0;
-  --accent-secondary: #6e8fad;
-  --accent-cyan: #8aabcc;
-  --accent-amber: #8aabcc;
-  --accent-pink: #8aabcc;
-  --accent-blue: #8aabcc;
+  --accent-primary: #9DA0A5;
+  --accent-hover: #8A8D93;
+  --accent-secondary: #CFCFD0;
+  --accent-cyan: #9DA0A5;
+  --accent-amber: #9DA0A5;
+  --accent-pink: #9DA0A5;
+  --accent-blue: #9DA0A5;
   --accent-glow: transparent;
 
-  /* ─── Group 5: Canvas ─── */
-  --canvas-bg: #060608;
-  --canvas-checker-1: #0a0a0c;
-  --canvas-checker-2: #141416;
+  --canvas-bg: #DDDDE3;
+  --canvas-checker-1: #E6E6ED;
+  --canvas-checker-2: #E1E1E7;
 
-  /* ─── Group 6: Semantic ─── */
-  --status-info: #8aabcc;
-  --status-warning: #e5c07b;
-  --status-error: #e06c75;
-  --status-ok: #98c379;
+  --status-info: #9DA0A5;
+  --status-warning: #D0A060;
+  --status-error: #C86464;
+  --status-ok: #78A878;
 
-  --scrollbar-thumb: rgba(140, 170, 205, 0.14);
-  --scrollbar-thumb-hover: rgba(140, 170, 205, 0.25);
-  color-scheme: dark;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   THEME 2: CRT GREEN (Monochrome Phosphor)
-   ═══════════════════════════════════════════════════════════════ */
-[data-theme="crt_green"] {
-  /* ─── Group 1: Backgrounds ─── */
-  --bg-primary: #041008;
-  --bg-secondary: #081a0e;
-  --bg-tertiary: #0e2b17;
-  --bg-hover: #164024;
-  --bg-active: #1f5933;
-  --bg-panel: #081a0e;
-
-  /* ─── Group 2: Borders ─── */
-  --border-color: #1a4f2c;
-  --border-focus: #33ff66;
-  --border-hover: #267340;
-  --border-secondary: #12381f;
-
-  /* ─── Group 3: Text ─── */
-  --text-main: #33ff66;
-  --text-muted: #1f993d;
-  --text-dim: #16732e;
-  --text-disabled: #0f4d1f;
-  --text-secondary: #26bf4c;
-
-  /* ─── Group 4: Accent ─── */
-  --accent-primary: #33ff66;
-  --accent-hover: #5cff85;
-  --accent-secondary: #22aa44;
-  --accent-cyan: #33ff66;
-  --accent-amber: #66ff88;
-  --accent-pink: #99ffaa;
-  --accent-blue: #22aa44;
-  --accent-glow: transparent;
-
-  /* ─── Group 5: Canvas ─── */
-  --canvas-bg: #020804;
-  --canvas-checker-1: #040d06;
-  --canvas-checker-2: #081a0e;
-
-  /* ─── Group 6: Semantic ─── */
-  --status-info: #33ff66;
-  --status-warning: #66ff88;
-  --status-error: #ff3344;
-  --status-ok: #33ff66;
-
-  --scrollbar-thumb: #1a4f2c;
-  --scrollbar-thumb-hover: #267340;
-  color-scheme: dark;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   THEME 3: CYBERPUNK NEON (High-Contrast Night City)
-   ═══════════════════════════════════════════════════════════════ */
-[data-theme="cyberpunk_neon"] {
-  /* ─── Group 1: Backgrounds ─── */
-  --bg-primary: #0f051d;
-  --bg-secondary: #1a0933;
-  --bg-tertiary: #2a0f52;
-  --bg-hover: #3d1775;
-  --bg-active: #4e1e94;
-  --bg-panel: #1a0933;
-
-  /* ─── Group 2: Borders ─── */
-  --border-color: #531ea3;
-  --border-focus: #ff007f;
-  --border-hover: #6d27d6;
-  --border-secondary: #3b1575;
-
-  /* ─── Group 3: Text ─── */
-  --text-main: #ffffff;
-  --text-muted: #b98bf7;
-  --text-dim: #8b5dbd;
-  --text-disabled: #5f3d87;
-  --text-secondary: #d8bfff;
-
-  /* ─── Group 4: Accent ─── */
-  --accent-primary: #00f0ff;
-  --accent-hover: #4df5ff;
-  --accent-secondary: #7000ff;
-  --accent-cyan: #00f0ff;
-  --accent-amber: #ffe600;
-  --accent-pink: #ff007f;
-  --accent-blue: #7000ff;
-  --accent-glow: transparent;
-
-  /* ─── Group 5: Canvas ─── */
-  --canvas-bg: #080210;
-  --canvas-checker-1: #0c0418;
-  --canvas-checker-2: #160829;
-
-  /* ─── Group 6: Semantic ─── */
-  --status-info: #00f0ff;
-  --status-warning: #ffe600;
-  --status-error: #ff007f;
-  --status-ok: #00ff9f;
-
-  --scrollbar-thumb: #531ea3;
-  --scrollbar-thumb-hover: #6d27d6;
-  color-scheme: dark;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   THEME 4: GAMEBOY OLIVE (4-Shade Dot Matrix)
-   ═══════════════════════════════════════════════════════════════ */
-[data-theme="gameboy_olive"] {
-  /* ─── Group 1: Backgrounds ─── */
-  --bg-primary: #2b3d26;
-  --bg-secondary: #364d30;
-  --bg-tertiary: #435e3c;
-  --bg-hover: #507047;
-  --bg-active: #5e8354;
-  --bg-panel: #364d30;
-
-  /* ─── Group 2: Borders ─── */
-  --border-color: #5c8052;
-  --border-focus: #9bbc0f;
-  --border-hover: #739f67;
-  --border-secondary: #47633f;
-
-  /* ─── Group 3: Text ─── */
-  --text-main: #d0f08f;
-  --text-muted: #8bac0f;
-  --text-dim: #6b8c0f;
-  --text-disabled: #4e660b;
-  --text-secondary: #a8cc3f;
-
-  /* ─── Group 4: Accent ─── */
-  --accent-primary: #9bbc0f;
-  --accent-hover: #b4d912;
-  --accent-secondary: #8bac0f;
-  --accent-cyan: #9bbc0f;
-  --accent-amber: #8bac0f;
-  --accent-pink: #306230;
-  --accent-blue: #8bac0f;
-  --accent-glow: transparent;
-
-  /* ─── Group 5: Canvas ─── */
-  --canvas-bg: #1c2819;
-  --canvas-checker-1: #22311e;
-  --canvas-checker-2: #2b3d26;
-
-  /* ─── Group 6: Semantic ─── */
-  --status-info: #9bbc0f;
-  --status-warning: #d0f08f;
-  --status-error: #8b1c1c;
-  --status-ok: #9bbc0f;
-
-  --scrollbar-thumb: #5c8052;
-  --scrollbar-thumb-hover: #739f67;
-  color-scheme: dark;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   THEME 5: RETRO MAC (Classic 1984 Platinum)
-   ═══════════════════════════════════════════════════════════════ */
-[data-theme="retro_mac"] {
-  /* ─── Group 1: Backgrounds ─── */
-  --bg-primary: #dddddd;
-  --bg-secondary: #cccccc;
-  --bg-tertiary: #bbbbbb;
-  --bg-hover: #aaaaaa;
-  --bg-active: #999999;
-  --bg-panel: #cccccc;
-
-  /* ─── Group 2: Borders ─── */
-  --border-color: #888888;
-  --border-focus: #000000;
-  --border-hover: #666666;
-  --border-secondary: #aaaaaa;
-
-  /* ─── Group 3: Text ─── */
-  --text-main: #111111;
-  --text-muted: #555555;
-  --text-dim: #777777;
-  --text-disabled: #999999;
-  --text-secondary: #333333;
-
-  /* ─── Group 4: Accent ─── */
-  --accent-primary: #000000;
-  --accent-hover: #333333;
-  --accent-secondary: #555555;
-  --accent-cyan: #000000;
-  --accent-amber: #333333;
-  --accent-pink: #666666;
-  --accent-blue: #000000;
-  --accent-glow: transparent;
-
-  /* ─── Group 5: Canvas ─── */
-  --canvas-bg: #ffffff;
-  --canvas-checker-1: #eeeeee;
-  --canvas-checker-2: #dddddd;
-
-  /* ─── Group 6: Semantic ─── */
-  --status-info: #000000;
-  --status-warning: #666666;
-  --status-error: #cc0000;
-  --status-ok: #008800;
-
-  --scrollbar-thumb: #888888;
-  --scrollbar-thumb-hover: #666666;
+  --scrollbar-thumb: #CFD4DD;
+  --scrollbar-thumb-hover: #9DA0A5;
   color-scheme: light;
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   THEME 6: VAPORWAVE PINK (Outrun Synthwave)
+   PARENT 2: DARK PRO (Base Dark Structure inherited by all dark themes)
+   Luminance Step Hierarchy (Strictly Enforced):
+   bg-primary < bg-panel/secondary < bg-control/tertiary < bg-raised/hover < border-raised
+   text-dim & text-secondary must be high-contrast light foregrounds!
    ═══════════════════════════════════════════════════════════════ */
-[data-theme="vaporwave_pink"] {
-  /* ─── Group 1: Backgrounds ─── */
-  --bg-primary: #190e24;
-  --bg-secondary: #261637;
-  --bg-tertiary: #3a2254;
-  --bg-hover: #523175;
-  --bg-active: #633b8e;
-  --bg-panel: #261637;
+[data-theme="dark_pro"],
+[data-theme="nord"],
+[data-theme="evergreen"],
+[data-theme="gruvbox"],
+[data-theme="catppuccin_mocha"],
+[data-theme="tokyo_night"],
+[data-theme="solarized_dark"],
+[data-theme="one_dark"] {
+  --bg-primary: #333333;
+  --bg-secondary: #444444;
+  --bg-tertiary: #4E4E4E;
+  --bg-panel: #444444;
+  --bg-control: #4E4E4E;
+  --bg-raised: #5A5A5A;
+  --bg-hover: #5A5A5A;
+  --bg-active: #5A5A5A;
 
-  /* ─── Group 2: Borders ─── */
-  --border-color: #6a3e97;
-  --border-focus: #f55a9b;
-  --border-hover: #854ebd;
-  --border-secondary: #4e2e70;
+  --border-color: #5A5A5A;
+  --border-secondary: #5A5A5A;
+  --border-soft: #545454;
+  --border-raised: #6A6A6A;
+  --border-hover: #7A7A7A;
+  --border-focus: #D9D9D9;
 
-  /* ─── Group 3: Text ─── */
-  --text-main: #fde2f0;
-  --text-muted: #b790cb;
-  --text-dim: #8a65a3;
-  --text-disabled: #634778;
-  --text-secondary: #dcb1e8;
+  --text-main: #DEDEDE;
+  --text-secondary: #D9D9D9;
+  --text-muted: #D9D9D9;
+  --text-dim: #DEDEDE;
+  --text-disabled: #5A5A5A;
+  --text-on-accent: #333333;
 
-  /* ─── Group 4: Accent ─── */
-  --accent-primary: #f55a9b;
-  --accent-hover: #ff7db5;
-  --accent-secondary: #9b5de5;
-  --accent-cyan: #4ecdc4;
-  --accent-amber: #ffe66d;
-  --accent-pink: #f55a9b;
-  --accent-blue: #9b5de5;
+  --accent-primary: #D9D9D9;
+  --accent-hover: #DEDEDE;
+  --accent-secondary: #5A5A5A;
+  --accent-cyan: #D9D9D9;
+  --accent-amber: #D9D9D9;
+  --accent-pink: #DEDEDE;
+  --accent-blue: #DEDEDE;
   --accent-glow: transparent;
 
-  /* ─── Group 5: Canvas ─── */
-  --canvas-bg: #0f0817;
-  --canvas-checker-1: #140b1e;
-  --canvas-checker-2: #201230;
+  --canvas-bg: #333333;
+  --canvas-checker-1: #333333;
+  --canvas-checker-2: #444444;
 
-  /* ─── Group 6: Semantic ─── */
-  --status-info: #4ecdc4;
-  --status-warning: #ffe66d;
-  --status-error: #f55a9b;
-  --status-ok: #4ecdc4;
+  --status-info: #DEDEDE;
+  --status-warning: #D9D9D9;
+  --status-error: #E06C75;
+  --status-ok: #98C379;
 
-  --scrollbar-thumb: #6a3e97;
-  --scrollbar-thumb-hover: #854ebd;
+  --scrollbar-thumb: #5A5A5A;
+  --scrollbar-thumb-hover: #D9D9D9;
   color-scheme: dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHILD 1: NORD (Dark Pro Structure + Arctic Color Scheme)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="nord"] {
+  --bg-primary: #2E3440;
+  --bg-secondary: #3B4252;
+  --bg-panel: #3B4252;
+  --bg-tertiary: #434C5E;
+  --bg-control: #434C5E;
+  --bg-raised: #4F5A70;
+  --bg-hover: #4F5A70;
+  --bg-active: #59657D;
+
+  --border-color: #4F5A70;
+  --border-secondary: #56627A;
+  --border-soft: #495368;
+  --border-raised: #63708B;
+  --border-hover: #88C0D0;
+  --border-focus: #88C0D0;
+
+  --text-main: #ECEFF4;
+  --text-secondary: #E5E9F0;
+  --text-muted: #C8D0E0;
+  --text-dim: #E5E9F0;
+  --text-disabled: #6C7A96;
+  --text-on-accent: #2E3440;
+
+  --accent-primary: #88C0D0;
+  --accent-hover: #8FBCBB;
+  --accent-secondary: #56627A;
+  --accent-cyan: #88C0D0;
+  --accent-amber: #EBCB8B;
+  --accent-pink: #B48EAD;
+  --accent-blue: #81A1C1;
+
+  --canvas-bg: #2E3440;
+  --canvas-checker-1: #2E3440;
+  --canvas-checker-2: #3B4252;
+
+  --status-info: #88C0D0;
+  --status-warning: #EBCB8B;
+  --status-error: #BF616A;
+  --status-ok: #A3BE8C;
+
+  --scrollbar-thumb: #4F5A70;
+  --scrollbar-thumb-hover: #88C0D0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHILD 2: EVERGREEN (Dark Pro Structure + Forest Sage Scheme)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="evergreen"] {
+  --bg-primary: #1B2A23;
+  --bg-secondary: #24382F;
+  --bg-panel: #24382F;
+  --bg-tertiary: #2E473C;
+  --bg-control: #2E473C;
+  --bg-raised: #39574A;
+  --bg-hover: #39574A;
+  --bg-active: #436657;
+
+  --border-color: #39574A;
+  --border-secondary: #436657;
+  --border-soft: #334E42;
+  --border-raised: #4E7564;
+  --border-hover: #8FBC8F;
+  --border-focus: #8FBC8F;
+
+  --text-main: #E6F2E6;
+  --text-secondary: #D4E8D4;
+  --text-muted: #B2D0B2;
+  --text-dim: #D4E8D4;
+  --text-disabled: #557868;
+  --text-on-accent: #1B2A23;
+
+  --accent-primary: #8FBC8F;
+  --accent-hover: #A8D0A8;
+  --accent-secondary: #436657;
+  --accent-cyan: #76B5B0;
+  --accent-amber: #D4A853;
+  --accent-pink: #C49090;
+  --accent-blue: #76B5B0;
+
+  --canvas-bg: #1B2A23;
+  --canvas-checker-1: #1B2A23;
+  --canvas-checker-2: #24382F;
+
+  --status-info: #76B5B0;
+  --status-warning: #D4A853;
+  --status-error: #C0504D;
+  --status-ok: #8FBC8F;
+
+  --scrollbar-thumb: #39574A;
+  --scrollbar-thumb-hover: #8FBC8F;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHILD 3: GRUVBOX (Dark Pro Structure + Warm Earthy Scheme)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="gruvbox"] {
+  --bg-primary: #282828;
+  --bg-secondary: #3C3836;
+  --bg-panel: #3C3836;
+  --bg-tertiary: #504945;
+  --bg-control: #504945;
+  --bg-raised: #665C54;
+  --bg-hover: #665C54;
+  --bg-active: #7C6F64;
+
+  --border-color: #665C54;
+  --border-secondary: #665C54;
+  --border-soft: #5A524C;
+  --border-raised: #7C6F64;
+  --border-hover: #FE8019;
+  --border-focus: #FE8019;
+
+  --text-main: #FBF1C7;
+  --text-secondary: #EBDBB2;
+  --text-muted: #D5C4A1;
+  --text-dim: #EBDBB2;
+  --text-disabled: #7C6F64;
+  --text-on-accent: #282828;
+
+  --accent-primary: #FE8019;
+  --accent-hover: #FABD2F;
+  --accent-secondary: #665C54;
+  --accent-cyan: #8EC07C;
+  --accent-amber: #FABD2F;
+  --accent-pink: #D3869B;
+  --accent-blue: #83A598;
+
+  --canvas-bg: #282828;
+  --canvas-checker-1: #282828;
+  --canvas-checker-2: #3C3836;
+
+  --status-info: #83A598;
+  --status-warning: #FABD2F;
+  --status-error: #FB4934;
+  --status-ok: #B8BB26;
+
+  --scrollbar-thumb: #665C54;
+  --scrollbar-thumb-hover: #EBDBB2;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHILD 4: CATPPUCCIN MOCHA (Dark Pro Structure + Pastel Scheme)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="catppuccin_mocha"] {
+  --bg-primary: #1E1E2E;
+  --bg-secondary: #313244;
+  --bg-panel: #313244;
+  --bg-tertiary: #45475A;
+  --bg-control: #45475A;
+  --bg-raised: #585B70;
+  --bg-hover: #585B70;
+  --bg-active: #6C7086;
+
+  --border-color: #585B70;
+  --border-secondary: #585B70;
+  --border-soft: #4E5166;
+  --border-raised: #6C7086;
+  --border-hover: #89B4FA;
+  --border-focus: #89B4FA;
+
+  --text-main: #CDD6F4;
+  --text-secondary: #BAC2DE;
+  --text-muted: #A6ADC8;
+  --text-dim: #CDD6F4;
+  --text-disabled: #6C7086;
+  --text-on-accent: #1E1E2E;
+
+  --accent-primary: #89B4FA;
+  --accent-hover: #B4BEFE;
+  --accent-secondary: #585B70;
+  --accent-cyan: #94E2D5;
+  --accent-amber: #F9E2AF;
+  --accent-pink: #F5C2E7;
+  --accent-blue: #89B4FA;
+
+  --canvas-bg: #1E1E2E;
+  --canvas-checker-1: #1E1E2E;
+  --canvas-checker-2: #313244;
+
+  --status-info: #89B4FA;
+  --status-warning: #F9E2AF;
+  --status-error: #F38BA8;
+  --status-ok: #A6E3A1;
+
+  --scrollbar-thumb: #585B70;
+  --scrollbar-thumb-hover: #89B4FA;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHILD 5: TOKYO NIGHT (Dark Pro Structure + Deep Navy Scheme)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="tokyo_night"] {
+  --bg-primary: #1A1B26;
+  --bg-secondary: #24283B;
+  --bg-panel: #24283B;
+  --bg-tertiary: #2F3549;
+  --bg-control: #2F3549;
+  --bg-raised: #3B4261;
+  --bg-hover: #3B4261;
+  --bg-active: #464F73;
+
+  --border-color: #3B4261;
+  --border-secondary: #414868;
+  --border-soft: #343B57;
+  --border-raised: #515B82;
+  --border-hover: #7AA2F7;
+  --border-focus: #7AA2F7;
+
+  --text-main: #C0CAF5;
+  --text-secondary: #A9B1D6;
+  --text-muted: #9AA5CE;
+  --text-dim: #C0CAF5;
+  --text-disabled: #565F89;
+  --text-on-accent: #1A1B26;
+
+  --accent-primary: #7AA2F7;
+  --accent-hover: #89DDFF;
+  --accent-secondary: #414868;
+  --accent-cyan: #7DCFFF;
+  --accent-amber: #E0AF68;
+  --accent-pink: #BB9AF7;
+  --accent-blue: #7AA2F7;
+
+  --canvas-bg: #1A1B26;
+  --canvas-checker-1: #1A1B26;
+  --canvas-checker-2: #24283B;
+
+  --status-info: #7AA2F7;
+  --status-warning: #E0AF68;
+  --status-error: #F7768E;
+  --status-ok: #9ECE6A;
+
+  --scrollbar-thumb: #3B4261;
+  --scrollbar-thumb-hover: #7AA2F7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHILD 6: SOLARIZED DARK (Dark Pro Structure + Solarized Scheme)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="solarized_dark"] {
+  --bg-primary: #002B36;
+  --bg-secondary: #073642;
+  --bg-panel: #073642;
+  --bg-tertiary: #0E4554;
+  --bg-control: #0E4554;
+  --bg-raised: #175668;
+  --bg-hover: #175668;
+  --bg-active: #20677B;
+
+  --border-color: #175668;
+  --border-secondary: #20677B;
+  --border-soft: #124C5C;
+  --border-raised: #2B7B91;
+  --border-hover: #2AA198;
+  --border-focus: #268BD2;
+
+  --text-main: #FDF6E3;
+  --text-secondary: #EEE8D5;
+  --text-muted: #93A1A1;
+  --text-dim: #EEE8D5;
+  --text-disabled: #586E75;
+  --text-on-accent: #002B36;
+
+  --accent-primary: #2AA198;
+  --accent-hover: #268BD2;
+  --accent-secondary: #20677B;
+  --accent-cyan: #2AA198;
+  --accent-amber: #B58900;
+  --accent-pink: #D33682;
+  --accent-blue: #268BD2;
+
+  --canvas-bg: #002B36;
+  --canvas-checker-1: #002B36;
+  --canvas-checker-2: #073642;
+
+  --status-info: #268BD2;
+  --status-warning: #B58900;
+  --status-error: #DC322F;
+  --status-ok: #859900;
+
+  --scrollbar-thumb: #175668;
+  --scrollbar-thumb-hover: #2AA198;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHILD 7: ONE DARK (Dark Pro Structure + Atom Slate Scheme)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="one_dark"] {
+  --bg-primary: #21252B;
+  --bg-secondary: #282C34;
+  --bg-panel: #282C34;
+  --bg-tertiary: #333842;
+  --bg-control: #333842;
+  --bg-raised: #3E4451;
+  --bg-hover: #3E4451;
+  --bg-active: #4B5263;
+
+  --border-color: #3E4451;
+  --border-secondary: #4B5263;
+  --border-soft: #373C47;
+  --border-raised: #565E70;
+  --border-hover: #61AFEF;
+  --border-focus: #61AFEF;
+
+  --text-main: #ECEFF4;
+  --text-secondary: #ABB2BF;
+  --text-muted: #9DA5B4;
+  --text-dim: #D7DAE0;
+  --text-disabled: #5C6370;
+  --text-on-accent: #21252B;
+
+  --accent-primary: #61AFEF;
+  --accent-hover: #56B6C2;
+  --accent-secondary: #4B5263;
+  --accent-cyan: #56B6C2;
+  --accent-amber: #E5C07B;
+  --accent-pink: #C678DD;
+  --accent-blue: #61AFEF;
+
+  --canvas-bg: #21252B;
+  --canvas-checker-1: #21252B;
+  --canvas-checker-2: #282C34;
+
+  --status-info: #61AFEF;
+  --status-warning: #E5C07B;
+  --status-error: #E06C75;
+  --status-ok: #98C379;
+
+  --scrollbar-thumb: #3E4451;
+  --scrollbar-thumb-hover: #61AFEF;
+}
+
+*,
+*::before,
+*::after {
+  corner-shape: squircle;
+  font-family: var(--font-sans);
 }

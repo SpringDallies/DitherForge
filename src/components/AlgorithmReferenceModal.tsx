@@ -39,7 +39,7 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
       <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={16} style={{ color: 'var(--accent-cyan)' }} />
+            <BookOpen size={16} style={{ color: 'var(--text-dim)' }} />
             <span>Algorithm Reference Manual (63 Models)</span>
           </div>
           <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
@@ -58,9 +58,9 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
               style={{
                 width: '100%',
                 padding: '6px 10px 6px 32px',
-                backgroundColor: 'var(--bg-primary)',
+                backgroundColor: 'var(--bg-secondary)',
                 border: '1px solid var(--border-color)',
-                borderRadius: '4px',
+                borderRadius: 'var(--radius-md)',
                 color: 'var(--text-main)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: '0.8rem',
@@ -79,7 +79,7 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
                   background: 'var(--bg-tertiary)', 
                   border: '1px solid var(--border-color)', 
                   padding: '10px 12px', 
-                  borderRadius: '5px' 
+                  borderRadius: 'var(--radius-md)' 
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -88,7 +88,7 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
                       #{index + 1}
                     </span>
                     <strong style={{ color: 'var(--text-main)' }}>{algo.name}</strong>
-                    <code style={{ fontSize: '0.72rem', background: 'var(--bg-primary)', padding: '2px 5px', borderRadius: '3px', color: 'var(--accent-cyan)' }}>
+                    <code style={{ fontSize: '0.72rem', background: 'var(--bg-primary)', padding: '2px 5px', borderRadius: 'var(--radius-xs)', color: 'var(--text-dim)' }}>
                       {algo.id}
                     </code>
                   </div>

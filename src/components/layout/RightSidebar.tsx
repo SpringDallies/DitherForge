@@ -1,11 +1,11 @@
 import { Logo } from '../common/Logo';
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { LoadingScreen } from '../common/LoadingScreen';
 import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
-import { USER_ALGORITHM_DESCRIPTIONS } from '../../ui/algorithm-descriptions';
 import { useAppStore } from '../../state/useAppStore';
 import { useLenis } from '../../hooks/useLenis';
+import { areAnimationsEnabled } from '../dialogs/SettingsDialog';
 // Import frozen registries UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
@@ -17,21 +17,16 @@ import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 import { exportRaster } from '../../dither-engine/exporters.js';
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { 
-  ArrowDown,
-  ArrowUp,
-  Trash2,
-  MoveVertical,
-  Shuffle,
-  GripVertical,
+  X,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   RotateCcw,
-  Square,
   Layers,
-  Download,
-  Upload,
   Sun,
-  Moon
+  Moon,
+  Plus,
+  Check
 } from 'lucide-react';
 
 const CATEGORY_KEYS = [
@@ -113,6 +108,337 @@ const hslToRgb = (h: number, s: number, l: number): [number, number, number] => 
   ];
 };
 
+interface SwatchColorPickerPopoverProps {
+  activeSwatchIndex: number;
+  workingPalette: number[][];
+  popoverLeftOffset: number;
+  arrowLeftOffset: number;
+  popoverRef: React.RefObject<HTMLDivElement | null>;
+  isClosing?: boolean;
+  isOpening?: boolean;
+  onUpdateColor: (idx: number, rgba: number[]) => void;
+  onAddLighter: () => void;
+  onAddDarker: () => void;
+  onDelete: () => void;
+  sliderPointerProps: {
+    onPointerDown: (e: React.PointerEvent<HTMLInputElement>) => void;
+    onPointerUp: (e: React.PointerEvent<HTMLInputElement>) => void;
+  };
+}
+
+const SwatchColorPickerPopover: React.FC<SwatchColorPickerPopoverProps> = ({
+  activeSwatchIndex,
+  workingPalette,
+  popoverLeftOffset,
+  arrowLeftOffset,
+  popoverRef,
+  isClosing = false,
+  isOpening = false,
+  onUpdateColor,
+  onAddLighter,
+  onAddDarker,
+  onDelete,
+  sliderPointerProps
+}) => {
+  const currentSwatch = workingPalette[activeSwatchIndex] || [255, 255, 255, 255];
+  const initialHsl = useMemo(() => {
+    return rgbToHsl(currentSwatch[0] ?? 255, currentSwatch[1] ?? 255, currentSwatch[2] ?? 255);
+  }, [activeSwatchIndex]);
+
+  const [localHsl, setLocalHsl] = useState<[number, number, number]>(initialHsl);
+  const [copiedHex, setCopiedHex] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  const animRef = useRef<number | null>(null);
+  const prevIndexRef = useRef<number>(activeSwatchIndex);
+  const currentHslRef = useRef<[number, number, number]>(initialHsl);
+  const isDraggingLocalRef = useRef<boolean>(false);
+  const lastEmittedRgbRef = useRef<[number, number, number]>([
+    currentSwatch[0] ?? 255,
+    currentSwatch[1] ?? 255,
+    currentSwatch[2] ?? 255
+  ]);
+
+  useEffect(() => {
+    const sw = workingPalette[activeSwatchIndex];
+    if (!sw) return;
+
+    // Check if store update is an echo of our own emitted RGB
+    const isOurOwnUpdate =
+      lastEmittedRgbRef.current[0] === sw[0] &&
+      lastEmittedRgbRef.current[1] === sw[1] &&
+      lastEmittedRgbRef.current[2] === sw[2];
+
+    if (prevIndexRef.current === activeSwatchIndex) {
+      if (isOurOwnUpdate || isDraggingLocalRef.current) {
+        return;
+      }
+    }
+
+    let targetHsl = rgbToHsl(sw[0] ?? 0, sw[1] ?? 0, sw[2] ?? 0);
+
+    // If target color is achromatic (white, black, gray with S=0, L=0, or L=100),
+    // Hue has no visual effect. Preserve existing Hue so H slider doesn't jump to 0!
+    const isTargetAchromatic = targetHsl[1] === 0 || targetHsl[2] === 0 || targetHsl[2] === 100;
+    if (isTargetAchromatic) {
+      targetHsl = [currentHslRef.current[0], targetHsl[1], targetHsl[2]];
+    }
+
+    if (prevIndexRef.current !== activeSwatchIndex) {
+      prevIndexRef.current = activeSwatchIndex;
+
+      if (animRef.current !== null) {
+        cancelAnimationFrame(animRef.current);
+        animRef.current = null;
+      }
+
+      if (!areAnimationsEnabled()) {
+        currentHslRef.current = targetHsl;
+        setLocalHsl(targetHsl);
+        return;
+      }
+
+      // Snappy swatch switch animation (160ms matching popover slide)
+      const startHsl = [...currentHslRef.current] as [number, number, number];
+      const startTime = performance.now();
+      const duration = 160;
+
+      // Linear distance along the slider track (no wrapping/teleportation across 0/360)
+      const dH = targetHsl[0] - startHsl[0];
+      const dS = targetHsl[1] - startHsl[1];
+      const dL = targetHsl[2] - startHsl[2];
+
+      const easeOutSnappy = (t: number) => 1 - Math.pow(1 - t, 3.5);
+
+      const step = (now: number) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const factor = easeOutSnappy(progress);
+
+        if (progress >= 1) {
+          animRef.current = null;
+          currentHslRef.current = targetHsl;
+          setLocalHsl(targetHsl);
+        } else {
+          const curH = Math.max(0, Math.min(360, Math.round(startHsl[0] + dH * factor)));
+          const curS = Math.max(0, Math.min(100, Math.round(startHsl[1] + dS * factor)));
+          const curL = Math.max(0, Math.min(100, Math.round(startHsl[2] + dL * factor)));
+          const nextHsl: [number, number, number] = [curH, curS, curL];
+          currentHslRef.current = nextHsl;
+          setLocalHsl(nextHsl);
+          animRef.current = requestAnimationFrame(step);
+        }
+      };
+
+      animRef.current = requestAnimationFrame(step);
+    } else {
+      if (animRef.current === null) {
+        currentHslRef.current = targetHsl;
+        setLocalHsl(targetHsl);
+      }
+    }
+  }, [activeSwatchIndex, workingPalette]);
+
+  useEffect(() => {
+    return () => {
+      if (animRef.current !== null) {
+        cancelAnimationFrame(animRef.current);
+        animRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleSliderChange = (type: 'h' | 's' | 'l', val: number) => {
+    if (animRef.current !== null) {
+      cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    }
+    let [h, s, l] = currentHslRef.current;
+    if (type === 'h') h = Math.max(0, Math.min(360, isNaN(val) ? 0 : val));
+    if (type === 's') s = Math.max(0, Math.min(100, isNaN(val) ? 0 : val));
+    if (type === 'l') l = Math.max(0, Math.min(100, isNaN(val) ? 0 : val));
+
+    const nextHsl: [number, number, number] = [h, s, l];
+    currentHslRef.current = nextHsl;
+    setLocalHsl(nextHsl);
+
+    const [r, g, b] = hslToRgb(h, s, l);
+    lastEmittedRgbRef.current = [r, g, b];
+    onUpdateColor(activeSwatchIndex, [r, g, b, 255]);
+  };
+
+  const handlePointerDownWithFlag = (e: React.PointerEvent<HTMLInputElement>) => {
+    isDraggingLocalRef.current = true;
+    setIsDragging(true);
+    sliderPointerProps.onPointerDown(e);
+  };
+
+  const handlePointerUpWithFlag = (e: React.PointerEvent<HTMLInputElement>) => {
+    isDraggingLocalRef.current = false;
+    setIsDragging(false);
+    sliderPointerProps.onPointerUp(e);
+  };
+
+  const safeHsl = localHsl || [0, 0, 100];
+  const [pr, pg, pb] = hslToRgb(safeHsl[0] ?? 0, safeHsl[1] ?? 0, safeHsl[2] ?? 100);
+  const localHex = rgbaToHex(pr, pg, pb).toUpperCase();
+  const hexLum = (0.2126 * pr + 0.7152 * pg + 0.0722 * pb) / 255;
+  const hexTextColor = hexLum > 0.48 ? '#333339' : '#DEDEDE';
+
+  const popoverClassName = [
+    'replica-callout-popover',
+    isOpening ? 'opening' : '',
+    isClosing ? 'closing' : ''
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div
+      ref={popoverRef}
+      className={popoverClassName}
+      style={{
+        left: `${popoverLeftOffset}px`
+      }}
+    >
+      {/* Callout Arrow pointing to active swatch */}
+      <svg
+        className="replica-callout-arrow"
+        viewBox="0 0 16 9"
+        style={{ left: `${arrowLeftOffset}px` }}
+      >
+        <path d="M0,9 L8,1 L16,9" fill="var(--bg-secondary)" stroke="var(--border-color)" strokeWidth="1.5" strokeLinejoin="round" />
+        <rect x="0.5" y="8" width="15" height="2" fill="var(--bg-secondary)" stroke="none" />
+      </svg>
+
+      {/* Top Rectangular Color Preview Block */}
+      <div
+        className={`replica-swatch-preview-box ${isDragging ? 'is-dragging' : ''}`}
+        style={{
+          backgroundColor: `hsl(${safeHsl[0]}, ${safeHsl[1]}%, ${safeHsl[2]}%)`,
+          borderRadius: '12px',
+          border: 'none',
+          boxShadow: 'none',
+          cursor: 'pointer'
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          try {
+            navigator.clipboard.writeText(localHex);
+          } catch {}
+          setCopiedHex(true);
+          setTimeout(() => setCopiedHex(false), 1200);
+        }}
+        title="Click color to copy hex"
+      >
+        <span className="replica-swatch-hex-text" style={{ color: hexTextColor }}>
+          {copiedHex ? 'COPIED!' : (localHex || '').replace('#', '')}
+        </span>
+      </div>
+
+      {/* HSL Sliders */}
+      <div className="replica-hsl-container">
+        {/* H */}
+        <div className="replica-hsl-row">
+          <span className="replica-hsl-label">H</span>
+          <input
+            type="range"
+            className="replica-hsl-slider hue-slider"
+            min={0}
+            max={360}
+            step={1}
+            value={safeHsl[0]}
+            onPointerDown={handlePointerDownWithFlag}
+            onPointerUp={handlePointerUpWithFlag}
+            onDoubleClick={() => handleSliderChange('h', 0)}
+            onChange={(e) => handleSliderChange('h', parseInt(e.target.value, 10))}
+          />
+          <span className="replica-hsl-val">{safeHsl[0]}°</span>
+        </div>
+
+        {/* S */}
+        <div className="replica-hsl-row">
+          <span className="replica-hsl-label">S</span>
+          <input
+            type="range"
+            className="replica-hsl-slider sat-slider"
+            min={0}
+            max={100}
+            step={1}
+            value={safeHsl[1]}
+            style={{
+              background: `linear-gradient(to right, hsl(${safeHsl[0]}, 0%, 50%), hsl(${safeHsl[0]}, 100%, 50%))`
+            }}
+            onPointerDown={handlePointerDownWithFlag}
+            onPointerUp={handlePointerUpWithFlag}
+            onDoubleClick={() => handleSliderChange('s', 100)}
+            onChange={(e) => handleSliderChange('s', parseInt(e.target.value, 10))}
+          />
+          <span className="replica-hsl-val">{safeHsl[1]}%</span>
+        </div>
+
+        {/* L */}
+        <div className="replica-hsl-row">
+          <span className="replica-hsl-label">L</span>
+          <input
+            type="range"
+            className="replica-hsl-slider light-slider"
+            min={0}
+            max={100}
+            step={1}
+            value={safeHsl[2]}
+            style={{
+              background: `linear-gradient(to right, #000000, hsl(${safeHsl[0]}, ${safeHsl[1]}%, 50%), #ffffff)`
+            }}
+            onPointerDown={handlePointerDownWithFlag}
+            onPointerUp={handlePointerUpWithFlag}
+            onDoubleClick={() => handleSliderChange('l', 50)}
+            onChange={(e) => handleSliderChange('l', parseInt(e.target.value, 10))}
+          />
+          <span className="replica-hsl-val">{safeHsl[2]}%</span>
+        </div>
+      </div>
+
+      {/* Segmented 3-Button Toolbar Pill: Sun | Moon | Clear */}
+      <div className="replica-popover-toolbar">
+        <Tooltip text="Add 35% lighter swatch" style={{ flex: 1, height: '100%' }}>
+          <button
+            type="button"
+            className="replica-popover-tool-btn"
+            disabled={workingPalette.length >= 32}
+            onClick={onAddLighter}
+            aria-label="Add lighter swatch"
+          >
+            <Sun size={15} strokeWidth={2.2} />
+          </button>
+        </Tooltip>
+        <div className="replica-popover-tool-divider" />
+        <Tooltip text="Add 35% darker swatch" style={{ flex: 1, height: '100%' }}>
+          <button
+            type="button"
+            className="replica-popover-tool-btn"
+            disabled={workingPalette.length >= 32}
+            onClick={onAddDarker}
+            aria-label="Add darker swatch"
+          >
+            <Moon size={15} strokeWidth={2.2} />
+          </button>
+        </Tooltip>
+        <div className="replica-popover-tool-divider" />
+        <Tooltip text="Delete swatch" style={{ flex: 1, height: '100%' }}>
+          <button
+            type="button"
+            className="replica-popover-tool-btn"
+            disabled={workingPalette.length <= 2}
+            onClick={onDelete}
+            aria-label="Delete swatch"
+          >
+            <X size={16} strokeWidth={2.2} />
+          </button>
+        </Tooltip>
+      </div>
+    </div>
+  );
+};
+
 export const RightSidebar: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [collapsedSections, setCollapsedSections] = useState<{ [key: string]: boolean }>(() => {
@@ -124,6 +450,10 @@ export const RightSidebar: React.FC = () => {
       if (sec === 'palette') {
         return { style: true, adjustments: true, palette: false, effects: true, presets: true };
       }
+      try {
+        const saved = localStorage.getItem('ditherforge_collapsed_sections');
+        if (saved) return JSON.parse(saved);
+      } catch {}
     }
     return {
       style: false,
@@ -136,6 +466,7 @@ export const RightSidebar: React.FC = () => {
 
   const [userPresets, setUserPresets] = useState<any[]>(() => loadUserPresets());
   const [newPresetName, setNewPresetName] = useState('');
+  const [isCreatePresetModalOpen, setIsCreatePresetModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -150,13 +481,8 @@ export const RightSidebar: React.FC = () => {
   const updateCurrentAlgoParam = useAppStore((state) => state.updateCurrentAlgoParam);
   const resetCurrentAlgoParams = useAppStore((state) => state.resetCurrentAlgoParams);
   const resetAlgoParamToDefault = useAppStore((state) => state.resetAlgoParamToDefault);
-  const favoriteAlgorithms = useAppStore((state) => state.favoriteAlgorithms);
-  const toggleFavorite = useAppStore((state) => state.toggleFavorite);
-
-
 
   const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
-  const showAlgorithmDescriptions = useAppStore((state) => state.showAlgorithmDescriptions);
 
   // Adjustments & Locks
   const brightness = useAppStore((state) => state.brightness);
@@ -174,6 +500,7 @@ export const RightSidebar: React.FC = () => {
 
   const resetAdjustmentParam = useAppStore((state) => state.resetAdjustmentParam);
   const resetAllAdjustments = useAppStore((state) => state.resetAllAdjustments);
+  const resetEffects = useAppStore((state) => state.resetEffects);
 
   // Palette & Effects & Reset
   const activePaletteId = useAppStore((state) => state.activePaletteId);
@@ -181,13 +508,13 @@ export const RightSidebar: React.FC = () => {
   const workingPalette = useAppStore((state) => state.workingPalette);
   const paletteDepth = useAppStore((state) => state.paletteDepth);
   const updateSwatchColor = useAppStore((state) => state.updateSwatchColor);
-  const shuffleUnlockedSwatches = useAppStore((state) => state.shuffleUnlockedSwatches);
   const addSwatch = useAppStore((state) => state.addSwatch);
   const removeSwatch = useAppStore((state) => state.removeSwatch);
   const setPaletteDepth = useAppStore((state) => state.setPaletteDepth);
   const resetToBuiltin = useAppStore((state) => state.resetToBuiltin);
   const savedPalettes = useAppStore((state) => state.savedPalettes);
   const saveCurrentPaletteLocally = useAppStore((state) => state.saveCurrentPaletteLocally);
+  const deleteCustomPalette = useAppStore((state) => state.deleteCustomPalette);
   const addAdjustedSwatch = useAppStore((state) => state.addAdjustedSwatch);
   const invertPalette = useAppStore((state) => state.invertPalette);
   const flipPalette = useAppStore((state) => state.flipPalette);
@@ -196,45 +523,16 @@ export const RightSidebar: React.FC = () => {
   const hasImage = useAppStore((state) => state.hasImage);
 
   const effects = useAppStore((state) => state.effects);
-  const removeEffectInstance = useAppStore((state) => state.removeEffectInstance);
   const toggleEffectEnabled = useAppStore((state) => state.toggleEffectEnabled);
   const reorderEffects = useAppStore((state) => state.reorderEffects);
   const updateEffectParam = useAppStore((state) => state.updateEffectParam);
-  const resetEffects = useAppStore((state) => state.resetEffects);
-  const resetAll = useAppStore((state) => state.resetAll);
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
+  const fitToViewport = useAppStore((state) => state.fitToViewport);
 
   // Local state for Swatch editing popover
   // Local state for Effects section (Phase 5)
   const [isExtractingPalette, setIsExtractingPalette] = useState<boolean>(false);
   const [expandedEffectId, setExpandedEffectId] = useState<string | null>('glow');
-  const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null);
-  const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null);
-  const previewPaletteId = useAppStore((state) => state.previewPaletteId);
-  const setPreviewPaletteId = useAppStore((state) => state.setPreviewPaletteId);
-  const [confirmResetEffects, setConfirmResetEffects] = useState<boolean>(false);
-  const [confirmResetPalette, setConfirmResetPalette] = useState<boolean>(false);
-
-  // Dropdown open/closed state persists in localStorage under 'ditherforge_effects_open'. Default: closed on first load.
-  const [isEffectsDropdownOpen, setIsEffectsDropdownOpen] = useState<boolean>(() => {
-    try {
-      const stored = localStorage.getItem('ditherforge_effects_open');
-      return stored === null ? false : stored === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleEffectsDropdown = useCallback(() => {
-    setIsEffectsDropdownOpen((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('ditherforge_effects_open', String(next));
-      } catch {}
-      return next;
-    });
-  }, []);
-
   // Escape key collapses expanded effect card
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -246,18 +544,6 @@ export const RightSidebar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKey);
   }, [expandedEffectId]);
 
-  // Reset Effects with confirmation if modified
-  const handleResetEffects = () => {
-    if (!confirmResetEffects) {
-      setConfirmResetEffects(true);
-      setTimeout(() => setConfirmResetEffects(false), 3000);
-      return;
-    }
-    resetEffects();
-    setExpandedEffectId('glow');
-    setConfirmResetEffects(false);
-  };
-
   const [activeSwatchIndex, setActiveSwatchIndex] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
       const sw = new URLSearchParams(window.location.search).get('swatch');
@@ -265,35 +551,49 @@ export const RightSidebar: React.FC = () => {
     }
     return null;
   });
-  const [swatchError, setSwatchError] = useState<string | null>(null);
-  const [confirmDeleteSwatch, setConfirmDeleteSwatch] = useState<boolean>(false);
-  const [localHsl, setLocalHsl] = useState<[number, number, number]>([0, 0, 50]);
-  const [localHex, setLocalHex] = useState<string>('#808080');
+  const [isClosingPopover, setIsClosingPopover] = useState<boolean>(false);
+  const [isOpeningPopover, setIsOpeningPopover] = useState<boolean>(false);
+  const popoverCloseTimerRef = useRef<number | null>(null);
+  const popoverOpenTimerRef = useRef<number | null>(null);
   const colorPickerTimerRef = useRef<number | null>(null);
   const [isSavePaletteModalOpen, setIsSavePaletteModalOpen] = useState<boolean>(false);
   const [newPaletteName, setNewPaletteName] = useState<string>('My Custom Palette');
   const popoverRef = useRef<HTMLDivElement>(null);
   const paletteFileInputRef = useRef<HTMLInputElement>(null);
+  const swatchesPillRef = useRef<HTMLDivElement>(null);
+  const [popoverLeftOffset, setPopoverLeftOffset] = useState<number>(0);
+  const [arrowLeftOffset, setArrowLeftOffset] = useState<number>(110);
 
-  // Sync local HSL/Hex state ONLY when switching activeSwatchIndex (prevents RGB->HSL roundtrip snapping sliders to 0)
+  const miscWrapperRef = useRef<HTMLDivElement>(null);
+  const miscCloseTimerRef = useRef<number | null>(null);
+  const [activeMiscOption, setActiveMiscOption] = useState<'Inverse Palette' | 'Flip Palette'>('Inverse Palette');
+  // Palette transforms are owned by the store so the checkboxes, the image and
+  // a reloaded page all agree on the same state.
+  const isPaletteInverted = useAppStore((state) => state.paletteInverted);
+  const isPaletteFlipped = useAppStore((state) => state.paletteFlipped);
+  const [isMiscClosing, setIsMiscClosing] = useState<boolean>(false);
+
+  // Sync activeSwatchIndex within bounds if workingPalette length changes
   useEffect(() => {
-    setConfirmDeleteSwatch(false);
-    setSwatchError(null);
     if (activeSwatchIndex !== null) {
-      const swatch = useAppStore.getState().workingPalette[activeSwatchIndex];
-      if (swatch) {
-        const [r, g, b] = swatch;
-        setLocalHsl(rgbToHsl(r, g, b));
-        setLocalHex(rgbaToHex(r, g, b).toUpperCase());
+      const pal = useAppStore.getState().workingPalette;
+      if (activeSwatchIndex >= pal.length) {
+        setActiveSwatchIndex(pal.length > 0 ? pal.length - 1 : null);
       }
     }
-  }, [activeSwatchIndex]);
+  }, [activeSwatchIndex, workingPalette.length]);
 
-  // Cleanup debounce timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (colorPickerTimerRef.current !== null) {
         window.clearTimeout(colorPickerTimerRef.current);
+      }
+      if (popoverCloseTimerRef.current !== null) {
+        window.clearTimeout(popoverCloseTimerRef.current);
+      }
+      if (popoverOpenTimerRef.current !== null) {
+        window.clearTimeout(popoverOpenTimerRef.current);
       }
     };
   }, []);
@@ -308,49 +608,27 @@ export const RightSidebar: React.FC = () => {
     }, 16);
   }, [updateSwatchColor]);
 
-  // Task 7: Two-Dropdown System (Category -> Palette)
-  const paletteCategories = useMemo(() => {
-    const cats = new Set<string>();
-    BUILTIN_PALETTES.forEach((p: any) => {
-      cats.add(p.category || 'Built-in');
+  const allPaletteDropdownItems = useMemo(() => {
+    const list: { id: string; label: string; hint?: string; onDelete?: (e: React.MouseEvent) => void }[] = [];
+    if (activePaletteId === 'custom') {
+      list.push({ id: 'custom', label: 'Custom Palette', hint: `${workingPalette.length} Colours` });
+    }
+    savedPalettes.forEach((p) => {
+      list.push({
+        id: p.id,
+        label: p.name,
+        hint: `${p.colors.length} Colours`,
+        onDelete: (e) => {
+          e.stopPropagation();
+          deleteCustomPalette(p.id);
+        }
+      });
     });
-    const list = Array.from(cats);
-    if (!list.includes('Saved')) list.push('Saved');
+    BUILTIN_PALETTES.forEach((p: any) => {
+      list.push({ id: p.id, label: p.name, hint: `${p.colors.length} Colours` });
+    });
     return list;
-  }, []);
-
-  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
-    const foundBuiltin = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
-    if (foundBuiltin) return foundBuiltin.category || 'Monochrome';
-    return 'Saved';
-  });
-
-  // Keep selectedCategory in sync when activePaletteId changes externally
-  useEffect(() => {
-    const foundBuiltin = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
-    if (foundBuiltin && foundBuiltin.category) {
-      setSelectedCategory(foundBuiltin.category);
-    } else if (savedPalettes.some((p) => p.id === activePaletteId)) {
-      setSelectedCategory('Saved');
-    }
-  }, [activePaletteId, savedPalettes]);
-
-  const palettesInSelectedCategory = useMemo(() => {
-    if (selectedCategory === 'Saved') {
-      return savedPalettes.map((pal) => ({
-        id: pal.id,
-        label: pal.name,
-        hint: `${pal.colors.length} colors`
-      }));
-    }
-    return BUILTIN_PALETTES
-      .filter((pal: any) => (pal.category || 'Built-in') === selectedCategory)
-      .map((pal: any) => ({
-        id: pal.id,
-        label: pal.name,
-        hint: `${pal.colors.length} colors`
-      }));
-  }, [selectedCategory, savedPalettes]);
+  }, [activePaletteId, savedPalettes, workingPalette.length, deleteCustomPalette]);
 
   // Task 11: Consolidate inverse_glow & inverse_vignette into a toggle inside glow & vignette
   const visibleEffectsList = useMemo(
@@ -359,6 +637,45 @@ export const RightSidebar: React.FC = () => {
   );
 
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
+  const setSidebarWidth = useAppStore((state) => state.setSidebarWidth);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== e.pointerId) return;
+      const delta = startX - moveEvent.clientX;
+      const newWidth = Math.max(320, Math.min(700, startWidth + delta));
+      setSidebarWidth(newWidth);
+    };
+
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== e.pointerId) return;
+      try {
+        target.releasePointerCapture(e.pointerId);
+      } catch {}
+      setIsResizing(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+  };
 
   const toggleSection = (section: string) => {
     setCollapsedSections((prev) => {
@@ -466,7 +783,6 @@ export const RightSidebar: React.FC = () => {
 
   const currentAlgo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId) || ALGORITHM_REGISTRY[0];
   const currentIndex = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
-  const isCurrentFavorite = favoriteAlgorithms.includes(algorithmId);
 
   const handlePrevAlgo = useCallback(() => {
     if (filteredAlgos.length === 0) return;
@@ -475,12 +791,57 @@ export const RightSidebar: React.FC = () => {
   }, [filteredAlgos, currentIndex, setAlgorithmId]);
 
   // Custom listbox state for Algorithm picker (Bug 1 quality fix)
-  const [isAlgoListboxOpen, setIsAlgoListboxOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return new URLSearchParams(window.location.search).get('dropdown') === 'open';
+  const activeDropdownId = useAppStore((state) => state.activeDropdownId);
+  const setActiveDropdownId = useAppStore((state) => state.setActiveDropdownId);
+  const isAlgoListboxOpen = activeDropdownId === 'algo-listbox';
+
+  const [isAlgoListboxClosing, setIsAlgoListboxClosing] = useState(false);
+  const algoCloseTimerRef = useRef<number | null>(null);
+
+  const openAlgoListbox = () => {
+    if (algoCloseTimerRef.current) {
+      clearTimeout(algoCloseTimerRef.current);
+      algoCloseTimerRef.current = null;
     }
-    return false;
-  });
+    setIsAlgoListboxClosing(false);
+    setActiveDropdownId('algo-listbox');
+  };
+
+  const closeAlgoListbox = (immediate = false) => {
+    if (algoCloseTimerRef.current) {
+      clearTimeout(algoCloseTimerRef.current);
+      algoCloseTimerRef.current = null;
+    }
+    if (activeDropdownId === 'algo-listbox') {
+      setActiveDropdownId(null);
+    }
+    if (immediate || !areAnimationsEnabled() || (!isAlgoListboxOpen && !isAlgoListboxClosing)) {
+      setIsAlgoListboxClosing(false);
+      return;
+    }
+    setIsAlgoListboxClosing(true);
+    algoCloseTimerRef.current = window.setTimeout(() => {
+      setIsAlgoListboxClosing(false);
+      algoCloseTimerRef.current = null;
+    }, 110);
+  };
+
+  // If another dropdown opens anywhere in the app, cancel closing and unmount immediately (no overlap!)
+  useEffect(() => {
+    if (activeDropdownId !== null && activeDropdownId !== 'algo-listbox') {
+      if (algoCloseTimerRef.current) {
+        clearTimeout(algoCloseTimerRef.current);
+        algoCloseTimerRef.current = null;
+      }
+      setIsAlgoListboxClosing(false);
+    }
+  }, [activeDropdownId]);
+
+  useEffect(() => {
+    return () => {
+      if (algoCloseTimerRef.current) clearTimeout(algoCloseTimerRef.current);
+    };
+  }, []);
 
   const [focusedAlgoIndex, setFocusedAlgoIndex] = useState(0);
   const listboxRef = useRef<HTMLDivElement>(null);
@@ -492,12 +853,15 @@ export const RightSidebar: React.FC = () => {
     if (!isAlgoListboxOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (listboxRef.current && !listboxRef.current.contains(e.target as Node)) {
-        setIsAlgoListboxOpen(false);
+        const isClickingOtherDropdown = (e.target as HTMLElement)?.closest?.(
+          '.custom-dropdown-container, .algo-listbox-container, .menu-dropdowns'
+        );
+        closeAlgoListbox(Boolean(isClickingOtherDropdown));
       }
     };
     window.addEventListener('mousedown', handleClickOutside);
     return () => window.removeEventListener('mousedown', handleClickOutside);
-  }, [isAlgoListboxOpen]);
+  }, [isAlgoListboxOpen, activeDropdownId]);
 
   // Autofocus search on open, clear on close
   useEffect(() => {
@@ -510,15 +874,23 @@ export const RightSidebar: React.FC = () => {
     }
   }, [isAlgoListboxOpen]);
 
-  // Scroll the selected item into view, once, on open.
-  useEffect(() => {
+  // Position the list so the picked algorithm is the first row you see.
+  // Runs in a layout effect so the scroll lands before the browser paints:
+  // no frame ever shows the top of the list first. Item height is fixed
+  // (38px), so this is reliable even while the panel animates open.
+  useLayoutEffect(() => {
     if (!isAlgoListboxOpen) return;
-    const selected = listboxPanelRef.current?.querySelector('[data-selected="true"]') as HTMLElement;
-    if (selected) {
-      selected.scrollIntoView({ block: 'nearest' });
-    }
+    const scroller = listboxPanelRef.current?.querySelector('.algo-listbox-items') as HTMLElement | null;
+    if (!scroller) return;
+    const items = Array.from(scroller.querySelectorAll('.algo-listbox-item')) as HTMLElement[];
+    const selected = scroller.querySelector('[role="option"][aria-selected="true"]') as HTMLElement | null;
+    if (!selected) return;
+    const itemHeight = selected.offsetHeight || 38;
+    const index = items.indexOf(selected);
+    scroller.scrollTop = index > 0 ? index * itemHeight : 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAlgoListboxOpen]);
+
 
   // Keyboard navigation for listbox
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -532,12 +904,12 @@ export const RightSidebar: React.FC = () => {
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setIsAlgoListboxOpen(false);
+      closeAlgoListbox();
     } else if (e.key === 'Enter') {
       if (searchFilteredAlgos.length > 0) {
         e.preventDefault();
         setAlgorithmId(searchFilteredAlgos[0].id);
-        setIsAlgoListboxOpen(false);
+        closeAlgoListbox();
       }
     }
   };
@@ -546,7 +918,7 @@ export const RightSidebar: React.FC = () => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!isAlgoListboxOpen) {
-        setIsAlgoListboxOpen(true);
+        openAlgoListbox();
         const idx = searchFilteredAlgos.findIndex((a: any) => a.id === algorithmId);
         setFocusedAlgoIndex(idx >= 0 ? idx : 0);
       } else {
@@ -560,7 +932,7 @@ export const RightSidebar: React.FC = () => {
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (!isAlgoListboxOpen) {
-        setIsAlgoListboxOpen(true);
+        openAlgoListbox();
         const idx = searchFilteredAlgos.findIndex((a: any) => a.id === algorithmId);
         setFocusedAlgoIndex(idx >= 0 ? idx : 0);
       } else if (focusedAlgoIndex === 0) {
@@ -578,15 +950,15 @@ export const RightSidebar: React.FC = () => {
         e.preventDefault();
         if (focusedAlgoIndex >= 0 && focusedAlgoIndex < searchFilteredAlgos.length) {
           setAlgorithmId(searchFilteredAlgos[focusedAlgoIndex].id);
-          setIsAlgoListboxOpen(false);
+          closeAlgoListbox();
         }
       } else if (e.key === 'Enter') {
-        setIsAlgoListboxOpen(true);
+        openAlgoListbox();
       }
     } else if (e.key === 'Escape') {
       if (isAlgoListboxOpen) {
         e.preventDefault();
-        setIsAlgoListboxOpen(false);
+        closeAlgoListbox();
       }
     }
   };
@@ -597,26 +969,7 @@ export const RightSidebar: React.FC = () => {
     setAlgorithmId(filteredAlgos[nextIdx].id);
   }, [filteredAlgos, currentIndex, setAlgorithmId]);
 
-  // Close swatch popover on outside click or Escape
-  useEffect(() => {
-    if (activeSwatchIndex === null) return;
-    const handleOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setActiveSwatchIndex(null);
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setActiveSwatchIndex(null);
-      }
-    };
-    window.addEventListener('mousedown', handleOutside);
-    window.addEventListener('keydown', handleKey);
-    return () => {
-      window.removeEventListener('mousedown', handleOutside);
-      window.removeEventListener('keydown', handleKey);
-    };
-  }, [activeSwatchIndex]);
+
 
   // Up/Down keyboard stepping
   useEffect(() => {
@@ -645,28 +998,250 @@ export const RightSidebar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAlgoListboxOpen, handlePrevAlgo, handleNextAlgo]);
 
-  const handlePrevPalette = () => {
-    if (palettesInSelectedCategory.length === 0) return;
-    const idx = palettesInSelectedCategory.findIndex((p) => p.id === activePaletteId);
-    const prev = idx <= 0 ? palettesInSelectedCategory.length - 1 : idx - 1;
-    setActivePaletteId(palettesInSelectedCategory[prev].id);
-  };
+  // Compute arrow and popover horizontal alignment based on clicked swatch segment
+  const calculatePopoverPosition = useCallback((index: number) => {
+    const pill = swatchesPillRef.current;
+    if (!pill || !pill.children[index]) return;
+    const pillRect = pill.getBoundingClientRect();
+    const segRect = (pill.children[index] as HTMLElement).getBoundingClientRect();
+    const segCenter = segRect.left + segRect.width / 2 - pillRect.left;
+    const popoverWidth = 220;
+    const left = Math.max(0, Math.min(pillRect.width - popoverWidth, segCenter - popoverWidth / 2));
+    const arrowLeft = Math.max(16, Math.min(popoverWidth - 16, segCenter - left));
+    setPopoverLeftOffset(left);
+    setArrowLeftOffset(arrowLeft);
+  }, []);
 
-  const handleNextPalette = () => {
-    if (palettesInSelectedCategory.length === 0) return;
-    const idx = palettesInSelectedCategory.findIndex((p) => p.id === activePaletteId);
-    const next = (idx + 1) % palettesInSelectedCategory.length;
-    setActivePaletteId(palettesInSelectedCategory[next].id);
-  };
-
-  const handleResetPalette = () => {
-    if (!confirmResetPalette) {
-      setConfirmResetPalette(true);
-      setTimeout(() => setConfirmResetPalette(false), 3000);
+  const closeColorPicker = useCallback((immediate = false) => {
+    if (popoverCloseTimerRef.current) {
+      clearTimeout(popoverCloseTimerRef.current);
+      popoverCloseTimerRef.current = null;
+    }
+    if (popoverOpenTimerRef.current) {
+      clearTimeout(popoverOpenTimerRef.current);
+      popoverOpenTimerRef.current = null;
+      setIsOpeningPopover(false);
+    }
+    if (immediate || !areAnimationsEnabled()) {
+      setIsClosingPopover(false);
+      setIsOpeningPopover(false);
+      setActiveSwatchIndex(null);
       return;
     }
-    resetToBuiltin();
-    setConfirmResetPalette(false);
+    setIsClosingPopover(true);
+    popoverCloseTimerRef.current = window.setTimeout(() => {
+      setIsClosingPopover(false);
+      setIsOpeningPopover(false);
+      setActiveSwatchIndex(null);
+      popoverCloseTimerRef.current = null;
+    }, 120);
+  }, []);
+
+  const openColorPicker = useCallback((index: number) => {
+    if (popoverCloseTimerRef.current) {
+      clearTimeout(popoverCloseTimerRef.current);
+      popoverCloseTimerRef.current = null;
+      setIsClosingPopover(false);
+    }
+    const wasClosed = activeSwatchIndex === null || isClosingPopover;
+    calculatePopoverPosition(index);
+    setActiveSwatchIndex(index);
+    if (wasClosed) {
+      if (areAnimationsEnabled()) {
+        setIsOpeningPopover(true);
+        if (popoverOpenTimerRef.current) clearTimeout(popoverOpenTimerRef.current);
+        popoverOpenTimerRef.current = window.setTimeout(() => {
+          setIsOpeningPopover(false);
+          popoverOpenTimerRef.current = null;
+        }, 140);
+      } else {
+        setIsOpeningPopover(false);
+      }
+    }
+  }, [activeSwatchIndex, isClosingPopover, calculatePopoverPosition]);
+
+  const handlePrevPalette = useCallback(() => {
+    if (allPaletteDropdownItems.length === 0) return;
+    const idx = allPaletteDropdownItems.findIndex((p) => p.id === activePaletteId);
+    const prev = idx <= 0 ? allPaletteDropdownItems.length - 1 : idx - 1;
+    closeColorPicker(true);
+    setActivePaletteId(allPaletteDropdownItems[prev].id);
+  }, [allPaletteDropdownItems, activePaletteId, setActivePaletteId, closeColorPicker]);
+
+  const handleNextPalette = useCallback(() => {
+    if (allPaletteDropdownItems.length === 0) return;
+    const idx = allPaletteDropdownItems.findIndex((p) => p.id === activePaletteId);
+    const next = (idx + 1) % allPaletteDropdownItems.length;
+    closeColorPicker(true);
+    setActivePaletteId(allPaletteDropdownItems[next].id);
+  }, [allPaletteDropdownItems, activePaletteId, setActivePaletteId, closeColorPicker]);
+
+  // Misc Palette Options Dropdown state
+  const isMiscOpen = activeDropdownId === 'palette-misc-dropdown';
+
+  const openMiscDropdown = useCallback(() => {
+    if (miscCloseTimerRef.current) {
+      clearTimeout(miscCloseTimerRef.current);
+      miscCloseTimerRef.current = null;
+    }
+    setIsMiscClosing(false);
+    setActiveDropdownId('palette-misc-dropdown');
+  }, [setActiveDropdownId]);
+
+  const closeMiscDropdown = useCallback((immediate = false) => {
+    if (miscCloseTimerRef.current) {
+      clearTimeout(miscCloseTimerRef.current);
+      miscCloseTimerRef.current = null;
+    }
+    if (activeDropdownId === 'palette-misc-dropdown') {
+      setActiveDropdownId(null);
+    }
+    if (immediate || !areAnimationsEnabled() || (!isMiscOpen && !isMiscClosing)) {
+      setIsMiscClosing(false);
+      return;
+    }
+    setIsMiscClosing(true);
+    miscCloseTimerRef.current = window.setTimeout(() => {
+      setIsMiscClosing(false);
+      miscCloseTimerRef.current = null;
+    }, 110);
+  }, [activeDropdownId, isMiscOpen, isMiscClosing, setActiveDropdownId]);
+
+  useEffect(() => {
+    if (activeDropdownId !== null && activeDropdownId !== 'palette-misc-dropdown') {
+      if (miscCloseTimerRef.current) {
+        clearTimeout(miscCloseTimerRef.current);
+        miscCloseTimerRef.current = null;
+      }
+      setIsMiscClosing(false);
+    }
+  }, [activeDropdownId]);
+
+  useEffect(() => {
+    return () => {
+      if (miscCloseTimerRef.current) clearTimeout(miscCloseTimerRef.current);
+    };
+  }, []);
+
+  // Click outside listener for Misc dropdown
+  useEffect(() => {
+    if (!isMiscOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (miscWrapperRef.current && !miscWrapperRef.current.contains(e.target as Node)) {
+        const isClickingOtherDropdown = (e.target as HTMLElement)?.closest?.(
+          '.custom-dropdown-container, .algo-listbox-container, .menu-dropdowns, .replica-picker-box'
+        );
+        closeMiscDropdown(Boolean(isClickingOtherDropdown));
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isMiscOpen, closeMiscDropdown]);
+
+  useLayoutEffect(() => {
+    if (activeSwatchIndex === null) return;
+    calculatePopoverPosition(activeSwatchIndex);
+  }, [activeSwatchIndex, workingPalette.length, sidebarWidth, calculatePopoverPosition]);
+
+  useEffect(() => {
+    if (activeSwatchIndex === null) return;
+    const handleResize = () => {
+      calculatePopoverPosition(activeSwatchIndex);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [activeSwatchIndex, calculatePopoverPosition]);
+
+  const handleSwatchClick = useCallback((i: number) => {
+    if (activeSwatchIndex === i && !isClosingPopover) {
+      closeColorPicker();
+      return;
+    }
+    openColorPicker(i);
+  }, [activeSwatchIndex, isClosingPopover, closeColorPicker, openColorPicker]);
+
+  // Close active swatch popover when clicking outside or on Escape; navigate swatches with Left/Right arrows
+  useEffect(() => {
+    if (activeSwatchIndex === null && !isClosingPopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (popoverRef.current && popoverRef.current.contains(target)) return;
+      if (swatchesPillRef.current && swatchesPillRef.current.contains(target)) return;
+      if (target.closest('.replica-swatch-segment') || target.closest('.palette-swatch-item') || target.closest('.replica-swatch-add-btn')) return;
+      closeColorPicker();
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeColorPicker();
+      } else if (e.key === 'ArrowLeft') {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+        setActiveSwatchIndex((prev) => {
+          if (prev !== null && prev > 0) {
+            const nextIdx = prev - 1;
+            calculatePopoverPosition(nextIdx);
+            return nextIdx;
+          }
+          return prev;
+        });
+      } else if (e.key === 'ArrowRight') {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+        setActiveSwatchIndex((prev) => {
+          if (prev !== null && prev < workingPalette.length - 1) {
+            const nextIdx = prev + 1;
+            calculatePopoverPosition(nextIdx);
+            return nextIdx;
+          }
+          return prev;
+        });
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [activeSwatchIndex, isClosingPopover, workingPalette.length, closeColorPicker, calculatePopoverPosition]);
+
+  useEffect(() => {
+    if (activeDropdownId !== null) {
+      closeColorPicker(true);
+    }
+  }, [activeDropdownId, closeColorPicker]);
+
+  const handleAddLighterSwatch = () => {
+    if (activeSwatchIndex === null || workingPalette.length >= 32) return;
+    if (colorPickerTimerRef.current !== null) {
+      window.clearTimeout(colorPickerTimerRef.current);
+      colorPickerTimerRef.current = null;
+    }
+    addAdjustedSwatch(activeSwatchIndex, 0.35);
+    const updated = useAppStore.getState().workingPalette;
+    const newIdx = updated.length - 1;
+    openColorPicker(newIdx);
+  };
+
+  const handleAddDarkerSwatch = () => {
+    if (activeSwatchIndex === null || workingPalette.length >= 32) return;
+    if (colorPickerTimerRef.current !== null) {
+      window.clearTimeout(colorPickerTimerRef.current);
+      colorPickerTimerRef.current = null;
+    }
+    addAdjustedSwatch(activeSwatchIndex, -0.35);
+    const updated = useAppStore.getState().workingPalette;
+    const newIdx = updated.length - 1;
+    openColorPicker(newIdx);
+  };
+
+  const handleDeleteCurrentSwatch = () => {
+    if (activeSwatchIndex === null || workingPalette.length <= 2) return;
+    removeSwatch(activeSwatchIndex);
+    closeColorPicker(true);
   };
 
   const handleExportPalette = () => {
@@ -708,10 +1283,10 @@ export const RightSidebar: React.FC = () => {
             paletteDepth: Math.min(32, parsed.colors.length)
           });
         } else {
-          setSwatchError('Invalid palette file');
+          console.warn('Invalid palette file format');
         }
       } catch (err) {
-        setSwatchError('Invalid palette file');
+        console.warn('Failed to parse palette file', err);
       }
     };
     reader.readAsText(file);
@@ -720,6 +1295,7 @@ export const RightSidebar: React.FC = () => {
 
   const handleExtractMedianCut = () => {
     if (!sourceImageData) return;
+    closeColorPicker(true);
     setIsExtractingPalette(true);
     requestAnimationFrame(() => {
       const extracted = extractPaletteMedianCut(sourceImageData, 8);
@@ -735,6 +1311,7 @@ export const RightSidebar: React.FC = () => {
 
   const handleExtractKMeans = () => {
     if (!sourceImageData) return;
+    closeColorPicker(true);
     setIsExtractingPalette(true);
     requestAnimationFrame(() => {
       const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
@@ -791,8 +1368,7 @@ export const RightSidebar: React.FC = () => {
       'cracked-diffuse',
       'fractal-diffuse',
       'gaussian',
-      'vortex-diffusion',
-      'dynamic-serpentine'
+      'vortex-diffusion'
     ].includes(norm);
 
     const hasErrorStrength =
@@ -809,16 +1385,30 @@ export const RightSidebar: React.FC = () => {
       Boolean(algo.controls?.some((c: any) => c.id === 'noise' || c.id === 'randomVal')) ||
       norm === 'noise';
 
+    const hasColorDepth = Boolean(
+      norm === 'bit_crush' ||
+      (algo.features?.supportsColorDepth && algo.controls?.some((c: any) => c.id === 'depth' || c.id === 'colorDepth'))
+    );
+
     return {
       threshold: algo.features?.supportsLuminanceThreshold !== false && norm !== 'color-separation',
       scale: supportsScale,
       diffusionStrength: hasErrorStrength,
       serpentine: hasSerpentine,
-      noiseAmount: hasNoise
+      noiseAmount: hasNoise,
+      colorDepth: hasColorDepth
     };
   };
 
   const visibleParams = getVisibleParams(currentAlgo.id);
+  const hasAnyVisibleStyles =
+    visibleParams.threshold ||
+    visibleParams.scale ||
+    visibleParams.diffusionStrength ||
+    visibleParams.serpentine ||
+    visibleParams.noiseAmount ||
+    visibleParams.colorDepth ||
+    Boolean(currentAlgo.controls && currentAlgo.controls.length > 0);
 
   // Per-algorithm parameters
   const currentParams = algoParams[algorithmId] ?? {
@@ -828,9 +1418,6 @@ export const RightSidebar: React.FC = () => {
     serpentine: false,
     noiseAmount: 0.3
   };
-
-  // Lookup palette strictly by ID
-  const currentPalette = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId) || { id: 'custom', name: 'Custom Palette', colors: workingPalette };
 
   // Open file handler for top action block
   const handleOpenImage = () => {
@@ -853,6 +1440,10 @@ export const RightSidebar: React.FC = () => {
           ctx.drawImage(img, 0, 0);
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           loadImageFromData(imgData, file.name);
+          const canvasArea = document.querySelector('.canvas-area');
+          if (canvasArea) {
+            fitToViewport(canvasArea.clientWidth, canvasArea.clientHeight);
+          }
         }
       };
       img.src = event.target?.result as string;
@@ -861,13 +1452,21 @@ export const RightSidebar: React.FC = () => {
     e.target.value = '';
   };
   return (
-    <aside className="right-sidebar" style={{ width: `${sidebarWidth}px` }}>
+    <aside 
+      className={`right-sidebar ${isResizing ? 'is-resizing' : ''}`} 
+      style={{ width: `${sidebarWidth}px` }}
+    >
+      <div 
+        className={`sidebar-resize-handle ${isResizing ? 'resizing' : ''}`}
+        onPointerDown={handleResizePointerDown}
+        title="Drag left/right to resize panel"
+      />
       <div ref={scrollWrapperRef} className="sidebar-scrollable-content">
         <div ref={scrollContentRef}>
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block">
           <div className="sidebar-brand">
-            <Logo variant="mark" size={140} />
+            <Logo variant="mark" size={210} />
           </div>
           <input
             type="file"
@@ -876,47 +1475,47 @@ export const RightSidebar: React.FC = () => {
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
-          <Tooltip text="Open local image file" style={{ width: '100%' }}>
+          <div className="unified-action-pill">
             <button
-              className="btn-primary open-image-btn"
+              type="button"
+              className="unified-pill-btn"
               onClick={handleOpenImage}
             >
               Open Image
             </button>
-          </Tooltip>
-          <div className="export-action-row">
-            <Tooltip text="Export dithered image" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-              <button
-                className="btn-default export-image-btn"
-                style={{ width: '100%' }}
-                onClick={() => {
-                  const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
-                                 (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
-                  if (canvas) {
-                    const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
-                    const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
-                    exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
-                  }
-                }}
-              >
-                Export Image
-              </button>
-            </Tooltip>
-            <Dropdown
-              className="export-format-dropdown"
-              width={86}
-              value={exportFormat}
-              onChange={(fmt) => setExportFormat(fmt)}
-              tooltip="Select export format"
-              items={[
-                { id: 'PNG', label: 'PNG' },
-                { id: 'JPEG', label: 'JPEG' },
-                { id: 'WEBP', label: 'WEBP' },
-              ]}
-            />
+            <div className="unified-pill-divider" />
+            <button
+              type="button"
+              className="unified-pill-btn"
+              onClick={() => {
+                const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
+                               (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
+                if (canvas) {
+                  const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
+                  const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
+                  exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
+                }
+              }}
+            >
+              Export Image
+            </button>
+            <button
+              type="button"
+              id="export-format-toggle"
+              className="export-format-toggle"
+              title="Click to switch export format"
+              aria-label={`Export format: ${exportFormat}. Click to change.`}
+              onClick={() => {
+                const order = ['PNG', 'JPEG', 'WEBP'] as const;
+                const idx = order.findIndex((f) => f === exportFormat);
+                setExportFormat(order[(idx + 1) % order.length]);
+              }}
+            >
+              {exportFormat}
+            </button>
           </div>
           {exportFormat === 'JPEG' && (
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', textAlign: 'center' }}>
               JPG flattens transparency to black.
             </div>
           )}
@@ -926,223 +1525,191 @@ export const RightSidebar: React.FC = () => {
         <div className="sections-container">
           {/* 1. STYLE SECTION */}
           <div className="section-block">
-            <div 
-              className="section-header section-header-clickable"
-              onClick={() => toggleSection('style')}
-            >
-              <div className="section-header-left">
-                <span className="section-collapse-icon">{collapsedSections.style ? '▶' : '▼'}</span>
-                <span className="section-title-text">STYLE</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  className="stepper-btn section-header-icon-btn"
-                  onClick={(e) => { e.stopPropagation(); resetCurrentAlgoParams(); }}
-                  aria-label="Reset algorithm parameters"
-                >
-                  <RotateCcw size={13} />
-                </button>
-              </div>
+            <div className="section-header">
+              <span className="section-title-text">Styles</span>
+              <button
+                type="button"
+                className="card-reset-icon-btn"
+                title="Reset styles"
+                aria-label="Reset styles"
+                onClick={() => { resetCurrentAlgoParams(); setActiveCategory('all'); }}
+              >
+                <RotateCcw size={17} strokeWidth={2.2} />
+              </button>
             </div>
 
             {!collapsedSections.style && (
-              <div className="section-content">
+              <div className="section-content section-card">
                 {/* Category Row */}
-                <div className="picker-row">
-                  <span className="picker-label">Category</span>
-                  <div className="select-with-steppers">
-                    <Tooltip text="Previous Category">
-                      <button className="stepper-btn" onClick={handlePrevCategory}>&lt;</button>
-                    </Tooltip>
+                <div className="picker-row-inline">
+                  <span className="picker-label-inline">Category</span>
+                  <div className="picker-box-with-steppers">
                     <Dropdown
-                      className="category-dropdown"
+                      id="style-category-dropdown"
+                      className="category-dropdown borderless-dropdown"
                       width="100%"
                       value={activeCategory}
                       onChange={(catId) => setActiveCategory(catId)}
-                      tooltip="Filter algorithms by category"
                       items={categoryDropdownItems}
                     />
-                    <Tooltip text="Next Category">
-                      <button className="stepper-btn" onClick={handleNextCategory}>&gt;</button>
-                    </Tooltip>
+                    <div className="inline-stepper-cluster">
+                      <button type="button" className="inline-stepper-btn" onClick={handlePrevCategory} aria-label="Previous Category">
+                        <ChevronLeft size={14} strokeWidth={2.2} />
+                      </button>
+                      <div className="inline-stepper-sep" />
+                      <button type="button" className="inline-stepper-btn" onClick={handleNextCategory} aria-label="Next Category">
+                        <ChevronRight size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Algorithm Row */}
-                <div className="picker-row">
-                  <span className="picker-label">Algorithm</span>
-                  <div className="select-with-steppers">
-                    <Tooltip text="Previous Algorithm (Up Arrow)">
-                      <button className="stepper-btn" onClick={handlePrevAlgo}>&lt;</button>
-                    </Tooltip>
+                <div className="picker-row-inline">
+                  <span className="picker-label-inline">Algorithm</span>
+                  <div className="picker-box-with-steppers">
                     <div className="algo-listbox-container" ref={listboxRef}>
                       <button
                         type="button"
-                        className={`algo-listbox-trigger ${isAlgoListboxOpen ? 'open' : ''}`}
-                        onClick={() => setIsAlgoListboxOpen(!isAlgoListboxOpen)}
+                        className={`algo-listbox-trigger borderless-trigger ${isAlgoListboxOpen && !isAlgoListboxClosing ? 'open' : ''}`}
+                        onClick={() => {
+                          if (isAlgoListboxOpen && !isAlgoListboxClosing) {
+                            closeAlgoListbox();
+                          } else {
+                            openAlgoListbox();
+                          }
+                        }}
                         onKeyDown={handleListboxKeyDown}
                         aria-haspopup="listbox"
-                        aria-expanded={isAlgoListboxOpen}
+                        aria-expanded={isAlgoListboxOpen && !isAlgoListboxClosing}
                       >
                         <span className="algo-listbox-label">
                           {currentAlgo.name}
                         </span>
                       </button>
-                      <div
-                        className="algo-listbox-panel"
-                        role="listbox"
-                        ref={listboxPanelRef}
-                        style={{ display: isAlgoListboxOpen ? 'flex' : 'none' }}
-                        onWheel={(e) => e.stopPropagation()}
-                        data-lenis-prevent-wheel
-                      >
-                        {/* Favourites Row */}
-                        {favoriteAlgorithms.length > 0 && (
-                          <div className="algo-favorites-row">
-                            {favoriteAlgorithms.map((favId) => {
-                              const algoObj = ALGORITHM_REGISTRY.find((a: any) => a.id === favId);
-                              if (!algoObj) return null;
-                              return (
-                                <Tooltip key={favId} text={algoObj.name}>
-                                  <button
-                                    type="button"
-                                    className="algo-favorite-chip"
-                                    onClick={() => {
-                                      setAlgorithmId(favId);
-                                      setIsAlgoListboxOpen(false);
-                                    }}
-                                  >
-                                    {algoObj.name}
-                                  </button>
-                                </Tooltip>
-                              );
-                            })}
+                      {(isAlgoListboxOpen || isAlgoListboxClosing) && (
+                        <div
+                          className={`algo-listbox-panel ${isAlgoListboxClosing ? 'closing' : ''}`}
+                          role="listbox"
+                          ref={listboxPanelRef}
+                          onWheel={(e) => e.stopPropagation()}
+                          data-lenis-prevent-wheel
+                        >
+                          {/* Search Input Box */}
+                          <div className="algo-search-container">
+                            <input
+                              ref={searchInputRef}
+                              type="text"
+                              className="algo-search-input"
+                              placeholder={`Search ${ALGORITHM_REGISTRY.length} Algorithms`}
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              onKeyDown={handleSearchKeyDown}
+                              tabIndex={isAlgoListboxOpen ? 0 : -1}
+                            />
                           </div>
-                        )}
 
-                        {/* Search Input Box */}
-                        <div className="algo-search-container">
-                          <input
-                            ref={searchInputRef}
-                            type="text"
-                            className="algo-search-input"
-                            placeholder={`Search ${ALGORITHM_REGISTRY.length || 84} algorithms…`}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={handleSearchKeyDown}
-                            tabIndex={isAlgoListboxOpen ? 0 : -1}
-                          />
-                          {searchQuery && (
-                            <Tooltip text="Clear search">
-                              <button
-                                type="button"
-                                className="algo-search-clear"
-                                onClick={() => {
-                                  setSearchQuery('');
-                                  searchInputRef.current?.focus();
-                                }}
-                              >
-                                ×
-                              </button>
-                            </Tooltip>
-                          )}
-                        </div>
+                          {/* Category / All Header */}
+                          <div 
+                            className="algo-dropdown-category-header"
+                            onClick={() => handleNextCategory()}
+                            role="button"
+                            tabIndex={0}
+                            title="Click to cycle categories"
+                          >
+                            <span className="algo-dropdown-category-title">
+                              {activeCategory === 'all' ? 'All' : (categoryDropdownItems.find(c => c.id === activeCategory)?.label?.split(' (')[0] || 'All')}
+                            </span>
+                            <ChevronDown size={16} strokeWidth={2.4} className="algo-dropdown-category-chevron" />
+                          </div>
 
-                        {/* Scrollable Items List */}
-                        <div className="algo-listbox-items" tabIndex={-1} onKeyDown={handleListboxKeyDown} data-lenis-prevent>
-                          {searchFilteredAlgos.map((a: any, idx: number) => {
-                            const isSelected = a.id === algorithmId;
-                            const isFocused = idx === focusedAlgoIndex;
-                            const isFav = favoriteAlgorithms.includes(a.id);
-                            return (
-                              <div
-                                key={a.id}
-                                role="option"
-                                tabIndex={-1}
-                                aria-selected={isSelected}
-                                data-selected={isSelected ? "true" : "false"}
-                                className={`algo-listbox-item ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
-                                onClick={() => {
-                                  setAlgorithmId(a.id);
-                                  setIsAlgoListboxOpen(false);
-                                }}
-                              >
-                                <span className="algo-listbox-item-name">{a.name}</span>
-                                <Tooltip text={isFav ? "Remove from Favorites" : "Add to Favorites"}>
-                                  <button
-                                    type="button"
-                                    className={`algo-listbox-star-btn ${isFav ? 'starred' : ''}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleFavorite(a.id);
+                          {/* Scrollable Items List Box Card */}
+                          <div className="algo-listbox-card">
+                            <div className="algo-listbox-items" tabIndex={-1} onKeyDown={handleListboxKeyDown} data-lenis-prevent>
+                              {searchFilteredAlgos.map((a: any) => {
+                                return (
+                                  <div
+                                    key={a.id}
+                                    role="option"
+                                    tabIndex={-1}
+                                    aria-selected={a.id === algorithmId}
+                                    className="algo-listbox-item"
+                                    onClick={() => {
+                                      setAlgorithmId(a.id);
+                                      closeAlgoListbox();
                                     }}
-                                    aria-label={isFav ? `Remove ${a.name} from Favorites` : `Add ${a.name} to Favorites`}
                                   >
-                                    {isFav ? '★' : '☆'}
-                                  </button>
-                                </Tooltip>
-                              </div>
-                            );
-                          })}
-                          {searchFilteredAlgos.length === 0 && (
-                            <div style={{ padding: '12px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                              No algorithms found
+                                    <span className="algo-listbox-item-name">{a.name}</span>
+                                  </div>
+                                );
+                              })}
+                              {searchFilteredAlgos.length === 0 && (
+                                <div style={{ padding: '14px', fontSize: '0.85rem', color: 'var(--text-main)', textAlign: 'center', fontWeight: 600 }}>
+                                  No algorithms found
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
-                    <Tooltip text="Next Algorithm (Down Arrow)">
-                      <button className="stepper-btn" onClick={handleNextAlgo}>&gt;</button>
-                    </Tooltip>
-                    <Tooltip text={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}>
-                      <button
-                        className="stepper-btn"
-                        onClick={() => toggleFavorite(algorithmId)}
-                        style={{ color: isCurrentFavorite ? 'var(--accent-cyan)' : 'var(--text-muted)' }}
-                      >
-                        ★
+                    <div className="inline-stepper-cluster">
+                      <button type="button" className="inline-stepper-btn" onClick={handlePrevAlgo} aria-label="Previous Algorithm">
+                        <ChevronLeft size={14} strokeWidth={2.2} />
                       </button>
-                    </Tooltip>
+                      <div className="inline-stepper-sep" />
+                      <button type="button" className="inline-stepper-btn" onClick={handleNextAlgo} aria-label="Next Algorithm">
+                        <ChevronRight size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* User-facing Algorithm Description (Item 7) */}
-                {(() => {
-                  if (!showAlgorithmDescriptions) return null;
-                  const desc = USER_ALGORITHM_DESCRIPTIONS[algorithmId] || USER_ALGORITHM_DESCRIPTIONS[currentAlgo.id] || USER_ALGORITHM_DESCRIPTIONS[(algorithmId || '').replace(/-/g, '_')];
-                  return (
-                    <div className="algo-description-container">
-                      <div className="algo-desc-what">
-                        {desc?.what ?? currentAlgo.description}
-                      </div>
-                      {desc?.why && (
-                        <div className="algo-desc-why">
-                          <span className="algo-desc-why-prefix">Best for: </span>
-                          {desc.why}
-                        </div>
-                      )}
-                      {currentAlgo.description && desc && (
-                        <div className="algo-desc-footnote">
-                          {currentAlgo.description}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Reset button */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn-subtle"
-                    onClick={resetCurrentAlgoParams}
-                  >
-                    Reset
-                  </button>
-                </div>
-
                 {/* Progressive Parameters */}
+                {hasAnyVisibleStyles && <div className="card-inner-divider" />}
+
+                {visibleParams.colorDepth && (
+                  <div className="slider-control-block">
+                    <div className="slider-label-above">
+                      <Tooltip text="Color Depth (1 to 32 bits). Double-click to reset.">
+                        <span
+                          onDoubleClick={() => resetAdjustmentParam('depth')}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          Color Depth
+                        </span>
+                      </Tooltip>
+                    </div>
+                    <div className="slider-track-input-row">
+                      <Tooltip text="Double-click to reset to default" style={{ flex: 1, display: 'flex' }}>
+                        <input
+                          type="range"
+                          className="control-slider"
+                          min="1"
+                          max="32"
+                          step="1"
+                          value={depth}
+                          style={getSliderFill(depth, 1, 32)}
+                          {...sliderPointerProps}
+                          onDoubleClick={() => resetAdjustmentParam('depth')}
+                          onChange={(e) => setDepth(Number(e.target.value))}
+                        />
+                      </Tooltip>
+                      <input
+                        type="number"
+                        className="control-num-input"
+                        min="1"
+                        max="32"
+                        step="1"
+                        value={depth}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!isNaN(v)) setDepth(Math.max(1, Math.min(32, v)));
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 {visibleParams.threshold && (
                   <div className="slider-control-block">
                     <div className="slider-label-above">
@@ -1177,7 +1744,10 @@ export const RightSidebar: React.FC = () => {
                         max="1.0"
                         step="0.02"
                         value={currentParams.threshold}
-                        onChange={(e) => updateCurrentAlgoParam('threshold', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          if (!isNaN(v)) updateCurrentAlgoParam('threshold', Math.max(0, Math.min(1, v)));
+                        }}
                       />
                     </div>
                   </div>
@@ -1217,7 +1787,10 @@ export const RightSidebar: React.FC = () => {
                         max="8.0"
                         step="0.05"
                         value={currentParams.scale}
-                        onChange={(e) => updateCurrentAlgoParam('scale', parseFloat(e.target.value) || 0.05)}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          if (!isNaN(v)) updateCurrentAlgoParam('scale', Math.max(0.05, Math.min(8.0, v)));
+                        }}
                       />
                     </div>
                   </div>
@@ -1264,8 +1837,8 @@ export const RightSidebar: React.FC = () => {
                 )}
 
                 {visibleParams.serpentine && (
-                  <div className="serpentine-row">
-                    <Tooltip text="Alternates scan direction on odd rows to prevent diagonal artifacting">
+                  <div className="serpentine-footer-row">
+                    <div className="serpentine-row" style={{ margin: 0 }}>
                       <button
                         type="button"
                         id="serpentineToggleBtn"
@@ -1275,14 +1848,13 @@ export const RightSidebar: React.FC = () => {
                       >
                         <span className={`toggle-square ${currentParams.serpentine ? 'enabled' : ''}`} />
                       </button>
-                    </Tooltip>
-                    <label 
-                      htmlFor="serpentineToggleBtn"
-                      className="serpentine-label"
-                      onClick={() => updateCurrentAlgoParam('serpentine', !currentParams.serpentine)}
-                    >
-                      Serpentine Scanline
-                    </label>
+                      <label
+                        htmlFor="serpentineToggleBtn"
+                        className="serpentine-label"
+                      >
+                        Serpentine Scanline
+                      </label>
+                    </div>
                   </div>
                 )}
 
@@ -1336,12 +1908,16 @@ export const RightSidebar: React.FC = () => {
                     'errorReduction',
                     'strength',
                     'serpentine',
-                    'noiseAmount'
+                    'noiseAmount',
+                    'depth',
+                    'colorDepth'
                   ].includes(ctrl.id))
+                  // Sliders and dropdowns first, toggle switches last
+                  .sort((a: any, b: any) => Number(a.type === 'toggle') - Number(b.type === 'toggle'))
                   .map((ctrl: any) => {
                     if (ctrl.type === 'dropdown') {
                       return (
-                        <div key={ctrl.id} className="picker-row" style={{ marginTop: 8 }}>
+                        <div key={ctrl.id} className="picker-row">
                           <span className="picker-label">{ctrl.label}</span>
                           <Dropdown
                             width="100%"
@@ -1359,7 +1935,7 @@ export const RightSidebar: React.FC = () => {
                     if (ctrl.type === 'toggle') {
                       const isChecked = !!(currentParams[ctrl.id] !== undefined ? currentParams[ctrl.id] : ctrl.defaultValue);
                       return (
-                        <div key={ctrl.id} className="serpentine-row" style={{ marginTop: 8 }}>
+                        <div key={ctrl.id} className="serpentine-row param-toggle-row">
                           <Tooltip text={ctrl.description || ctrl.label}>
                             <button
                               type="button"
@@ -1374,7 +1950,6 @@ export const RightSidebar: React.FC = () => {
                           <label
                             htmlFor={`toggle-${ctrl.id}`}
                             className="serpentine-label"
-                            onClick={() => updateCurrentAlgoParam(ctrl.id, !isChecked)}
                           >
                             {ctrl.label}
                           </label>
@@ -1387,7 +1962,7 @@ export const RightSidebar: React.FC = () => {
                     const step = ctrl.step ?? 1;
                     const ctrlVal = currentParams[ctrl.id] !== undefined ? Number(currentParams[ctrl.id]) : Number(ctrl.defaultValue ?? min);
                     return (
-                      <div key={ctrl.id} className="slider-control-block" style={{ marginTop: 8 }}>
+                      <div key={ctrl.id} className="slider-control-block">
                         <div className="slider-label-above">
                           <Tooltip text={`${ctrl.label} (${min} to ${max}). ${ctrl.description || ''}`}>
                             <span>{ctrl.label}</span>
@@ -1420,33 +1995,26 @@ export const RightSidebar: React.FC = () => {
                       </div>
                     );
                   })}
-              </div>
-            )}
-          </div>
-          {/* 2. ADJUSTMENTS SECTION */}
+            </div>
+          )}
+        </div>
+        {/* 2. ADJUSTMENTS SECTION */}
           <div className="section-block">
-            <div 
-              className="section-header section-header-clickable"
-              onClick={() => toggleSection('adjustments')}
-            >
-              <div className="section-header-left">
-                <span className="section-collapse-icon">{collapsedSections.adjustments ? '▶' : '▼'}</span>
-                <span className="section-title-text">ADJUSTMENTS</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  className="stepper-btn section-header-icon-btn"
-                  onClick={(e) => { e.stopPropagation(); resetAllAdjustments(); }}
-                  aria-label="Reset adjustments"
-                >
-                  <RotateCcw size={13} />
-                </button>
-              </div>
+            <div className="section-header">
+              <span className="section-title-text">Adjustments</span>
+              <button
+                type="button"
+                className="card-reset-icon-btn"
+                title="Reset adjustments"
+                aria-label="Reset adjustments"
+                onClick={() => resetAllAdjustments()}
+              >
+                <RotateCcw size={17} strokeWidth={2.2} />
+              </button>
             </div>
 
             {!collapsedSections.adjustments && (
-              <div className="section-content">
+              <div className="section-content section-card">
 
                 {/* Brightness */}
                 <div className="slider-control-block">
@@ -1638,422 +2206,164 @@ export const RightSidebar: React.FC = () => {
                       max="3.0"
                       step="0.05"
                       value={gamma}
-                      onChange={(e) => setGamma(parseFloat(e.target.value) || 1.0)}
+                      onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          if (!isNaN(v)) setGamma(Math.max(0.1, Math.min(3.0, v)));
+                        }}
                     />
                   </div>
                 </div>
 
-                {/* Color Depth — Only applies to Bit Crush */}
-                {algorithmId === 'bit_crush' && (
-                  <div className="slider-control-block">
-                    <div className="slider-label-above">
-                      <Tooltip text="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm.">
-                        <span
-                          onDoubleClick={() => resetAdjustmentParam('depth')}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          Color Depth
-                        </span>
-                      </Tooltip>
-                    </div>
-                    <div className="slider-track-input-row">
-                      <Tooltip text="Quantization steps for Bit Crush (1–32). Only applies to the Bit Crush algorithm." style={{ flex: 1, display: 'flex' }}>
-                        <input
-                          type="range"
-                          className="control-slider"
-                          min="1"
-                          max="32"
-                          step="1"
-                          value={depth}
-                          style={getSliderFill(depth, 1, 32)}
-                          {...sliderPointerProps}
-                          onDoubleClick={() => resetAdjustmentParam('depth')}
-                          onChange={(e) => setDepth(Number(e.target.value))}
-                        />
-                      </Tooltip>
-                      <input
-                        type="number"
-                        className="control-num-input"
-                        min="1"
-                        max="32"
-                        step="1"
-                        value={depth}
-                        onChange={(e) => setDepth(parseInt(e.target.value, 10) || 8)}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+
+
+                              </div>
             )}
           </div>
 
           {/* 3. PALETTE SECTION */}
           <div className="section-block">
-            <div 
-              className="section-header section-header-clickable"
-              onClick={() => toggleSection('palette')}
-            >
-              <div className="section-header-left">
-                <span className="section-collapse-icon">{collapsedSections.palette ? '▶' : '▼'}</span>
-                <span className="section-title-text">PALETTE</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  className="stepper-btn section-header-icon-btn"
-                  onClick={(e) => { e.stopPropagation(); shuffleUnlockedSwatches(); }}
-                  aria-label="Shuffle swatches"
-                >
-                  <Shuffle size={13} />
-                </button>
-                <button
-                  type="button"
-                  className={`stepper-btn section-header-icon-btn ${confirmResetPalette ? 'confirming' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); handleResetPalette(); }}
-                  aria-label="Reset palette"
-                >
-                  <RotateCcw size={13} />
-                </button>
-              </div>
+            <div className="section-header">
+              <span className="section-title-text">Colour Palette</span>
+              <button
+                type="button"
+                className="card-reset-icon-btn"
+                title="Reset colour palette"
+                aria-label="Reset colour palette"
+                onClick={() => setActivePaletteId(BUILTIN_PALETTES[0]?.id || 'monochrome_1bit')}
+              >
+                <RotateCcw size={17} strokeWidth={2.2} />
+              </button>
             </div>
 
             {!collapsedSections.palette && (
-              <div className="section-content" style={{ position: 'relative' }}>
+              <div className="section-content section-card replica-palette-card" style={{ position: 'relative' }}>
                 {isExtractingPalette && (
                   <LoadingScreen />
                 )}
-                {/* Two-Dropdown System (Category -> Palette) */}
-                <div className="picker-row">
-                  <span className="picker-label">Category</span>
+
+                {/* 1. Palette Row */}
+                <div className="replica-row">
+                  <span className="replica-label">Palette</span>
                   <Dropdown
-                    className="palette-category-dropdown"
+                    id="palette-builtin-dropdown"
+                    className="replica-dropdown-wrapper"
                     width="100%"
-                    value={selectedCategory}
-                    onChange={(cat) => {
-                      setSelectedCategory(cat);
-                      if (cat === 'Saved') {
-                        if (savedPalettes.length > 0) {
-                          setActivePaletteId(savedPalettes[0].id);
-                        }
-                      } else {
-                        const firstPal = BUILTIN_PALETTES.find((p: any) => (p.category || 'Built-in') === cat);
-                        if (firstPal) {
-                          setActivePaletteId(firstPal.id);
-                        }
-                      }
+                    value={activePaletteId}
+                    placeholder="Select palette..."
+                    onChange={(palId) => {
+                      setActivePaletteId(palId);
                     }}
-                    items={paletteCategories.map((cat) => ({
-                      id: cat,
-                      label: cat
-                    }))}
+                    items={allPaletteDropdownItems}
+                    renderTrigger={({ isOpen, selectedItem, onClick }) => (
+                      <div className={`replica-picker-box ${isOpen ? 'open' : ''}`}>
+                        <button type="button" className="replica-picker-trigger" onClick={onClick}>
+                          <span className="replica-picker-text">{selectedItem?.label || 'Select palette...'}</span>
+                          <span className="replica-picker-extra-text">{workingPalette.length} Colours</span>
+                        </button>
+                        <div className="replica-segmented-stepper">
+                          <button
+                            type="button"
+                            className="replica-stepper-btn"
+                            onClick={(e) => { e.stopPropagation(); handlePrevPalette(); }}
+                            aria-label="Previous Palette"
+                          >
+                            <ChevronLeft size={13} strokeWidth={2.4} />
+                          </button>
+                          <div className="replica-stepper-divider" />
+                          <button
+                            type="button"
+                            className="replica-stepper-btn"
+                            onClick={(e) => { e.stopPropagation(); handleNextPalette(); }}
+                            aria-label="Next Palette"
+                          >
+                            <ChevronRight size={13} strokeWidth={2.4} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   />
                 </div>
 
-                <div className="picker-row">
-                  <span className="picker-label">Palette</span>
-                  <div className="select-with-steppers">
-                    <button className="stepper-btn" onClick={handlePrevPalette} aria-label="Previous Palette">&lt;</button>
-                    <Dropdown
-                      className="palette-builtin-dropdown"
-                      width="100%"
-                      value={previewPaletteId || activePaletteId}
-                      placeholder={selectedCategory === 'Saved' && palettesInSelectedCategory.length === 0 ? 'No saved palettes yet' : 'Select palette...'}
-                      onChange={(palId) => {
-                        setPreviewPaletteId(null);
-                        setActivePaletteId(palId);
-                      }}
-                      onHoverItem={(palId) => setPreviewPaletteId(palId)}
-                      onClose={() => setPreviewPaletteId(null)}
-                      items={[
-                        ...(activePaletteId === 'custom'
-                          ? [{ id: 'custom', label: 'Custom Palette', hint: `${workingPalette.length} colors` }]
-                          : []),
-                        ...palettesInSelectedCategory
-                      ]}
-                    />
-                    <button className="stepper-btn" onClick={handleNextPalette} aria-label="Next Palette">&gt;</button>
-                  </div>
-                </div>
+                {/* Divider Line */}
+                <div className="replica-divider" />
 
-                {/* Swatch grid: 32x32px each, 4px gaps, wrapping naturally */}
-                <div className="palette-swatches-grid">
-                  {workingPalette.map((c: number[], i: number) => {
-                    const isBeyondDepth = i >= paletteDepth;
-                    const hex = rgbaToHex(c[0], c[1], c[2]).toUpperCase();
-                    return (
-                      <Tooltip key={i} text={`Swatch ${i + 1}: ${hex}`}>
+                {/* 2. Swatches Pill Bar + Circular Add Button */}
+                <div className="replica-swatches-container" style={{ position: 'relative' }}>
+                  <div className="replica-swatches-pill" ref={swatchesPillRef}>
+                    {workingPalette.map((c: number[], i: number) => {
+                      const isBeyondDepth = i >= paletteDepth;
+                      const hex = rgbaToHex(c[0], c[1], c[2]).toUpperCase();
+                      const isActive = activeSwatchIndex === i;
+                      return (
                         <div
-                          className={`palette-swatch-item ${activeSwatchIndex === i ? 'active-swatch' : ''}`}
+                          key={i}
+                          className={`replica-swatch-segment ${isActive ? 'active' : ''}`}
+                          title={`Swatch ${i + 1}: ${hex}`}
                           style={{
                             backgroundColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})`,
-                            opacity: isBeyondDepth ? 0.35 : 1,
-                            outline: activeSwatchIndex === i ? '2px solid var(--accent-cyan)' : 'none',
-                            outlineOffset: '1px'
+                            opacity: isBeyondDepth ? 0.35 : 1
                           }}
-                          onClick={() => setActiveSwatchIndex(activeSwatchIndex === i ? null : i)}
+                          onMouseDown={(e) => {
+                            if (e.button !== 0) return;
+                            e.preventDefault();
+                            handleSwatchClick(i);
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                          }}
                         />
-                      </Tooltip>
-                    );
-                  })}
-
-                  {/* Add swatch button if < 32 */}
-                  {workingPalette.length < 32 && (
-                    <Tooltip text="Add color swatch (up to 32)">
-                      <button
-                        type="button"
-                        className="palette-swatch-item"
-                        onClick={() => {
-                          const newIdx = workingPalette.length;
-                          addSwatch();
-                          setActiveSwatchIndex(newIdx);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          background: 'transparent',
-                          color: 'var(--text-muted)',
-                          fontSize: '1rem',
-                          borderStyle: 'dashed'
-                        }}
-                      >
-                        +
-                      </button>
-                    </Tooltip>
-                  )}
-
-                  {/* Clean Zero-Lag HSL Color Picker Popover */}
-                  {activeSwatchIndex !== null && activeSwatchIndex < workingPalette.length && (
-                    <div
-                      ref={popoverRef}
-                      className="palette-swatch-popover"
-                      style={{
-                        top: Math.floor(activeSwatchIndex / 7) * 36 + 40,
-                        left: Math.min(60, (activeSwatchIndex % 7) * 36)
+                      );
+                    })}
+                  </div>
+                  <Tooltip text="Add color swatch (up to 32)">
+                    <button
+                      type="button"
+                      className="replica-swatch-add-btn"
+                      disabled={workingPalette.length >= 32}
+                      onClick={() => {
+                        const newIdx = workingPalette.length;
+                        addSwatch();
+                        openColorPicker(newIdx);
                       }}
+                      aria-label="Add swatch"
                     >
-                      {/* Live Color Preview Banner */}
-                      <div
-                        className="custom-hsl-preview-banner"
-                        style={{
-                          backgroundColor: `hsl(${localHsl[0]}, ${localHsl[1]}%, ${localHsl[2]}%)`
-                        }}
-                      >
-                        <span className="custom-hsl-preview-tag">{localHex}</span>
-                      </div>
+                      <Plus size={18} strokeWidth={2.2} />
+                    </button>
+                  </Tooltip>
 
-                      {/* Custom HSL Sliders */}
-                      <div className="custom-hsl-sliders">
-                        {/* Hue 0-360 */}
-                        <div className="custom-hsl-row">
-                          <span className="custom-hsl-label">H</span>
-                          <input
-                            type="range"
-                            className="custom-hsl-slider hue-track"
-                            min={0}
-                            max={360}
-                            step={1}
-                            value={localHsl[0]}
-                            {...sliderPointerProps}
-                            onChange={(e) => {
-                              const newH = parseInt(e.target.value, 10);
-                              const nextHsl: [number, number, number] = [newH, localHsl[1], localHsl[2]];
-                              setLocalHsl(nextHsl);
-                              const [r, g, b] = hslToRgb(nextHsl[0], nextHsl[1], nextHsl[2]);
-                              setLocalHex(rgbaToHex(r, g, b).toUpperCase());
-                              commitDebouncedSwatchColor(activeSwatchIndex, [r, g, b, 255]);
-                            }}
-                          />
-                          <span className="custom-hsl-val">{localHsl[0]}°</span>
-                        </div>
-
-                        {/* Saturation 0-100 */}
-                        <div className="custom-hsl-row">
-                          <span className="custom-hsl-label">S</span>
-                          <input
-                            type="range"
-                            className="custom-hsl-slider sat-track"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={localHsl[1]}
-                            style={{
-                              '--sat-color': `hsl(${localHsl[0]}, 100%, ${localHsl[2]}%)`
-                            } as React.CSSProperties}
-                            {...sliderPointerProps}
-                            onChange={(e) => {
-                              const newS = parseInt(e.target.value, 10);
-                              const nextHsl: [number, number, number] = [localHsl[0], newS, localHsl[2]];
-                              setLocalHsl(nextHsl);
-                              const [r, g, b] = hslToRgb(nextHsl[0], nextHsl[1], nextHsl[2]);
-                              setLocalHex(rgbaToHex(r, g, b).toUpperCase());
-                              commitDebouncedSwatchColor(activeSwatchIndex, [r, g, b, 255]);
-                            }}
-                          />
-                          <span className="custom-hsl-val">{localHsl[1]}%</span>
-                        </div>
-
-                        {/* Lightness 0-100 */}
-                        <div className="custom-hsl-row">
-                          <span className="custom-hsl-label">L</span>
-                          <input
-                            type="range"
-                            className="custom-hsl-slider light-track"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={localHsl[2]}
-                            style={{
-                              '--light-mid': `hsl(${localHsl[0]}, ${localHsl[1]}%, 50%)`
-                            } as React.CSSProperties}
-                            {...sliderPointerProps}
-                            onChange={(e) => {
-                              const newL = parseInt(e.target.value, 10);
-                              const nextHsl: [number, number, number] = [localHsl[0], localHsl[1], newL];
-                              setLocalHsl(nextHsl);
-                              const [r, g, b] = hslToRgb(nextHsl[0], nextHsl[1], nextHsl[2]);
-                              setLocalHex(rgbaToHex(r, g, b).toUpperCase());
-                              commitDebouncedSwatchColor(activeSwatchIndex, [r, g, b, 255]);
-                            }}
-                          />
-                          <span className="custom-hsl-val">{localHsl[2]}%</span>
-                        </div>
-                      </div>
-
-                      {/* Compact Action Row: Hex Input + Light/Dark Variant Icons + Worded Reset + Trash Icon */}
-                      <div className="palette-popover-row swatch-hex-row">
-                        <input
-                          type="text"
-                          className="palette-hex-input"
-                          maxLength={7}
-                          value={localHex}
-                          onChange={(e) => {
-                            const val = e.target.value.toUpperCase();
-                            setLocalHex(val);
-                            if (/^#[0-9A-FA-f]{6}$/.test(val)) {
-                              const rgba = hexToRgba(val);
-                              setLocalHsl(rgbToHsl(rgba[0], rgba[1], rgba[2]));
-                              commitDebouncedSwatchColor(activeSwatchIndex, rgba);
-                              setSwatchError(null);
-                            }
-                          }}
-                        />
-                        <Tooltip text="Add 35% lighter swatch">
-                          <button
-                            type="button"
-                            className="palette-popover-btn swatch-icon-btn"
-                            disabled={workingPalette.length >= 32}
-                            onClick={() => {
-                              const currentLen = useAppStore.getState().workingPalette.length;
-                              if (currentLen >= 32) return;
-                              if (colorPickerTimerRef.current !== null) {
-                                window.clearTimeout(colorPickerTimerRef.current);
-                                colorPickerTimerRef.current = null;
-                              }
-                              addAdjustedSwatch(activeSwatchIndex, 0.35);
-                              const updatedPalette = useAppStore.getState().workingPalette;
-                              const newIdx = updatedPalette.length - 1;
-                              setActiveSwatchIndex(newIdx);
-                              if (updatedPalette[newIdx]) {
-                                const [nr, ng, nb] = updatedPalette[newIdx];
-                                setLocalHsl(rgbToHsl(nr, ng, nb));
-                                setLocalHex(rgbaToHex(nr, ng, nb).toUpperCase());
-                              }
-                            }}
-                            aria-label="Add lighter swatch"
-                          >
-                            <Sun size={13} />
-                          </button>
-                        </Tooltip>
-                        <Tooltip text="Add 35% darker swatch">
-                          <button
-                            type="button"
-                            className="palette-popover-btn swatch-icon-btn"
-                            disabled={workingPalette.length >= 32}
-                            onClick={() => {
-                              const currentLen = useAppStore.getState().workingPalette.length;
-                              if (currentLen >= 32) return;
-                              if (colorPickerTimerRef.current !== null) {
-                                window.clearTimeout(colorPickerTimerRef.current);
-                                colorPickerTimerRef.current = null;
-                              }
-                              addAdjustedSwatch(activeSwatchIndex, -0.35);
-                              const updatedPalette = useAppStore.getState().workingPalette;
-                              const newIdx = updatedPalette.length - 1;
-                              setActiveSwatchIndex(newIdx);
-                              if (updatedPalette[newIdx]) {
-                                const [nr, ng, nb] = updatedPalette[newIdx];
-                                setLocalHsl(rgbToHsl(nr, ng, nb));
-                                setLocalHex(rgbaToHex(nr, ng, nb).toUpperCase());
-                              }
-                            }}
-                            aria-label="Add darker swatch"
-                          >
-                            <Moon size={13} />
-                          </button>
-                        </Tooltip>
-                        <button
-                          type="button"
-                          className="palette-popover-btn swatch-reset-btn"
-                          disabled={
-                            activePaletteId === 'custom' ||
-                            !BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId)?.colors[activeSwatchIndex]
-                          }
-                          onClick={() => {
-                            const pal = BUILTIN_PALETTES.find((p: any) => p.id === activePaletteId);
-                            if (pal && pal.colors[activeSwatchIndex]) {
-                              const orig = [
-                                pal.colors[activeSwatchIndex][0],
-                                pal.colors[activeSwatchIndex][1],
-                                pal.colors[activeSwatchIndex][2],
-                                255
-                              ];
-                              updateSwatchColor(activeSwatchIndex, orig);
-                              setLocalHsl(rgbToHsl(orig[0], orig[1], orig[2]));
-                              setLocalHex(rgbaToHex(orig[0], orig[1], orig[2]).toUpperCase());
-                              setSwatchError(null);
-                            }
-                          }}
-                        >
-                          Reset
-                        </button>
-                        <button
-                          type="button"
-                          className={`palette-popover-btn swatch-delete-btn ${confirmDeleteSwatch ? 'confirming' : ''}`}
-                          disabled={workingPalette.length <= 2}
-                          onClick={() => {
-                            if (!confirmDeleteSwatch) {
-                              setConfirmDeleteSwatch(true);
-                              return;
-                            }
-                            removeSwatch(activeSwatchIndex);
-                            setActiveSwatchIndex(null);
-                            setConfirmDeleteSwatch(false);
-                            setSwatchError(null);
-                          }}
-                          aria-label="Delete swatch"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                      {swatchError && (
-                        <div className="swatch-popover-error">{swatchError}</div>
-                      )}
-                    </div>
+                  {/* Swatch Callout Popover (ditherforgeadvancedcolorpalette2.webp) */}
+                  {(activeSwatchIndex !== null || isClosingPopover) && (
+                    <SwatchColorPickerPopover
+                      activeSwatchIndex={
+                        activeSwatchIndex !== null && activeSwatchIndex < workingPalette.length
+                          ? activeSwatchIndex
+                          : Math.max(0, workingPalette.length - 1)
+                      }
+                      workingPalette={workingPalette}
+                      popoverLeftOffset={popoverLeftOffset}
+                      arrowLeftOffset={arrowLeftOffset}
+                      popoverRef={popoverRef}
+                      isClosing={isClosingPopover}
+                      isOpening={isOpeningPopover}
+                      onUpdateColor={commitDebouncedSwatchColor}
+                      onAddLighter={handleAddLighterSwatch}
+                      onAddDarker={handleAddDarkerSwatch}
+                      onDelete={handleDeleteCurrentSwatch}
+                      sliderPointerProps={sliderPointerProps}
+                    />
                   )}
                 </div>
 
-                {/* From Image Extraction Buttons */}
-                <div className="palette-actions-block">
-                  <span className="palette-actions-label">From Image</span>
-                  <div className="palette-buttons-row">
+                {/* 3. From Image Row */}
+                <div className="replica-subheading-block">
+                  <span className="replica-subheading-title">From Image</span>
+                  <div className="replica-btn-grid-2">
                     <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"} style={{ flex: 1 }}>
                       <button
                         type="button"
-                        className="btn-default"
+                        className="replica-btn-2"
                         disabled={!hasImage || !sourceImageData}
                         onClick={handleExtractMedianCut}
-                        style={{ width: '100%' }}
                       >
                         Median Cut
                       </button>
@@ -2061,10 +2371,9 @@ export const RightSidebar: React.FC = () => {
                     <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"} style={{ flex: 1 }}>
                       <button
                         type="button"
-                        className="btn-default"
+                        className="replica-btn-2"
                         disabled={!hasImage || !sourceImageData}
                         onClick={handleExtractKMeans}
-                        style={{ width: '100%' }}
                       >
                         K-Means
                       </button>
@@ -2072,27 +2381,36 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Depth Slider */}
-                <div className="palette-depth-block">
-                  <div className="slider-label-above">
-                    <span>Palette Depth</span>
-                  </div>
-                  <div className="slider-track-input-row">
+                {/* 4. Palette Depth Row — hidden when algorithm does not use palettes or palette has <= 2 colors */}
+                {currentAlgo.features?.supportsColorPalettes !== false && workingPalette.length > 2 && (
+                <div className="replica-subheading-block">
+                  <span className="replica-subheading-title">Palette Depth</span>
+                  <div className="replica-depth-row">
                     <input
                       type="range"
-                      className="control-slider"
+                      className="replica-depth-slider"
                       min="2"
                       max={Math.min(32, workingPalette.length)}
                       step="1"
                       disabled={workingPalette.length <= 2}
                       value={paletteDepth}
-                      style={getSliderFill(paletteDepth, 2, Math.min(32, workingPalette.length))}
+                      style={{
+                        background: `linear-gradient(to right, var(--accent-primary) 0%, var(--accent-primary) ${
+                          Math.min(32, workingPalette.length) <= 2
+                            ? 0
+                            : ((paletteDepth - 2) / (Math.min(32, workingPalette.length) - 2)) * 100
+                        }%, var(--accent-secondary) ${
+                          Math.min(32, workingPalette.length) <= 2
+                            ? 0
+                            : ((paletteDepth - 2) / (Math.min(32, workingPalette.length) - 2)) * 100
+                        }%, var(--accent-secondary) 100%)`
+                      }}
                       {...sliderPointerProps}
                       onChange={(e) => setPaletteDepth(Number(e.target.value))}
                     />
                     <input
                       type="number"
-                      className="control-num-input"
+                      className="replica-depth-badge"
                       min="2"
                       max={Math.min(32, workingPalette.length)}
                       step="1"
@@ -2101,37 +2419,92 @@ export const RightSidebar: React.FC = () => {
                       onChange={(e) => setPaletteDepth(parseInt(e.target.value, 10) || 2)}
                     />
                   </div>
-                  <div className="palette-depth-info">
-                    Using {paletteDepth} of {workingPalette.length} colours
+                </div>
+                )}
+
+                {/* 5. Misc. Row with Palette options Dropdown */}
+                <div className="replica-row">
+                  <span className="replica-label">Misc.</span>
+                  <div className="replica-dropdown-wrapper" ref={miscWrapperRef}>
+                    <div className={`replica-picker-box ${isMiscOpen ? 'open' : ''}`}>
+                      <button
+                        type="button"
+                        className="replica-picker-trigger"
+                        onClick={() => {
+                          if (isMiscOpen) {
+                            closeMiscDropdown();
+                          } else {
+                            openMiscDropdown();
+                          }
+                        }}
+                      >
+                        <span className="replica-picker-text">{activeMiscOption}</span>
+                      </button>
+                      <div className="replica-segmented-stepper">
+                        <button
+                          type="button"
+                          className="replica-stepper-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMiscOption((prev) => (prev === 'Inverse Palette' ? 'Flip Palette' : 'Inverse Palette'));
+                          }}
+                          aria-label="Previous Option"
+                        >
+                          <ChevronLeft size={13} strokeWidth={2.4} />
+                        </button>
+                        <div className="replica-stepper-divider" />
+                        <button
+                          type="button"
+                          className="replica-stepper-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMiscOption((prev) => (prev === 'Inverse Palette' ? 'Flip Palette' : 'Inverse Palette'));
+                          }}
+                          aria-label="Next Option"
+                        >
+                          <ChevronRight size={13} strokeWidth={2.4} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Palette options Dropdown Panel (ditherforgeadvancedcolorpalette2.webp) */}
+                    {(isMiscOpen || isMiscClosing) && (
+                      <div className={`palette-options-card ${isMiscClosing ? 'closing' : ''}`}>
+                        <div
+                          className="palette-options-header"
+                          onClick={() => closeMiscDropdown()}
+                        >
+                          <span className="palette-options-title">Palette options</span>
+                          <ChevronDown size={16} strokeWidth={2.2} className="palette-options-chevron" />
+                        </div>
+                        <div className="palette-options-box">
+                          <div
+                            className="palette-option-row"
+                            onClick={() => {
+                              invertPalette();
+                            }}
+                          >
+                            <span className="palette-option-label">Inverse Palette</span>
+                            <div className={`palette-options-checkbox ${isPaletteInverted ? 'checked' : ''}`} />
+                          </div>
+                          <div className="palette-options-divider" />
+                          <div
+                            className="palette-option-row"
+                            onClick={() => {
+                              flipPalette();
+                            }}
+                          >
+                            <span className="palette-option-label">Flip Palette</span>
+                            <div className={`palette-options-checkbox ${isPaletteFlipped ? 'checked' : ''}`} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Invert & Flip Palette Row */}
-                <div className="palette-buttons-row" style={{ marginTop: '10px' }}>
-                  <Tooltip text="Convert palette colors into their complementary opposite colors" style={{ flex: 1 }}>
-                    <button
-                      type="button"
-                      className="btn-default"
-                      onClick={invertPalette}
-                      style={{ width: '100%' }}
-                    >
-                      Invert Palette
-                    </button>
-                  </Tooltip>
-                  <Tooltip text="Inverse light, midtone, and dark properties across the palette" style={{ flex: 1 }}>
-                    <button
-                      type="button"
-                      className="btn-default"
-                      onClick={flipPalette}
-                      style={{ width: '100%' }}
-                    >
-                      Flip Palette
-                    </button>
-                  </Tooltip>
-                </div>
-
-                {/* Save, Import & Export Row */}
-                <div className="palette-buttons-row" style={{ marginTop: '8px' }}>
+                {/* 6. Bottom Row: Import, Save, Export, Reset */}
+                <div className="replica-btn-grid-3">
                   <input
                     type="file"
                     ref={paletteFileInputRef}
@@ -2141,32 +2514,31 @@ export const RightSidebar: React.FC = () => {
                   />
                   <button
                     type="button"
-                    className="btn-default"
+                    className="replica-btn-3 btn-import"
+                    onClick={() => paletteFileInputRef.current?.click()}
+                  >
+                    Import
+                  </button>
+                  <button
+                    type="button"
+                    className="replica-btn-3"
                     onClick={() => {
                       setNewPaletteName(`Custom Palette ${savedPalettes.length + 1}`);
                       setIsSavePaletteModalOpen(true);
                     }}
-                    style={{ flex: 1 }}
                   >
                     Save
                   </button>
                   <button
                     type="button"
-                    className="btn-default"
-                    onClick={() => paletteFileInputRef.current?.click()}
-                    style={{ flex: 1 }}
-                  >
-                    <ArrowDown size={14} /> Import
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-default"
+                    className="replica-btn-3 btn-export"
                     onClick={handleExportPalette}
-                    style={{ flex: 1 }}
                   >
-                    <ArrowUp size={14} /> Export
+                    Export
                   </button>
                 </div>
+
+
 
                 {/* Custom In-App Popup Modal for Saving Palettes */}
                 {isSavePaletteModalOpen && (
@@ -2189,7 +2561,6 @@ export const RightSidebar: React.FC = () => {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && newPaletteName.trim()) {
                               saveCurrentPaletteLocally(newPaletteName.trim());
-                              setSelectedCategory('Saved');
                               setIsSavePaletteModalOpen(false);
                             } else if (e.key === 'Escape') {
                               setIsSavePaletteModalOpen(false);
@@ -2212,7 +2583,6 @@ export const RightSidebar: React.FC = () => {
                           onClick={() => {
                             if (newPaletteName.trim()) {
                               saveCurrentPaletteLocally(newPaletteName.trim());
-                              setSelectedCategory('Saved');
                               setIsSavePaletteModalOpen(false);
                             }
                           }}
@@ -2229,329 +2599,201 @@ export const RightSidebar: React.FC = () => {
 
           {/* 4. EFFECTS STACK SECTION */}
           <div className="section-block">
-            <div 
-              className="section-header section-header-clickable"
-              onClick={() => toggleSection('effects')}
-            >
-              <div className="section-header-left">
-                <span className="section-collapse-icon">{collapsedSections.effects ? '▶' : '▼'}</span>
-                <span className="section-title-text">EFFECTS STACK</span>
-                <span className="section-counter-text">
-                  {effects.filter((e) => e.enabled).length} active / {visibleEffectsList.length} total
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  className={`stepper-btn section-header-icon-btn ${confirmResetEffects ? 'confirming' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); handleResetEffects(); }}
-                  aria-label="Reset effects stack"
-                >
-                  <RotateCcw size={13} />
-                </button>
-              </div>
+            <div className="section-header">
+              <span className="section-title-text">Effects Stack</span>
+              <button
+                type="button"
+                className="card-reset-icon-btn"
+                title="Reset effects stack"
+                aria-label="Reset effects stack"
+                onClick={() => resetEffects()}
+              >
+                <RotateCcw size={17} strokeWidth={2.2} />
+              </button>
             </div>
 
             {!collapsedSections.effects && (
-              <div className="section-content">
-                {/* Collapsible Effects Dropdown */}
-                <div className={`effects-dropdown ${isEffectsDropdownOpen ? 'open' : ''}`}>
-                  <Tooltip text={isEffectsDropdownOpen ? "Collapse effects stack" : "Expand effects stack"} style={{ width: '100%', display: 'block' }}>
-                    <div
-                      className="effects-dropdown-header"
-                      role="button"
-                      tabIndex={0}
-                      onClick={toggleEffectsDropdown}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          toggleEffectsDropdown();
-                        }
-                      }}
-                    >
-                    <span className="effects-dropdown-icon">
-                      <Layers size={14} strokeWidth={1.75} />
-                    </span>
-                    <div className="effects-dropdown-text">
-                      {effects.filter(e => e.enabled).length > 0 ? (
-                        <>
-                          <span className="effects-dropdown-count">
-                            {effects.filter(e => e.enabled).length} {effects.filter(e => e.enabled).length === 1 ? 'effect' : 'effects'} enabled
-                          </span>
-                          <span className="effects-dropdown-names">
-                            ({effects.filter(e => e.enabled).map(e => {
-                              if (e.id === 'inverse_glow') return 'Ignition Glow (Inverse)';
-                              if (e.id === 'inverse_vignette') return 'Vignette Falloff (Inverse)';
-                              return e.name;
-                            }).join(', ')})
-                          </span>
-                        </>
-                      ) : (
-                        <span className="effects-dropdown-empty">No effects enabled</span>
-                      )}
-                    </div>
-                    <span className="effects-dropdown-chevron">
-                      <ChevronDown size={14} strokeWidth={1.75} />
-                    </span>
-                  </div>
-                  </Tooltip>
+              <div className="replica-effects-card">
+                {visibleEffectsList.map((eff, index) => {
+                  const isExpanded = expandedEffectId === eff.id;
+                  const inversePairId = eff.id === 'glow' ? 'inverse_glow' : eff.id === 'vignette' ? 'inverse_vignette' : null;
+                  const inversePairEff = inversePairId ? effects.find((e) => e.id === inversePairId) : null;
+                  const isInverseActive = Boolean(inversePairEff?.enabled);
+                  const activeEff = isInverseActive && inversePairEff ? inversePairEff : eff;
+                  const isRowEnabled = eff.enabled || isInverseActive;
 
-                  {isEffectsDropdownOpen && (
-                    <div className="effects-dropdown-panel">
-                      {visibleEffectsList.map((eff, index) => {
-                        const isExpanded = expandedEffectId === eff.id;
-                        const inversePairId = eff.id === 'glow' ? 'inverse_glow' : eff.id === 'vignette' ? 'inverse_vignette' : null;
-                        const inversePairEff = inversePairId ? effects.find((e) => e.id === inversePairId) : null;
-                        const isInverseActive = Boolean(inversePairEff?.enabled);
-                        const activeEff = isInverseActive && inversePairEff ? inversePairEff : eff;
-                        const isRowEnabled = eff.enabled || isInverseActive;
+                  const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
+                  const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
 
-                        const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
-                        const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
+                  const displayName = eff.id === 'scanlines' ? 'CRT Lines' : eff.name;
+                  const inverseName = eff.id === 'glow' ? 'Inverse Glow' : eff.id === 'vignette' ? 'Inverse Vignette' : 'Inverse';
 
-                        return (
-                          <div
-                            key={eff.id}
-                            className={`effect-item ${draggedEffectIndex === index ? 'dragging' : ''} ${dragOverEffectIndex === index ? 'drag-over' : ''}`}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
-                                setDragOverEffectIndex(index);
-                              }
-                            }}
-                            onDragLeave={() => {
-                              if (dragOverEffectIndex === index) setDragOverEffectIndex(null);
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              if (draggedEffectIndex !== null && draggedEffectIndex !== index) {
-                                const fromRealIdx = effects.findIndex((item) => item.id === visibleEffectsList[draggedEffectIndex]?.id);
-                                const toRealIdx = effects.findIndex((item) => item.id === eff.id);
-                                if (fromRealIdx !== -1 && toRealIdx !== -1) {
-                                  reorderEffects(fromRealIdx, toRealIdx);
-                                }
-                              }
-                              setDraggedEffectIndex(null);
-                              setDragOverEffectIndex(null);
-                            }}
-                          >
-                            {/* 36px row per effect */}
+                  return (
+                    <div key={eff.id} className="replica-effect-item">
+                      <div
+                        className="replica-effect-header-row"
+                        onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
+                      >
+                        <span className="replica-effect-title">{displayName}</span>
+                        <button
+                          type="button"
+                          className={`replica-effect-checkbox ${isRowEnabled ? 'checked' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isInverseActive && inversePairEff) {
+                              toggleEffectEnabled(inversePairEff.id);
+                            } else {
+                              toggleEffectEnabled(eff.id);
+                            }
+                          }}
+                          aria-label={`Toggle ${displayName}`}
+                        />
+                      </div>
+
+                      {/* Expanded parameter card */}
+                      {isExpanded && (
+                        <div className="replica-effect-params-card">
+                          {Object.keys(defaultParams).map((key) => {
+                            const val = activeEff.params[key] !== undefined ? activeEff.params[key] : defaultParams[key];
+
+                            if (key === 'shape' && typeof defaultParams[key] === 'string') {
+                              return (
+                                <div key={key} className="slider-control-block">
+                                  <div className="slider-label-above">
+                                    <span>Shape</span>
+                                  </div>
+                                  <div className="replica-btn-grid-2" style={{ marginTop: '2px' }}>
+                                    <button
+                                      type="button"
+                                      className={`replica-btn-2 ${val === 'circle' ? 'active' : ''}`}
+                                      onClick={() => updateEffectParam(activeEff.id, 'shape', 'circle')}
+                                    >
+                                      Circle
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`replica-btn-2 ${val === 'diamond' ? 'active' : ''}`}
+                                      onClick={() => updateEffectParam(activeEff.id, 'shape', 'diamond')}
+                                    >
+                                      Diamond
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            let min = 0;
+                            let max = 1;
+                            let step = 0.05;
+
+                            if (key === 'quality' || key === 'blackPoint' || key === 'whitePoint' || key === 'softness') {
+                              min = 0; max = 1; step = 0.05;
+                            } else if (key === 'intensity') {
+                              min = 0; max = 2; step = 0.05;
+                            } else if (key === 'radius') {
+                              min = 1; max = 24; step = 1;
+                            } else if (key === 'dotSize' || key === 'thickness' || key === 'blockSize') {
+                              min = 1; max = 20; step = 1;
+                            } else if (key === 'angle') {
+                              min = 0; max = 360; step = 1;
+                            } else if (key === 'offsetX' || key === 'offsetY') {
+                              min = 0; max = 20; step = 1;
+                            } else if (key === 'gamma') {
+                              min = 0.1; max = 3.0; step = 0.05;
+                            } else if (key === 'amount') {
+                              min = -1.0; max = 1.0; step = 0.05;
+                            }
+
+                            const numVal = typeof val === 'number' ? val : defaultParams[key];
+                            const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                            const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
+                            const displayVal = typeof numVal === 'number'
+                              ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
+                              : String(val);
+
+                            return (
+                              <div key={key} className="slider-control-block">
+                                <div className="slider-label-above">
+                                  <span>{labelText}</span>
+                                </div>
+                                <div className="slider-track-input-row">
+                                  <input
+                                    type="range"
+                                    className="control-slider"
+                                    min={min}
+                                    max={max}
+                                    step={step}
+                                    value={numVal}
+                                    style={getSliderFill(numVal, min, max)}
+                                    {...sliderPointerProps}
+                                    onChange={(e) => {
+                                      const nextVal = Number(e.target.value);
+                                      updateEffectParam(eff.id, key, nextVal);
+                                      if (inversePairEff) updateEffectParam(inversePairEff.id, key, nextVal);
+                                    }}
+                                  />
+                                  <input
+                                    type="number"
+                                    className="control-num-input"
+                                    min={min}
+                                    max={max}
+                                    step={step}
+                                    value={displayVal}
+                                    onChange={(e) => {
+                                      const raw = parseFloat(e.target.value);
+                                      if (!isNaN(raw)) {
+                                        const clamped = Math.max(min, Math.min(max, raw));
+                                        updateEffectParam(eff.id, key, clamped);
+                                        if (inversePairEff) updateEffectParam(inversePairEff.id, key, clamped);
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* Inverse Subtoggle for glow & vignette */}
+                          {inversePairEff && (
                             <div
-                              className="effect-row"
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  setExpandedEffectId(isExpanded ? null : eff.id);
+                              className="replica-effect-subtoggle-row"
+                              onClick={() => {
+                                if (isInverseActive) {
+                                  toggleEffectEnabled(inversePairEff.id);
+                                  if (!eff.enabled) toggleEffectEnabled(eff.id);
+                                } else {
+                                  if (eff.enabled) toggleEffectEnabled(eff.id);
+                                  toggleEffectEnabled(inversePairEff.id);
                                 }
                               }}
                             >
-                              {/* Drag handle */}
-                              <Tooltip text="Drag to reorder">
-                                <span
-                                  className="effect-row-drag"
-                                  draggable
-                                  tabIndex={0}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onDragStart={(e) => {
-                                    e.stopPropagation();
-                                    setDraggedEffectIndex(index);
-                                  }}
-                                  onDragEnd={() => {
-                                    setDraggedEffectIndex(null);
-                                    setDragOverEffectIndex(null);
-                                  }}
-                                >
-                                  <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">
-                                    <circle cx="1.5" cy="1.5" r="1.5" />
-                                    <circle cx="6.5" cy="1.5" r="1.5" />
-                                    <circle cx="1.5" cy="7" r="1.5" />
-                                    <circle cx="6.5" cy="7" r="1.5" />
-                                    <circle cx="1.5" cy="12.5" r="1.5" />
-                                    <circle cx="6.5" cy="12.5" r="1.5" />
-                                  </svg>
-                                </span>
-                              </Tooltip>
-
-                              {/* Toggle square */}
-                              <Tooltip text={isRowEnabled ? `Disable ${eff.name}` : `Enable ${eff.name}`}>
-                                <button
-                                  type="button"
-                                  className={`effect-row-toggle ${isRowEnabled ? 'enabled' : ''}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isInverseActive && inversePairEff) {
-                                      toggleEffectEnabled(inversePairEff.id);
-                                    } else {
-                                      toggleEffectEnabled(eff.id);
-                                    }
-                                  }}
-                                >
-                                  <span className="effect-toggle-square" />
-                                </button>
-                              </Tooltip>
-
-                              {/* Effect name */}
-                              <span className={`effect-row-name ${!isRowEnabled ? 'disabled' : ''}`}>
-                                {eff.name} {isInverseActive ? '(Inverse)' : ''}
-                              </span>
-
-                              {/* Chevron › on right */}
-                              <span className={`effect-row-chevron ${isExpanded ? 'expanded' : ''}`}>
-                                <ChevronRight size={14} strokeWidth={1.75} />
-                              </span>
+                              <span className="replica-effect-subtoggle-label">{inverseName}</span>
+                              <button
+                                type="button"
+                                className={`replica-effect-checkbox ${isInverseActive ? 'checked' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isInverseActive) {
+                                    toggleEffectEnabled(inversePairEff.id);
+                                    if (!eff.enabled) toggleEffectEnabled(eff.id);
+                                  } else {
+                                    if (eff.enabled) toggleEffectEnabled(eff.id);
+                                    toggleEffectEnabled(inversePairEff.id);
+                                  }
+                                }}
+                                aria-label={`Toggle ${inverseName}`}
+                              />
                             </div>
+                          )}
+                        </div>
+                      )}
 
-                            {/* Indented parameter panel below row (Note 10: No data-lenis-prevent so sidebar scroll works seamlessly) */}
-                            {isExpanded && (
-                              <div className="effect-row-params">
-                                {/* Note 11: Inverse Toggle inside Glow and Vignette */}
-                                {inversePairEff && (
-                                  <div className="serpentine-row" style={{ marginTop: 2, marginBottom: 4 }}>
-                                    <Tooltip text={`Invert ${eff.name} (applies ${inversePairEff.name})`}>
-                                      <button
-                                        type="button"
-                                        className={`toggle-square-btn ${isInverseActive ? 'enabled' : ''}`}
-                                        onClick={() => {
-                                          if (isInverseActive) {
-                                            toggleEffectEnabled(inversePairEff.id);
-                                            if (!eff.enabled) toggleEffectEnabled(eff.id);
-                                          } else {
-                                            if (eff.enabled) toggleEffectEnabled(eff.id);
-                                            toggleEffectEnabled(inversePairEff.id);
-                                          }
-                                        }}
-                                      >
-                                        <span className={`toggle-square ${isInverseActive ? 'enabled' : ''}`} />
-                                      </button>
-                                    </Tooltip>
-                                    <span
-                                      className="serpentine-label"
-                                      style={{ fontSize: '0.78rem' }}
-                                      onClick={() => {
-                                        if (isInverseActive) {
-                                          toggleEffectEnabled(inversePairEff.id);
-                                          if (!eff.enabled) toggleEffectEnabled(eff.id);
-                                        } else {
-                                          if (eff.enabled) toggleEffectEnabled(eff.id);
-                                          toggleEffectEnabled(inversePairEff.id);
-                                        }
-                                      }}
-                                    >
-                                      Invert Effect
-                                    </span>
-                                  </div>
-                                )}
-
-                                {Object.keys(defaultParams).map((key) => {
-                                  const val = activeEff.params[key] !== undefined ? activeEff.params[key] : defaultParams[key];
-
-                                  if (key === 'shape' && typeof defaultParams[key] === 'string') {
-                                    return (
-                                      <div key={key} className="effect-param-row">
-                                        <div className="effect-param-label">
-                                          <span>Shape</span>
-                                        </div>
-                                        <div className="effect-param-segmented">
-                                          <button
-                                            type="button"
-                                            className={`effect-param-segment-btn ${val === 'circle' ? 'active' : ''}`}
-                                            onClick={() => updateEffectParam(activeEff.id, 'shape', 'circle')}
-                                          >
-                                            Circle
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className={`effect-param-segment-btn ${val === 'diamond' ? 'active' : ''}`}
-                                            onClick={() => updateEffectParam(activeEff.id, 'shape', 'diamond')}
-                                          >
-                                            Diamond
-                                          </button>
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-
-                                  let min = 0;
-                                  let max = 1;
-                                  let step = 0.05;
-
-                                  if (key === 'quality' || key === 'intensity' || key === 'blackPoint' || key === 'whitePoint' || key === 'softness') {
-                                    min = 0; max = 1; step = 0.05;
-                                  } else if (key === 'radius' || key === 'dotSize' || key === 'thickness' || key === 'blockSize') {
-                                    min = 1; max = 20; step = 1;
-                                  } else if (key === 'angle') {
-                                    min = 0; max = 360; step = 1;
-                                  } else if (key === 'offsetX' || key === 'offsetY') {
-                                    min = 0; max = 20; step = 1;
-                                  } else if (key === 'gamma') {
-                                    min = 0.1; max = 3.0; step = 0.05;
-                                  } else if (key === 'amount') {
-                                    min = -1.0; max = 1.0; step = 0.05;
-                                  }
-
-                                  const numVal = typeof val === 'number' ? val : defaultParams[key];
-                                  const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                                  const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
-                                  const displayVal = typeof numVal === 'number'
-                                    ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
-                                    : String(val);
-
-                                  return (
-                                    <div key={key} className="effect-param-row">
-                                      <div className="effect-param-label">
-                                        <Tooltip text={`Double-click to reset ${labelText} to default (${defaultParams[key]})`}>
-                                          <span
-                                            onDoubleClick={() => {
-                                              updateEffectParam(eff.id, key, defaultParams[key]);
-                                              if (inversePairEff) updateEffectParam(inversePairEff.id, key, defaultParams[key]);
-                                            }}
-                                          >
-                                            {labelText}
-                                          </span>
-                                        </Tooltip>
-                                      </div>
-                                      <div className="effect-param-control-row">
-                                        <input
-                                          type="range"
-                                          className="effect-param-slider"
-                                          min={min}
-                                          max={max}
-                                          step={step}
-                                          value={numVal}
-                                          style={getSliderFill(numVal, min, max)}
-                                          {...sliderPointerProps}
-                                          onDoubleClick={() => {
-                                            updateEffectParam(eff.id, key, defaultParams[key]);
-                                            if (inversePairEff) updateEffectParam(inversePairEff.id, key, defaultParams[key]);
-                                          }}
-                                          onChange={(e) => {
-                                            const nextVal = Number(e.target.value);
-                                            updateEffectParam(eff.id, key, nextVal);
-                                            if (inversePairEff) updateEffectParam(inversePairEff.id, key, nextVal);
-                                          }}
-                                        />
-                                        <div className="slider-value-box">
-                                          <Tooltip text="Double-click slider to reset">
-                                            <span className="slider-value-number">
-                                              {displayVal}
-                                            </span>
-                                          </Tooltip>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {index < visibleEffectsList.length - 1 && (
+                        <div className="replica-effect-divider" />
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2559,76 +2801,171 @@ export const RightSidebar: React.FC = () => {
           {/* 5. PRESETS SECTION */}
           <div className="section-block">
             <div 
-              className="section-header section-header-clickable"
+              className="section-header section-header-clickable presets-header-row"
               onClick={() => toggleSection('presets')}
             >
-              <div className="section-header-left">
-                <span className="section-collapse-icon">{collapsedSections.presets ? '▶' : '▼'}</span>
-                <span className="section-title-text">USER PRESETS</span>
-              </div>
+              <span className="section-title-text presets-header-title">Presets</span>
+              <ChevronDown
+                size={18}
+                strokeWidth={2.2}
+                className="presets-header-chevron"
+                style={{
+                  transform: collapsedSections.presets ? 'rotate(-90deg)' : 'rotate(0deg)',
+                  transition: 'transform 150ms ease'
+                }}
+              />
             </div>
 
             {!collapsedSections.presets && (
-              <div className="section-content presets-section-content">
-                {userPresets.length > 0 ? (
-                  <div className="preset-row preset-dropdown-row" style={{ marginBottom: '12px' }}>
-                    <Dropdown
-                      width="100%"
-                      value=""
-                      placeholder="Load User Preset..."
-                      onChange={(presetId) => {
-                        const preset = userPresets.find((p) => p.id === presetId);
-                        if (!preset) return;
-                        
-                        if (preset.algorithmId) setAlgorithmId(preset.algorithmId);
-                        if (preset.paletteId) setActivePaletteId(preset.paletteId);
-                        if (preset.brightness !== undefined) setBrightness(preset.brightness * 100);
-                        if (preset.contrast !== undefined) setContrast(preset.contrast * 100);
-                        if (preset.saturation !== undefined) setSaturation(preset.saturation * 100);
-                        if (preset.gamma !== undefined) setGamma(preset.gamma);
-                        if (preset.depth !== undefined) setDepth(preset.depth);
-                        
-                        if (preset.threshold !== undefined) updateCurrentAlgoParam('threshold', preset.threshold);
-                        if (preset.scale !== undefined) updateCurrentAlgoParam('scale', preset.scale);
-                        if (preset.diffusionStrength !== undefined) updateCurrentAlgoParam('diffusionStrength', preset.diffusionStrength);
-                        if (preset.serpentine !== undefined) updateCurrentAlgoParam('serpentine', preset.serpentine);
-                        if (preset.effects) useAppStore.setState({ effects: preset.effects });
+              <div className="replica-presets-card">
+                {userPresets.length === 0 ? (
+                  <>
+                    <div className="replica-presets-empty">No Saved Presets.</div>
+                    <button
+                      type="button"
+                      className="replica-preset-create-btn"
+                      onClick={() => {
+                        setNewPresetName('');
+                        setIsCreatePresetModalOpen(true);
                       }}
-                      items={userPresets.map((p) => ({ id: p.id, label: p.name }))}
-                    />
-                  </div>
+                    >
+                      Create
+                    </button>
+                  </>
                 ) : (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                    No saved presets yet.
-                  </div>
+                  <>
+                    <div className="replica-presets-list">
+                      {userPresets.map((preset) => (
+                        <div
+                          key={preset.id}
+                          className="replica-preset-item"
+                          onClick={() => {
+                            if (!preset) return;
+                            if (preset.algorithmId) setAlgorithmId(preset.algorithmId);
+                            if (preset.paletteId) setActivePaletteId(preset.paletteId);
+                            if (preset.palette && Array.isArray(preset.palette) && preset.palette.length > 0) {
+                              useAppStore.setState({ workingPalette: preset.palette.map((c: any) => [...c]) });
+                            }
+                            if (preset.brightness !== undefined) setBrightness(preset.brightness * 100);
+                            if (preset.contrast !== undefined) setContrast(preset.contrast * 100);
+                            if (preset.saturation !== undefined) setSaturation(preset.saturation * 100);
+                            if (preset.hue !== undefined) setHue(preset.hue);
+                            if (preset.gamma !== undefined) setGamma(preset.gamma);
+                            if (preset.depth !== undefined) setDepth(preset.depth);
+                            
+                            if (preset.threshold !== undefined) updateCurrentAlgoParam('threshold', preset.threshold);
+                            if (preset.scale !== undefined) updateCurrentAlgoParam('scale', preset.scale);
+                            if (preset.diffusionStrength !== undefined) updateCurrentAlgoParam('diffusionStrength', preset.diffusionStrength);
+                            if (preset.serpentine !== undefined) updateCurrentAlgoParam('serpentine', preset.serpentine);
+                            if (preset.effects) useAppStore.setState({ effects: preset.effects });
+                          }}
+                          title={`Apply preset: ${preset.name}`}
+                        >
+                          <span className="replica-preset-name">{preset.name}</span>
+                          <button
+                            type="button"
+                            className="replica-preset-delete-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const updated = userPresets.filter((p) => p.id !== preset.id);
+                              saveUserPresets(updated);
+                              setUserPresets(updated);
+                            }}
+                            title="Delete preset"
+                            aria-label={`Delete preset ${preset.name}`}
+                          >
+                            <X size={14} strokeWidth={2.2} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="replica-preset-create-btn"
+                      onClick={() => {
+                        setNewPresetName('');
+                        setIsCreatePresetModalOpen(true);
+                      }}
+                    >
+                      Create
+                    </button>
+                  </>
                 )}
+              </div>
+            )}
 
-                <div className="preset-row preset-save-row" style={{ display: 'flex', gap: '8px' }}>
+            {/* CREATE PRESET POPUP MODAL */}
+            {isCreatePresetModalOpen && (
+              <div 
+                className="preset-popup-backdrop"
+                onClick={() => setIsCreatePresetModalOpen(false)}
+              >
+                <div 
+                  className="preset-popup-dialog"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <input
                     type="text"
-                    className="search-input-box"
-                    placeholder="Preset name..."
+                    autoFocus
+                    className="preset-popup-input"
+                    placeholder="Name"
                     value={newPresetName}
                     onChange={(e) => setNewPresetName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const trimmed = newPresetName.trim();
+                        if (!trimmed) return;
+                        const newPreset = {
+                          id: `user_${Date.now()}`,
+                          name: trimmed,
+                          algorithmId,
+                          paletteId: activePaletteId,
+                          brightness: brightness / 100,
+                          contrast: contrast / 100,
+                          saturation: saturation / 100,
+                          hue,
+                          gamma,
+                          depth,
+                          threshold: currentParams?.threshold,
+                          scale: currentParams?.scale,
+                          diffusionStrength: currentParams?.diffusionStrength,
+                          serpentine: currentParams?.serpentine,
+                          effects: JSON.parse(JSON.stringify(effects)),
+                          palette: [...workingPalette]
+                        };
+                        const updated = [...userPresets, newPreset];
+                        saveUserPresets(updated);
+                        setUserPresets(updated);
+                        setNewPresetName('');
+                        setIsCreatePresetModalOpen(false);
+                      } else if (e.key === 'Escape') {
+                        setIsCreatePresetModalOpen(false);
+                      }
+                    }}
                   />
                   <button
-                    className="btn-default"
+                    type="button"
+                    className="preset-popup-btn"
+                    disabled={!newPresetName.trim()}
                     onClick={() => {
-                      if (!newPresetName.trim()) return;
+                      const trimmed = newPresetName.trim();
+                      if (!trimmed) return;
                       const newPreset = {
                         id: `user_${Date.now()}`,
-                        name: newPresetName.trim(),
+                        name: trimmed,
                         algorithmId,
                         paletteId: activePaletteId,
                         brightness: brightness / 100,
                         contrast: contrast / 100,
                         saturation: saturation / 100,
+                        hue,
                         gamma,
                         depth,
-                        threshold: currentParams.threshold,
-                        scale: currentParams.scale,
-                        diffusionStrength: currentParams.diffusionStrength,
-                        serpentine: currentParams.serpentine,
+                        threshold: currentParams?.threshold,
+                        scale: currentParams?.scale,
+                        diffusionStrength: currentParams?.diffusionStrength,
+                        serpentine: currentParams?.serpentine,
                         effects: JSON.parse(JSON.stringify(effects)),
                         palette: [...workingPalette]
                       };
@@ -2636,9 +2973,10 @@ export const RightSidebar: React.FC = () => {
                       saveUserPresets(updated);
                       setUserPresets(updated);
                       setNewPresetName('');
+                      setIsCreatePresetModalOpen(false);
                     }}
                   >
-                    Save
+                    Create
                   </button>
                 </div>
               </div>

@@ -28,12 +28,15 @@ interface TopMenuBarProps {
 type MenuType = 'file' | 'edit' | 'view' | null;
 
 const THEMES = [
+  { id: 'light_pro', label: 'Light Pro' },
   { id: 'dark_pro', label: 'Dark Pro' },
-  { id: 'crt_green', label: 'CRT Phosphor' },
-  { id: 'cyberpunk_neon', label: 'Cyberpunk Neon' },
-  { id: 'gameboy_olive', label: 'GameBoy Olive' },
-  { id: 'retro_mac', label: 'Retro Mac OS' },
-  { id: 'vaporwave_pink', label: 'Vaporwave' },
+  { id: 'nord', label: 'Nord' },
+  { id: 'evergreen', label: 'Evergreen' },
+  { id: 'gruvbox', label: 'Gruvbox' },
+  { id: 'catppuccin_mocha', label: 'Catppuccin Mocha' },
+  { id: 'tokyo_night', label: 'Tokyo Night' },
+  { id: 'solarized_dark', label: 'Solarized Dark' },
+  { id: 'one_dark', label: 'One Dark' },
 ];
 
 export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSettings }) => {
@@ -224,6 +227,16 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
           toggleBeforeAfter();
           return;
         }
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          handleZoomIn();
+          return;
+        }
+        if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          handleZoomOut();
+          return;
+        }
       }
     };
 
@@ -306,7 +319,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
   const triggerMenuItem = (menu: MenuType, index: number) => {
     if (menu === 'file') {
       if (index === 0) { handleOpenFileDialog(); setActiveMenu(null); }
-      else if (index === 1) { loadSampleImage(); setActiveMenu(null); }
+      else if (index === 1) { loadSampleImage(); handleFit(); setActiveMenu(null); }
       else if (index === 2) { handleCopyClipboard(); setActiveMenu(null); }
       else if (index === 3) { setIsExportOpen(true); setActiveMenu(null); }
       else if (index === 4) { clearImage(); setActiveMenu(null); }
@@ -418,7 +431,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
 
               <button 
                 className={`dropdown-menu-item ${focusedIndex === 1 ? 'focused' : ''}`}
-                onClick={() => { loadSampleImage(); setActiveMenu(null); }}
+                onClick={() => { loadSampleImage(); handleFit(); setActiveMenu(null); }}
                 onMouseEnter={() => setFocusedIndex(1)}
                 role="menuitem"
               >

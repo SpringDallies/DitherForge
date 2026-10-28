@@ -38,18 +38,18 @@
   }
 }
 
-/* Sidebar Brand Mark (Fix 2) */
+/* Sidebar Brand Mark */
 .sidebar-brand {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 24px 0 28px 0;
+  padding: 8px 0 14px 0;
 }
 
 .sidebar-brand .logo-mark {
-  height: 140px;
+  height: 210px;
   width: auto;
-  opacity: 0.95;
+  opacity: 1;
 }
 
 /* Top Menu Bar Left Alignment (Fix 3) */

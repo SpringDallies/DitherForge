@@ -435,7 +435,7 @@ Verification output:
   PASS: Palette extractors count matches 2 [extractPaletteKMeans, extractPaletteMedianCut]
 
 [3] POST-EFFECTS STACK (src/dither-engine/effect-stack.js)
-  PASS: Post-effect types count matches 9 (found: 9)
+  PASS: Post-effect types count matches 11 (found: 11)
 
 [4] TEMPORAL CRT NOISE PATTERNS (src/dither-engine/temporal.js)
   PASS: Temporal CRT noise profiles count matches 9 (found: 9)
@@ -444,7 +444,7 @@ Verification output:
   PASS: Built-in factory presets count matches 10 (found: 10)
 
 [6] UI SOURCE PARSING (index.html)
-  PASS: Themes parsed from index.html: 6 [dark_pro, crt_green, cyberpunk_neon, gameboy_olive, retro_mac, vaporwave_pink]
+  PASS: Themes parsed from index.html: 9 [light_pro, dark_pro, nord, evergreen, gruvbox, catppuccin_mocha, tokyo_night, solarized_dark, one_dark]
   PASS: Engine performance modes parsed from index.html: 3 [full, live, still]
   PASS: Export actions parsed from index.html: 10 [btnExportPng, btnExportJpg, btnExportWebp, btnExportClipboard, btnExportSvg, btnExportAscii, btnExportBlocks, btnExportBraille, btnRecordVideo, btnExportFrameSequence]
 

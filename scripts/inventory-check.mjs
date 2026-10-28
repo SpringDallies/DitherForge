@@ -129,9 +129,9 @@ assert(extractors.length === 2,
 
 // 3. Effects Stack
 console.log("\n[3] POST-EFFECTS STACK (src/dither-engine/effect-stack.js)");
-assert(AVAILABLE_EFFECT_TYPES.length === 9,
-  `Post-effect types count matches 9 (found: ${AVAILABLE_EFFECT_TYPES.length})`,
-  `Post-effect types count mismatch: expected 9, got ${AVAILABLE_EFFECT_TYPES.length}`);
+assert(AVAILABLE_EFFECT_TYPES.length === 11,
+  `Post-effect types count matches 11 (found: ${AVAILABLE_EFFECT_TYPES.length})`,
+  `Post-effect types count mismatch: expected 11, got ${AVAILABLE_EFFECT_TYPES.length}`);
 
 // 4. Temporal CRT Patterns
 console.log("\n[4] TEMPORAL CRT NOISE PATTERNS (src/dither-engine/temporal.js)");
@@ -157,9 +157,9 @@ if (themeSelectMatch) {
   const optMatches = [...themeSelectMatch[1].matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)];
   parsedThemes = optMatches.map(m => ({ id: m[1], label: m[2] }));
 }
-assert(parsedThemes.length === 6,
-  `Themes parsed from index.html: 6 [${parsedThemes.map(t => t.id).join(', ')}]`,
-  `Themes parsed from index.html mismatch: expected 6, found ${parsedThemes.length}`);
+assert(parsedThemes.length === 9,
+  `Themes parsed from index.html: 9 [${parsedThemes.map(t => t.id).join(', ')}]`,
+  `Themes parsed from index.html mismatch: expected 9, found ${parsedThemes.length}`);
 
 // Parse Performance Modes from index.html
 const perfModeMatch = indexHtmlContent.match(/<select id="perfModeSelector"[^>]*>([\s\S]*?)<\/select>/);

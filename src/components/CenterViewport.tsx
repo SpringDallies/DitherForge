@@ -103,7 +103,15 @@ export const CenterViewport: React.FC = () => {
     noiseAmount: 0.3
   };
 
-  // Keyboard Navigation: 0 (Fit), 1 (1:1), \ (Compare), Space (Pan)
+  // Initial mount: fit and center default image in viewport
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container && sourceImageData) {
+      fitToViewport(container.clientWidth, container.clientHeight);
+    }
+  }, [fitToViewport]);
+
+  // Keyboard Navigation: Space (Pan) — Zoom/Fit/Compare shortcuts are handled globally in TopMenuBar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -118,25 +126,7 @@ export const CenterViewport: React.FC = () => {
         return;
       }
 
-      if (e.key === '0') {
-        e.preventDefault();
-        const container = containerRef.current;
-        if (container) {
-          fitToViewport(container.clientWidth, container.clientHeight);
-        }
-      } else if (e.key === '1') {
-        e.preventDefault();
-        resetZoom();
-      } else if (e.key === '\\') {
-        e.preventDefault();
-        toggleBeforeAfter();
-      } else if (e.key === '+' || e.key === '=') {
-        e.preventDefault();
-        setZoom(zoom + 20);
-      } else if (e.key === '-' || e.key === '_') {
-        e.preventDefault();
-        setZoom(zoom - 20);
-      } else if (e.code === 'Space' && !e.repeat) {
+      if (e.code === 'Space' && !e.repeat) {
         setIsSpacePressed(true);
       }
     };
@@ -153,7 +143,7 @@ export const CenterViewport: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [zoom, fitToViewport, resetZoom, toggleBeforeAfter, setZoom]);
+  }, []);
 
   // Window-level Split Divider Dragging (prevents losing pointer off-canvas)
   useEffect(() => {
@@ -191,7 +181,7 @@ export const CenterViewport: React.FC = () => {
       const currentZoom = useAppStore.getState().zoom;
       const currentPanX = useAppStore.getState().panX;
       const currentPanY = useAppStore.getState().panY;
-      const newZoom = Math.max(10, Math.min(1000, Math.round(currentZoom * factor)));
+      const newZoom = Math.max(10, Math.min(3200, Math.round(currentZoom * factor)));
 
       if (newZoom === currentZoom) return;
 
@@ -682,7 +672,13 @@ export const CenterViewport: React.FC = () => {
               </button>
               <button 
                 className="action-btn"
-                onClick={loadSampleImage}
+                onClick={() => {
+                  loadSampleImage();
+                  const container = containerRef.current;
+                  if (container) {
+                    fitToViewport(container.clientWidth, container.clientHeight);
+                  }
+                }}
               >
                 <Sparkles size={13} /> Calibration Pattern
               </button>

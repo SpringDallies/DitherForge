@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, Copy, Check, FileText, Image as ImageIcon, Box } from 'lucide-react';
+import { X, Download, Copy, Check } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 // @ts-ignore
 import { exportRaster, copyCanvasToClipboard, exportCharacterGrid, exportSvgContours } from '../../dither-engine/exporters.js';
@@ -332,12 +332,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                   className="export-transparency-hint" 
                   style={{
                     fontSize: '11px',
-                    color: 'var(--text-muted, #888)',
+                    color: 'var(--text-muted, #D8D8D8)',
                     marginBottom: '12px',
                     padding: '6px 10px',
-                    background: 'rgba(255, 180, 0, 0.08)',
-                    border: '1px solid rgba(255, 180, 0, 0.2)',
-                    borderRadius: '4px'
+                    background: 'color-mix(in srgb, var(--status-warning) 12%, transparent)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-sm)'
                   }}
                 >
                   💡 <strong>Transparency Notice:</strong> JPEG does not support alpha channels. Transparent areas will be flattened to black. Use <strong>PNG</strong> to preserve transparent pixels.
@@ -515,7 +515,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
             >
               {isCopied ? (
                 <>
-                  <Check size={14} style={{ color: 'var(--accent-cyan)' }} />
+                  <Check size={14} style={{ color: 'var(--text-dim)' }} />
                   <span>Copied!</span>
                 </>
               ) : (
@@ -537,8 +537,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               else if (activeTab === 'vector') handleExportVector();
             }}
             style={{ 
-              background: 'var(--accent-cyan)', 
-              color: '#000', 
+              background: 'var(--accent-primary)', 
+              color: 'var(--text-on-accent)',
+              borderRadius: '10px', 
               fontWeight: 600, 
               border: 'none',
               minWidth: '100px'

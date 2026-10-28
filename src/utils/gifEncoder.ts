@@ -78,7 +78,6 @@ export class GifEncoder {
     const totalPixels = this.width * this.height;
     const colorCounts = new Map<number, number>();
     let hasTransparent = false;
-    let transparentRgb = -1;
 
     // Scan unique colors and transparency
     for (let i = 0; i < totalPixels; i++) {
@@ -86,7 +85,6 @@ export class GifEncoder {
       const a = pixelsRgba[idx + 3];
       if (a < 128) {
         hasTransparent = true;
-        transparentRgb = 0x00FFFFFF;
       } else {
         const rgb = (pixelsRgba[idx] << 16) | (pixelsRgba[idx + 1] << 8) | pixelsRgba[idx + 2];
         colorCounts.set(rgb, (colorCounts.get(rgb) || 0) + 1);

@@ -1,14 +1,17 @@
 /* DitherForge: Core Design System & Theme Styles
    Clean-Room Retro-Modern Desktop UI */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import './themes.css';
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+  corner-shape: squircle;
 }
 
 body {
@@ -48,7 +51,7 @@ input[type="number"] {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 4px;
+  border-radius: var(--radius-pill);
 }
 
 /* --- Top Menu Bar --- */
@@ -73,7 +76,7 @@ input[type="number"] {
 .brand-logo-img {
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   /* box-shadow removed for perf */
   object-fit: cover;
 }
@@ -93,7 +96,7 @@ input[type="number"] {
   padding: 2px 6px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--accent-cyan);
 }
 
@@ -109,7 +112,7 @@ input[type="number"] {
   color: var(--text-main);
   padding: 6px 10px;
   font-size: 0.85rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -196,7 +199,7 @@ input[type="number"] {
 .panel-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -224,9 +227,9 @@ input[type="number"] {
 .search-input-box {
   width: 100%;
   padding: 8px 12px;
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--text-main);
   font-family: var(--font-sans);
   font-size: 0.85rem;
@@ -251,7 +254,7 @@ input[type="number"] {
   padding: 4px 8px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-pill);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -275,7 +278,7 @@ input[type="number"] {
   padding: 8px 10px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -310,7 +313,7 @@ input[type="number"] {
 .palette-swatches-strip {
   display: flex;
   height: 32px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border-color);
 }
@@ -342,7 +345,7 @@ input[type="number"] {
   gap: 4px;
   background: var(--bg-tertiary);
   padding: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
 }
 
@@ -442,17 +445,12 @@ input[type="number"] {
   color: var(--text-main);
   width: 28px;
   height: 28px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 0.8rem;
-  transition: all 0.15s;
-}
-.btn-icon:hover {
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
 }
 .btn-icon.active {
   background: var(--accent-cyan);
@@ -493,7 +491,7 @@ input[type="number"] {
 .canvas-stage-wrapper {
   position: absolute;
   transform-origin: center center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7); /* hardcoded intentionally */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   border: 1px solid var(--border-color);
   background: var(--canvas-bg);
 }
@@ -545,7 +543,7 @@ canvas#mainViewportCanvas {
   gap: 16px;
   z-index: 30;
   border: 2px dashed var(--accent-cyan);
-  border-radius: 8px;
+  border-radius: var(--radius-xl);
   margin: 20px;
 }
 
@@ -614,7 +612,7 @@ canvas#mainViewportCanvas {
 .effect-card {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -646,7 +644,7 @@ canvas#mainViewportCanvas {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -656,13 +654,14 @@ canvas#mainViewportCanvas {
 .modal-dialog {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   max-width: 900px;
   width: 100%;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .modal-header {
@@ -694,7 +693,7 @@ canvas#mainViewportCanvas {
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--bg-tertiary);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: 6px;
   font-size: 0.85rem;
 }

@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark_pro">
+<html lang="en" data-theme="light_pro">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DitherForge</title>
-  <meta name="description" content="DitherForge � a browser-based retro dithering tool.">
+  <meta name="description" content="DitherForge - a browser-based retro dithering tool.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./src/styles/main.css">
 </head>
 <body>
@@ -46,12 +49,15 @@
       <label style="font-size: 0.8rem; color: var(--text-muted); display:flex; align-items:center; gap:4px;">
         Theme:
         <select id="themeSelector" class="search-input-box" style="width: 130px; padding: 4px 8px; font-size: 0.8rem;">
+          <option value="light_pro">Light Pro</option>
           <option value="dark_pro">Dark Pro</option>
-          <option value="crt_green">CRT Phosphor</option>
-          <option value="cyberpunk_neon">Cyberpunk</option>
-          <option value="gameboy_olive">GameBoy</option>
-          <option value="retro_mac">Retro Mac</option>
-          <option value="vaporwave_pink">Vaporwave</option>
+          <option value="nord">Nord</option>
+          <option value="evergreen">Evergreen</option>
+          <option value="gruvbox">Gruvbox</option>
+          <option value="catppuccin_mocha">Catppuccin Mocha</option>
+          <option value="tokyo_night">Tokyo Night</option>
+          <option value="solarized_dark">Solarized Dark</option>
+          <option value="one_dark">One Dark</option>
         </select>
       </label>
 
@@ -505,7 +511,7 @@
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
           Apply the active dither algorithm, color palette, and effect stack across multiple image files simultaneously.
         </p>
-        <div style="border: 2px dashed var(--border-color); padding: 24px; text-align: center; border-radius: 8px; margin-bottom: 16px;">
+        <div style="border: 2px dashed var(--border-color); padding: 24px; text-align: center; border-radius: 8px; corner-shape: squircle; margin-bottom: 16px;">
           <button class="btn-menu primary" id="btnBatchSelectFiles">+ Select Images</button>
         </div>
         <div id="batchFileList" style="max-height: 200px; overflow-y: auto;">
@@ -516,7 +522,7 @@
             <span>Processing batch queue...</span>
             <span id="batchProgressPercent">0%</span>
           </div>
-          <div style="height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden;">
+          <div style="height: 8px; background: var(--bg-tertiary); border-radius: 4px; corner-shape: squircle; overflow: hidden;">
             <div id="batchProgressBar" style="width: 0%; height: 100%; background: var(--accent-cyan); transition: width 0.2s;"></div>
           </div>
         </div>
@@ -539,7 +545,7 @@
         <p style="margin-bottom: 12px; color: var(--text-main);">
           <strong>Clean-Room Status:</strong> 100% Independently Authored Clean-Room Implementation. No proprietary binaries or decompiled code were inspected or used.
         </p>
-        <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+        <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 12px; border-radius: 6px; corner-shape: squircle; margin-bottom: 16px;">
           <div style="font-size: 0.8rem; color: var(--accent-amber); font-weight: 600; margin-bottom: 4px;">License Registration:</div>
           <input type="text" id="licenseKeyInput" class="search-input-box" placeholder="XXXX-XXXX-XXXX-XXXX" value="DFRG-2026-RETRO-PRO-8891">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { X, Settings } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 import { Dropdown } from '../common/Dropdown';
-import { useAppStore } from '../../state/useAppStore';
+// @ts-ignore
+import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 
 export interface DitherForgeSettings {
   defaultUpdateMode: 'precise' | 'live' | 'settle';
@@ -13,6 +14,9 @@ export interface DitherForgeSettings {
   recentFilesLimit: number;
   scrollTightness: number;
   scrollDuration: number;
+  glassBlur: boolean;
+  shadows: boolean;
+  animations: boolean;
 }
 
 export const DEFAULT_SETTINGS: DitherForgeSettings = {
@@ -23,9 +27,24 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   recentFilesLimit: 8,
   scrollTightness: 0.25,
   scrollDuration: 1.2,
+  glassBlur: true,
+  shadows: true,
+  animations: true,
 };
 
 const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
+
+export function applyPerformanceSettings(settings: DitherForgeSettings): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.setAttribute('data-glass-blur', settings.glassBlur !== false ? 'true' : 'false');
+  document.documentElement.setAttribute('data-shadows', settings.shadows !== false ? 'true' : 'false');
+  document.documentElement.setAttribute('data-animations', settings.animations !== false ? 'true' : 'false');
+}
+
+export function areAnimationsEnabled(): boolean {
+  if (typeof document === 'undefined') return true;
+  return document.documentElement.getAttribute('data-animations') !== 'false';
+}
 
 export function getStoredSettings(): DitherForgeSettings {
   try {
@@ -41,10 +60,15 @@ export function getStoredSettings(): DitherForgeSettings {
 export function saveStoredSettings(settings: DitherForgeSettings): void {
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    applyPerformanceSettings(settings);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('ditherforge_settings_changed', { detail: settings }));
     }
   } catch {}
+}
+
+if (typeof document !== 'undefined') {
+  applyPerformanceSettings(getStoredSettings());
 }
 
 interface SettingsDialogProps {
@@ -55,7 +79,6 @@ interface SettingsDialogProps {
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<DitherForgeSettings>(getStoredSettings);
   const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
-  const setShowAlgorithmDescriptions = useAppStore((state) => state.setShowAlgorithmDescriptions);
 
   useEffect(() => {
     if (isOpen) {
@@ -191,6 +214,65 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
           </div>
 
+          {/* Section: PERFORMANCE */}
+          <div className="settings-section">
+            <div className="settings-section-title">PERFORMANCE</div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Glass blur effect</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Frosted-glass backdrop blur on floating panels and overlays.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.glassBlur !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('glassBlur', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Drop shadows</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Subtle drop shadows on floating panels, dropdowns, and dialogs.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.shadows !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('shadows', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">UI animations</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Smooth transitions and fades when opening, closing, or navigating menus and color pickers.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.animations !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('animations', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
+            </div>
+          </div>
+
           {/* Section: EXPERIMENTAL */}
           <div className="settings-section">
             <div className="settings-section-title">EXPERIMENTAL</div>
@@ -203,9 +285,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     fontSize: '0.62rem',
                     textTransform: 'uppercase',
                     padding: '1px 5px',
-                    borderRadius: '3px',
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    color: '#eab308',
+                    borderRadius: 'var(--radius-xs)',
+                    background: 'color-mix(in srgb, var(--status-warning) 15%, transparent)',
+                    color: 'var(--status-warning)',
                     fontWeight: 600,
                     letterSpacing: '0.04em'
                   }}>
@@ -246,9 +328,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     fontSize: '0.62rem',
                     textTransform: 'uppercase',
                     padding: '1px 5px',
-                    borderRadius: '3px',
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    color: '#eab308',
+                    borderRadius: 'var(--radius-xs)',
+                    background: 'color-mix(in srgb, var(--status-warning) 15%, transparent)',
+                    color: 'var(--status-warning)',
                     fontWeight: 600,
                     letterSpacing: '0.04em'
                   }}>
@@ -303,7 +385,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <span className="settings-label">Export folder</span>
-              <span className="settings-readonly-text">(n/a � browser)</span>
+              <span className="settings-readonly-text">(n/a — browser)</span>
             </div>
 
             <div className="settings-row">
@@ -351,12 +433,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <span className="settings-label">Version</span>
-              <span className="settings-readonly-text">1.0.0</span>
+              <span className="settings-readonly-text">2.0</span>
             </div>
 
             <div className="settings-row">
               <span className="settings-label">Engine</span>
-              <span className="settings-readonly-text">63 algorithms</span>
+              <span className="settings-readonly-text">{ALGORITHM_REGISTRY.length} algorithms</span>
             </div>
 
             <div className="settings-row">

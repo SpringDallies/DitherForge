@@ -188,7 +188,10 @@ interface AppState {
   resetToBuiltin: () => void;
   savedPalettes: Array<{ id: string; name: string; category: string; colors: number[][] }>;
   saveCurrentPaletteLocally: (name: string) => void;
+  deleteCustomPalette: (id: string) => void;
   addAdjustedSwatch: (sourceIndex: number, delta: number) => void;
+  paletteInverted: boolean;
+  paletteFlipped: boolean;
   invertPalette: () => void;
   flipPalette: () => void;
 
@@ -236,6 +239,8 @@ interface AppState {
   // Preferences: Algorithm Descriptions (Item 2)
   showAlgorithmDescriptions: boolean;
   setShowAlgorithmDescriptions: (show: boolean) => void;
+  activeDropdownId: string | null;
+  setActiveDropdownId: (id: string | null) => void;
 
   // Shell Layout & UI State (persisted to localStorage)
   sidebarWidth: number;
@@ -289,10 +294,10 @@ const getStoredSidebarWidth = (): number => {
     const val = localStorage.getItem(STORAGE_KEY_SIDEBAR_WIDTH);
     if (val) {
       const num = parseInt(val, 10);
-      if (!isNaN(num) && num >= 340 && num <= 520) return num;
+      if (!isNaN(num) && num >= 320 && num <= 700) return num;
     }
   } catch {}
-  return 380;
+  return 356;
 };
 
 const getStoredSidebarCollapsed = (): boolean => {
@@ -534,8 +539,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     return found ? found.colors.length : 2;
   })(),
   savedPalettes: getStoredCustomPalettes(),
+  paletteInverted: false,
+  paletteFlipped: false,
   previewPaletteId: null,
-  setPreviewPaletteId: (id: string | null) => set({ previewPaletteId: id }),
+  setPreviewPaletteId: (id: string | null) => set({ previewPaletteId: id, paletteInverted: false, paletteFlipped: false }),
 
   setActivePaletteId: (id: string) => {
     const state = get();
@@ -549,6 +556,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       activePalette: id,
       workingPalette: colors,
       paletteDepth: colors.length,
+      paletteInverted: false,
+      paletteFlipped: false,
       previewPaletteId: null
     });
     (get() as any).pushHistorySnapshot?.();
@@ -571,6 +580,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       activePaletteId: newPal.id,
       activePalette: newPal.id
     });
+  },
+
+  deleteCustomPalette: (id: string) => {
+    const state = get();
+    const next = state.savedPalettes.filter((p) => p.id !== id);
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_PALETTES, JSON.stringify(next));
+    } catch {}
+    if (state.activePaletteId === id) {
+      const fallback = BUILTIN_PALETTES[0];
+      const colors = fallback ? fallback.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
+      set({
+        savedPalettes: next,
+        activePaletteId: fallback?.id || 'monochrome_1bit',
+        activePalette: fallback?.id || 'monochrome_1bit',
+        workingPalette: colors,
+        paletteDepth: colors.length
+      });
+    } else {
+      set({ savedPalettes: next });
+    }
   },
 
   // Uses ±0.35 (35% lighter/darker) and clamps strictly to [0, 255]
@@ -607,78 +637,78 @@ export const useAppStore = create<AppState>((set, get) => ({
         Math.max(0, Math.min(255, 255 - c[2])),
         c[3] ?? 255
       ]);
-      return { workingPalette: nextPalette };
-    });
-    (get() as any).pushHistorySnapshot?.();
-  },
+      return { workingPalette: nextPalette, paletteInverted: !state.paletteInverted };
+         });
+         (get() as any).pushHistorySnapshot?.();
+       },
 
-  // Flip Palette: inverses light/midtone/dark properties (reverses swatch order and inverts lightness)
-  flipPalette: () => {
-    set((state) => {
-      const flipLightness = (r: number, g: number, b: number, a = 255): number[] => {
-        const rN = r / 255;
-        const gN = g / 255;
-        const bN = b / 255;
-        const max = Math.max(rN, gN, bN);
-        const min = Math.min(rN, gN, bN);
-        let h = 0;
-        let s = 0;
-        const l = (max + min) / 2;
+       // Flip Palette: inverses light/midtone/dark properties (reverses swatch order and inverts lightness)
+      flipPalette: () => {
+        set((state) => {
+          const flipLightness = (r: number, g: number, b: number, a = 255): number[] => {
+            const rN = r / 255;
+            const gN = g / 255;
+            const bN = b / 255;
+            const max = Math.max(rN, gN, bN);
+            const min = Math.min(rN, gN, bN);
+            let h = 0;
+            let s = 0;
+            const l = (max + min) / 2;
 
-        if (max !== min) {
-          const d = max - min;
-          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-          switch (max) {
-            case rN:
-              h = (gN - bN) / d + (gN < bN ? 6 : 0);
-              break;
-            case gN:
-              h = (bN - rN) / d + 2;
-              break;
-            case bN:
-              h = (rN - gN) / d + 4;
-              break;
-          }
-          h /= 6;
-        }
+            if (max !== min) {
+              const d = max - min;
+              s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+              switch (max) {
+                case rN:
+                  h = (gN - bN) / d + (gN < bN ? 6 : 0);
+                  break;
+                case gN:
+                  h = (bN - rN) / d + 2;
+                  break;
+                case bN:
+                  h = (rN - gN) / d + 4;
+                  break;
+              }
+              h /= 6;
+            }
 
-        const invL = 1 - l;
-        const c = (1 - Math.abs(2 * invL - 1)) * s;
-        const hDeg = h * 360;
-        const x = c * (1 - Math.abs(((hDeg / 60) % 2) - 1));
-        const m = invL - c / 2;
-        let rP = 0, gP = 0, bP = 0;
+            const invL = 1 - l;
+            const c = (1 - Math.abs(2 * invL - 1)) * s;
+            const hDeg = h * 360;
+            const x = c * (1 - Math.abs(((hDeg / 60) % 2) - 1));
+            const m = invL - c / 2;
+            let rP = 0, gP = 0, bP = 0;
 
-        if (hDeg >= 0 && hDeg < 60) {
-          rP = c; gP = x; bP = 0;
-        } else if (hDeg >= 60 && hDeg < 120) {
-          rP = x; gP = c; bP = 0;
-        } else if (hDeg >= 120 && hDeg < 180) {
-          rP = 0; gP = c; bP = x;
-        } else if (hDeg >= 180 && hDeg < 240) {
-          rP = 0; gP = x; bP = c;
-        } else if (hDeg >= 240 && hDeg < 300) {
-          rP = x; gP = 0; bP = c;
-        } else {
-          rP = c; gP = 0; bP = x;
-        }
+            if (hDeg >= 0 && hDeg < 60) {
+              rP = c; gP = x; bP = 0;
+            } else if (hDeg >= 60 && hDeg < 120) {
+              rP = x; gP = c; bP = 0;
+            } else if (hDeg >= 120 && hDeg < 180) {
+              rP = 0; gP = c; bP = x;
+            } else if (hDeg >= 180 && hDeg < 240) {
+              rP = 0; gP = x; bP = c;
+            } else if (hDeg >= 240 && hDeg < 300) {
+              rP = x; gP = 0; bP = c;
+            } else {
+              rP = c; gP = 0; bP = x;
+            }
 
-        return [
-          Math.max(0, Math.min(255, Math.round((rP + m) * 255))),
-          Math.max(0, Math.min(255, Math.round((gP + m) * 255))),
-          Math.max(0, Math.min(255, Math.round((bP + m) * 255))),
-          a
-        ];
-      };
+            return [
+              Math.max(0, Math.min(255, Math.round((rP + m) * 255))),
+              Math.max(0, Math.min(255, Math.round((gP + m) * 255))),
+              Math.max(0, Math.min(255, Math.round((bP + m) * 255))),
+              a
+            ];
+          };
 
-      const nextPalette = state.workingPalette
-        .slice()
-        .reverse()
-        .map((c) => flipLightness(c[0], c[1], c[2], c[3] ?? 255));
-      return { workingPalette: nextPalette };
-    });
-    (get() as any).pushHistorySnapshot?.();
-  },
+          const nextPalette = state.workingPalette
+            .slice()
+            .reverse()
+            .map((c) => flipLightness(c[0], c[1], c[2], c[3] ?? 255));
+          return { workingPalette: nextPalette, paletteFlipped: !state.paletteFlipped };
+        });
+        (get() as any).pushHistorySnapshot?.();
+      },
 
   setActivePalette: (id: string) => {
     const pal = BUILTIN_PALETTES.find((p: any) => p.id === id);
@@ -688,7 +718,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       activePaletteId: id,
       activePalette: id,
       workingPalette: colors,
-      paletteDepth: colors.length
+      paletteDepth: colors.length,
+      paletteInverted: false,
+      paletteFlipped: false
     });
   },
 
@@ -737,7 +769,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     const colors = pal ? pal.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
     return {
       workingPalette: colors,
-      paletteDepth: colors.length
+      paletteDepth: colors.length,
+      paletteInverted: false,
+      paletteFlipped: false
     };
   }),
 
@@ -852,6 +886,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   showAlgorithmDescriptions: getStoredAlgoDescriptionsPref(),
   setShowAlgorithmDescriptions: (show) => set({ showAlgorithmDescriptions: show }),
 
+  activeDropdownId: null,
+  setActiveDropdownId: (activeDropdownId) => set({ activeDropdownId }),
+
   // Shell Layout & UI
   sidebarWidth: getStoredSidebarWidth(),
   isSidebarCollapsed: getStoredSidebarCollapsed(),
@@ -860,7 +897,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isManualOpen: false,
 
   setSidebarWidth: (width) => set(() => {
-    const clamped = Math.max(340, Math.min(520, width));
+    const clamped = Math.max(320, Math.min(700, width));
     try { localStorage.setItem(STORAGE_KEY_SIDEBAR_WIDTH, String(clamped)); } catch {}
     return { sidebarWidth: clamped };
   }),

@@ -84,15 +84,23 @@ body {
   justify-content: space-between !important;
   height: 38px;
   width: 100%;
-  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 16px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  background-color: transparent;
   border-bottom: 1.5px solid var(--border-color);
   padding: 0 16px;
   flex-shrink: 0;
   box-sizing: border-box;
   pointer-events: auto;
   position: relative;
+}
+.top-menu-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  z-index: -1;
+  pointer-events: none;
 }
 .app-container.fullscreen .topbar-wrapper {
   pointer-events: none;
@@ -256,11 +264,9 @@ body {
 /* Quick, Non-Resource-Intensive Open & Close Animations (GPU-accelerated opacity & transform) */
 @keyframes dropdownQuickOpen {
   from {
-    opacity: 0;
     transform: translateY(-5px) scale(0.98);
   }
   to {
-    opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
@@ -296,9 +302,8 @@ body {
   overscroll-behavior: contain;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-  animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: top center;
-  will-change: opacity, transform;
 }
 .custom-dropdown-panel.closing,
 .algo-listbox-panel.closing,
@@ -557,9 +562,8 @@ body {
   overflow: visible;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-  animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: top center;
-  will-change: opacity, transform;
 }
 .algo-search-container {
   position: relative;
@@ -2354,9 +2358,7 @@ button .btn-icon:hover,
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 20px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 20px));
+  background-color: transparent;
   border: 1.5px solid color-mix(in srgb, var(--border-color) 75%, rgba(255, 255, 255, 0.15));
   border-radius: 12px;
   min-width: 220px;
@@ -2366,9 +2368,19 @@ button .btn-icon:hover,
   flex-direction: column;
   padding: 6px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: dropdownQuickOpen 120ms cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: top left;
-  will-change: opacity, transform;
+}
+.dropdown-menu-popover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 20px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 20px));
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
 }
 .dropdown-menu-item {
   background: transparent;
@@ -3274,6 +3286,10 @@ body {
    ═══════════════════════════════════════════════════════════════ */
 
 /* Disabled Topbar Glass */
+[data-topbar-glass="false"] .top-menu-bar::before,
+[data-glass-blur="false"] .top-menu-bar::before {
+  display: none !important;
+}
 [data-topbar-glass="false"] .top-menu-bar,
 [data-glass-blur="false"] .top-menu-bar {
   background-color: var(--bg-secondary) !important;
@@ -3317,6 +3333,14 @@ body {
 }
 
 /* Disabled Glass Blur */
+[data-glass-blur="false"] .dropdown-menu-popover::after {
+  display: none !important;
+}
+[data-glass-blur="false"] .dropdown-menu-popover {
+  background-color: var(--bg-secondary) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 [data-glass-blur="false"] .right-sidebar,
 [data-glass-blur="false"] .custom-dropdown-panel,
 [data-glass-blur="false"] .algo-listbox-panel,

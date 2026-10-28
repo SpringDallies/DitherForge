@@ -31,6 +31,9 @@
   </style>
 </head>
 <body>
+  <div id="boot-loader" class="boot-loader" style="background:#333333" data-theme="dark_pro">
+    <img id="boot-loader-logo" src="/assets/themes/dark_pro.webp" alt="DitherForge" class="boot-loader-logo" />
+  </div>
   <script>
     (function() {
       try {
@@ -57,25 +60,19 @@
           'solarized_dark': '#002b36',
           'one_dark': '#21252b'
         };
-        var themeAttr = stored ? ' data-theme="' + stored + '"' : '';
-        var logoSrc = themeLogoMap[stored] || '/assets/themes/dark_pro.webp';
-        var bgColor = themeBgMap[stored] || '#333333';
-        document.write('<div id="boot-loader" class="boot-loader" style="background:' + bgColor + '"' + themeAttr + '>');
-        document.write('  <img src="' + logoSrc + '" alt="DitherForge" class="boot-loader-logo" />');
-        document.write('</div>');
+        var loader = document.getElementById('boot-loader');
+        var logo = document.getElementById('boot-loader-logo');
+        if (stored && themeBgMap[stored] && loader) {
+          loader.style.background = themeBgMap[stored];
+          loader.setAttribute('data-theme', stored);
+        }
+        if (stored && themeLogoMap[stored] && logo) {
+          logo.src = themeLogoMap[stored];
+        }
         if (stored) document.documentElement.setAttribute('data-theme', stored);
-      } catch (e) {
-        document.write('<div id="boot-loader" class="boot-loader" style="background:#DDDDE3">');
-        document.write('  <img src="/assets/ditherforgelogo.webp" alt="DitherForge" class="boot-loader-logo" />');
-        document.write('</div>');
-      }
+      } catch (e) {}
     })();
   </script>
-  <noscript>
-    <div id="boot-loader" class="boot-loader" style="background:#DDDDE3">
-      <img src="/assets/ditherforgelogo.webp" alt="DitherForge" class="boot-loader-logo" />
-    </div>
-  </noscript>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
 </body>

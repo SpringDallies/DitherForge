@@ -154,7 +154,11 @@ export const App: React.FC = () => {
       )}
 
       {/* Top Menu Bar */}
-      <div onMouseEnter={handleMouseEnterPeek} onMouseLeave={handleMouseLeavePeek}>
+      <div 
+        className="topbar-wrapper"
+        onMouseEnter={handleMouseEnterPeek} 
+        onMouseLeave={handleMouseLeavePeek}
+      >
         <TopMenuBar 
           onOpenManual={() => setIsManualOpen(true)} 
           onOpenSettings={() => setSettingsOpen(true)}

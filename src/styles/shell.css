@@ -68,24 +68,36 @@ body {
   opacity: 1;
   background-color: var(--bg-hover);
 }
-/* Top Menu Bar */
+/* Top Menu Bar Wrapper & Bar */
+.topbar-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  z-index: 30;
+  pointer-events: none;
+}
 .top-menu-bar {
   display: flex;
   align-items: center;
   justify-content: space-between !important;
   height: 38px;
-  background-color: var(--bg-secondary);
+  width: 100%;
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
   border-bottom: 1.5px solid var(--border-color);
   padding: 0 16px;
   flex-shrink: 0;
-  z-index: 30;
+  box-sizing: border-box;
+  pointer-events: auto;
   position: relative;
 }
+.app-container.fullscreen .topbar-wrapper {
+  pointer-events: none;
+}
 .app-container.fullscreen .top-menu-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
   display: none;
 }
 .app-container.fullscreen.peek-open .top-menu-bar {
@@ -706,11 +718,11 @@ body {
 /* Workspace Layout */
 .workspace-container {
   --sidebar-width: 356px;
-  display: block;
-  flex: 1;
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  position: relative;
-  height: calc(100vh - 38px);
   background-color: var(--canvas-bg);
   padding: 0;
 }
@@ -839,8 +851,12 @@ body {
   overflow: hidden;
   background-color: var(--canvas-bg);
   padding: 0;
+  padding-top: 38px;
   padding-right: calc(var(--sidebar-width, 356px) + 28px);
   box-sizing: border-box;
+}
+.app-container.fullscreen .canvas-area {
+  padding-top: 0;
 }
 .viewport-frame-card {
   width: 100%;
@@ -905,13 +921,13 @@ body {
 /* Right Sidebar Cohesive Floating Panel */
 .right-sidebar {
   position: absolute;
-  top: 12px;
+  top: 50px;
   right: 14px;
   bottom: 12px;
   width: 356px;
   min-width: 320px;
   max-width: 700px;
-  height: calc(100% - 24px);
+  height: calc(100% - 62px);
   background-color: color-mix(in srgb, var(--bg-panel) var(--glass-opacity, 82%), transparent);
   backdrop-filter: blur(var(--glass-blur-radius, 16px));
   -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
@@ -2310,7 +2326,9 @@ button .btn-icon:hover,
   position: absolute;
   top: 30px;
   left: 0;
-  background-color: var(--bg-secondary);
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 88%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   min-width: 220px;
@@ -3223,6 +3241,14 @@ body {
 /* ═══════════════════════════════════════════════════════════════
    PERFORMANCE SETTINGS OVERRIDES (Glass Blur & Shadows)
    ═══════════════════════════════════════════════════════════════ */
+
+/* Disabled Topbar Glass */
+[data-topbar-glass="false"] .top-menu-bar,
+[data-glass-blur="false"] .top-menu-bar {
+  background-color: var(--bg-secondary) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 
 /* Disabled Glass Blur */
 [data-glass-blur="false"] .right-sidebar,

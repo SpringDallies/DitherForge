@@ -17,6 +17,7 @@ export interface DitherForgeSettings {
   glassBlur: boolean;
   glassBlurRadius: number;
   glassOpacity: number;
+  topbarGlass: boolean;
   shadows: boolean;
   animations: boolean;
 }
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   glassBlur: true,
   glassBlurRadius: 16,
   glassOpacity: 0.82,
+  topbarGlass: true,
   shadows: true,
   animations: true,
 };
@@ -41,7 +43,9 @@ const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
 export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   if (typeof document === 'undefined') return;
   const isGlass = settings.glassBlur !== false;
+  const isTopbarGlass = isGlass && settings.topbarGlass !== false;
   document.documentElement.setAttribute('data-glass-blur', isGlass ? 'true' : 'false');
+  document.documentElement.setAttribute('data-topbar-glass', isTopbarGlass ? 'true' : 'false');
   document.documentElement.setAttribute('data-shadows', settings.shadows !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-animations', settings.animations !== false ? 'true' : 'false');
 
@@ -316,6 +320,31 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                   {Math.round((settings.glassOpacity ?? 0.82) * 100)}%
                 </span>
               </div>
+            </div>
+
+            <div 
+              className="settings-row"
+              style={{
+                opacity: settings.glassBlur !== false ? 1 : 0.45,
+                pointerEvents: settings.glassBlur !== false ? 'auto' : 'none',
+                transition: 'opacity 0.15s ease'
+              }}
+            >
+              <div style={{ flex: 1, paddingRight: '16px' }}>
+                <div className="settings-label">Topbar glass effect</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Apply frosted-glass translucency and blur to the top navigation bar.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.topbarGlass !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('topbarGlass', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
             </div>
 
             <div className="settings-row">

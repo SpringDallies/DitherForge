@@ -862,12 +862,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         const style = window.getComputedStyle(canvasArea);
         const paddingRight = parseFloat(style.paddingRight) || 0;
         const paddingLeft = parseFloat(style.paddingLeft) || 0;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const paddingBottom = parseFloat(style.paddingBottom) || 0;
         const contentW = Math.max(100, canvasArea.clientWidth - paddingRight - paddingLeft);
+        const contentH = Math.max(100, canvasArea.clientHeight - paddingTop - paddingBottom);
         if (!w || Math.abs(w - canvasArea.clientWidth) < 2) {
           w = contentW;
         }
-        if (!h) {
-          h = canvasArea.clientHeight;
+        if (!h || Math.abs(h - canvasArea.clientHeight) < 2) {
+          h = contentH;
         }
       }
     }

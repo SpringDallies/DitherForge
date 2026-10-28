@@ -111,8 +111,11 @@ export const CenterViewport: React.FC = () => {
         const style = window.getComputedStyle(container);
         const paddingRight = parseFloat(style.paddingRight) || 0;
         const paddingLeft = parseFloat(style.paddingLeft) || 0;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const paddingBottom = parseFloat(style.paddingBottom) || 0;
         const contentWidth = Math.max(100, container.clientWidth - paddingRight - paddingLeft);
-        fitToViewport(contentWidth, container.clientHeight);
+        const contentHeight = Math.max(100, container.clientHeight - paddingTop - paddingBottom);
+        fitToViewport(contentWidth, contentHeight);
       }
     };
     fit();
@@ -200,8 +203,10 @@ export const CenterViewport: React.FC = () => {
       const style = window.getComputedStyle(container);
       const paddingRight = parseFloat(style.paddingRight) || 0;
       const paddingLeft = parseFloat(style.paddingLeft) || 0;
+      const paddingTop = parseFloat(style.paddingTop) || 0;
+      const paddingBottom = parseFloat(style.paddingBottom) || 0;
       const contentCenterX = rect.left + paddingLeft + (rect.width - paddingRight - paddingLeft) / 2;
-      const contentCenterY = rect.top + rect.height / 2;
+      const contentCenterY = rect.top + paddingTop + (rect.height - paddingTop - paddingBottom) / 2;
       const cursorX = e.clientX - contentCenterX;
       const cursorY = e.clientY - contentCenterY;
 
@@ -240,8 +245,11 @@ export const CenterViewport: React.FC = () => {
           const style = window.getComputedStyle(container);
           const paddingRight = parseFloat(style.paddingRight) || 0;
           const paddingLeft = parseFloat(style.paddingLeft) || 0;
+          const paddingTop = parseFloat(style.paddingTop) || 0;
+          const paddingBottom = parseFloat(style.paddingBottom) || 0;
           const contentWidth = Math.max(100, container.clientWidth - paddingRight - paddingLeft);
-          fitToViewport(contentWidth, container.clientHeight);
+          const contentHeight = Math.max(100, container.clientHeight - paddingTop - paddingBottom);
+          fitToViewport(contentWidth, contentHeight);
         }
       };
       img.src = e.target?.result as string;
@@ -697,8 +705,11 @@ export const CenterViewport: React.FC = () => {
                     const style = window.getComputedStyle(container);
                     const paddingRight = parseFloat(style.paddingRight) || 0;
                     const paddingLeft = parseFloat(style.paddingLeft) || 0;
+                    const paddingTop = parseFloat(style.paddingTop) || 0;
+                    const paddingBottom = parseFloat(style.paddingBottom) || 0;
                     const contentWidth = Math.max(100, container.clientWidth - paddingRight - paddingLeft);
-                    fitToViewport(contentWidth, container.clientHeight);
+                    const contentHeight = Math.max(100, container.clientHeight - paddingTop - paddingBottom);
+                    fitToViewport(contentWidth, contentHeight);
                   }
                 }}
               >

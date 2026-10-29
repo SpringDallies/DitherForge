@@ -39,15 +39,15 @@
       try {
         var stored = localStorage.getItem('ditherforge_theme') || 'dark_pro';
         var themeLogoMap = {
-          'light_pro': '/assets/themes/light_pro.webp',
-          'dark_pro': '/assets/themes/dark_pro.webp',
-          'nord': '/assets/themes/nord.webp',
-          'evergreen': '/assets/themes/evergreen.webp',
-          'gruvbox': '/assets/themes/gruvbox.webp',
-          'catppuccin_mocha': '/assets/themes/catppuccin_mocha.webp',
-          'tokyo_night': '/assets/themes/tokyo_night.webp',
-          'solarized_dark': '/assets/themes/solarized_dark.webp',
-          'one_dark': '/assets/themes/one_dark.webp'
+          'light_pro': import.meta.env.BASE_URL + 'assets/themes/light_pro.webp',
+          'dark_pro': import.meta.env.BASE_URL + 'assets/themes/dark_pro.webp',
+          'nord': import.meta.env.BASE_URL + 'assets/themes/nord.webp',
+          'evergreen': import.meta.env.BASE_URL + 'assets/themes/evergreen.webp',
+          'gruvbox': import.meta.env.BASE_URL + 'assets/themes/gruvbox.webp',
+          'catppuccin_mocha': import.meta.env.BASE_URL + 'assets/themes/catppuccin_mocha.webp',
+          'tokyo_night': import.meta.env.BASE_URL + 'assets/themes/tokyo_night.webp',
+          'solarized_dark': import.meta.env.BASE_URL + 'assets/themes/solarized_dark.webp',
+          'one_dark': import.meta.env.BASE_URL + 'assets/themes/one_dark.webp'
         };
         var themeBgMap = {
           'light_pro': '#DDDDE3',

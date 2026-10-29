@@ -8,41 +8,42 @@ export interface LoadingScreenProps {
 
 // Per-theme logo config: dark themes use the dark logo, light themes use the light logo.
 // Filters removed to prevent load-time glow flash.
+const BASE = import.meta.env.BASE_URL;
 const THEME_LOGO_CONFIG: Record<string, { src: string; filter: string }> = {
   dark_pro: {
-    src: '/assets/themes/dark_pro.webp',
+    src: `${BASE}assets/themes/dark_pro.webp`,
     filter: 'none',
   },
   nord: {
-    src: '/assets/themes/nord.webp',
+    src: `${BASE}assets/themes/nord.webp`,
     filter: 'none',
   },
   evergreen: {
-    src: '/assets/themes/evergreen.webp',
+    src: `${BASE}assets/themes/evergreen.webp`,
     filter: 'none',
   },
   gruvbox: {
-    src: '/assets/themes/gruvbox.webp',
+    src: `${BASE}assets/themes/gruvbox.webp`,
     filter: 'none',
   },
   catppuccin_mocha: {
-    src: '/assets/themes/catppuccin_mocha.webp',
+    src: `${BASE}assets/themes/catppuccin_mocha.webp`,
     filter: 'none',
   },
   tokyo_night: {
-    src: '/assets/themes/tokyo_night.webp',
+    src: `${BASE}assets/themes/tokyo_night.webp`,
     filter: 'none',
   },
   solarized_dark: {
-    src: '/assets/themes/solarized_dark.webp',
+    src: `${BASE}assets/themes/solarized_dark.webp`,
     filter: 'none',
   },
   one_dark: {
-    src: '/assets/themes/one_dark.webp',
+    src: `${BASE}assets/themes/one_dark.webp`,
     filter: 'none',
   },
   light_pro: {
-    src: '/assets/themes/light_pro.webp',
+    src: `${BASE}assets/themes/light_pro.webp`,
     filter: 'none',
   },
 };

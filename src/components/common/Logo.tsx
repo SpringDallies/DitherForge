@@ -8,16 +8,18 @@ export interface LogoProps {
   className?: string;
 }
 
+const BASE = import.meta.env.BASE_URL;
+
 export const THEME_LOGO_MAP: Record<string, string> = {
-  light_pro: '/assets/themes/light_pro.webp',
-  dark_pro: '/assets/themes/dark_pro.webp',
-  nord: '/assets/themes/nord.webp',
-  evergreen: '/assets/themes/evergreen.webp',
-  gruvbox: '/assets/themes/gruvbox.webp',
-  catppuccin_mocha: '/assets/themes/catppuccin_mocha.webp',
-  tokyo_night: '/assets/themes/tokyo_night.webp',
-  solarized_dark: '/assets/themes/solarized_dark.webp',
-  one_dark: '/assets/themes/one_dark.webp',
+  light_pro: `${BASE}assets/themes/light_pro.webp`,
+  dark_pro: `${BASE}assets/themes/dark_pro.webp`,
+  nord: `${BASE}assets/themes/nord.webp`,
+  evergreen: `${BASE}assets/themes/evergreen.webp`,
+  gruvbox: `${BASE}assets/themes/gruvbox.webp`,
+  catppuccin_mocha: `${BASE}assets/themes/catppuccin_mocha.webp`,
+  tokyo_night: `${BASE}assets/themes/tokyo_night.webp`,
+  solarized_dark: `${BASE}assets/themes/solarized_dark.webp`,
+  one_dark: `${BASE}assets/themes/one_dark.webp`,
 };
 
 export const Logo: React.FC<LogoProps> = ({

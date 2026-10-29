@@ -6,7 +6,7 @@
 
 <h3 align="center">FOSS Dithering Suite</h3>
 
-DitherForge is a standalone, cross-platform app for dithering images, video, and animation. It includes 63 original and public-domain dithering algorithms, native color-space processing, a stackable post-effects pipeline, CRT-style temporal noise, vector contour export, and Unicode character-grid export. Inspired by ditherboy.
+DitherForge is a standalone, cross-platform app for dithering images, video, and animation. It includes 84 original and public-domain dithering algorithms, native color-space processing, a stackable post-effects pipeline, CRT-style temporal noise, vector contour export, and Unicode character-grid export. Inspired by ditherboy.
 
 🌐 **Live demo:** https://springdallies.github.io/DitherForge/
 
@@ -14,17 +14,22 @@ DitherForge is a standalone, cross-platform app for dithering images, video, and
 
 ## Features
 
-### 63 Dithering Algorithms
-- **Error diffusion (15)** — Floyd–Steinberg, Atkinson, Jarvis–Judice–Ninke, Stucki, Burkes, Sierra, Stevenson–Arce, and more.
-- **Ordered (5)** — Bayer 2×2, 4×4, 8×8, 16×16, and Clustered Dot.
-- **Pattern (8)** — Checkered, lines, crosshatch, diagonal hatch, diamond, basket, and stipple.
-- **Glitch & signal synthesis (17)** — Scanline jitter, chromatic offset, pixel sorting, VHS noise, CRT bloom, and more.
-- **Special & stochastic (16)** — White/blue noise, Perlin, Riemersma, Voronoi, TPDF, and more.
-- **Bespoke (1)** — Ignition Glow.
-- **Temporal (1)** — Temporal Kinetic Dither.
+### 84 Dithering Algorithms
+Directly generated from the engine registry, categorized and searchable:
+
+- **Basic** (2) — Color Separation, Original
+- **Error Diffusion** (22) — Floyd–Steinberg, Atkinson, Jarvis–Judice–Ninke, Stucki, Burkes, Sierra, Stevenson–Arce, Fan, Shiau–Fan, False Floyd–Steinberg, Minimized Average Error, Dynamic Serpentine, and more
+- **Ordered** (10) — Bayer 2×2, 4×4, 8×8, 16×16, Clustered Dot, Bayer-Void, Bit Tone, Mosaic, Random Ordered
+- **Pattern** (13) — Block Tone, Camo, Checkers, Circle Grid, Crosshatch, Diamond Grid, Gridlock/Traffic, Heart Grid, Pop Tone, Print Pattern, Square Mosaic, Stippling
+- **Polygon** (4) — Hexa-Poly, Low-Poly, Penta-Poly, Tri-Poly
+- **Glitch Effects** (17) — Artifact Modulation, Glitch, Wave Modulation, Smooth Diffuse, and more
+- **Special** (16) — Beehive, Diagonal, Displace Contour, Dotted Lines, Noise, Orb Diffuse, Radial Burst, Sine Distort, Thresholder, Topography, Vortex, Wave, and more
 
 ### Native Color Handling
 Processes directly in Rec. 709 luminance-weighted RGB space, with up to 32 palette depth iterations and live swatch remapping.
+
+### 14 Built-in Color Palettes
+Monochrome, GameBoy, Amber CRT, Cyberpunk, CGA, C64, PICO-8, Nordic, Vaporwave, Solar, EGA, Sepia, Spectrum, and Macintosh 1984. Includes Median Cut and K-Means palette extraction from images.
 
 ### Reorderable Post-Effects Stack
 - Ignition Glow
@@ -38,13 +43,10 @@ Processes directly in Rec. 709 luminance-weighted RGB space, with up to 32 palet
 - Optical Vignette
 
 ### Video & Animation
-- Timeline with scrubber, play/pause, loop, and FPS options: 12, 24, 30, 60.
-- 9 CRT temporal noise profiles.
-- One-click Animate Still converter.
-- Real-time MP4/WebM recording.
+9 CRT temporal noise profiles. One-click Animate Still converter.
 
 ### Export Formats
-PNG, JPG, WebP, SVG, TXT character grids, MP4/WebM, GIF, frame sequence, and clipboard copy.
+PNG, JPG, WebP, SVG vector contours, TXT character grids (ASCII, Unicode Blocks, Unicode Braille), and clipboard copy.
 
 ### Studio UI
 - Smooth zoom, pan, 1:1 view, and fit-to-window.
@@ -86,7 +88,8 @@ npm run tauri build
 
 ## Documentation
 - [`SPEC_LOG.md`](./SPEC_LOG.md) — technical spec and algorithm formulations.
-- [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) — full algorithm manual.
+- [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) — full algorithm manual (2,438 lines).
+- [`FEATURE_INVENTORY.md`](./FEATURE_INVENTORY.md) — audited feature inventory mapped to source code.
 
 ---
 

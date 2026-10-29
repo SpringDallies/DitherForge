@@ -2359,7 +2359,8 @@ button .btn-icon:hover,
   top: calc(100% + 4px);
   left: 0;
   background-color: transparent;
-  border: 1.5px solid color-mix(in srgb, var(--border-color, #5A5A5A) 75%, rgba(255, 255, 255, 0.15));
+  border: 1.5px solid #5A5A5A;
+  border: 1.5px solid color-mix(in srgb, var(--border-color) 75%, rgba(255, 255, 255, 0.15));
   border-radius: 12px;
   min-width: 220px;
   width: max-content;

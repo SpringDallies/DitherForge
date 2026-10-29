@@ -645,7 +645,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
               <div 
                 className={`dropdown-menu-item dropdown-submenu-trigger ${focusedIndex === 6 ? 'focused' : ''} ${isThemesSubmenuOpen ? 'active' : ''}`}
                 onMouseEnter={() => { setFocusedIndex(6); setIsThemesSubmenuOpen(true); }}
-                onMouseLeave={() => setIsThemesSubmenuOpen(false)}
                 onClick={() => setIsThemesSubmenuOpen(!isThemesSubmenuOpen)}
                 role="menuitem"
                 aria-haspopup="menu"
@@ -657,6 +656,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
                   className={`dropdown-menu-popover dropdown-submenu-popover ${isThemesSubmenuOpen ? 'open' : ''}`} 
                   role="menu"
                   onClick={(e) => e.stopPropagation()}
+                  onMouseEnter={() => setIsThemesSubmenuOpen(true)}
+                  onMouseLeave={() => setIsThemesSubmenuOpen(false)}
                 >
                   {THEMES.map((theme) => (
                     <button
@@ -677,6 +678,13 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
                     </button>
                   ))}
                 </div>
+                {isThemesSubmenuOpen && (
+                  <div className="submenu-safe-triangle-overlay">
+                    <svg className="submenu-safe-triangle-polygon" viewBox="0 0 100 100" preserveAspectRatio="none">
+                      <polygon points="0,0 100,0 50,100" />
+                    </svg>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -8,6 +8,8 @@
 
 DitherForge is a standalone, cross-platform app for dithering images, video, and animation. It includes 63 original and public-domain dithering algorithms, native color-space processing, a stackable post-effects pipeline, CRT-style temporal noise, vector contour export, and Unicode character-grid export. Inspired by ditherboy.
 
+🌐 **Live demo:** https://springdallies.github.io/DitherForge/
+
 ---
 
 ## Features
@@ -47,7 +49,7 @@ PNG, JPG, WebP, SVG, TXT character grids, MP4/WebM, GIF, frame sequence, and cli
 ### Studio UI
 - Smooth zoom, pan, 1:1 view, and fit-to-window.
 - Before/After toggle and draggable split comparison.
-- 6 themes.
+- 9 themes.
 - Preset manager with built-in and user presets.
 - In-app algorithm reference.
 
@@ -60,14 +62,14 @@ PNG, JPG, WebP, SVG, TXT character grids, MP4/WebM, GIF, frame sequence, and cli
 npm install
 npm run dev
 ```
-Open `http://localhost:5173/app.html`.
+Open `http://localhost:5173/`.
 
 Production build:
 ```powershell
 npm run build
 npm run serve
 ```
-Open `http://localhost:8080/app.html`.
+Open `http://localhost:8080/`.
 
 ### Desktop App
 ```powershell

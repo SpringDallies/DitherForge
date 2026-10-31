@@ -217,53 +217,96 @@ export function ditherNoise(w, h, data, palette, controls = {}) {
   return out;
 }
 
+function hash2D(seedX, seedY, salt) {
+  const val = Math.sin(seedX * 12.9898 + seedY * 78.233 + salt * 43.123) * 43758.5453;
+  return val - Math.floor(val);
+}
+
 function detectOrbs(w, h, data, controls = {}) {
-  const orbs = [];
-  const scale = Math.max(0.05, Number(controls.scale || 1.0));
-  const maxOrbs = controls.orbCount !== undefined ? Math.max(1, Math.round(Number(controls.orbCount))) : 8;
+  const maxOrbs = controls.orbCount !== undefined ? Math.max(1, Math.min(50, Math.round(Number(controls.orbCount)))) : 8;
   const rawSize = controls.orbSize !== undefined ? Number(controls.orbSize) : 80;
+  const scale = Math.max(0.05, Number(controls.scale || 1.0));
   const baseSize = Math.max(5, Math.round(rawSize * scale));
+  const baseSize2 = baseSize * baseSize;
   const intensity = controls.orbIntensity !== undefined ? Number(controls.orbIntensity) / 100 : 0.6;
   const randomAmt = (controls.orbRandom !== undefined ? Number(controls.orbRandom) : 0) / 100;
   const legacyOffset = controls.orbOffset !== undefined ? Number(controls.orbOffset) : 0;
   const isVertical = !!controls.orbVertical;
-
-  const minSpacing = Math.max(15, baseSize * 0.75);
-  const minSpacing2 = minSpacing * minSpacing;
-
   const offsetX = (controls.offsetX !== undefined ? Number(controls.offsetX) : 0) + (isVertical ? 0 : legacyOffset);
   const offsetY = (controls.offsetY !== undefined ? Number(controls.offsetY) : 0) + (isVertical ? legacyOffset : 0);
 
-  const step = Math.max(10, Math.floor(baseSize * 0.4));
-  for (let y = 10; y < h - 10; y += step) {
-    for (let x = 10; x < w - 10; x += step) {
-      if (orbs.length >= maxOrbs) break;
+  // Dynamic spacing based on requested orb count and image dimensions so orbCount never caps prematurely
+  const maxFitSpacing = Math.sqrt((w * h) / (maxOrbs * 1.3));
+  let minSpacing = Math.max(8, Math.min(baseSize * 0.75, maxFitSpacing));
+
+  // Sample grid of candidates across the image
+  const step = Math.max(8, Math.min(32, Math.floor(Math.min(w, h) / Math.max(12, Math.round(Math.sqrt(maxOrbs) * 3)))));
+  const candidates = [];
+  for (let y = Math.floor(step / 2); y < h; y += step) {
+    for (let x = Math.floor(step / 2); x < w; x += step) {
       const idx = (y * w + x) * 4;
       const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-      if (lum > 150) {
-        let posX = x + offsetX;
-        let posY = y + offsetY;
-        if (randomAmt > 0) {
-          const rx = (((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) - 0.5) * 2;
-          const ry = (((Math.sin(x * 39.346 + y * 11.135) * 43758.5453) % 1) - 0.5) * 2;
-          posX += rx * randomAmt * baseSize * 0.5;
-          posY += ry * randomAmt * baseSize * 0.5;
-        }
-        let valid = true;
-        for (const o of orbs) {
-          const dx = posX - o.x, dy = posY - o.y;
-          if (dx * dx + dy * dy < minSpacing2) { valid = false; break; }
-        }
-        if (valid) orbs.push({ x: posX, y: posY, size: baseSize, intensity });
-      }
+      candidates.push({ x, y, lum });
     }
-    if (orbs.length >= maxOrbs) break;
   }
 
-  // Fallback if no bright pixels triggered orbs
-  if (orbs.length === 0) {
-    const cx = w / 2 + offsetX, cy = h / 2 + offsetY;
-    orbs.push({ x: cx, y: cy, size: baseSize, intensity });
+  // Sort candidates by brightness descending to place orbs at highlights first
+  candidates.sort((a, b) => b.lum - a.lum);
+
+  const orbs = [];
+  const spanX = w + baseSize * 2;
+  const spanY = h + baseSize * 2;
+
+  function addOrb(cx, cy) {
+    let px = cx;
+    let py = cy;
+    if (randomAmt > 0) {
+      const rx = (hash2D(cx, cy, 1) - 0.5) * 2;
+      const ry = (hash2D(cx, cy, 2) - 0.5) * 2;
+      px += rx * randomAmt * baseSize * 0.75;
+      py += ry * randomAmt * baseSize * 0.75;
+    }
+    px += offsetX;
+    py += offsetY;
+    // Smooth wrap within canvas + baseSize margin
+    px = ((((px + baseSize) % spanX) + spanX) % spanX) - baseSize;
+    py = ((((py + baseSize) % spanY) + spanY) % spanY) - baseSize;
+
+    orbs.push({ x: px, y: py, size: baseSize, size2: baseSize2, intensity });
+  }
+
+  // Multi-tier greedy placement to ensure all maxOrbs are placed without clustering
+  let spacing = minSpacing;
+  for (let pass = 0; pass < 3 && orbs.length < maxOrbs; pass++) {
+    const spacing2 = spacing * spacing;
+    for (const c of candidates) {
+      if (orbs.length >= maxOrbs) break;
+      let valid = true;
+      for (const o of orbs) {
+        const dx = c.x + offsetX - o.x;
+        const dy = c.y + offsetY - o.y;
+        if (dx * dx + dy * dy < spacing2) {
+          valid = false;
+          break;
+        }
+      }
+      if (valid) {
+        addOrb(c.x, c.y);
+      }
+    }
+    spacing *= 0.65;
+  }
+
+  // If still under maxOrbs (e.g. tiny canvas or uniform image), distribute via golden spiral
+  let spiralIdx = 0;
+  while (orbs.length < maxOrbs) {
+    const phi = 0.5 * (1 + Math.sqrt(5));
+    const r = Math.sqrt((spiralIdx + 1) / maxOrbs) * Math.min(w, h) * 0.45;
+    const theta = 2 * Math.PI * spiralIdx * phi;
+    const cx = Math.max(0, Math.min(w, w * 0.5 + r * Math.cos(theta)));
+    const cy = Math.max(0, Math.min(h, h * 0.5 + r * Math.sin(theta)));
+    addOrb(cx, cy);
+    spiralIdx++;
   }
 
   return orbs;
@@ -289,8 +332,13 @@ export function ditherOrbDiffuse(w, h, data, palette, controls = {}) {
         const idx = (y * w + x) * 4;
         let lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
         for (const o of orbs) {
-          const d = Math.hypot(x - o.x, y - o.y);
-          if (d < o.size) lum = Math.min(255, lum + (1 - d / o.size) * (80 * o.intensity));
+          const dx = x - o.x;
+          const dy = y - o.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < o.size2) {
+            const d = Math.sqrt(d2);
+            lum = Math.min(255, lum + (1 - d / o.size) * (180 * o.intensity));
+          }
         }
         const curLum = Math.max(0, Math.min(255, lum + errRing[curRow + x]));
         const chosenIdx = lut.quantizeLum(curLum);
@@ -336,9 +384,12 @@ export function ditherOrbDiffuse(w, h, data, palette, controls = {}) {
         let g = data[idx + 1] + errRing[curRow + x * 3 + 1];
         let b = data[idx + 2] + errRing[curRow + x * 3 + 2];
         for (const o of orbs) {
-          const d = Math.hypot(x - o.x, y - o.y);
-          if (d < o.size) {
-            const boost = (1 - d / o.size) * (80 * o.intensity);
+          const dx = x - o.x;
+          const dy = y - o.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < o.size2) {
+            const d = Math.sqrt(d2);
+            const boost = (1 - d / o.size) * (180 * o.intensity);
             r += boost; g += boost; b += boost;
           }
         }
@@ -420,8 +471,13 @@ export function ditherOrbDiffuseX(w, h, data, palette, controls = {}) {
         const idx = (y * w + x) * 4;
         let lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
         for (const o of orbs) {
-          const d = Math.hypot(x - o.x, y - o.y);
-          if (d < o.size) lum = Math.min(255, lum + (1 - d / o.size) * (80 * o.intensity));
+          const dx = x - o.x;
+          const dy = y - o.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < o.size2) {
+            const d = Math.sqrt(d2);
+            lum = Math.min(255, lum + (1 - d / o.size) * (180 * o.intensity));
+          }
         }
         const curLum = Math.max(0, Math.min(255, lum + errBuf[x]));
         const chosenIdx = lut.quantizeLum(curLum);
@@ -445,9 +501,12 @@ export function ditherOrbDiffuseX(w, h, data, palette, controls = {}) {
         let g = data[idx + 1] + errBuf[eIdx + 1];
         let b = data[idx + 2] + errBuf[eIdx + 2];
         for (const o of orbs) {
-          const d = Math.hypot(x - o.x, y - o.y);
-          if (d < o.size) {
-            const boost = (1 - d / o.size) * (80 * o.intensity);
+          const dx = x - o.x;
+          const dy = y - o.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < o.size2) {
+            const d = Math.sqrt(d2);
+            const boost = (1 - d / o.size) * (180 * o.intensity);
             r += boost; g += boost; b += boost;
           }
         }
@@ -484,8 +543,13 @@ export function ditherOrbDiffuseY(w, h, data, palette, controls = {}) {
         const idx = (y * w + x) * 4;
         let lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
         for (const o of orbs) {
-          const d = Math.hypot(x - o.x, y - o.y);
-          if (d < o.size) lum = Math.min(255, lum + (1 - d / o.size) * (80 * o.intensity));
+          const dx = x - o.x;
+          const dy = y - o.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < o.size2) {
+            const d = Math.sqrt(d2);
+            lum = Math.min(255, lum + (1 - d / o.size) * (180 * o.intensity));
+          }
         }
         const curLum = Math.max(0, Math.min(255, lum + err));
         const chosenIdx = lut.quantizeLum(curLum);
@@ -508,9 +572,12 @@ export function ditherOrbDiffuseY(w, h, data, palette, controls = {}) {
         let g = data[idx + 1] + errG;
         let b = data[idx + 2] + errB;
         for (const o of orbs) {
-          const d = Math.hypot(x - o.x, y - o.y);
-          if (d < o.size) {
-            const boost = (1 - d / o.size) * (80 * o.intensity);
+          const dx = x - o.x;
+          const dy = y - o.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < o.size2) {
+            const d = Math.sqrt(d2);
+            const boost = (1 - d / o.size) * (180 * o.intensity);
             r += boost; g += boost; b += boost;
           }
         }
@@ -555,8 +622,13 @@ export function ditherOrbMatrix(w, h, data, palette, controls = {}) {
       const idx = (y * w + x) * 4;
       let boost = 0;
       for (const o of orbs) {
-        const d = Math.hypot(x - o.x, y - o.y);
-        if (d < o.size) boost += (1 - d / o.size) * (0.4 * o.intensity);
+        const dx = x - o.x;
+        const dy = y - o.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < o.size2) {
+          const d = Math.sqrt(d2);
+          boost += (1 - d / o.size) * (0.8 * o.intensity);
+        }
       }
       const bayerVal = matrix[rowOffset + ((((sx & mask) + size) & mask))];
       const threshold = Math.max(0.05, Math.min(0.95, bayerVal - boost));

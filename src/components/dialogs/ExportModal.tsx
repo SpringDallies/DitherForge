@@ -274,7 +274,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         {/* Modal Header */}
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Download size={16} style={{ color: 'var(--accent-cyan)' }} />
+            <Download size={16} style={{ color: 'var(--text-dim)' }} />
             <span id="export-dialog-title" style={{ fontWeight: 600, fontSize: '0.95rem' }}>Export</span>
           </div>
           <Tooltip text="Close dialog">

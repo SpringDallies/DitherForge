@@ -472,7 +472,7 @@ export const RightSidebar: React.FC = () => {
 
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
-  useLenis({ wrapper: scrollWrapperRef.current, content: scrollContentRef.current });
+  useLenis({ wrapper: scrollWrapperRef, content: scrollContentRef });
 
   // App store selectors
   const algorithmId = useAppStore((state) => state.algorithmId);

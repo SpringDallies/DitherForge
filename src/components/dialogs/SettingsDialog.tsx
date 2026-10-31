@@ -12,6 +12,7 @@ export interface DitherForgeSettings {
   language: string;
   defaultExportFormat: 'png' | 'jpg' | 'webp' | 'svg';
   recentFilesLimit: number;
+  smoothScroll: boolean;
   scrollTightness: number;
   scrollDuration: number;
   glassBlur: boolean;
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   language: 'en',
   defaultExportFormat: 'png',
   recentFilesLimit: 8,
+  smoothScroll: true,
   scrollTightness: 0.25,
   scrollDuration: 1.2,
   glassBlur: true,
@@ -162,7 +164,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
         {/* Header */}
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Settings size={16} style={{ color: 'var(--accent-cyan)' }} />
+            <Settings size={16} style={{ color: 'var(--text-dim)' }} />
             <span id="settings-dialog-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
               Settings
             </span>
@@ -389,6 +391,31 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             <div className="settings-section-title">EXPERIMENTAL</div>
 
             <div className="settings-row">
+              <div>
+                <div className="settings-label">Smooth scrolling (Lenis)</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Inertial smooth scrolling for panels and menus.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.smoothScroll !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('smoothScroll', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
+            </div>
+
+            <div 
+              className="settings-row"
+              style={{
+                opacity: settings.smoothScroll !== false ? 1 : 0.45,
+                pointerEvents: settings.smoothScroll !== false ? 'auto' : 'none',
+                transition: 'opacity 0.15s ease'
+              }}
+            >
               <div style={{ flex: 1, paddingRight: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className="settings-label">Scroll tightness</span>
@@ -431,7 +458,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               </div>
             </div>
 
-            <div className="settings-row">
+            <div 
+              className="settings-row"
+              style={{
+                opacity: settings.smoothScroll !== false ? 1 : 0.45,
+                pointerEvents: settings.smoothScroll !== false ? 'auto' : 'none',
+                transition: 'opacity 0.15s ease'
+              }}
+            >
               <div style={{ flex: 1, paddingRight: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className="settings-label">Scroll duration</span>

@@ -671,7 +671,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenManual, onOpenSett
                       aria-checked={activeTheme === theme.id}
                     >
                       <span style={{ width: '14px', display: 'inline-flex', alignItems: 'center' }}>
-                        {activeTheme === theme.id && <Check size={13} style={{ color: 'var(--accent-cyan)' }} />}
+                        {activeTheme === theme.id && <Check size={13} style={{ color: 'var(--accent-primary)' }} />}
                       </span>
                       <span>{theme.label}</span>
                     </button>

@@ -69,6 +69,9 @@ export const App: React.FC = () => {
             .catch(finishBoot);
         };
 
+    // Safety timeout: dismiss boot-loader even if external resources hang
+    const safetyTimer = setTimeout(finishBoot, 1000);
+
     // Start checking after React has mounted and painted
     const raf1 = requestAnimationFrame(() => {
       requestAnimationFrame(checkAllLoaded);
@@ -76,6 +79,7 @@ export const App: React.FC = () => {
 
     return () => {
       active = false;
+      clearTimeout(safetyTimer);
       cancelAnimationFrame(raf1);
     };
   }, []);

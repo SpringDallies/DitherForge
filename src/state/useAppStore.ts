@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-// Import frozen registries UNCHANGED via allowJs
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
 // @ts-ignore
@@ -8,7 +7,26 @@ import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans } from 
 import { AVAILABLE_EFFECT_TYPES } from '../dither-engine/effect-stack.js';
 import { createCalibrationPattern } from '../utils/samplePattern';
 
+export type PreviewQuality = 'low' | 'mid' | 'full';
+export type ViewportUpdateMode = 'live' | 'debounce';
+export type AppMode = 'still' | 'animation';
+export type VideoPlaybackMode = 'standard' | 'looped';
+export type VideoRenderMode = 'quick' | 'rendered';
 export type UpdateMode = 'precise' | 'live' | 'settle';
+export type AnimationCategory = 'adjustments' | 'style' | 'effects' | 'palette';
+export type EasingMode = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'pulse' | 'step';
+
+export interface AnimationTrack {
+  id: string;
+  category: AnimationCategory | null;
+  property: string | null;
+  label: string;
+  startTime: number;
+  endTime: number;
+  fromValue: number;
+  toValue: number;
+  easing: EasingMode;
+}
 
 export interface AlgoParams {
   threshold: number;
@@ -27,56 +45,27 @@ export interface EffectItem {
   params: Record<string, any>;
 }
 
-// Table of default parameters per algorithm / category
 const DEFAULT_ALGO_PARAMS_TABLE: Record<string, Partial<AlgoParams>> = {
-  // Error diffusion defaults
-  floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  atkinson: { threshold: 0.5, scale: 1.0, diffusionStrength: 0.75, serpentine: true, noiseAmount: 0.3 },
-  jarvis_judice_ninke: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  stucki: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  burkes: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  sierra_3: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  sierra_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  sierra_lite: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  stevenson_arce: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  shiau_fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  shiau_fan_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  false_floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  minimized_avg_error: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-  dynamic_serpentine: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.3 },
-
-  // Ordered dithers
-  bayer_2x2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  bayer_4x4: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  bayer_8x8: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  bayer_16x16: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  clustered_dot: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-
-  // Pattern dithers
-  checkered: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  horizontal_lines: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  vertical_lines: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  crosshatch: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  diagonal_hatch: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  concentric_diamond: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  woven_basket: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  hex_stipple: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-
-  // Glitch
-  scanline_jitter: { threshold: 0.45, scale: 1.0, diffusionStrength: 0.8, serpentine: false, noiseAmount: 0.3 },
-  chromatic_offset: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  pixel_sorting: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  digital_artifacts: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  interlacing_tear: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  crt_bloom: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  bit_crush: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  vhs_tracking: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  static_snow: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-
-  // Bespoke & Temporal
-  ignition_glow: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 },
-  temporal_kinetic: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.3 }
+  floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  atkinson: { threshold: 0.5, scale: 1.0, diffusionStrength: 0.75, serpentine: true, noiseAmount: 0.0 },
+  jarvis_judice_ninke: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  stucki: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  burkes: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  sierra_3: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  sierra_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  sierra_lite: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  stevenson_arce: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  shiau_fan: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  shiau_fan_2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  false_floyd_steinberg: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.0 },
+  minimized_avg_error: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  dynamic_serpentine: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: true, noiseAmount: 0.0 },
+  bayer_2x2: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.0 },
+  bayer_4x4: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.0 },
+  bayer_8x8: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.0 },
+  bayer_16x16: { threshold: 0.5, scale: 1.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.0 },
+  clustered_dot: { threshold: 0.5, scale: 2.0, diffusionStrength: 1.0, serpentine: false, noiseAmount: 0.0 }
 };
 
 export const getInitialAlgoParams = (id: string): AlgoParams => {
@@ -99,12 +88,11 @@ export const getInitialAlgoParams = (id: string): AlgoParams => {
     scale: specific.scale ?? 1.0,
     diffusionStrength: specific.diffusionStrength ?? 1.0,
     serpentine: specific.serpentine ?? isDiff,
-    noiseAmount: specific.noiseAmount ?? 0.3,
+    noiseAmount: specific.noiseAmount ?? 0.0,
     ...customDefaults
   };
 };
 
-// Initial state for all 63 algorithms
 const buildInitialAlgoParamsMap = (): Record<string, AlgoParams> => {
   const map: Record<string, AlgoParams> = {};
   for (const algo of ALGORITHM_REGISTRY) {
@@ -113,7 +101,6 @@ const buildInitialAlgoParamsMap = (): Record<string, AlgoParams> => {
   return map;
 };
 
-// Initial effects stack from AVAILABLE_EFFECT_TYPES
 const buildInitialEffects = (): EffectItem[] => {
   return AVAILABLE_EFFECT_TYPES.map((eff: any) => ({
     id: eff.id,
@@ -124,8 +111,175 @@ const buildInitialEffects = (): EffectItem[] => {
   }));
 };
 
+export interface AnimatablePropDef {
+  id: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultFrom: number;
+  defaultTo: number;
+  effectId?: string;
+  paramKey?: string;
+}
+
+const buildEffectsAnimatableProps = (): AnimatablePropDef[] => {
+  const list: AnimatablePropDef[] = [];
+  for (const eff of AVAILABLE_EFFECT_TYPES) {
+    if (eff.id === 'inverse_glow' || eff.id === 'inverse_vignette') continue;
+    const defParams = eff.defaultParams || {};
+    const displayName = eff.id === 'scanlines' ? 'CRT Lines' : eff.name;
+    for (const key of Object.keys(defParams)) {
+      if (typeof defParams[key] !== 'number') continue;
+      let min = 0, max = 1, step = 0.05, defaultFrom = 0, defaultTo = 1;
+      if (key === 'intensity') { min = 0; max = 2; step = 0.05; defaultFrom = 0; defaultTo = 1.2; }
+      else if (key === 'radius') { min = 1; max = 24; step = 1; defaultFrom = 2; defaultTo = 16; }
+      else if (key === 'dotSize' || key === 'thickness' || key === 'blockSize') { min = 1; max = 20; step = 1; defaultFrom = 1; defaultTo = 10; }
+      else if (key === 'angle') { min = 0; max = 360; step = 1; defaultFrom = 0; defaultTo = 180; }
+      else if (key === 'offsetX' || key === 'offsetY') { min = 0; max = 20; step = 1; defaultFrom = 0; defaultTo = 12; }
+      else if (key === 'gamma') { min = 0.1; max = 3.0; step = 0.05; defaultFrom = 0.8; defaultTo = 2.0; }
+      else if (key === 'amount') { min = -1.0; max = 1.0; step = 0.05; defaultFrom = -0.5; defaultTo = 0.5; }
+      const prettyParam = key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
+      list.push({
+        id: `${eff.id}.${key}`,
+        label: `${displayName}: ${prettyParam}`,
+        min,
+        max,
+        step,
+        defaultFrom,
+        defaultTo,
+        effectId: eff.id,
+        paramKey: key
+      });
+    }
+  }
+  return list;
+};
+
+// Dynamically build animatable Style properties for the active algorithm + always include Noise Amount!
+export const getDynamicStyleAnimatableProps = (algorithmId: string): AnimatablePropDef[] => {
+  const norm = (algorithmId || '').replace(/_/g, '-');
+  const algo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId || a.id === norm);
+  if (!algo || norm === 'none') {
+    return [
+      { id: 'noiseAmount', label: 'Noise Amount', min: 0, max: 1, step: 0.05, defaultFrom: 0.0, defaultTo: 0.6 }
+    ];
+  }
+
+  const list: AnimatablePropDef[] = [];
+
+  const DEDICATED_SCALE_CONTROLS = [
+    'dotSize', 'blockSize', 'checkersSize', 'lineSpacing', 'period',
+    'dotScale', 'cellSize', 'divisor', 'lineDensity', 'waveFrequency',
+    'modulationFrequency', 'frequency', 'waveDensity'
+  ];
+  const hasDedicatedScaleControl = Boolean(
+    algo.controls?.some((c: any) => DEDICATED_SCALE_CONTROLS.includes(c.id))
+  );
+  const supportsScale =
+    algo.features?.supportsDpiScale !== false &&
+    norm !== 'color-separation' &&
+    !hasDedicatedScaleControl;
+
+  const isErrorDiff = algo.category === 'error_diffusion';
+  const isGlitch = algo.category === 'glitch_effects';
+  const nonDiffGlitch = ['artifact-modulation-glitch', 'glitch', 'ordered-modulation'].includes(norm);
+  const orbDiffusion = ['orb-diffuse', 'orb-diffuse-x', 'orb-diffuse-y'].includes(norm);
+
+  const hasErrorStrength =
+    isErrorDiff ||
+    (isGlitch && !nonDiffGlitch) ||
+    orbDiffusion ||
+    Boolean(algo.controls?.some((c: any) => ['errorStrength', 'errorReduction', 'strength'].includes(c.id)));
+
+  const hasColorDepth = Boolean(
+    norm === 'bit_crush' ||
+    (algo.features?.supportsColorDepth && algo.controls?.some((c: any) => c.id === 'depth' || c.id === 'colorDepth'))
+  );
+
+  if (hasColorDepth) {
+    list.push({ id: 'depth', label: 'Color Depth', min: 1, max: 32, step: 1, defaultFrom: 2, defaultTo: 16 });
+  }
+  if (algo.features?.supportsLuminanceThreshold !== false && norm !== 'color-separation') {
+    list.push({ id: 'threshold', label: 'Threshold', min: 0, max: 1, step: 0.02, defaultFrom: 0.25, defaultTo: 0.75 });
+  }
+  if (supportsScale) {
+    list.push({ id: 'scale', label: 'Pattern Scale', min: 0.05, max: 8, step: 0.05, defaultFrom: 1, defaultTo: 4 });
+  }
+  if (hasErrorStrength) {
+    list.push({ id: 'diffusionStrength', label: 'Diffusion Strength', min: 0, max: 1, step: 0.05, defaultFrom: 0.2, defaultTo: 1 });
+  }
+
+  // Always include Noise Amount in the Styles dropdown for every algorithm!
+  list.push({ id: 'noiseAmount', label: 'Noise Amount', min: 0, max: 1, step: 0.05, defaultFrom: 0.0, defaultTo: 0.65 });
+
+  if (algo.controls && Array.isArray(algo.controls)) {
+    const excludedIds = new Set([
+      'threshold', 'scale', 'diffusionStrength', 'errorStrength',
+      'errorReduction', 'strength', 'serpentine', 'noiseAmount', 'noise',
+      'depth', 'colorDepth'
+    ]);
+    for (const ctrl of algo.controls) {
+      if (!ctrl.id || excludedIds.has(ctrl.id)) continue;
+      if (ctrl.type === 'dropdown') continue;
+      if (ctrl.type === 'toggle') {
+        list.push({
+          id: ctrl.id,
+          label: ctrl.label || ctrl.id,
+          min: 0,
+          max: 1,
+          step: 1,
+          defaultFrom: 0,
+          defaultTo: 1
+        });
+      } else {
+        const min = ctrl.min ?? 0;
+        const max = ctrl.max ?? 10;
+        const step = ctrl.step ?? 1;
+        const def = typeof ctrl.defaultValue === 'number' ? ctrl.defaultValue : min;
+        list.push({
+          id: ctrl.id,
+          label: ctrl.label || ctrl.id,
+          min,
+          max,
+          step,
+          defaultFrom: min,
+          defaultTo: def > min ? def : max
+        });
+      }
+    }
+  }
+
+  return list;
+};
+
+export const ANIMATABLE_PROPERTIES: Record<AnimationCategory, AnimatablePropDef[]> = {
+  adjustments: [
+    { id: 'brightness', label: 'Brightness', min: -100, max: 100, step: 1, defaultFrom: -40, defaultTo: 40 },
+    { id: 'contrast', label: 'Contrast', min: -100, max: 100, step: 1, defaultFrom: -30, defaultTo: 50 },
+    { id: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1, defaultFrom: -50, defaultTo: 50 },
+    { id: 'hue', label: 'Hue', min: -180, max: 180, step: 1, defaultFrom: -90, defaultTo: 90 },
+    { id: 'gamma', label: 'Gamma', min: 0.1, max: 3, step: 0.05, defaultFrom: 0.8, defaultTo: 1.8 },
+    { id: 'blur', label: 'Blur', min: 0, max: 20, step: 0.5, defaultFrom: 0, defaultTo: 8 },
+    { id: 'denoise', label: 'Denoise', min: 0, max: 100, step: 1, defaultFrom: 0, defaultTo: 60 },
+    { id: 'highlight', label: 'Highlight', min: -100, max: 100, step: 1, defaultFrom: -40, defaultTo: 60 },
+    { id: 'depth', label: 'Color Depth', min: 1, max: 32, step: 1, defaultFrom: 2, defaultTo: 16 }
+  ],
+  style: [
+    { id: 'threshold', label: 'Threshold', min: 0, max: 1, step: 0.02, defaultFrom: 0.25, defaultTo: 0.75 },
+    { id: 'scale', label: 'Pattern Scale', min: 0.05, max: 8, step: 0.05, defaultFrom: 1, defaultTo: 4 },
+    { id: 'diffusionStrength', label: 'Diffusion Strength', min: 0, max: 1, step: 0.05, defaultFrom: 0.2, defaultTo: 1 },
+    { id: 'noiseAmount', label: 'Noise Amount', min: 0, max: 1, step: 0.05, defaultFrom: 0.0, defaultTo: 0.65 }
+  ],
+  effects: buildEffectsAnimatableProps(),
+  palette: [
+    { id: 'paletteDepth', label: 'Palette Depth', min: 2, max: 32, step: 1, defaultFrom: 2, defaultTo: 8 },
+    { id: 'paletteHueShift', label: 'Palette Hue Shift', min: -180, max: 180, step: 1, defaultFrom: 0, defaultTo: 180 },
+    { id: 'paletteCycle', label: 'Palette Color Cycle', min: 0, max: 16, step: 1, defaultFrom: 0, defaultTo: 8 }
+  ]
+};
+
 interface AppState {
-  // Algorithm Favourites (Phase 3.1)
   favoriteAlgorithms: string[];
   addFavorite: (id: string) => void;
   removeFavorite: (id: string) => void;
@@ -134,52 +288,55 @@ interface AppState {
   resetCurrentAlgoParams: () => void;
   resetAlgoParamToDefault: (key: keyof AlgoParams) => void;
 
-  // Image Adjustments
   resetAdjustmentParam: (key: string) => void;
   resetAllAdjustments: () => void;
 
-  // Source Image State
   hasImage: boolean;
   imageName: string;
   imageWidth: number;
   imageHeight: number;
   sourceImageData: ImageData | null;
+  sourceVideoUrl: string | null;
   loadImageFromData: (imageData: ImageData, name?: string) => void;
+  loadVideoSource: (videoUrl: string, firstFrame: ImageData, durationSec: number, name: string) => void;
   loadSampleImage: () => void;
   clearImage: () => void;
 
-  // Algorithm selection & per-algorithm parameters
   algorithmId: string;
   algoParams: Record<string, AlgoParams>;
   setAlgorithmId: (id: string) => void;
   updateCurrentAlgoParam: <K extends keyof AlgoParams>(key: K, value: AlgoParams[K]) => void;
 
-  // Global Image Adjustments (Pre-Filter, non-destructive)
+  // Adjustments (including Blur, Denoise, Highlight)
   brightness: number;
   contrast: number;
   saturation: number;
   hue: number;
   gamma: number;
+  blur: number;
+  denoise: number;
+  highlight: number;
   depth: number;
   setBrightness: (v: number) => void;
   setContrast: (v: number) => void;
   setSaturation: (v: number) => void;
   setHue: (n: number) => void;
   setGamma: (v: number) => void;
+  setBlur: (v: number) => void;
+  setDenoise: (v: number) => void;
+  setHighlight: (v: number) => void;
   setDepth: (v: number) => void;
 
-  // Image File Name (Phase 4)
   imageFileName: string;
 
-  // Color & Palette (Phase 4 - Working palette architecture)
   activePaletteId: string;
-  activePalette: string; // compatibility alias
+  activePalette: string;
   previewPaletteId: string | null;
   setPreviewPaletteId: (id: string | null) => void;
   workingPalette: number[][];
   paletteDepth: number;
   setActivePaletteId: (id: string) => void;
-  setActivePalette: (id: string) => void; // compatibility alias
+  setActivePalette: (id: string) => void;
   updateSwatchColor: (index: number, rgba: number[]) => void;
   shuffleUnlockedSwatches: () => void;
   addSwatch: () => void;
@@ -195,7 +352,6 @@ interface AppState {
   invertPalette: () => void;
   flipPalette: () => void;
 
-  // Post-Effects Stack (Phase 5 full stack editor)
   effects: EffectItem[];
   addEffectInstance: (effectType: string) => void;
   removeEffectInstance: (id: string) => void;
@@ -203,12 +359,48 @@ interface AppState {
   reorderEffects: (fromIndex: number, toIndex: number) => void;
   updateEffectParam: (id: string, key: string, value: any) => void;
   resetEffects: () => void;
-  // Legacy aliases
   toggleEffect: (id: string) => void;
   addEffect: (effectType: string) => void;
   removeEffect: (index: number) => void;
 
-  // Render & Playback Modes
+  previewQuality: PreviewQuality;
+  setPreviewQuality: (q: PreviewQuality) => void;
+  cyclePreviewQuality: () => void;
+  viewportUpdateMode: ViewportUpdateMode;
+  setViewportUpdateMode: (m: ViewportUpdateMode) => void;
+  toggleViewportUpdateMode: () => void;
+  appMode: AppMode;
+  setAppMode: (m: AppMode) => void;
+  toggleAppMode: () => void;
+  videoPlaybackMode: VideoPlaybackMode;
+  setVideoPlaybackMode: (m: VideoPlaybackMode) => void;
+  toggleVideoPlaybackMode: () => void;
+  videoRenderMode: VideoRenderMode;
+  setVideoRenderMode: (m: VideoRenderMode) => void;
+  toggleVideoRenderMode: () => void;
+
+  hasConfiguredAnimation: boolean;
+  setHasConfiguredAnimation: (val: boolean) => void;
+  isCreateAnimationPopupOpen: boolean;
+  setIsCreateAnimationPopupOpen: (open: boolean) => void;
+  isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
+  togglePlay: () => void;
+  currentTime: number;
+  setCurrentTime: (t: number) => void;
+  duration: number;
+  setDuration: (d: number) => void;
+  fps: number;
+  setFps: (fps: number) => void;
+  stepFrame: (dir: -1 | 1) => void;
+  animationTracks: AnimationTrack[];
+  selectedTrackId: string | null;
+  setSelectedTrackId: (id: string | null) => void;
+  addAnimationTrack: (durationOverride?: number) => void;
+  duplicateAnimationTrack: (id: string) => void;
+  updateAnimationTrack: (id: string, patch: Partial<AnimationTrack>) => void;
+  removeAnimationTrack: (id: string) => void;
+
   updateMode: UpdateMode;
   setUpdateMode: (mode: UpdateMode) => void;
   isDraggingSlider: boolean;
@@ -216,7 +408,6 @@ interface AppState {
   lastRenderMs: number;
   setLastRenderMs: (ms: number) => void;
 
-  // Viewport Navigation & Compare
   zoom: number;
   panX: number;
   panY: number;
@@ -225,24 +416,21 @@ interface AppState {
   showBeforeAfter: boolean;
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
-  fitToViewport: (containerWidth?: number, containerHeight?: number) => void;
+  fitToViewport: (containerWidth: number, containerHeight: number) => void;
   resetZoom: () => void;
   setSplitRatio: (ratio: number) => void;
   setShowBeforeAfter: (show: boolean) => void;
   toggleBeforeAfter: () => void;
 
-  // Viewport Affordance: Original View (Non-persistent - Item 1)
   isOriginalView: boolean;
   setIsOriginalView: (val: boolean) => void;
   toggleOriginalView: () => void;
 
-  // Preferences: Algorithm Descriptions (Item 2)
   showAlgorithmDescriptions: boolean;
   setShowAlgorithmDescriptions: (show: boolean) => void;
   activeDropdownId: string | null;
   setActiveDropdownId: (id: string | null) => void;
 
-  // Shell Layout & UI State (persisted to localStorage)
   sidebarWidth: number;
   isSidebarCollapsed: boolean;
   activeTheme: string;
@@ -259,35 +447,8 @@ interface AppState {
 const STORAGE_KEY_SIDEBAR_WIDTH = 'ditherforge_sidebar_width';
 const STORAGE_KEY_SIDEBAR_COLLAPSED = 'ditherforge_sidebar_collapsed';
 const STORAGE_KEY_THEME = 'ditherforge_theme';
-const STORAGE_KEY_UPDATE_MODE = 'ditherforge_update_mode';
 const STORAGE_KEY_FAVORITES = 'ditherforge_favorites';
-const getStoredAlgoDescriptionsPref = (): boolean => {
-  try {
-    const raw = localStorage.getItem('ditherforge_settings');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed.showAlgorithmDescriptions === 'boolean') {
-        return parsed.showAlgorithmDescriptions;
-      }
-    }
-  } catch {}
-  return true;
-};
-const getStoredFavorites = (): string[] => {
-  let list: string[] = [];
-  try {
-    const data = localStorage.getItem(STORAGE_KEY_FAVORITES);
-    if (data) list = JSON.parse(data);
-  } catch {}
-  if (typeof window !== 'undefined') {
-    const urlFav = new URLSearchParams(window.location.search).get('favorite');
-    if (urlFav && !list.includes(urlFav)) {
-      list = [...list, urlFav];
-    }
-  }
-  return list;
-};
-
+const STORAGE_KEY_CUSTOM_PALETTES = 'ditherforge_custom_palettes';
 
 const getStoredSidebarWidth = (): number => {
   try {
@@ -298,16 +459,6 @@ const getStoredSidebarWidth = (): number => {
     }
   } catch {}
   return 356;
-};
-
-const getStoredSidebarCollapsed = (): boolean => {
-  try {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('collapsed') === 'true') {
-      return true;
-    }
-    return localStorage.getItem(STORAGE_KEY_SIDEBAR_COLLAPSED) === 'true';
-  } catch {}
-  return false;
 };
 
 const getStoredTheme = (): string => {
@@ -322,27 +473,6 @@ const getStoredTheme = (): string => {
   return 'dark_pro';
 };
 
-const getStoredAlgorithm = (): string => {
-  try {
-    if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search).get('algo');
-      if (p) return p;
-    }
-  } catch {}
-  return 'floyd-steinberg';
-};
-
-const getStoredUpdateMode = (): UpdateMode => {
-  try {
-    const mode = localStorage.getItem(STORAGE_KEY_UPDATE_MODE) as UpdateMode;
-    if (mode === 'precise' || mode === 'live' || mode === 'settle') {
-      return mode;
-    }
-  } catch {}
-  return 'precise';
-};
-
-const STORAGE_KEY_CUSTOM_PALETTES = 'ditherforge_custom_palettes';
 const getStoredCustomPalettes = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_PALETTES);
@@ -353,50 +483,91 @@ const getStoredCustomPalettes = () => {
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
-  // Image State (initialize with clean calibration pattern)
   hasImage: true,
   imageName: 'calibration_pattern.png',
   imageFileName: 'calibration_pattern.png',
   imageWidth: 400,
   imageHeight: 300,
   sourceImageData: typeof window !== 'undefined' ? createCalibrationPattern(400, 300) : null,
+  sourceVideoUrl: null,
 
-  loadImageFromData: (imageData, name = 'uploaded_image.png') => set({
-    hasImage: true,
-    imageName: name,
-    imageFileName: name,
-    imageWidth: imageData.width,
-    imageHeight: imageData.height,
-    sourceImageData: imageData,
-    panX: 0,
-    panY: 0
+  loadImageFromData: (imageData, name = 'uploaded_image.png') => set((state) => {
+    if (state.sourceVideoUrl) {
+      try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
+    }
+    return {
+      hasImage: true,
+      imageName: name,
+      imageFileName: name,
+      imageWidth: imageData.width,
+      imageHeight: imageData.height,
+      sourceImageData: imageData,
+      sourceVideoUrl: null,
+      panX: 0,
+      panY: 0
+    };
+  }),
+
+  // Video Import: automatically switches to Animated Mode and sets timeline duration!
+  loadVideoSource: (videoUrl, firstFrame, durationSec, name) => set((state) => {
+    if (state.sourceVideoUrl && state.sourceVideoUrl !== videoUrl) {
+      try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
+    }
+    const validDur = Math.max(1, Math.round(durationSec || 5));
+    return {
+      hasImage: true,
+      imageName: name,
+      imageFileName: name,
+      imageWidth: firstFrame.width,
+      imageHeight: firstFrame.height,
+      sourceImageData: firstFrame,
+      sourceVideoUrl: videoUrl,
+      appMode: 'animation',
+      hasConfiguredAnimation: true,
+      isCreateAnimationPopupOpen: false,
+      duration: validDur,
+      currentTime: 0,
+      panX: 0,
+      panY: 0
+    };
   }),
 
   loadSampleImage: () => {
     const sample = createCalibrationPattern(400, 300);
-    set({
-      hasImage: true,
-      imageName: 'calibration_pattern.png',
-      imageFileName: 'calibration_pattern.png',
-      imageWidth: 400,
-      imageHeight: 300,
-      sourceImageData: sample,
-      panX: 0,
-      panY: 0
+    set((state) => {
+      if (state.sourceVideoUrl) {
+        try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
+      }
+      return {
+        hasImage: true,
+        imageName: 'calibration_pattern.png',
+        imageFileName: 'calibration_pattern.png',
+        imageWidth: 400,
+        imageHeight: 300,
+        sourceImageData: sample,
+        sourceVideoUrl: null,
+        panX: 0,
+        panY: 0
+      };
     });
   },
 
-  clearImage: () => set({
-    hasImage: false,
-    imageName: '',
-    imageFileName: '',
-    imageWidth: 0,
-    imageHeight: 0,
-    sourceImageData: null
+  clearImage: () => set((state) => {
+    if (state.sourceVideoUrl) {
+      try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
+    }
+    return {
+      hasImage: false,
+      imageName: '',
+      imageFileName: '',
+      imageWidth: 0,
+      imageHeight: 0,
+      sourceImageData: null,
+      sourceVideoUrl: null
+    };
   }),
 
-  // Favourites
-  favoriteAlgorithms: getStoredFavorites(),
+  favoriteAlgorithms: [],
   addFavorite: (id) => set((state) => {
     if (state.favoriteAlgorithms.includes(id)) return state;
     const next = [...state.favoriteAlgorithms, id];
@@ -410,20 +581,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
   toggleFavorite: (id) => set((state) => {
     const isFav = state.favoriteAlgorithms.includes(id);
-    const next = isFav
-      ? state.favoriteAlgorithms.filter((favId) => favId !== id)
-      : [...state.favoriteAlgorithms, id];
+    const next = isFav ? state.favoriteAlgorithms.filter((f) => f !== id) : [...state.favoriteAlgorithms, id];
     try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
     return { favoriteAlgorithms: next };
   }),
-  toggleFavoriteAlgorithm: (id) => set((state) => {
-    const isFav = state.favoriteAlgorithms.includes(id);
-    const next = isFav
-      ? state.favoriteAlgorithms.filter((favId) => favId !== id)
-      : [...state.favoriteAlgorithms, id];
-    try { localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(next)); } catch {}
-    return { favoriteAlgorithms: next };
-  }),
+  toggleFavoriteAlgorithm: (id) => get().toggleFavorite(id),
+
   resetCurrentAlgoParams: () => set((state) => ({
     algoParams: {
       ...state.algoParams,
@@ -436,46 +599,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     return {
       algoParams: {
         ...state.algoParams,
-        [state.algorithmId]: {
-          ...current,
-          [key]: defaults[key]
-        }
+        [state.algorithmId]: { ...current, [key]: defaults[key] }
       }
     };
   }),
 
-  // Image Adjustments reset
   resetAdjustmentParam: (key) => set(() => {
     const defaults: Record<string, number> = {
-      brightness: 0,
-      contrast: 0,
-      saturation: 0,
-      hue: 0,
-      gamma: 1.0,
-      depth: 8
+      brightness: 0, contrast: 0, saturation: 0, hue: 0, gamma: 1.0,
+      blur: 0, denoise: 0, highlight: 0, depth: 8
     };
     if (defaults[key] === undefined) return {};
     return { [key]: defaults[key] } as any;
   }),
-  resetAllAdjustments: () => set(() => ({
-    brightness: 0,
-    contrast: 0,
-    saturation: 0,
-    hue: 0,
-    gamma: 1.0,
-    depth: 8
-  })),
-
-  // Algorithm selection
-  algorithmId: getStoredAlgorithm(),
-  algoParams: buildInitialAlgoParamsMap(),
-  setAlgorithmId: (id: string) => set((state) => {
-    const existing = state.algoParams[id] ?? getInitialAlgoParams(id);
-    return {
-      algorithmId: id,
-      algoParams: { ...state.algoParams, [id]: existing }
-    };
+  resetAllAdjustments: () => set({
+    brightness: 0, contrast: 0, saturation: 0, hue: 0, gamma: 1.0,
+    blur: 0, denoise: 0, highlight: 0, depth: 8
   }),
+
+  algorithmId: 'floyd-steinberg',
+  algoParams: buildInitialAlgoParamsMap(),
+  setAlgorithmId: (id: string) => set((state) => ({
+    algorithmId: id,
+    algoParams: { ...state.algoParams, [id]: state.algoParams[id] ?? getInitialAlgoParams(id) }
+  })),
   updateCurrentAlgoParam: (key, value) => set((state) => {
     const currentId = state.algorithmId;
     const currentParams = state.algoParams[currentId] ?? getInitialAlgoParams(currentId);
@@ -487,68 +634,38 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
 
-  // Adjustments
   brightness: 0,
   contrast: 0,
   saturation: 0,
   hue: 0,
   gamma: 1.0,
+  blur: 0,
+  denoise: 0,
+  highlight: 0,
   depth: 8,
   setBrightness: (brightness) => set({ brightness }),
   setContrast: (contrast) => set({ contrast }),
   setSaturation: (saturation) => set({ saturation }),
   setHue: (hue) => set({ hue: Math.max(-180, Math.min(180, hue)) }),
   setGamma: (gamma) => set({ gamma }),
+  setBlur: (blur) => set({ blur: Math.max(0, Math.min(20, blur)) }),
+  setDenoise: (denoise) => set({ denoise: Math.max(0, Math.min(100, denoise)) }),
+  setHighlight: (highlight) => set({ highlight: Math.max(-100, Math.min(100, highlight)) }),
   setDepth: (depth) => set({ depth }),
 
-  // Palette State (Phase 4 - workingPalette architecture)
-  activePaletteId: (() => {
-    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
-    return fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
-  })(),
-  activePalette: (() => {
-    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
-    return fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
-  })(),
-  workingPalette: (() => {
-    if (typeof window !== 'undefined') {
-      const extractMode = new URLSearchParams(window.location.search).get('extract');
-      if (extractMode === 'median_cut') {
-        const sample = createCalibrationPattern(400, 300);
-        return extractPaletteMedianCut(sample, 8);
-      } else if (extractMode === 'kmeans') {
-        const sample = createCalibrationPattern(400, 300);
-        return extractPaletteKMeans(sample, 8, 8);
-      }
-    }
-    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
-    const initialId = fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
-    const found = BUILTIN_PALETTES.find((p: any) => p.id === initialId) || BUILTIN_PALETTES[0];
-    return found ? found.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
-  })(),
-  paletteDepth: (() => {
-    if (typeof window !== 'undefined') {
-      const pdepth = new URLSearchParams(window.location.search).get('pdepth');
-      if (pdepth) return parseInt(pdepth, 10);
-      const extractMode = new URLSearchParams(window.location.search).get('extract');
-      if (extractMode) return 8;
-    }
-    const fromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('palette') : null;
-    const initialId = fromUrl || BUILTIN_PALETTES[0]?.id || 'monochrome_1bit';
-    const found = BUILTIN_PALETTES.find((p: any) => p.id === initialId) || BUILTIN_PALETTES[0];
-    return found ? found.colors.length : 2;
-  })(),
+  activePaletteId: BUILTIN_PALETTES[0]?.id || 'monochrome_1bit',
+  activePalette: BUILTIN_PALETTES[0]?.id || 'monochrome_1bit',
+  workingPalette: BUILTIN_PALETTES[0] ? BUILTIN_PALETTES[0].colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]],
+  paletteDepth: BUILTIN_PALETTES[0] ? BUILTIN_PALETTES[0].colors.length : 2,
   savedPalettes: getStoredCustomPalettes(),
   paletteInverted: false,
   paletteFlipped: false,
   previewPaletteId: null,
-  setPreviewPaletteId: (id: string | null) => set({ previewPaletteId: id, paletteInverted: false, paletteFlipped: false }),
+  setPreviewPaletteId: (id) => set({ previewPaletteId: id }),
 
   setActivePaletteId: (id: string) => {
     const state = get();
-    const pal =
-      BUILTIN_PALETTES.find((p: any) => p.id === id) ||
-      state.savedPalettes.find((p) => p.id === id);
+    const pal = BUILTIN_PALETTES.find((p: any) => p.id === id) || state.savedPalettes.find((p) => p.id === id);
     if (!pal) return;
     const colors = pal.colors.map((c: number[]) => [...c]);
     set({
@@ -560,8 +677,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       paletteFlipped: false,
       previewPaletteId: null
     });
-    (get() as any).pushHistorySnapshot?.();
   },
+  setActivePalette: (id) => get().setActivePaletteId(id),
 
   saveCurrentPaletteLocally: (name: string) => {
     const state = get();
@@ -572,22 +689,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       colors: state.workingPalette.map((c) => [...c])
     };
     const next = [...state.savedPalettes, newPal];
-    try {
-      localStorage.setItem(STORAGE_KEY_CUSTOM_PALETTES, JSON.stringify(next));
-    } catch {}
-    set({
-      savedPalettes: next,
-      activePaletteId: newPal.id,
-      activePalette: newPal.id
-    });
+    try { localStorage.setItem(STORAGE_KEY_CUSTOM_PALETTES, JSON.stringify(next)); } catch {}
+    set({ savedPalettes: next, activePaletteId: newPal.id, activePalette: newPal.id });
   },
 
   deleteCustomPalette: (id: string) => {
     const state = get();
     const next = state.savedPalettes.filter((p) => p.id !== id);
-    try {
-      localStorage.setItem(STORAGE_KEY_CUSTOM_PALETTES, JSON.stringify(next));
-    } catch {}
+    try { localStorage.setItem(STORAGE_KEY_CUSTOM_PALETTES, JSON.stringify(next)); } catch {}
     if (state.activePaletteId === id) {
       const fallback = BUILTIN_PALETTES[0];
       const colors = fallback ? fallback.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
@@ -603,291 +712,248 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // Uses ±0.35 (35% lighter/darker) and clamps strictly to [0, 255]
-  addAdjustedSwatch: (sourceIndex: number, delta = 0.35) => {
-    set((state) => {
-      if (state.workingPalette.length >= 32) return state;
-      const base = state.workingPalette[sourceIndex];
-      if (!base) return state;
-      const sign = delta >= 0 ? 1 : -1;
-      const amount = Math.abs(delta) === 0.2 ? 0.35 : Math.abs(delta);
-      const effectiveDelta = sign * amount;
-      const adjust = (ch: number) => {
-        const val = effectiveDelta > 0
-          ? Math.round(ch + (255 - ch) * effectiveDelta)
-          : Math.round(ch * (1 + effectiveDelta));
-        return Math.max(0, Math.min(255, val));
-      };
-      const newSwatch = [adjust(base[0]), adjust(base[1]), adjust(base[2]), 255];
-      const nextPalette = [...state.workingPalette.map((c) => [...c]), newSwatch];
-      return {
-        workingPalette: nextPalette,
-        paletteDepth: Math.max(state.paletteDepth, nextPalette.length)
-      };
-    });
-    (get() as any).pushHistorySnapshot?.();
-  },
-
-  // Invert Palette: converts palette colors into their complementary colors (255 - R, 255 - G, 255 - B) in place
-  invertPalette: () => {
-    set((state) => {
-      const nextPalette = state.workingPalette.map((c) => [
-        Math.max(0, Math.min(255, 255 - c[0])),
-        Math.max(0, Math.min(255, 255 - c[1])),
-        Math.max(0, Math.min(255, 255 - c[2])),
-        c[3] ?? 255
-      ]);
-      return { workingPalette: nextPalette, paletteInverted: !state.paletteInverted };
-         });
-         (get() as any).pushHistorySnapshot?.();
-       },
-
-       // Flip Palette: inverses light/midtone/dark properties (reverses swatch order and inverts lightness)
-      flipPalette: () => {
-        set((state) => {
-          const flipLightness = (r: number, g: number, b: number, a = 255): number[] => {
-            const rN = r / 255;
-            const gN = g / 255;
-            const bN = b / 255;
-            const max = Math.max(rN, gN, bN);
-            const min = Math.min(rN, gN, bN);
-            let h = 0;
-            let s = 0;
-            const l = (max + min) / 2;
-
-            if (max !== min) {
-              const d = max - min;
-              s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-              switch (max) {
-                case rN:
-                  h = (gN - bN) / d + (gN < bN ? 6 : 0);
-                  break;
-                case gN:
-                  h = (bN - rN) / d + 2;
-                  break;
-                case bN:
-                  h = (rN - gN) / d + 4;
-                  break;
-              }
-              h /= 6;
-            }
-
-            const invL = 1 - l;
-            const c = (1 - Math.abs(2 * invL - 1)) * s;
-            const hDeg = h * 360;
-            const x = c * (1 - Math.abs(((hDeg / 60) % 2) - 1));
-            const m = invL - c / 2;
-            let rP = 0, gP = 0, bP = 0;
-
-            if (hDeg >= 0 && hDeg < 60) {
-              rP = c; gP = x; bP = 0;
-            } else if (hDeg >= 60 && hDeg < 120) {
-              rP = x; gP = c; bP = 0;
-            } else if (hDeg >= 120 && hDeg < 180) {
-              rP = 0; gP = c; bP = x;
-            } else if (hDeg >= 180 && hDeg < 240) {
-              rP = 0; gP = x; bP = c;
-            } else if (hDeg >= 240 && hDeg < 300) {
-              rP = x; gP = 0; bP = c;
-            } else {
-              rP = c; gP = 0; bP = x;
-            }
-
-            return [
-              Math.max(0, Math.min(255, Math.round((rP + m) * 255))),
-              Math.max(0, Math.min(255, Math.round((gP + m) * 255))),
-              Math.max(0, Math.min(255, Math.round((bP + m) * 255))),
-              a
-            ];
-          };
-
-          const nextPalette = state.workingPalette
-            .slice()
-            .reverse()
-            .map((c) => flipLightness(c[0], c[1], c[2], c[3] ?? 255));
-          return { workingPalette: nextPalette, paletteFlipped: !state.paletteFlipped };
-        });
-        (get() as any).pushHistorySnapshot?.();
-      },
-
-  setActivePalette: (id: string) => {
-    const pal = BUILTIN_PALETTES.find((p: any) => p.id === id);
-    if (!pal) return;
-    const colors = pal.colors.map((c: number[]) => [...c]);
-    set({
-      activePaletteId: id,
-      activePalette: id,
-      workingPalette: colors,
-      paletteDepth: colors.length,
-      paletteInverted: false,
-      paletteFlipped: false
-    });
-  },
-
-  updateSwatchColor: (index: number, rgba: number[]) => set((state) => {
-    if (index < 0 || index >= state.workingPalette.length) return state;
-    const nextPalette = state.workingPalette.map((c, i) => i === index ? [...rgba] : [...c]);
-    return { workingPalette: nextPalette };
-  }),
-
-  shuffleUnlockedSwatches: () => set((state) => {
-    const nextPalette = state.workingPalette.map(() => [
-      Math.floor(Math.random() * 256),
-      Math.floor(Math.random() * 256),
-      Math.floor(Math.random() * 256),
-      255
-    ]);
-    return { workingPalette: nextPalette };
-  }),
-
-  addSwatch: () => set((state) => {
+  addAdjustedSwatch: (sourceIndex: number, delta = 0.35) => set((state) => {
     if (state.workingPalette.length >= 32) return state;
-    const nextPalette = [...state.workingPalette.map((c) => [...c]), [128, 128, 128, 255]];
-    return {
-      workingPalette: nextPalette,
-      paletteDepth: Math.max(state.paletteDepth, nextPalette.length)
+    const base = state.workingPalette[sourceIndex];
+    if (!base) return state;
+    const adjust = (ch: number) => {
+      const val = delta > 0 ? Math.round(ch + (255 - ch) * delta) : Math.round(ch * (1 + delta));
+      return Math.max(0, Math.min(255, val));
     };
+    const newSwatch = [adjust(base[0]), adjust(base[1]), adjust(base[2]), 255];
+    const nextPalette = [...state.workingPalette.map((c) => [...c]), newSwatch];
+    return { workingPalette: nextPalette, paletteDepth: Math.max(state.paletteDepth, nextPalette.length) };
   }),
 
-  removeSwatch: (index: number) => set((state) => {
-    if (state.workingPalette.length <= 2) return state;
-    const nextPalette = state.workingPalette.filter((_, i) => i !== index).map((c) => [...c]);
-    const nextDepth = Math.min(state.paletteDepth, nextPalette.length);
-    return {
-      workingPalette: nextPalette,
-      paletteDepth: Math.max(2, nextDepth)
-    };
-  }),
-
-  setPaletteDepth: (n: number) => set((state) => ({
-    paletteDepth: Math.max(2, Math.min(Math.min(32, state.workingPalette.length), n))
+  invertPalette: () => set((state) => ({
+    workingPalette: state.workingPalette.map((c) => [255 - c[0], 255 - c[1], 255 - c[2], c[3] ?? 255]),
+    paletteInverted: !state.paletteInverted
   })),
 
+  flipPalette: () => set((state) => ({
+    workingPalette: state.workingPalette.slice().reverse(),
+    paletteFlipped: !state.paletteFlipped
+  })),
+
+  updateSwatchColor: (index, rgba) => set((state) => {
+    if (index < 0 || index >= state.workingPalette.length) return state;
+    return { workingPalette: state.workingPalette.map((c, i) => (i === index ? [...rgba] : [...c])) };
+  }),
+  shuffleUnlockedSwatches: () => set((state) => ({
+    workingPalette: state.workingPalette.map(() => [
+      Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), 255
+    ])
+  })),
+  addSwatch: () => set((state) => {
+    if (state.workingPalette.length >= 32) return state;
+    const next = [...state.workingPalette.map((c) => [...c]), [128, 128, 128, 255]];
+    return { workingPalette: next, paletteDepth: Math.max(state.paletteDepth, next.length) };
+  }),
+  removeSwatch: (index) => set((state) => {
+    if (state.workingPalette.length <= 2) return state;
+    const next = state.workingPalette.filter((_, i) => i !== index).map((c) => [...c]);
+    return { workingPalette: next, paletteDepth: Math.max(2, Math.min(state.paletteDepth, next.length)) };
+  }),
+  setPaletteDepth: (n) => set((state) => ({
+    paletteDepth: Math.max(2, Math.min(Math.min(32, state.workingPalette.length), n))
+  })),
   resetToBuiltin: () => set((state) => {
-    if (state.activePaletteId === 'custom') return state;
     const pal = BUILTIN_PALETTES.find((p: any) => p.id === state.activePaletteId) || BUILTIN_PALETTES[0];
     const colors = pal ? pal.colors.map((c: number[]) => [...c]) : [[0, 0, 0, 255], [255, 255, 255, 255]];
-    return {
-      workingPalette: colors,
-      paletteDepth: colors.length,
-      paletteInverted: false,
-      paletteFlipped: false
-    };
+    return { workingPalette: colors, paletteDepth: colors.length, paletteInverted: false, paletteFlipped: false };
   }),
 
-  // Effects
   effects: buildInitialEffects(),
   addEffectInstance: (effectType) => set((state) => {
     const meta = AVAILABLE_EFFECT_TYPES.find((e: any) => e.id === effectType);
     if (!meta) return state;
-    const newEffect: EffectItem = {
-      id: `${effectType}_${Date.now()}`,
-      type: effectType,
-      name: meta.name,
-      enabled: true,
-      params: { ...meta.defaultParams }
+    return {
+      effects: [...state.effects, { id: `${effectType}_${Date.now()}`, type: effectType, name: meta.name, enabled: true, params: { ...meta.defaultParams } }]
     };
-    return { effects: [...state.effects, newEffect] };
   }),
-  removeEffectInstance: (id) => set((state) => ({
-    effects: state.effects.filter((e) => e.id !== id)
-  })),
+  removeEffectInstance: (id) => set((state) => ({ effects: state.effects.filter((e) => e.id !== id) })),
   toggleEffectEnabled: (id) => set((state) => ({
-    effects: state.effects.map((e) => e.id === id ? { ...e, enabled: !e.enabled } : e)
+    effects: state.effects.map((e) => (e.id === id ? { ...e, enabled: !e.enabled } : e))
   })),
   reorderEffects: (fromIndex, toIndex) => set((state) => {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 ||
-        fromIndex >= state.effects.length || toIndex >= state.effects.length) {
-      return state;
-    }
     const list = [...state.effects];
     const [moved] = list.splice(fromIndex, 1);
     list.splice(toIndex, 0, moved);
     return { effects: list };
   }),
   updateEffectParam: (id, key, value) => set((state) => ({
-    effects: state.effects.map((e) =>
-      e.id === id ? { ...e, params: { ...e.params, [key]: value } } : e
-    )
+    effects: state.effects.map((e) => (e.id === id ? { ...e, params: { ...e.params, [key]: value } } : e))
   })),
   resetEffects: () => set({ effects: buildInitialEffects() }),
-  // Legacy aliases
-  toggleEffect: (id) => set((state) => ({
-    effects: state.effects.map((e) => e.id === id ? { ...e, enabled: !e.enabled } : e)
-  })),
-  addEffect: (effectType) => set((state) => {
-    const meta = AVAILABLE_EFFECT_TYPES.find((e: any) => e.id === effectType);
-    if (!meta) return state;
-    const newEffect: EffectItem = {
-      id: `${effectType}_${Date.now()}`,
-      type: effectType,
-      name: meta.name,
-      enabled: true,
-      params: { ...meta.defaultParams }
-    };
-    return { effects: [...state.effects, newEffect] };
+  toggleEffect: (id) => get().toggleEffectEnabled(id),
+  addEffect: (effectType) => get().addEffectInstance(effectType),
+  removeEffect: (index) => set((state) => ({ effects: state.effects.filter((_, i) => i !== index) })),
+
+  previewQuality: 'full',
+  setPreviewQuality: (previewQuality) => set({ previewQuality }),
+  cyclePreviewQuality: () => set((state) => {
+    const order: PreviewQuality[] = ['full', 'low', 'mid'];
+    const next = order[(order.indexOf(state.previewQuality) + 1) % order.length];
+    return { previewQuality: next };
   }),
-  removeEffect: (index) => set((state) => ({
-    effects: state.effects.filter((_, i) => i !== index)
+
+  viewportUpdateMode: 'live',
+  setViewportUpdateMode: (viewportUpdateMode) => set({ viewportUpdateMode }),
+  toggleViewportUpdateMode: () => set((state) => ({
+    viewportUpdateMode: state.viewportUpdateMode === 'live' ? 'debounce' : 'live'
   })),
 
-  // Render & Playback Modes
-  updateMode: getStoredUpdateMode(),
-  setUpdateMode: (updateMode) => {
-    try { localStorage.setItem(STORAGE_KEY_UPDATE_MODE, updateMode); } catch {}
-    set({ updateMode });
-  },
+  appMode: 'still',
+
+  setAppMode: (appMode) => set((state) => ({
+    appMode,
+    isPlaying: appMode === 'still' ? false : state.isPlaying,
+    selectedTrackId: appMode === 'still' ? null : state.selectedTrackId,
+    hasConfiguredAnimation: appMode === 'animation' ? false : state.hasConfiguredAnimation,
+    isCreateAnimationPopupOpen: appMode === 'animation'
+  })),
+  toggleAppMode: () => set((state) => {
+    const next = state.appMode === 'still' ? 'animation' : 'still';
+    return {
+      appMode: next,
+      isPlaying: next === 'still' ? false : state.isPlaying,
+      selectedTrackId: next === 'still' ? null : state.selectedTrackId,
+      hasConfiguredAnimation: next === 'animation' ? false : state.hasConfiguredAnimation,
+      isCreateAnimationPopupOpen: next === 'animation'
+    };
+  }),
+
+  videoPlaybackMode: 'standard',
+  setVideoPlaybackMode: (videoPlaybackMode) => set({ videoPlaybackMode }),
+  toggleVideoPlaybackMode: () => set((state) => ({
+    videoPlaybackMode: state.videoPlaybackMode === 'standard' ? 'looped' : 'standard'
+  })),
+
+  videoRenderMode: 'quick',
+  setVideoRenderMode: (videoRenderMode) => set({ videoRenderMode }),
+  toggleVideoRenderMode: () => set((state) => ({
+    videoRenderMode: state.videoRenderMode === 'quick' ? 'rendered' : 'quick'
+  })),
+
+  hasConfiguredAnimation: false,
+  setHasConfiguredAnimation: (hasConfiguredAnimation) => set({ hasConfiguredAnimation }),
+  isCreateAnimationPopupOpen: false,
+  setIsCreateAnimationPopupOpen: (isCreateAnimationPopupOpen) => set({ isCreateAnimationPopupOpen }),
+
+  isPlaying: false,
+  setIsPlaying: (isPlaying) => set({ isPlaying }),
+  togglePlay: () => set((state) => {
+    if (!state.isPlaying && state.currentTime >= state.duration) {
+      return { isPlaying: true, currentTime: 0 };
+    }
+    return { isPlaying: !state.isPlaying };
+  }),
+  currentTime: 0,
+  setCurrentTime: (t) => set((state) => ({
+    currentTime: Math.max(0, Math.min(state.duration, Number(t.toFixed(4))))
+  })),
+  duration: 15.0,
+  setDuration: (duration) => set((state) => {
+    const nextDur = Math.max(1, duration);
+    const clampedTracks = state.animationTracks.map((tr) => {
+      const start = Math.max(0, Math.min(nextDur - 0.1, tr.startTime));
+      const end = Math.max(start + 0.1, Math.min(nextDur, tr.endTime));
+      return { ...tr, startTime: start, endTime: end };
+    });
+    return {
+      duration: nextDur,
+      currentTime: Math.min(state.currentTime, nextDur),
+      animationTracks: clampedTracks
+    };
+  }),
+  fps: 30,
+  setFps: (fps) => set({ fps: Math.max(1, Math.min(120, fps)) }),
+  stepFrame: (dir) => set((state) => {
+    const frameStep = 1 / state.fps;
+    const next = Math.max(0, Math.min(state.duration, state.currentTime + dir * frameStep));
+    return { isPlaying: false, currentTime: Number(next.toFixed(4)) };
+  }),
+  animationTracks: [],
+  selectedTrackId: null,
+  setSelectedTrackId: (selectedTrackId) => set({ selectedTrackId }),
+
+  addAnimationTrack: (durationOverride) => set((state) => {
+    const totalDur = durationOverride ?? state.duration;
+    const halfLength = Number((totalDur / 2).toFixed(2));
+    const newTrack: AnimationTrack = {
+      id: `track_${Date.now()}`,
+      category: null,
+      property: null,
+      label: 'No effect',
+      startTime: 0,
+      endTime: Math.max(0.2, halfLength),
+      fromValue: 0,
+      toValue: 1,
+      easing: 'linear'
+    };
+    return {
+      animationTracks: [...state.animationTracks, newTrack]
+    };
+  }),
+  duplicateAnimationTrack: (id) => set((state) => {
+    const orig = state.animationTracks.find((t) => t.id === id);
+    if (!orig) return state;
+    const copy: AnimationTrack = {
+      ...orig,
+      id: `track_${Date.now()}`
+    };
+    return {
+      animationTracks: [...state.animationTracks, copy],
+      selectedTrackId: copy.id
+    };
+  }),
+  updateAnimationTrack: (id, patch) => set((state) => ({
+    animationTracks: state.animationTracks.map((t) => {
+      if (t.id !== id) return t;
+      const updated = { ...t, ...patch };
+      updated.startTime = Math.max(0, Math.min(state.duration - 0.1, updated.startTime));
+      updated.endTime = Math.max(updated.startTime + 0.1, Math.min(state.duration, updated.endTime));
+      return updated;
+    })
+  })),
+  removeAnimationTrack: (id) => set((state) => ({
+    animationTracks: state.animationTracks.filter((t) => t.id !== id),
+    selectedTrackId: state.selectedTrackId === id ? null : state.selectedTrackId
+  })),
+
+  updateMode: 'precise',
+  setUpdateMode: (updateMode) => set({
+    updateMode,
+    viewportUpdateMode: updateMode === 'settle' ? 'debounce' : 'live'
+  }),
   isDraggingSlider: false,
   setIsDraggingSlider: (isDraggingSlider) => set({ isDraggingSlider }),
   lastRenderMs: 0,
   setLastRenderMs: (lastRenderMs) => set({ lastRenderMs }),
 
-  // Viewport Navigation & Compare
   zoom: 100,
   panX: 0,
   panY: 0,
   splitRatio: 0.5,
   hasUserMovedSplitRatio: false,
-  showBeforeAfter: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare') === 'true',
+  showBeforeAfter: false,
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(3200, zoom)) }),
   setPan: (panX, panY) => set({ panX, panY }),
-  fitToViewport: (containerWidth?: number, containerHeight?: number) => {
+  fitToViewport: (containerWidth, containerHeight) => {
     const { imageWidth, imageHeight } = get();
     if (!imageWidth || !imageHeight) return;
-    let w = containerWidth;
-    let h = containerHeight;
-    if (typeof document !== 'undefined') {
-      const canvasArea = document.querySelector('.canvas-area') as HTMLElement | null;
-      if (canvasArea) {
-        const style = window.getComputedStyle(canvasArea);
-        const paddingRight = parseFloat(style.paddingRight) || 0;
-        const paddingLeft = parseFloat(style.paddingLeft) || 0;
-        const paddingTop = parseFloat(style.paddingTop) || 0;
-        const paddingBottom = parseFloat(style.paddingBottom) || 0;
-        const contentW = Math.max(100, canvasArea.clientWidth - paddingRight - paddingLeft);
-        const contentH = Math.max(100, canvasArea.clientHeight - paddingTop - paddingBottom);
-        if (!w || Math.abs(w - canvasArea.clientWidth) < 2) {
-          w = contentW;
-        }
-        if (!h || Math.abs(h - canvasArea.clientHeight) < 2) {
-          h = contentH;
-        }
-      }
-    }
-    const finalW = w || (typeof window !== 'undefined' ? window.innerWidth - 400 : 800);
-    const finalH = h || (typeof window !== 'undefined' ? window.innerHeight - 100 : 600);
-    const availableW = Math.max(100, finalW - 40);
-    const availableH = Math.max(100, finalH - 40);
+    const availableW = Math.max(100, containerWidth - 40);
+    const availableH = Math.max(100, containerHeight - 40);
     const scale = Math.min(availableW / imageWidth, availableH / imageHeight, 1.0);
     const fitZoom = Math.max(25, Math.round(scale * 100));
     set({ zoom: fitZoom, panX: 0, panY: 0 });
   },
   resetZoom: () => set({ zoom: 100, panX: 0, panY: 0 }),
-  setSplitRatio: (splitRatio) => set({ 
+  setSplitRatio: (splitRatio) => set({
     splitRatio: Math.max(0.02, Math.min(0.98, splitRatio)),
     hasUserMovedSplitRatio: true
   }),
-  setShowBeforeAfter: (showBeforeAfter) => set((state) => ({ 
+  setShowBeforeAfter: (showBeforeAfter) => set((state) => ({
     showBeforeAfter,
     splitRatio: showBeforeAfter && !state.hasUserMovedSplitRatio ? 0.5 : state.splitRatio
   })),
@@ -899,21 +965,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
 
-  // Original View (Item 1)
-  isOriginalView: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('original') === 'true',
+  isOriginalView: false,
   setIsOriginalView: (val) => set({ isOriginalView: val }),
   toggleOriginalView: () => set((state) => ({ isOriginalView: !state.isOriginalView })),
 
-  // Preferences: Algorithm descriptions (Item 2)
-  showAlgorithmDescriptions: getStoredAlgoDescriptionsPref(),
+  showAlgorithmDescriptions: true,
   setShowAlgorithmDescriptions: (show) => set({ showAlgorithmDescriptions: show }),
-
   activeDropdownId: null,
   setActiveDropdownId: (activeDropdownId) => set({ activeDropdownId }),
 
-  // Shell Layout & UI
   sidebarWidth: getStoredSidebarWidth(),
-  isSidebarCollapsed: getStoredSidebarCollapsed(),
+  isSidebarCollapsed: false,
   activeTheme: getStoredTheme(),
   isFullScreen: false,
   isManualOpen: false,
@@ -923,32 +985,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     try { localStorage.setItem(STORAGE_KEY_SIDEBAR_WIDTH, String(clamped)); } catch {}
     return { sidebarWidth: clamped };
   }),
-
   toggleSidebarCollapsed: () => set((state) => {
     const next = !state.isSidebarCollapsed;
     try { localStorage.setItem(STORAGE_KEY_SIDEBAR_COLLAPSED, String(next)); } catch {}
     return { isSidebarCollapsed: next };
   }),
-
   setActiveTheme: (activeTheme) => set(() => {
     try { localStorage.setItem(STORAGE_KEY_THEME, activeTheme); } catch {}
     return { activeTheme };
   }),
-
   toggleFullScreen: () => set((state) => {
     const next = !state.isFullScreen;
     if (next) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      }
+      document.documentElement.requestFullscreen?.().catch(() => {});
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
+      document.exitFullscreen?.().catch(() => {});
     }
     return { isFullScreen: next };
   }),
-
   setIsManualOpen: (isManualOpen) => set({ isManualOpen }),
 
   resetAll: () => set((state) => ({
@@ -957,6 +1011,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     saturation: 0,
     hue: 0,
     gamma: 1.0,
+    blur: 0,
+    denoise: 0,
+    highlight: 0,
     depth: 8,
     algoParams: {
       ...state.algoParams,

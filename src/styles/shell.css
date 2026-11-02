@@ -119,23 +119,26 @@ body {
 }
 .menu-btn {
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
+  box-shadow: none;
+  outline: none;
   color: var(--text-dim);
   font-size: 0.85rem;
   font-weight: 600;
   padding: 4px 10px;
-  border-radius: 8px;
+  border-radius: 4px;
   cursor: pointer;
-  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 .menu-btn:hover,
 .menu-btn.active {
-  background-color: color-mix(in srgb, var(--bg-control) 65%, transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 12px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 12px));
-  border-color: color-mix(in srgb, var(--border-color) 70%, rgba(255, 255, 255, 0.15));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  background-color: color-mix(in srgb, var(--bg-hover) 55%, transparent);
   color: var(--text-main);
+  border: none;
+  box-shadow: none;
+  outline: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .topbar-center-controls {
   position: absolute;
@@ -878,7 +881,7 @@ body {
   box-sizing: border-box;
 }
 .app-container.fullscreen .canvas-area {
-  padding-top: 0;
+  padding-top: 0 !important;
 }
 .viewport-frame-card {
   width: 100%;
@@ -4496,4 +4499,667 @@ body {
   justify-content: space-between;
   margin-top: 0;
   margin-bottom: 2px;
+}
+
+
+/* --- Topbar Pill & Centered 3-Part Viewport Control --- */
+.topbar-menu-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  background-color: var(--bg-control);
+  border: 1.5px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0 2px;
+}
+
+.topbar-menu-pill .menu-btn {
+  height: 22px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-radius: 4px;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.topbar-menu-pill .menu-btn:hover,
+.topbar-menu-pill .menu-btn.active {
+  background-color: color-mix(in srgb, var(--bg-hover) 55%, transparent);
+  color: var(--text-main);
+  border: none;
+  box-shadow: none;
+  outline: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.topbar-center-controls {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 2;
+}
+
+.topbar-control-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+/* --- Full-Bleed Unframed Image Workspace --- */
+.workspace-container {
+  position: relative;
+  flex: 1;
+  width: 100vw;
+  height: calc(100vh - 38px);
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  border: none !important;
+}
+
+.center-viewport {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  border: none !important;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.canvas-area {
+  position: absolute;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  padding-top: 38px !important;
+  padding-right: calc(var(--sidebar-width, 356px) + 14px) !important;
+  box-sizing: border-box !important;
+  box-shadow: none !important;
+}
+
+.canvas-unframed-stage,
+.preview-canvas,
+canvas#mainViewportCanvas {
+  border: none !important;
+  outline: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* --- Frosted Glass Reactivity Across All Floating UI Panels & Nested Dropdowns --- */
+[data-glass-blur="true"] .right-sidebar,
+[data-glass-blur="true"] .df-playback-pill,
+[data-glass-blur="true"] .df-playback-plus-btn,
+[data-glass-blur="true"] .df-timeline-body-card,
+[data-glass-blur="true"] .df-create-anim-popup,
+[data-glass-blur="true"] .custom-dropdown-panel,
+[data-glass-blur="true"] .algo-listbox-panel {
+  background-color: color-mix(in srgb, var(--bg-panel) 72%, transparent) !important;
+  backdrop-filter: blur(20px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(145%) !important;
+}
+
+/* Apply backdrop-filter to ::before on the floating property editor so child .custom-dropdown-panel
+   is NOT trapped inside a parent backdrop root and renders real frosted-glass blur! */
+.df-floating-property-editor {
+  position: fixed;
+  top: 54px;
+  left: 36px;
+  width: 280px;
+  background: transparent !important;
+  border: 1.5px solid var(--border-color);
+  border-radius: 18px;
+  padding: 18px 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 9500;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.df-floating-property-editor::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--bg-panel);
+  z-index: -1;
+  pointer-events: none;
+}
+
+[data-glass-blur="true"] .df-floating-property-editor::before {
+  background-color: color-mix(in srgb, var(--bg-panel) 72%, transparent) !important;
+  backdrop-filter: blur(20px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(145%) !important;
+}
+
+[data-glass-blur="true"] .df-floating-property-editor .custom-dropdown-panel,
+[data-glass-blur="true"] .df-floating-property-editor .custom-dropdown-panel.single-list {
+  background-color: color-mix(in srgb, var(--bg-secondary) 68%, transparent) !important;
+  backdrop-filter: blur(22px) saturate(155%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(155%) !important;
+}
+
+[data-glass-blur="false"] .right-sidebar,
+[data-glass-blur="false"] .df-playback-pill,
+[data-glass-blur="false"] .df-playback-plus-btn,
+[data-glass-blur="false"] .df-timeline-body-card,
+[data-glass-blur="false"] .df-floating-property-editor::before,
+[data-glass-blur="false"] .df-create-anim-popup,
+[data-glass-blur="false"] .custom-dropdown-panel {
+  background-color: var(--bg-panel) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* --- Floating Playback Controls, Circular + Button & Timeline Card --- */
+.df-floating-timeline-group {
+  position: absolute;
+  left: 36px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 25;
+  user-select: none;
+  pointer-events: none;
+}
+
+.df-timeline-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  pointer-events: none;
+}
+
+.df-playback-left-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.df-playback-pill {
+  height: 44px;
+  min-width: 248px;
+  padding: 0 22px;
+  background-color: var(--bg-panel);
+  border: 1.5px solid var(--border-color);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.df-timecode-readout {
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.df-timecode-current {
+  color: var(--text-main);
+}
+
+.df-timecode-max {
+  color: var(--text-dim);
+}
+
+.df-transport-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.df-transport-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  transition: color 120ms ease;
+}
+
+.df-transport-btn:hover,
+.df-transport-btn.play-btn {
+  color: var(--text-main);
+}
+
+.df-playback-plus-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--bg-panel);
+  border: 1.5px solid var(--border-color);
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.df-playback-plus-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.df-playback-plus-btn:active {
+  transform: scale(0.95);
+}
+
+/* Dedicated Floating Timeline Card — Full Span 0:00 to Duration without Horizontal Scrollbar */
+.df-timeline-body-card {
+  position: relative;
+  height: 184px;
+  background-color: var(--bg-panel);
+  border: 1.5px solid var(--border-color);
+  border-radius: 16px;
+  padding: 12px 16px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.df-timeline-fullspan-row {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.df-ruler-time-edge {
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main);
+  width: 42px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.df-ruler-time-edge.start {
+  justify-content: flex-start;
+}
+
+.df-ruler-time-edge.end {
+  justify-content: flex-end;
+}
+
+/* Exact 0% to 100% Timeline Stage: Playhead, Dynamic Markers, and Track Bars Share This Container */
+.df-timeline-coord-stage {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+}
+
+/* Exact 0% to 100% Ruler Tick Positioning & Circular Playhead Cap */
+.df-ruler-ticks {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.df-ruler-tick {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1.5px;
+  height: 9px;
+  background-color: var(--text-muted);
+  opacity: 0.45;
+  border-radius: 99px;
+}
+
+.df-ruler-tick.medium {
+  width: 2px;
+  height: 13px;
+  opacity: 0.65;
+}
+
+.df-ruler-tick.major {
+  width: 2.5px;
+  height: 17px;
+  opacity: 0.9;
+}
+
+.df-playhead-line {
+  position: absolute;
+  top: 6px;
+  bottom: 0;
+  width: 3px;
+  background-color: var(--accent-primary);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 30;
+  border-radius: 99px;
+  will-change: left;
+}
+
+.df-playhead-cap {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50% !important;
+  corner-shape: round !important;
+  background-color: var(--accent-primary);
+}
+
+/* Locked Side Panel Control State (When Controlled by Animation Timeline) */
+.anim-locked-control {
+  opacity: 0.45;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+
+
+
+.df-tracks-lanes {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  padding-top: 2px;
+}
+
+.df-tracks-lanes::-webkit-scrollbar {
+  display: none;
+}
+
+.df-track-lane {
+  position: relative;
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.df-track-bar {
+  position: absolute;
+  height: 30px;
+  background-color: var(--bg-raised);
+  border: 1.5px solid var(--border-raised);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 14px;
+  cursor: grab;
+  z-index: 10;
+  box-sizing: border-box;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.df-track-bar:active {
+  cursor: grabbing;
+}
+
+.df-track-bar.selected,
+.df-track-bar:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--accent-primary);
+}
+
+.df-track-bar-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-main);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Simple Track Edge Resize Handle with Hover Grip */
+.df-track-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+}
+
+.df-track-handle.left {
+  left: 0;
+}
+
+.df-track-handle.right {
+  right: 0;
+}
+
+.df-track-handle-grip {
+  width: 3px;
+  height: 14px;
+  border-radius: 99px;
+  background-color: var(--text-dim);
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.df-track-handle:hover .df-track-handle-grip,
+.df-track-handle.active .df-track-handle-grip {
+  opacity: 1;
+  background-color: var(--accent-primary);
+}
+
+/* --- Create Animation POPUP --- */
+.df-create-anim-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9600;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.df-create-anim-popup {
+  width: 320px;
+  background-color: var(--bg-panel);
+  border: 1.5px solid var(--border-color);
+  border-radius: 16px;
+  padding: 20px 20px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-sizing: border-box;
+}
+
+.df-create-anim-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.df-create-anim-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.df-create-anim-label {
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.df-create-anim-pill-input {
+  width: 56px;
+  height: 36px;
+  background-color: var(--bg-control);
+  border: 1.5px solid var(--border-raised);
+  border-radius: 999px;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+}
+
+.df-create-anim-pill-input:focus {
+  border-color: var(--border-hover);
+}
+
+.df-create-anim-submit-btn {
+  width: 100%;
+  height: 40px;
+  background-color: var(--bg-control);
+  border: 1.5px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.df-create-anim-submit-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+/* --- Floating Property Editor Inner Controls --- */
+.df-editor-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.df-editor-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.df-editor-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.df-editor-label {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.df-editor-val-readout {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.df-editor-dropdown .custom-dropdown-trigger {
+  height: 40px;
+  border-radius: 12px;
+  background-color: var(--bg-control);
+  border: 1.5px solid var(--border-color);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.df-editor-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+}
+
+.df-editor-bound {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.df-editor-range {
+  flex: 1;
+}
+
+.df-editor-delete-btn {
+  width: 100%;
+  height: 36px;
+  margin-top: 4px;
+  background-color: var(--bg-control);
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.df-editor-delete-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
 }

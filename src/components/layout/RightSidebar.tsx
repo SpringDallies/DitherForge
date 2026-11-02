@@ -490,12 +490,18 @@ export const RightSidebar: React.FC = () => {
   const saturation = useAppStore((state) => state.saturation);
   const hue = useAppStore((state) => state.hue);
   const gamma = useAppStore((state) => state.gamma);
+  const blur = useAppStore((state) => state.blur);
+  const denoise = useAppStore((state) => state.denoise);
+  const highlight = useAppStore((state) => state.highlight);
   const depth = useAppStore((state) => state.depth);
   const setBrightness = useAppStore((state) => state.setBrightness);
   const setContrast = useAppStore((state) => state.setContrast);
   const setSaturation = useAppStore((state) => state.setSaturation);
   const setHue = useAppStore((state) => state.setHue);
   const setGamma = useAppStore((state) => state.setGamma);
+  const setBlur = useAppStore((state) => state.setBlur);
+  const setDenoise = useAppStore((state) => state.setDenoise);
+  const setHighlight = useAppStore((state) => state.setHighlight);
   const setDepth = useAppStore((state) => state.setDepth);
 
   const resetAdjustmentParam = useAppStore((state) => state.resetAdjustmentParam);
@@ -521,6 +527,9 @@ export const RightSidebar: React.FC = () => {
   const imageFileName = useAppStore((state) => state.imageFileName);
   const sourceImageData = useAppStore((state) => state.sourceImageData);
   const hasImage = useAppStore((state) => state.hasImage);
+  const appMode = useAppStore((state) => state.appMode);
+  const animationTracks = useAppStore((state) => state.animationTracks);
+  const loadVideoSource = useAppStore((state) => state.loadVideoSource);
 
   const effects = useAppStore((state) => state.effects);
   const toggleEffectEnabled = useAppStore((state) => state.toggleEffectEnabled);
@@ -737,6 +746,18 @@ export const RightSidebar: React.FC = () => {
   };
 
   const [exportFormat, setExportFormat] = useState<string>('PNG');
+  const [videoExportFormat, setVideoExportFormat] = useState<'GIF' | 'MP4' | 'MOV' | 'WEBM'>('GIF');
+
+  // Set of properties currently locked because they are controlled by the Animation Timeline
+  const lockedAnimProps = useMemo(() => {
+    const set = new Set<string>();
+    if (appMode !== 'animation') return set;
+    for (const tr of animationTracks) {
+      if (tr.category && tr.property) set.add(`${tr.category}:${tr.property}`);
+    }
+    return set;
+  }, [appMode, animationTracks]);
+  const isPropLocked = useCallback((cat: string, prop: string) => lockedAnimProps.has(`${cat}:${prop}`), [lockedAnimProps]);
 
   const categoryDropdownItems = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1395,7 +1416,7 @@ export const RightSidebar: React.FC = () => {
       scale: supportsScale,
       diffusionStrength: hasErrorStrength,
       serpentine: hasSerpentine,
-      noiseAmount: hasNoise,
+      noiseAmount: true,
       colorDepth: hasColorDepth
     };
   };
@@ -1427,6 +1448,30 @@ export const RightSidebar: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
+      const url = URL.createObjectURL(file);
+      const vid = document.createElement('video');
+      vid.preload = 'auto';
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.src = url;
+      vid.onloadeddata = () => { vid.currentTime = 0; };
+      vid.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = vid.videoWidth || 640;
+        canvas.height = vid.videoHeight || 360;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          loadVideoSource(url, imgData, vid.duration || 10, file.name);
+        }
+        vid.onseeked = null;
+      };
+      e.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -1471,7 +1516,7 @@ export const RightSidebar: React.FC = () => {
           <input
             type="file"
             ref={fileInputRef}
-            accept="image/*"
+            accept="image/*,video/mp4,video/webm,video/quicktime,video/*"
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
@@ -1486,32 +1531,66 @@ export const RightSidebar: React.FC = () => {
             <div className="unified-pill-divider" />
             <button
               type="button"
+              id="export-action-btn"
               className="unified-pill-btn"
+              title="Click to export immediately"
               onClick={() => {
                 const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
                                (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
-                if (canvas) {
+                if (!canvas) return;
+                const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
+                if (appMode === 'animation') {
+                  const ext = videoExportFormat.toLowerCase();
+                  const mime = ext === 'webm' ? 'video/webm' : 'video/mp4';
+                  if (typeof MediaRecorder !== 'undefined' && (canvas as any).captureStream) {
+                    const stream = (canvas as any).captureStream(useAppStore.getState().fps || 30);
+                    const rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported(mime) ? mime : undefined });
+                    const chunks: BlobPart[] = [];
+                    rec.ondataavailable = (ev) => { if (ev.data.size > 0) chunks.push(ev.data); };
+                    rec.onstop = () => {
+                      const blob = new Blob(chunks, { type: mime });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${baseName}_animated.${ext}`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    };
+                    useAppStore.getState().setCurrentTime(0);
+                    useAppStore.getState().setIsPlaying(true);
+                    rec.start();
+                    setTimeout(() => {
+                      rec.stop();
+                      useAppStore.getState().setIsPlaying(false);
+                    }, (useAppStore.getState().duration || 5) * 1000);
+                  }
+                } else {
                   const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
-                  const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
                   exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
                 }
               }}
             >
-              Export Image
+              {appMode === 'animation' ? 'Export Video' : 'Export Image'}
             </button>
             <button
               type="button"
               id="export-format-toggle"
               className="export-format-toggle"
               title="Click to switch export format"
-              aria-label={`Export format: ${exportFormat}. Click to change.`}
+              aria-label={`Export format: ${appMode === 'animation' ? videoExportFormat : exportFormat}. Click to change.`}
               onClick={() => {
-                const order = ['PNG', 'JPEG', 'WEBP'] as const;
-                const idx = order.findIndex((f) => f === exportFormat);
-                setExportFormat(order[(idx + 1) % order.length]);
+                if (appMode === 'animation') {
+                  const vOrder = ['GIF', 'MP4', 'MOV', 'WEBM'] as const;
+                  const idx = vOrder.findIndex((f) => f === videoExportFormat);
+                  setVideoExportFormat(vOrder[(idx + 1) % vOrder.length]);
+                } else {
+                  const order = ['PNG', 'JPEG', 'WEBP'] as const;
+                  const idx = order.findIndex((f) => f === exportFormat);
+                  setExportFormat(order[(idx + 1) % order.length]);
+                }
               }}
             >
-              {exportFormat}
+              {appMode === 'animation' ? videoExportFormat : exportFormat}
             </button>
           </div>
           {exportFormat === 'JPEG' && (
@@ -2017,7 +2096,7 @@ export const RightSidebar: React.FC = () => {
               <div className="section-content section-card">
 
                 {/* Brightness */}
-                <div className="slider-control-block">
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'brightness') ? 'anim-locked-control' : ''}`}>
                   <div className="slider-label-above">
                     <Tooltip text="Brightness (-100 to +100). Double-click to reset.">
                       <span
@@ -2056,7 +2135,7 @@ export const RightSidebar: React.FC = () => {
                 </div>
 
                 {/* Contrast */}
-                <div className="slider-control-block">
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'contrast') ? 'anim-locked-control' : ''}`}>
                   <div className="slider-label-above">
                     <Tooltip text="Contrast (-100 to +100). Double-click to reset.">
                       <span
@@ -2095,7 +2174,7 @@ export const RightSidebar: React.FC = () => {
                 </div>
 
                 {/* Saturation */}
-                <div className="slider-control-block">
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'saturation') ? 'anim-locked-control' : ''}`}>
                   <div className="slider-label-above">
                     <Tooltip text="Saturation (-100 to +100). Double-click to reset.">
                       <span
@@ -2134,7 +2213,7 @@ export const RightSidebar: React.FC = () => {
                 </div>
 
                 {/* Hue */}
-                <div className="slider-control-block">
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'hue') ? 'anim-locked-control' : ''}`}>
                   <div className="slider-label-above">
                     <Tooltip text="Hue (-180 to +180). Double-click to reset.">
                       <span
@@ -2173,14 +2252,14 @@ export const RightSidebar: React.FC = () => {
                 </div>
 
                 {/* Gamma */}
-                <div className="slider-control-block">
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'gamma') ? 'anim-locked-control' : ''}`}>
                   <div className="slider-label-above">
                     <Tooltip text="Gamma (0.10 to 3.00). Double-click to reset.">
                       <span
                         onDoubleClick={() => resetAdjustmentParam('gamma')}
                         style={{ cursor: 'pointer' }}
                       >
-                        Gamma
+                        Gamma {isPropLocked('adjustments', 'gamma') && '🔒'}
                       </span>
                     </Tooltip>
                   </div>
@@ -2192,6 +2271,7 @@ export const RightSidebar: React.FC = () => {
                         min="0.1"
                         max="3.0"
                         step="0.05"
+                        disabled={isPropLocked('adjustments', 'gamma')}
                         value={gamma}
                         style={getSliderFill(gamma, 0.1, 3.0)}
                         {...sliderPointerProps}
@@ -2205,6 +2285,7 @@ export const RightSidebar: React.FC = () => {
                       min="0.1"
                       max="3.0"
                       step="0.05"
+                      disabled={isPropLocked('adjustments', 'gamma')}
                       value={gamma}
                       onChange={(e) => {
                           const v = parseFloat(e.target.value);
@@ -2213,6 +2294,125 @@ export const RightSidebar: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                {/* Blur */}
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'blur') ? 'anim-locked-control' : ''}`}>
+                  <div className="slider-label-above">
+                    <Tooltip text="Blur (0 to 20). Double-click to reset.">
+                      <span onDoubleClick={() => resetAdjustmentParam('blur')} style={{ cursor: 'pointer' }}>
+                        Blur {isPropLocked('adjustments', 'blur') && '🔒'}
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <div className="slider-track-input-row">
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="0"
+                      max="20"
+                      step="0.5"
+                      disabled={isPropLocked('adjustments', 'blur')}
+                      value={blur}
+                      style={getSliderFill(blur, 0, 20)}
+                      {...sliderPointerProps}
+                      onDoubleClick={() => resetAdjustmentParam('blur')}
+                      onChange={(e) => setBlur(Number(e.target.value))}
+                    />
+                    <input
+                      type="number"
+                      className="control-num-input"
+                      min="0"
+                      max="20"
+                      step="0.5"
+                      disabled={isPropLocked('adjustments', 'blur')}
+                      value={blur}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (!isNaN(v)) setBlur(Math.max(0, Math.min(20, v)));
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Denoise */}
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'denoise') ? 'anim-locked-control' : ''}`}>
+                  <div className="slider-label-above">
+                    <Tooltip text="Denoise (0 to 100). Double-click to reset.">
+                      <span onDoubleClick={() => resetAdjustmentParam('denoise')} style={{ cursor: 'pointer' }}>
+                        Denoise {isPropLocked('adjustments', 'denoise') && '🔒'}
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <div className="slider-track-input-row">
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="0"
+                      max="100"
+                      step="1"
+                      disabled={isPropLocked('adjustments', 'denoise')}
+                      value={denoise}
+                      style={getSliderFill(denoise, 0, 100)}
+                      {...sliderPointerProps}
+                      onDoubleClick={() => resetAdjustmentParam('denoise')}
+                      onChange={(e) => setDenoise(Number(e.target.value))}
+                    />
+                    <input
+                      type="number"
+                      className="control-num-input"
+                      min="0"
+                      max="100"
+                      step="1"
+                      disabled={isPropLocked('adjustments', 'denoise')}
+                      value={denoise}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v)) setDenoise(Math.max(0, Math.min(100, v)));
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Highlight */}
+                <div className={`slider-control-block ${isPropLocked('adjustments', 'highlight') ? 'anim-locked-control' : ''}`}>
+                  <div className="slider-label-above">
+                    <Tooltip text="Highlight (-100 to +100). Double-click to reset.">
+                      <span onDoubleClick={() => resetAdjustmentParam('highlight')} style={{ cursor: 'pointer' }}>
+                        Highlight {isPropLocked('adjustments', 'highlight') && '🔒'}
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <div className="slider-track-input-row">
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="-100"
+                      max="100"
+                      step="1"
+                      disabled={isPropLocked('adjustments', 'highlight')}
+                      value={highlight}
+                      style={getSliderFill(highlight, -100, 100)}
+                      {...sliderPointerProps}
+                      onDoubleClick={() => resetAdjustmentParam('highlight')}
+                      onChange={(e) => setHighlight(Number(e.target.value))}
+                    />
+                    <input
+                      type="number"
+                      className="control-num-input"
+                      min="-100"
+                      max="100"
+                      step="1"
+                      disabled={isPropLocked('adjustments', 'highlight')}
+                      value={highlight}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v)) setHighlight(Math.max(-100, Math.min(100, v)));
+                      }}
+                    />
+                  </div>
+                </div>
+```
+
 
 
 

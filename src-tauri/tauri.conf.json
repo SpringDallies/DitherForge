@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "com.ditherforge.app",
   "build": {
-    "beforeDevCommand": "",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -25,7 +25,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' blob: data: 'unsafe-inline' 'unsafe-eval';"
+      "csp": "default-src 'self' blob: data:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self' blob: data:;",
+      "devCsp": "default-src 'self' blob: data:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self' blob: data: ws://localhost:5173 http://localhost:5173;"
     }
   },
   "bundle": {

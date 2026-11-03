@@ -10,9 +10,49 @@ mod palette;
 use algorithms::{apply_algorithm_by_id, ALGORITHM_REGISTRY};
 use effects::{apply_effect_stack, PostEffect};
 use engine::{apply_pre_adjustments, DitherSettings};
-use image::{ImageFormat, RgbaImage};
+use image::{ImageFormat, RgbaImage, ImageReader};
 use palette::{extract_palette_median_cut, get_builtin_palettes, PalettePreset};
 use std::io::Cursor;
+use base64::{engine::{general_purpose::STANDARD, Engine}};
+
+// Centralized image decode limits to prevent memory exhaustion / resource abuse.
+// These limits are generous enough for normal photographic/retro artwork while
+// rejecting unreasonably large allocations before expensive processing.
+const MAX_IMAGE_DIMENSION: u32 = 16_384;
+const MAX_IMAGE_PIXELS: u64 = 64_000_000; // ~64 MP upper bound
+
+/// Validates image dimensions before expensive processing.
+/// Returns a user-understandable error when limits are exceeded.
+fn validate_image_dimensions(width: u32, height: u32) -> Result<(), String> {
+    if width == 0 || height == 0 {
+        return Err("Image has zero width or height".to_string());
+    }
+    if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
+        return Err(format!(
+            "Image dimensions {}x{} exceed the maximum allowed dimension of {} px",
+            width, height, MAX_IMAGE_DIMENSION
+        ));
+    }
+    let pixels = (width as u64) * (height as u64);
+    if pixels > MAX_IMAGE_PIXELS {
+        return Err(format!(
+            "Image contains {} pixels, exceeding the maximum of {} pixels",
+            pixels, MAX_IMAGE_PIXELS
+        ));
+    }
+    Ok(())
+}
+
+/// Reads image dimensions from the encoded header without decoding pixel data.
+/// Returns (width, height) or an error if the image is malformed or unsupported.
+fn read_image_dimensions(bytes: &[u8]) -> Result<(u32, u32), String> {
+    let reader = ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| format!("Failed to read image header: {}", e))?;
+    reader
+        .into_dimensions()
+        .map_err(|e| format!("Failed to read image dimensions: {}", e))
+}
 
 #[derive(serde::Serialize)]
 struct AlgorithmInfo {
@@ -42,7 +82,9 @@ fn get_palettes() -> Vec<PalettePreset> {
 
 #[tauri::command]
 fn extract_palette(image_base64: String, color_count: usize) -> Result<Vec<[u8; 4]>, String> {
-    let bytes = base64::decode(&image_base64).map_err(|e| e.to_string())?;
+    let bytes = STANDARD.decode(&image_base64).map_err(|e| e.to_string())?;
+    let (width, height) = read_image_dimensions(&bytes)?;
+    validate_image_dimensions(width, height)?;
     let img = image::load_from_memory(&bytes).map_err(|e| e.to_string())?.to_rgba8();
     Ok(extract_palette_median_cut(&img, color_count.clamp(2, 32)))
 }
@@ -53,7 +95,9 @@ fn process_image(
     settings: DitherSettings,
     effect_stack: Vec<PostEffect>,
 ) -> Result<String, String> {
-    let bytes = base64::decode(&image_base64).map_err(|e| e.to_string())?;
+    let bytes = STANDARD.decode(&image_base64).map_err(|e| e.to_string())?;
+    let (width, height) = read_image_dimensions(&bytes)?;
+    validate_image_dimensions(width, height)?;
     let mut img: RgbaImage = image::load_from_memory(&bytes)
         .map_err(|e| e.to_string())?
         .to_rgba8();
@@ -72,7 +116,7 @@ fn process_image(
     img.write_to(&mut Cursor::new(&mut out_bytes), ImageFormat::Png)
         .map_err(|e| e.to_string())?;
 
-    Ok(base64::encode(out_bytes))
+    Ok(STANDARD.encode(out_bytes))
 }
 
 #[tauri::command]

@@ -34,10 +34,12 @@ export interface WorkerDitherRequest {
 
 export interface WorkerDitherResponse {
   requestId: number;
-  buffer: ArrayBuffer;
-  width: number;
-  height: number;
-  elapsedMs: number;
+  success: boolean;
+  buffer?: ArrayBuffer;
+  width?: number;
+  height?: number;
+  elapsedMs?: number;
+  error?: string;
 }
 
 self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
@@ -119,6 +121,7 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
     // Transfer array buffer back with zero-copy
     const response: WorkerDitherResponse = {
       requestId,
+      success: true,
       buffer: workingData.buffer,
       width,
       height,
@@ -128,7 +131,13 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
     // @ts-ignore
     self.postMessage(response, [workingData.buffer]);
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     console.error("Error in dither worker thread:", err);
-    throw err;
+    const errorResponse: WorkerDitherResponse = {
+      requestId: e?.data?.requestId ?? -1,
+      success: false,
+      error: errorMessage
+    };
+    self.postMessage(errorResponse);
   }
 };

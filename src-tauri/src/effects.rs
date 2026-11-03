@@ -86,6 +86,9 @@ fn apply_glow(image: &mut RgbaImage, radius: f32, intensity: f32) {
 
 fn apply_blur_sharpen(image: &mut RgbaImage, amount: f32) {
     let (width, height) = image.dimensions();
+    if width < 2 || height < 2 {
+        return;
+    }
     let temp = image.clone();
 
     for y in 1..(height - 1) {

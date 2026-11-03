@@ -163,13 +163,21 @@ function initAlgorithmsList() {
     filtered.forEach(algo => {
       const card = document.createElement("div");
       card.className = `algo-item-card ${state.algorithmId === algo.id ? "active" : ""}`;
-      card.innerHTML = `
-        <div class="algo-item-header">
-          <span>${algo.name}</span>
-          <span style="font-size:0.65rem; color:var(--accent-amber);">${algo.category.replace("_", " ")}</span>
-        </div>
-        <div class="algo-item-desc">${algo.description}</div>
-      `;
+      const headerDiv = document.createElement("div");
+      headerDiv.className = "algo-item-header";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = algo.name;
+      const catSpan = document.createElement("span");
+      catSpan.style.fontSize = "0.65rem";
+      catSpan.style.color = "var(--accent-amber)";
+      catSpan.textContent = (algo.category || "").replace("_", " ");
+      headerDiv.appendChild(nameSpan);
+      headerDiv.appendChild(catSpan);
+      const descDiv = document.createElement("div");
+      descDiv.className = "algo-item-desc";
+      descDiv.textContent = algo.description;
+      card.appendChild(headerDiv);
+      card.appendChild(descDiv);
       card.addEventListener("click", () => {
         state.algorithmId = algo.id;
         document.querySelectorAll(".algo-item-card").forEach(c => c.classList.remove("active"));
@@ -337,13 +345,25 @@ function renderPaletteSwatches() {
     // Editor Item
     const editItem = document.createElement("div");
     editItem.className = "palette-swatch-box";
-    editItem.innerHTML = `
-      <input type="color" value="${hex}" style="width:28px; height:28px; border:none; cursor:pointer; background:none;">
-      <span class="swatch-hex">${hex.toUpperCase()}</span>
-      <div style="display:flex; gap:4px;">
-        <button class="btn-icon btn-del-swatch" style="width:18px; height:18px; font-size:10px;" title="Delete swatch">✕</button>
-      </div>
-    `;
+    const colorInputEl = document.createElement("input");
+    colorInputEl.type = "color";
+    colorInputEl.value = hex;
+    colorInputEl.style.cssText = "width:28px; height:28px; border:none; cursor:pointer; background:none;";
+    const hexSpan = document.createElement("span");
+    hexSpan.className = "swatch-hex";
+    hexSpan.textContent = hex.toUpperCase();
+    const actionDiv = document.createElement("div");
+    actionDiv.style.display = "flex";
+    actionDiv.style.gap = "4px";
+    const delBtnEl = document.createElement("button");
+    delBtnEl.className = "btn-icon btn-del-swatch";
+    delBtnEl.style.cssText = "width:18px; height:18px; font-size:10px;";
+    delBtnEl.title = "Delete swatch";
+    delBtnEl.textContent = "✕";
+    actionDiv.appendChild(delBtnEl);
+    editItem.appendChild(colorInputEl);
+    editItem.appendChild(hexSpan);
+    editItem.appendChild(actionDiv);
 
     // Color change
     const colorInput = editItem.querySelector("input[type='color']");
@@ -609,13 +629,24 @@ function renderEffectStackUI() {
     for (const [key, val] of Object.entries(eff.params || {})) {
       const row = document.createElement("div");
       row.className = "control-row";
-      row.innerHTML = `
-        <div class="control-label-row">
-          <span>${key}</span>
-          <span class="control-val">${typeof val === "number" ? val.toFixed(2) : val}</span>
-        </div>
-        <input type="range" class="slider-input" min="0" max="${key === "radius" || key === "dotSize" ? "20" : (key === "angle" ? "360" : "1")}" step="0.05" value="${val}">
-      `;
+      const labelRow = document.createElement("div");
+      labelRow.className = "control-label-row";
+      const keySpan = document.createElement("span");
+      keySpan.textContent = key;
+      const valSpan = document.createElement("span");
+      valSpan.className = "control-val";
+      valSpan.textContent = typeof val === "number" ? val.toFixed(2) : String(val);
+      labelRow.appendChild(keySpan);
+      labelRow.appendChild(valSpan);
+      const sliderEl = document.createElement("input");
+      sliderEl.type = "range";
+      sliderEl.className = "slider-input";
+      sliderEl.min = "0";
+      sliderEl.max = key === "radius" || key === "dotSize" ? "20" : (key === "angle" ? "360" : "1");
+      sliderEl.step = "0.05";
+      sliderEl.value = String(val);
+      row.appendChild(labelRow);
+      row.appendChild(sliderEl);
       const slider = row.querySelector("input");
       slider.addEventListener("input", ev => {
         eff.params[key] = parseFloat(ev.target.value);
@@ -1136,7 +1167,13 @@ function initEvents() {
       batchFilesQueue.push(f);
       const row = document.createElement("div");
       row.className = "batch-file-item";
-      row.innerHTML = `<span>${f.name}</span><span style="color:var(--text-muted);">${(f.size / 1024).toFixed(1)} KB</span>`;
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = f.name;
+      const sizeSpan = document.createElement("span");
+      sizeSpan.style.color = "var(--text-muted)";
+      sizeSpan.textContent = `${(f.size / 1024).toFixed(1)} KB`;
+      row.appendChild(nameSpan);
+      row.appendChild(sizeSpan);
       listContainer.appendChild(row);
     });
   });

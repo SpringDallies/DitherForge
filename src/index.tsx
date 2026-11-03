@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { useAppStore } from './state/useAppStore';
 
-if (typeof window !== 'undefined') {
+// Expose store globally only during development for debugging & test automation
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   (window as any).useAppStore = useAppStore;
 }
 

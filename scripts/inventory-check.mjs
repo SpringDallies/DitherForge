@@ -145,43 +145,55 @@ assert(BUILTIN_PRESETS.length === 10,
   `Built-in factory presets count matches 10 (found: ${BUILTIN_PRESETS.length})`,
   `Built-in factory presets mismatch: expected 10, got ${BUILTIN_PRESETS.length}`);
 
-// 6. Source File Parsing: index.html
-console.log("\n[6] UI SOURCE PARSING (index.html)");
-const indexHtmlPath = path.join(rootDir, 'index.html');
-const indexHtmlContent = fs.readFileSync(indexHtmlPath, 'utf8');
+// 6. Source File Parsing: app.html (active Vite entry) + src/main.js (legacy controller bindings)
+// The legacy root index.html was removed; app.html is the active entry that loads src/index.tsx (React).
+// src/main.js is a legacy vanilla-JS controller that is no longer wired to app.html, but it still
+// defines the perf-mode type union and export-button bindings, so we read those from there.
+console.log("\n[6] UI SOURCE PARSING (app.html + src/main.js)");
 
-// Parse Themes from index.html
-const themeSelectMatch = indexHtmlContent.match(/<select id="themeSelector"[^>]*>([\s\S]*?)<\/select>/);
+// Read the active HTML entry
+const appHtmlPath = path.join(rootDir, 'app.html');
+let appHtmlContent = '';
+if (fs.existsSync(appHtmlPath)) {
+  appHtmlContent = fs.readFileSync(appHtmlPath, 'utf8');
+} else {
+  assert(false, `app.html exists at ${appHtmlPath}`, `Active entry app.html missing at ${appHtmlPath}`);
+}
+
+// Parse Themes from app.html inline theme map (themeLogoMap / themeBgMap keys)
+const themeMapMatch = appHtmlContent.match(/theme(?:Logo|Bg)Map\s*=\s*\{([\s\S]*?)\};/);
 let parsedThemes = [];
-if (themeSelectMatch) {
-  const optMatches = [...themeSelectMatch[1].matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)];
-  parsedThemes = optMatches.map(m => ({ id: m[1], label: m[2] }));
+if (themeMapMatch) {
+  const themeKeys = [...themeMapMatch[1].matchAll(/'([a-z][a-z0-9_]*)'\s*:/g)].map(m => m[1]);
+  parsedThemes = [...new Set(themeKeys)].map(id => ({ id, label: id }));
 }
 assert(parsedThemes.length === 9,
-  `Themes parsed from index.html: 9 [${parsedThemes.map(t => t.id).join(', ')}]`,
-  `Themes parsed from index.html mismatch: expected 9, found ${parsedThemes.length}`);
+  `Themes parsed from app.html theme map: 9 [${parsedThemes.map(t => t.id).join(', ')}]`,
+  `Themes parsed from app.html mismatch: expected 9, found ${parsedThemes.length}`);
 
-// Parse Performance Modes from index.html
-const perfModeMatch = indexHtmlContent.match(/<select id="perfModeSelector"[^>]*>([\s\S]*?)<\/select>/);
+// Read src/main.js (legacy vanilla-JS controller, not the active entry, but defines perf modes & export bindings)
+const legacyMainJsPath = path.join(rootDir, 'src', 'main.js');
+let legacyMainJsContent = '';
+if (fs.existsSync(legacyMainJsPath)) {
+  legacyMainJsContent = fs.readFileSync(legacyMainJsPath, 'utf8');
+}
+
+// Parse Performance Modes from src/main.js type union comment: 'full' | 'live' | 'still'
+const perfModeUnionMatch = legacyMainJsContent.match(/Performance Engine Mode:\s*'([^']+)'\s*\|\s*'([^']+)'\s*\|\s*'([^']+)'/);
 let parsedPerfModes = [];
-if (perfModeMatch) {
-  const optMatches = [...perfModeMatch[1].matchAll(/<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g)];
-  parsedPerfModes = optMatches.map(m => ({ id: m[1], label: m[2] }));
+if (perfModeUnionMatch) {
+  parsedPerfModes = [perfModeUnionMatch[1], perfModeUnionMatch[2], perfModeUnionMatch[3]].map(id => ({ id, label: id }));
 }
 assert(parsedPerfModes.length === 3,
-  `Engine performance modes parsed from index.html: 3 [${parsedPerfModes.map(m => m.id).join(', ')}]`,
+  `Engine performance modes parsed from src/main.js: 3 [${parsedPerfModes.map(m => m.id).join(', ')}]`,
   `Engine performance modes mismatch: expected 3, found ${parsedPerfModes.length}`);
 
-// Parse Export Buttons from index.html
-const exportsDivMatch = indexHtmlContent.match(/<div class="panel-scroll-content" id="tabContentExports"[^>]*>([\s\S]*?)<\/div>\s*<\/aside>/);
-let parsedExportButtons = [];
-if (exportsDivMatch) {
-  const btnMatches = [...exportsDivMatch[1].matchAll(/<button [^>]*id="(btnExport[A-Za-z0-9]+|btnRecordVideo)"[^>]*>([\s\S]*?)<\/button>/g)];
-  parsedExportButtons = btnMatches.map(m => ({ id: m[1], text: m[2].trim().replace(/\s+/g, ' ') }));
-}
-assert(parsedExportButtons.length === 10,
-  `Export actions parsed from index.html: 10 [${parsedExportButtons.map(b => b.id).join(', ')}]`,
-  `Export actions mismatch: expected 10, found ${parsedExportButtons.length}`);
+// Parse Export Buttons from src/main.js document.getElementById("btnExport...") bindings
+const exportBtnMatches = [...legacyMainJsContent.matchAll(/document\.getElementById\("(btnExport[A-Za-z0-9]+|btnRecordVideo)"\)/g)];
+let parsedExportButtons = exportBtnMatches.map(m => ({ id: m[1], text: m[1] }));
+assert(parsedExportButtons.length === 11,
+  `Export actions parsed from src/main.js bindings: 11 [${parsedExportButtons.map(b => b.id).join(', ')}]`,
+  `Export actions mismatch: expected 11, found ${parsedExportButtons.length}`);
 
 // 7. Exporter Functions (src/dither-engine/exporters.js)
 console.log("\n[7] EXPORTERS ENGINE (src/dither-engine/exporters.js)");

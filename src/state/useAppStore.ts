@@ -484,13 +484,26 @@ const getStoredCustomPalettes = () => {
   }
 };
 
+let cachedCalibrationPattern: ImageData | null = null;
+function getInitialCalibrationPattern(): ImageData | null {
+  if (typeof window === 'undefined') return null;
+  if (!cachedCalibrationPattern) {
+    cachedCalibrationPattern = createCalibrationPattern(400, 300);
+  }
+  return new ImageData(
+    new Uint8ClampedArray(cachedCalibrationPattern.data),
+    cachedCalibrationPattern.width,
+    cachedCalibrationPattern.height
+  );
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   hasImage: true,
   imageName: 'calibration_pattern.png',
   imageFileName: 'calibration_pattern.png',
   imageWidth: 400,
   imageHeight: 300,
-  sourceImageData: typeof window !== 'undefined' ? createCalibrationPattern(400, 300) : null,
+  sourceImageData: getInitialCalibrationPattern(),
   sourceVideoUrl: null,
 
   loadImageFromData: (imageData, name = 'uploaded_image.png') => set((state) => {
@@ -535,7 +548,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
 
   loadSampleImage: () => {
-    const sample = createCalibrationPattern(400, 300);
+    const sample = getInitialCalibrationPattern() || createCalibrationPattern(400, 300);
     set((state) => {
       if (state.sourceVideoUrl) {
         try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}

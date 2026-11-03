@@ -22,7 +22,10 @@ export class GifEncoder {
   private width: number;
   private height: number;
   private loopCount: number;
-  private bytes: number[] = [];
+  private chunks: Uint8Array[] = [];
+  private currentChunk: Uint8Array = new Uint8Array(65536);
+  private chunkPos: number = 0;
+  private totalBytes: number = 0;
 
   constructor(width: number, height: number, loopCount: number = 0) {
     this.width = Math.max(1, Math.round(width));
@@ -33,12 +36,36 @@ export class GifEncoder {
   }
 
   private writeByte(b: number): void {
-    this.bytes.push(b & 0xFF);
+    if (this.chunkPos === this.currentChunk.length) {
+      this.chunks.push(this.currentChunk);
+      this.currentChunk = new Uint8Array(65536);
+      this.chunkPos = 0;
+    }
+    this.currentChunk[this.chunkPos++] = b & 0xFF;
+    this.totalBytes++;
   }
 
   private writeBytes(arr: number[] | Uint8Array): void {
-    for (let i = 0; i < arr.length; i++) {
-      this.bytes.push(arr[i] & 0xFF);
+    const len = arr.length;
+    let srcOffset = 0;
+    while (srcOffset < len) {
+      if (this.chunkPos === this.currentChunk.length) {
+        this.chunks.push(this.currentChunk);
+        this.currentChunk = new Uint8Array(65536);
+        this.chunkPos = 0;
+      }
+      const space = this.currentChunk.length - this.chunkPos;
+      const toCopy = Math.min(space, len - srcOffset);
+      if (arr instanceof Uint8Array) {
+        this.currentChunk.set(arr.subarray(srcOffset, srcOffset + toCopy), this.chunkPos);
+      } else {
+        for (let i = 0; i < toCopy; i++) {
+          this.currentChunk[this.chunkPos + i] = arr[srcOffset + i] & 0xFF;
+        }
+      }
+      this.chunkPos += toCopy;
+      srcOffset += toCopy;
+      this.totalBytes += toCopy;
     }
   }
 
@@ -450,6 +477,17 @@ export class GifEncoder {
    */
   public finish(): Uint8Array {
     this.writeByte(0x3B); // GIF Trailer
-    return new Uint8Array(this.bytes);
+    if (this.chunkPos > 0) {
+      this.chunks.push(this.currentChunk.subarray(0, this.chunkPos));
+      this.chunkPos = 0;
+    }
+    const result = new Uint8Array(this.totalBytes);
+    let offset = 0;
+    for (let i = 0; i < this.chunks.length; i++) {
+      const chunk = this.chunks[i];
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return result;
   }
 }

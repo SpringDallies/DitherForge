@@ -604,7 +604,7 @@ fn apply_pixel_sorting(image: &mut RgbaImage, settings: &DitherSettings) {
                 while i < width as usize && row_pixels[i].2 > threshold_luma {
                     i += 1;
                 }
-                row_pixels[start..i].sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+                row_pixels[start..i].sort_by(|a, b| a.2.total_cmp(&b.2));
             } else {
                 i += 1;
             }
@@ -709,6 +709,9 @@ fn apply_bit_crush(image: &mut RgbaImage, settings: &DitherSettings) {
 
 fn apply_vhs_tracking(image: &mut RgbaImage, settings: &DitherSettings) {
     let (width, height) = image.dimensions();
+    if width == 0 || height == 0 {
+        return;
+    }
     let band_y = ((settings.temporal_seed as f32 * 7.0) % height as f32) as u32;
     let band_h = (settings.scale * 20.0).max(10.0) as u32;
 
@@ -820,6 +823,9 @@ fn apply_static_snow(image: &mut RgbaImage, settings: &DitherSettings) {
 
 fn apply_sync_pulse_loss(image: &mut RgbaImage, settings: &DitherSettings) {
     let (width, height) = image.dimensions();
+    if width == 0 || height == 0 {
+        return;
+    }
     let temp = image.clone();
     let roll = ((settings.temporal_seed * 5) % height) as u32;
 
@@ -1037,6 +1043,9 @@ fn apply_spatial_lattice(image: &mut RgbaImage, settings: &DitherSettings) {
 
 fn apply_sobel_feature(image: &mut RgbaImage, settings: &DitherSettings) {
     let (width, height) = image.dimensions();
+    if width < 2 || height < 2 {
+        return;
+    }
     let temp = image.clone();
 
     for y in 1..(height - 1) {
@@ -1076,6 +1085,9 @@ fn apply_sobel_feature(image: &mut RgbaImage, settings: &DitherSettings) {
 
 fn apply_laplacian_mod(image: &mut RgbaImage, settings: &DitherSettings) {
     let (width, height) = image.dimensions();
+    if width < 2 || height < 2 {
+        return;
+    }
     let temp = image.clone();
 
     for y in 1..(height - 1) {

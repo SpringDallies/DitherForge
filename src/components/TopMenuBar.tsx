@@ -39,7 +39,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeMenu, setActiveMenu] = useState<MenuType>(null);
   const [isThemesSubmenuOpen, setIsThemesSubmenuOpen] = useState<boolean>(false);
-  const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
+  const isExportOpen = useAppStore((state) => state.isExportOpen);
+  const setIsExportOpen = useAppStore((state) => state.setIsExportOpen);
 
   const activeTheme = useAppStore((state) => state.activeTheme);
   const setActiveTheme = useAppStore((state) => state.setActiveTheme);

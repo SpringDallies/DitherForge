@@ -436,11 +436,13 @@ interface AppState {
   activeTheme: string;
   isFullScreen: boolean;
   isManualOpen: boolean;
+  isExportOpen: boolean;
   setSidebarWidth: (width: number) => void;
   toggleSidebarCollapsed: () => void;
   setActiveTheme: (theme: string) => void;
   toggleFullScreen: () => void;
   setIsManualOpen: (open: boolean) => void;
+  setIsExportOpen: (open: boolean) => void;
   resetAll: () => void;
 }
 
@@ -980,6 +982,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeTheme: getStoredTheme(),
   isFullScreen: false,
   isManualOpen: false,
+  isExportOpen: false,
 
   setSidebarWidth: (width) => set(() => {
     const clamped = Math.max(320, Math.min(700, width));
@@ -1005,6 +1008,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { isFullScreen: next };
   }),
   setIsManualOpen: (isManualOpen) => set({ isManualOpen }),
+  setIsExportOpen: (isExportOpen) => set({ isExportOpen }),
 
   resetAll: () => set((state) => ({
     brightness: 0,

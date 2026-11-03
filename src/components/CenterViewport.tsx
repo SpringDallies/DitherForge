@@ -329,6 +329,12 @@ export const CenterViewport: React.FC = () => {
     };
   }, [trackContextMenu]);
 
+  useEffect(() => {
+    const handleCloseTrackMenu = () => setTrackContextMenu(null);
+    window.addEventListener('close_track_context_menu', handleCloseTrackMenu);
+    return () => window.removeEventListener('close_track_context_menu', handleCloseTrackMenu);
+  }, []);
+
   // Pre-rendered frame cache for Video: "Rendered" mode
   const renderedFramesCacheRef = useRef<Map<number, ImageData>>(new Map());
 
@@ -1444,6 +1450,7 @@ export const CenterViewport: React.FC = () => {
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('close_app_context_menu'));
                   setTrackContextMenu({
                     trackId: selectedTrack.id,
                     x: e.clientX,
@@ -1685,6 +1692,7 @@ export const CenterViewport: React.FC = () => {
                             onContextMenu={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('close_app_context_menu'));
                               setSelectedTrackId(track.id);
                               setTrackContextMenu({
                                 trackId: track.id,

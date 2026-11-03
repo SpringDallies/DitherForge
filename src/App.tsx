@@ -6,6 +6,7 @@ import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
 import { CenterViewport } from './components/CenterViewport';
 import { RightSidebar } from './components/layout/RightSidebar';
+import { AppContextMenu } from './components/AppContextMenu';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
 import './styles/preferences.css';
 import { SettingsDialog, getStoredSettings, applyPerformanceSettings } from './components/dialogs/SettingsDialog';
@@ -104,6 +105,48 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('ditherforge_settings_changed', handleSettingsChanged);
   }, []);
 
+  // Global Clipboard Image Paste Handler (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA'].includes(target?.tagName) || target?.isContentEditable) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                const offscreen = document.createElement('canvas');
+                offscreen.width = img.naturalWidth;
+                offscreen.height = img.naturalHeight;
+                const ctx = offscreen.getContext('2d');
+                if (!ctx) return;
+                ctx.drawImage(img, 0, 0);
+                const imgData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+                useAppStore.getState().loadImageFromData(imgData, file.name || 'Pasted Image');
+                const canvasArea = document.querySelector('.canvas-area');
+                const sWidth = useAppStore.getState().sidebarWidth;
+                if (canvasArea) {
+                  useAppStore.getState().fitToViewport(canvasArea.clientWidth - (sWidth + 14), canvasArea.clientHeight - 38);
+                }
+              };
+              img.src = event.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, []);
+
   // Bind F11 to Full-Screen toggle (Requirement #3)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -191,6 +234,12 @@ export const App: React.FC = () => {
       <SettingsDialog
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      {/* Global Application Right-Click Context Menu */}
+      <AppContextMenu
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenManual={() => setIsManualOpen(true)}
       />
     </div>
   );

@@ -436,33 +436,158 @@ export const CenterViewport: React.FC = () => {
     return () => cancelAnimationFrame(animId);
   }, [appMode, isPlaying, videoPlaybackMode]);
 
-  // Spacebar Play/Pause + Delete/Duplicate shortcuts
+  // Full Timeline Keyboard Controls (Space/K for Play/Pause, Arrows/J/L for Frames, Home/End, Up/Down for Tracks, T for Add Track)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (
+        target &&
+        (
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+          target.isContentEditable ||
+          target.closest('input, textarea, select, [contenteditable="true"]')
+        )
+      ) {
+        return;
+      }
 
-      if (e.code === 'Space' && !e.repeat) {
-        if (appMode === 'animation' && hasConfiguredAnimation) {
+      if (appMode !== 'animation' || !hasConfiguredAnimation) return;
+
+      // 1. Play / Pause (Space or K)
+      if ((e.code === 'Space' || e.key.toLowerCase() === 'k') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+
+      // 2. Step Backward / Forward (Left/Right Arrows or J/L)
+      if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'j') {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault();
-          togglePlay();
+          if (e.shiftKey) {
+            const next = Math.max(0, currentTime - 1.0);
+            setCurrentTime(Number(next.toFixed(4)));
+          } else {
+            stepFrame(-1);
+          }
           return;
         }
       }
 
+      if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'l') {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            const next = Math.min(duration, currentTime + 1.0);
+            setCurrentTime(Number(next.toFixed(4)));
+          } else {
+            stepFrame(1);
+          }
+          return;
+        }
+      }
+
+      // 3. Jump to Start / End (Home / End)
+      if (e.key === 'Home') {
+        e.preventDefault();
+        setCurrentTime(0);
+        return;
+      }
+
+      if (e.key === 'End') {
+        e.preventDefault();
+        setCurrentTime(duration);
+        return;
+      }
+
+      // 4. Jump playhead to start/end of selected track ([ or ])
+      if (selectedTrackId && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const curTrack = animationTracks.find((t) => t.id === selectedTrackId);
+        if (curTrack) {
+          if (e.key === '[') {
+            e.preventDefault();
+            setCurrentTime(curTrack.startTime);
+            return;
+          }
+          if (e.key === ']') {
+            e.preventDefault();
+            setCurrentTime(curTrack.endTime);
+            return;
+          }
+        }
+      }
+
+      // 5. Select Previous / Next Track (Up / Down Arrows)
+      if (e.key === 'ArrowUp' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (animationTracks.length > 0) {
+          e.preventDefault();
+          if (!selectedTrackId) {
+            setSelectedTrackId(animationTracks[animationTracks.length - 1].id);
+          } else {
+            const idx = animationTracks.findIndex((t) => t.id === selectedTrackId);
+            if (idx > 0) {
+              setSelectedTrackId(animationTracks[idx - 1].id);
+            } else {
+              setSelectedTrackId(animationTracks[animationTracks.length - 1].id);
+            }
+          }
+          return;
+        }
+      }
+
+      if (e.key === 'ArrowDown' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (animationTracks.length > 0) {
+          e.preventDefault();
+          if (!selectedTrackId) {
+            setSelectedTrackId(animationTracks[0].id);
+          } else {
+            const idx = animationTracks.findIndex((t) => t.id === selectedTrackId);
+            if (idx >= 0 && idx < animationTracks.length - 1) {
+              setSelectedTrackId(animationTracks[idx + 1].id);
+            } else {
+              setSelectedTrackId(animationTracks[0].id);
+            }
+          }
+          return;
+        }
+      }
+
+      // 6. Add Animated Property Track ('t' or 'T')
+      if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        addAnimationTrack();
+        return;
+      }
+
+      // 7. Track Escape, Delete, Duplicate
       if (e.key === 'Escape' && selectedTrackId) {
         setSelectedTrackId(null);
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTrackId && appMode === 'animation') {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTrackId) {
         e.preventDefault();
         removeAnimationTrack(selectedTrackId);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedTrackId && appMode === 'animation') {
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedTrackId) {
         e.preventDefault();
         duplicateAnimationTrack(selectedTrackId);
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTrackId, appMode, hasConfiguredAnimation, togglePlay, setSelectedTrackId, removeAnimationTrack, duplicateAnimationTrack]);
+  }, [
+    selectedTrackId,
+    appMode,
+    hasConfiguredAnimation,
+    togglePlay,
+    stepFrame,
+    currentTime,
+    duration,
+    setCurrentTime,
+    animationTracks,
+    setSelectedTrackId,
+    removeAnimationTrack,
+    duplicateAnimationTrack,
+    addAnimationTrack
+  ]);
 
   // Split Divider Dragging
   useEffect(() => {
@@ -1262,7 +1387,7 @@ export const CenterViewport: React.FC = () => {
                       type="button"
                       className="df-transport-btn"
                       onClick={() => stepFrame(-1)}
-                      title="Previous Frame"
+                      title="Previous Frame (Left Arrow / J, Shift+Left: -1s)"
                       aria-label="Previous Frame"
                     >
                       <SkipBack size={16} fill="currentColor" />
@@ -1271,7 +1396,7 @@ export const CenterViewport: React.FC = () => {
                       type="button"
                       className="df-transport-btn play-btn"
                       onClick={togglePlay}
-                      title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                      title={isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)'}
                       aria-label={isPlaying ? 'Pause' : 'Play'}
                     >
                       {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
@@ -1280,7 +1405,7 @@ export const CenterViewport: React.FC = () => {
                       type="button"
                       className="df-transport-btn"
                       onClick={() => stepFrame(1)}
-                      title="Next Frame"
+                      title="Next Frame (Right Arrow / L, Shift+Right: +1s)"
                       aria-label="Next Frame"
                     >
                       <SkipForward size={16} fill="currentColor" />
@@ -1292,7 +1417,7 @@ export const CenterViewport: React.FC = () => {
                   type="button"
                   className="df-playback-plus-btn"
                   onClick={() => addAnimationTrack()}
-                  title="Add animated property track"
+                  title="Add animated property track (T)"
                   aria-label="Add animated property track"
                 >
                   <Plus size={18} strokeWidth={2.4} />

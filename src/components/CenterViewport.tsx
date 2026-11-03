@@ -242,6 +242,47 @@ export const CenterViewport: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
+  const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
+
+  const isElementUI = useCallback((el: Element | null): boolean => {
+    if (!el) return false;
+    if (el.closest(
+      '.right-sidebar, ' +
+      '.topbar-wrapper, ' +
+      '.top-menu-bar, ' +
+      '.fullscreen-peek-zone, ' +
+      '.fullscreen-peek-tab, ' +
+      '.df-floating-timeline-group, ' +
+      '.df-floating-property-editor, ' +
+      '.df-floating-editor-card, ' +
+      '.df-create-anim-backdrop, ' +
+      '.df-create-anim-popup, ' +
+      '.split-divider-overlay, ' +
+      '.modal-backdrop, ' +
+      '.modal-dialog, ' +
+      '.settings-modal, ' +
+      '.export-modal, ' +
+      '.dropdown-menu-popover, ' +
+      '.dropdown-submenu-popover, ' +
+      '.custom-dropdown-panel, ' +
+      '.algo-listbox-panel, ' +
+      '.tooltip, ' +
+      '.themed-tooltip-panel, ' +
+      '.unified-action-pill, ' +
+      '[role="dialog"], ' +
+      '[role="menu"], ' +
+      'button, ' +
+      'input, ' +
+      'select, ' +
+      'textarea'
+    )) {
+      return true;
+    }
+    if (containerRef.current && !containerRef.current.contains(el)) {
+      return true;
+    }
+    return false;
+  }, []);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const [isScrubbingTimeline, setIsScrubbingTimeline] = useState(false);
   const [draggingTrackBar, setDraggingTrackBar] = useState<{
@@ -441,6 +482,44 @@ export const CenterViewport: React.FC = () => {
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
   }, [isDraggingSplitter, setSplitRatio]);
+
+  // Window-level Canvas Panning Handler with Instant UI Cancellation
+  useEffect(() => {
+    if (!isPanning) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      // 1. If mouse button is no longer held (left button 1 or middle button 4), cancel pan!
+      const isButtonHeld = (e.buttons & 1) !== 0 || (e.buttons & 4) !== 0;
+      if (!isButtonHeld) {
+        setIsPanning(false);
+        return;
+      }
+
+      // 2. If cursor moves over any UI element, cancel drag immediately!
+      const targetEl = e.target instanceof Element ? e.target : (e.target as Node)?.parentElement;
+      const pointEl = document.elementFromPoint(e.clientX, e.clientY);
+      if (isElementUI(targetEl) || isElementUI(pointEl) || !pointEl) {
+        setIsPanning(false);
+        return;
+      }
+
+      // 3. Pan canvas smoothly
+      const start = panStartRef.current;
+      setPan(start.startPanX + (e.clientX - start.x), start.startPanY + (e.clientY - start.y));
+    };
+
+    const handleWindowMouseUp = () => {
+      setIsPanning(false);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove, { passive: true });
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [isPanning, isElementUI, setPan]);
 
   // Pointer-Centered Wheel Zoom on Main Canvas
   useEffect(() => {
@@ -1042,16 +1121,14 @@ export const CenterViewport: React.FC = () => {
           }
           if (e.button === 1 || e.button === 0) {
             if (isDraggingSplitter) return;
+            const targetEl = e.target instanceof Element ? e.target : (e.target as Node)?.parentElement;
+            if (isElementUI(targetEl)) return;
+            const startData = { x: e.clientX, y: e.clientY, startPanX: panX, startPanY: panY };
+            panStartRef.current = startData;
+            setPanStart(startData);
             setIsPanning(true);
-            setPanStart({ x: e.clientX, y: e.clientY, startPanX: panX, startPanY: panY });
           }
         }}
-        onMouseMove={(e) => {
-          if (isPanning) {
-            setPan(panStart.startPanX + (e.clientX - panStart.x), panStart.startPanY + (e.clientY - panStart.y));
-          }
-        }}
-        onMouseUp={() => setIsPanning(false)}
       >
         {!hasImage || !sourceImageData ? (
           <div className={`viewport-dropzone ${isDragOver ? 'drag-active' : ''}`}>

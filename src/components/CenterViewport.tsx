@@ -24,7 +24,9 @@ import {
   Play,
   Pause,
   SkipForward,
-  Plus
+  Plus,
+  Trash2,
+  Copy
 } from 'lucide-react';
 
 function applyEasing(t: number, mode: EasingMode): number {
@@ -301,6 +303,32 @@ export const CenterViewport: React.FC = () => {
   const [popupFpsInput, setPopupFpsInput] = useState<string>('30');
   const [popupDurationInput, setPopupDurationInput] = useState<string>('15s');
 
+  const [trackContextMenu, setTrackContextMenu] = useState<{
+    trackId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const lastRenderSignatureRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!trackContextMenu) return;
+    const handleClose = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && target.closest('.df-track-context-menu')) return;
+      setTrackContextMenu(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTrackContextMenu(null);
+    };
+    window.addEventListener('mousedown', handleClose);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [trackContextMenu]);
+
   // Pre-rendered frame cache for Video: "Rendered" mode
   const renderedFramesCacheRef = useRef<Map<number, ImageData>>(new Map());
 
@@ -314,6 +342,7 @@ export const CenterViewport: React.FC = () => {
   // Invalidate pre-rendered cache when parameters or tracks change
   useEffect(() => {
     renderedFramesCacheRef.current.clear();
+    lastRenderSignatureRef.current = '';
   }, [
     sourceImageData,
     algorithmId,
@@ -796,16 +825,6 @@ export const CenterViewport: React.FC = () => {
       else if (effectiveQuality === 'mid') renderSource = proxyCacheRef.current.mid;
     }
 
-    const width = renderSource.width;
-    const height = renderSource.height;
-    const len = renderSource.data.length;
-
-    if (!workBufferRef.current || workBufferRef.current.length !== len) {
-      workBufferRef.current = new Uint8ClampedArray(len);
-    }
-    workBufferRef.current.set(renderSource.data);
-    const workingData = workBufferRef.current;
-
     let effBrightness = brightness;
     let effContrast = contrast;
     let effSaturation = saturation;
@@ -869,6 +888,47 @@ export const CenterViewport: React.FC = () => {
       }
     }
 
+    const paletteSig = (previewPaletteId || '') + ':' + (workingPalette?.length || 0) + ':' + (effPaletteDepth || 0) + ':' + effPaletteHueShift.toFixed(2) + ':' + effPaletteCycle;
+    const renderSig = [
+      sourceImageData.width,
+      sourceImageData.height,
+      sourceImageData.data[0],
+      algorithmId,
+      effectiveQuality,
+      effBrightness.toFixed(2),
+      effContrast.toFixed(2),
+      effSaturation.toFixed(2),
+      effHue.toFixed(2),
+      effGamma.toFixed(2),
+      effBlur.toFixed(2),
+      effDenoise.toFixed(2),
+      effHighlight.toFixed(2),
+      effDepth,
+      paletteSig,
+      showBeforeAfter,
+      splitRatio.toFixed(3),
+      isOriginalView,
+      JSON.stringify(effAlgoParams),
+      JSON.stringify(effEffects),
+      sourceVideoUrl ? Math.round(currentTime * 30) : '',
+      animatedNoiseActive ? frameIndex : ''
+    ].join('::');
+
+    if (renderSig === lastRenderSignatureRef.current) {
+      return;
+    }
+    lastRenderSignatureRef.current = renderSig;
+
+    const width = renderSource.width;
+    const height = renderSource.height;
+    const len = renderSource.data.length;
+
+    if (!workBufferRef.current || workBufferRef.current.length !== len) {
+      workBufferRef.current = new Uint8ClampedArray(len);
+    }
+    workBufferRef.current.set(renderSource.data);
+    const workingData = workBufferRef.current;
+
     const t0 = performance.now();
 
     applyTweaks(workingData, width, height, {
@@ -885,7 +945,7 @@ export const CenterViewport: React.FC = () => {
 
     const activeNoiseVal = Number(effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0);
     if ((animatedNoiseActive || activeNoiseVal > 0) && activeNoiseVal > 0) {
-      const seedOffset = appMode === 'animation' ? frameIndex * 1337 : 42;
+      const seedOffset = (animatedNoiseActive && appMode === 'animation') ? frameIndex * 1337 : 42;
       const amp = activeNoiseVal * 110;
       for (let i = 0; i < len; i += 4) {
         const hash = Math.sin((i >> 2) * 12.9898 + seedOffset) * 43758.5453;
@@ -949,7 +1009,7 @@ export const CenterViewport: React.FC = () => {
       noiseAmount: effNoise,
       noise: effNoise,
       depth: effDepth,
-      temporalSeed: frameIndex,
+      temporalSeed: (animatedNoiseActive && appMode === 'animation') ? frameIndex : 0,
       offsetX: effAlgoParams.offsetX ?? 0,
       offsetY: effAlgoParams.offsetY ?? 0
     });
@@ -1241,7 +1301,12 @@ export const CenterViewport: React.FC = () => {
           cursor: isDraggingSplitter ? 'ew-resize' : isPanning ? 'grabbing' : 'default'
         }}
         onMouseDown={(e) => {
-          if (selectedTrackId && floatingEditorRef.current && !floatingEditorRef.current.contains(e.target as Node)) {
+          if (
+            selectedTrackId &&
+            floatingEditorRef.current &&
+            !floatingEditorRef.current.contains(e.target as Node) &&
+            !timelineGroupRef.current?.contains(e.target as Node)
+          ) {
             setSelectedTrackId(null);
           }
           if (e.button === 1 || e.button === 0) {
@@ -1370,192 +1435,21 @@ export const CenterViewport: React.FC = () => {
             style={{ right: `${sidebarWidth + 28}px` }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="df-timeline-top-row">
-              <div className="df-playback-left-cluster">
-                <div className="df-playback-pill">
-                  <span
-                    className="df-timecode-readout"
-                    onClick={() => setIsCreateAnimationPopupOpen(true)}
-                    title="Click to configure FPS & Duration"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <span className="df-timecode-current">{formatTimecode(currentTime)}</span>
-                    <span className="df-timecode-max"> / {formatTimecode(duration)}</span>
-                  </span>
-                  <div className="df-transport-cluster">
-                    <button
-                      type="button"
-                      className="df-transport-btn"
-                      onClick={() => stepFrame(-1)}
-                      title="Previous Frame (Left Arrow / J, Shift+Left: -1s)"
-                      aria-label="Previous Frame"
-                    >
-                      <SkipBack size={16} fill="currentColor" />
-                    </button>
-                    <button
-                      type="button"
-                      className="df-transport-btn play-btn"
-                      onClick={togglePlay}
-                      title={isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)'}
-                      aria-label={isPlaying ? 'Pause' : 'Play'}
-                    >
-                      {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-                    </button>
-                    <button
-                      type="button"
-                      className="df-transport-btn"
-                      onClick={() => stepFrame(1)}
-                      title="Next Frame (Right Arrow / L, Shift+Right: +1s)"
-                      aria-label="Next Frame"
-                    >
-                      <SkipForward size={16} fill="currentColor" />
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className="df-playback-plus-btn"
-                  onClick={() => addAnimationTrack()}
-                  title="Add animated property track (T)"
-                  aria-label="Add animated property track"
-                >
-                  <Plus size={18} strokeWidth={2.4} />
-                </button>
-              </div>
-            </div>
-
-            {/* Dedicated Floating Timeline Card */}
-            <div
-              className="df-timeline-body-card"
-              onMouseDown={(e) => {
-                if (!(e.target as HTMLElement).closest('.df-track-bar')) {
-                  if (selectedTrackId) {
-                    setSelectedTrackId(null);
-                  }
-                  setIsScrubbingTimeline(true);
-                  updateScrubFromClientX(e.clientX, e.shiftKey);
-                }
-              }}
-            >
-              <div className="df-timeline-fullspan-row">
-                <span className="df-ruler-time-edge start">{formatTimecode(0)}</span>
-
-                {/* Unified 0% to 100% Coordinate Stage */}
-                <div
-                  ref={timelineInnerRef}
-                  className="df-timeline-coord-stage"
-                >
-                  {/* Ruler Ticks: Positioned by exact percentage so 0% and 100% align dead-center with playhead */}
-                  <div className="df-ruler-ticks">
-                    {rulerTicks.map((t) => (
-                      <span
-                        key={t.idx}
-                        className={`df-ruler-tick ${t.isMajor ? 'major' : t.isMedium ? 'medium' : 'minor'}`}
-                        style={{ left: `${t.pct}%` }}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Playhead with Circular Cap — 0% is exact center of first marker, 100% is exact center of last marker */}
-                  <div
-                    ref={playheadDomRef}
-                    className="df-playhead-line"
-                    style={{ left: `${playheadPercent}%` }}
-                  >
-                    <div className="df-playhead-cap" />
-                  </div>
-
-                  {/* Vertically Scrollable Track Lanes */}
-                  <div className="df-tracks-lanes" data-lenis-prevent>
-                    {animationTracks.map((track) => {
-                      const leftPct = Math.max(0, Math.min(100, (track.startTime / duration) * 100));
-                      const widthPct = Math.max(2, Math.min(100 - leftPct, ((track.endTime - track.startTime) / duration) * 100));
-                      const isSelected = track.id === selectedTrackId;
-
-                      return (
-                        <div key={track.id} className="df-track-lane">
-                          <div
-                            className={`df-track-bar ${isSelected ? 'selected' : ''}`}
-                            style={{
-                              left: `${leftPct}%`,
-                              width: `${widthPct}%`
-                            }}
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              const wasAlreadySelected = selectedTrackId === track.id;
-                              if (!wasAlreadySelected) {
-                                setSelectedTrackId(track.id);
-                              }
-                              setDraggingTrackBar({
-                                id: track.id,
-                                mode: 'move',
-                                startX: e.clientX,
-                                origStart: track.startTime,
-                                origEnd: track.endTime,
-                                wasAlreadySelected,
-                                didMove: false
-                              });
-                            }}
-                          >
-                            <span
-                              className={`df-track-handle left ${draggingTrackBar?.id === track.id && draggingTrackBar.mode === 'start' ? 'active' : ''}`}
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                setSelectedTrackId(track.id);
-                                setDraggingTrackBar({
-                                  id: track.id,
-                                  mode: 'start',
-                                  startX: e.clientX,
-                                  origStart: track.startTime,
-                                  origEnd: track.endTime,
-                                  wasAlreadySelected: false,
-                                  didMove: true
-                                });
-                              }}
-                            >
-                              <span className="df-track-handle-grip" />
-                            </span>
-
-                            <span className="df-track-bar-label">{track.label}</span>
-
-                            <span
-                              className={`df-track-handle right ${draggingTrackBar?.id === track.id && draggingTrackBar.mode === 'end' ? 'active' : ''}`}
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                setSelectedTrackId(track.id);
-                                setDraggingTrackBar({
-                                  id: track.id,
-                                  mode: 'end',
-                                  startX: e.clientX,
-                                  origStart: track.startTime,
-                                  origEnd: track.endTime,
-                                  wasAlreadySelected: false,
-                                  didMove: true
-                                });
-                              }}
-                            >
-                              <span className="df-track-handle-grip" />
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <span className="df-ruler-time-edge end">{formatTimecode(duration)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 4. Floating Property Editor POPUP via Portal */}
-          {selectedTrack &&
-            createPortal(
+            {/* Property Editor Popup - In-line directly above play buttons & + */}
+            {selectedTrack && (
               <aside
                 ref={floatingEditorRef}
                 className="df-floating-property-editor"
                 onClick={(e) => e.stopPropagation()}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTrackContextMenu({
+                    trackId: selectedTrack.id,
+                    x: e.clientX,
+                    y: e.clientY
+                  });
+                }}
               >
                 <div className="df-editor-field-group">
                   <label className="df-editor-label">Category</label>
@@ -1663,6 +1557,7 @@ export const CenterViewport: React.FC = () => {
                     id="anim-track-easing-dropdown"
                     className="df-editor-dropdown"
                     width="100%"
+                    direction="up"
                     value={selectedTrack.easing}
                     onChange={(val) => updateAnimationTrack(selectedTrack.id, { easing: val as EasingMode })}
                     items={[
@@ -1676,16 +1571,239 @@ export const CenterViewport: React.FC = () => {
                   />
                 </div>
 
+              </aside>
+            )}
+
+            <div className="df-timeline-top-row">
+              <div className="df-playback-left-cluster">
+                <div className="df-playback-pill">
+                  <span
+                    className="df-timecode-readout"
+                    onClick={() => setIsCreateAnimationPopupOpen(true)}
+                    title="Click to configure FPS & Duration"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="df-timecode-current">{formatTimecode(currentTime)}</span>
+                    <span className="df-timecode-max"> / {formatTimecode(duration)}</span>
+                  </span>
+                  <div className="df-transport-cluster">
+                    <button
+                      type="button"
+                      className="df-transport-btn"
+                      onClick={() => stepFrame(-1)}
+                      title="Previous Frame (Left Arrow / J, Shift+Left: -1s)"
+                      aria-label="Previous Frame"
+                    >
+                      <SkipBack size={16} fill="currentColor" />
+                    </button>
+                    <button
+                      type="button"
+                      className="df-transport-btn play-btn"
+                      onClick={togglePlay}
+                      title={isPlaying ? 'Pause (Space / K)' : 'Play (Space / K)'}
+                      aria-label={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                    </button>
+                    <button
+                      type="button"
+                      className="df-transport-btn"
+                      onClick={() => stepFrame(1)}
+                      title="Next Frame (Right Arrow / L, Shift+Right: +1s)"
+                      aria-label="Next Frame"
+                    >
+                      <SkipForward size={16} fill="currentColor" />
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   type="button"
-                  className="df-editor-delete-btn"
-                  onClick={() => removeAnimationTrack(selectedTrack.id)}
+                  className="df-playback-plus-btn"
+                  onClick={() => addAnimationTrack()}
+                  title="Add animated property track (T)"
+                  aria-label="Add animated property track"
                 >
-                  Delete
+                  <Plus size={18} strokeWidth={2.4} />
                 </button>
-              </aside>,
-              document.body
-            )}
+              </div>
+            </div>
+
+            {/* Dedicated Floating Timeline Card */}
+            <div
+              className="df-timeline-body-card"
+              onMouseDown={(e) => {
+                if (!(e.target as HTMLElement).closest('.df-track-bar')) {
+                  setIsScrubbingTimeline(true);
+                  updateScrubFromClientX(e.clientX, e.shiftKey);
+                }
+              }}
+            >
+              <div className="df-timeline-fullspan-row">
+                <span className="df-ruler-time-edge start">{formatTimecode(0)}</span>
+
+                {/* Unified 0% to 100% Coordinate Stage */}
+                <div
+                  ref={timelineInnerRef}
+                  className="df-timeline-coord-stage"
+                >
+                  {/* Ruler Ticks: Positioned by exact percentage so 0% and 100% align dead-center with playhead */}
+                  <div className="df-ruler-ticks">
+                    {rulerTicks.map((t) => (
+                      <span
+                        key={t.idx}
+                        className={`df-ruler-tick ${t.isMajor ? 'major' : t.isMedium ? 'medium' : 'minor'}`}
+                        style={{ left: `${t.pct}%` }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Playhead with Circular Cap — 0% is exact center of first marker, 100% is exact center of last marker */}
+                  <div
+                    ref={playheadDomRef}
+                    className="df-playhead-line"
+                    style={{ left: `${playheadPercent}%` }}
+                  >
+                    <div className="df-playhead-cap" />
+                  </div>
+
+                  {/* Vertically Scrollable Track Lanes */}
+                  <div className="df-tracks-lanes" data-lenis-prevent>
+                    {animationTracks.map((track) => {
+                      const leftPct = Math.max(0, Math.min(100, (track.startTime / duration) * 100));
+                      const widthPct = Math.max(2, Math.min(100 - leftPct, ((track.endTime - track.startTime) / duration) * 100));
+                      const isSelected = track.id === selectedTrackId;
+
+                      return (
+                        <div key={track.id} className="df-track-lane">
+                          <div
+                            className={`df-track-bar ${isSelected ? 'selected' : ''}`}
+                            style={{
+                              left: `${leftPct}%`,
+                              width: `${widthPct}%`
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSelectedTrackId(track.id);
+                              setTrackContextMenu({
+                                trackId: track.id,
+                                x: e.clientX,
+                                y: e.clientY
+                              });
+                            }}
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const wasAlreadySelected = selectedTrackId === track.id;
+                              if (!wasAlreadySelected) {
+                                setSelectedTrackId(track.id);
+                              }
+                              setDraggingTrackBar({
+                                id: track.id,
+                                mode: 'move',
+                                startX: e.clientX,
+                                origStart: track.startTime,
+                                origEnd: track.endTime,
+                                wasAlreadySelected,
+                                didMove: false
+                              });
+                            }}
+                          >
+                            <span
+                              className={`df-track-handle left ${draggingTrackBar?.id === track.id && draggingTrackBar.mode === 'start' ? 'active' : ''}`}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setSelectedTrackId(track.id);
+                                setDraggingTrackBar({
+                                  id: track.id,
+                                  mode: 'start',
+                                  startX: e.clientX,
+                                  origStart: track.startTime,
+                                  origEnd: track.endTime,
+                                  wasAlreadySelected: false,
+                                  didMove: true
+                                });
+                              }}
+                            >
+                              <span className="df-track-handle-grip" />
+                            </span>
+
+                            <span className="df-track-bar-label">{track.label}</span>
+
+                            <span
+                              className={`df-track-handle right ${draggingTrackBar?.id === track.id && draggingTrackBar.mode === 'end' ? 'active' : ''}`}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setSelectedTrackId(track.id);
+                                setDraggingTrackBar({
+                                  id: track.id,
+                                  mode: 'end',
+                                  startX: e.clientX,
+                                  origStart: track.startTime,
+                                  origEnd: track.endTime,
+                                  wasAlreadySelected: false,
+                                  didMove: true
+                                });
+                              }}
+                            >
+                              <span className="df-track-handle-grip" />
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <span className="df-ruler-time-edge end">{formatTimecode(duration)}</span>
+              </div>
+            </div>
+          </div>
+
+
+          {trackContextMenu && (
+            <div
+              className="df-track-context-menu"
+              style={{
+                left: `${Math.min(window.innerWidth - 180, trackContextMenu.x)}px`,
+                top: `${Math.min(window.innerHeight - 100, trackContextMenu.y)}px`
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="df-context-menu-item danger"
+                onClick={() => {
+                  removeAnimationTrack(trackContextMenu.trackId);
+                  if (selectedTrackId === trackContextMenu.trackId) {
+                    setSelectedTrackId(null);
+                  }
+                  setTrackContextMenu(null);
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Trash2 size={13} />
+                  <span>Delete Track</span>
+                </div>
+                <span className="df-context-shortcut">Del</span>
+              </button>
+              <button
+                type="button"
+                className="df-context-menu-item"
+                onClick={() => {
+                  duplicateAnimationTrack(trackContextMenu.trackId);
+                  setTrackContextMenu(null);
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Copy size={13} />
+                  <span>Duplicate</span>
+                </div>
+                <span className="df-context-shortcut">Ctrl+D</span>
+              </button>
+            </div>
+          )}
         </>
       )}
     </main>

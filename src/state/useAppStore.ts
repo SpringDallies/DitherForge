@@ -892,7 +892,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       easing: 'linear'
     };
     return {
-      animationTracks: [...state.animationTracks, newTrack]
+      animationTracks: [...state.animationTracks, newTrack],
+      selectedTrackId: newTrack.id
     };
   }),
   duplicateAnimationTrack: (id) => set((state) => {

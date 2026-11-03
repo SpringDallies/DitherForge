@@ -24,6 +24,7 @@ export interface DropdownProps {
   tooltip?: string;
   searchable?: boolean;
   disabled?: boolean;
+  direction?: 'up' | 'down';
   renderTrigger?: (props: {
     isOpen: boolean;
     selectedItem?: DropdownItem;
@@ -45,6 +46,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   tooltip,
   searchable = false,
   disabled = false,
+  direction = 'down',
   renderTrigger
 }) => {
   const autoId = useId();
@@ -220,7 +222,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
       {(isOpen || isClosing) && (
         <div
           ref={panelRef}
-          className={`custom-dropdown-panel ${searchable ? 'has-search' : 'single-list'} ${isClosing ? 'closing' : ''}`}
+          className={`custom-dropdown-panel ${direction === 'up' ? 'direction-up' : ''} ${searchable ? 'has-search' : 'single-list'} ${isClosing ? 'closing' : ''}`}
           role="listbox"
           data-lenis-prevent
           onWheel={(e) => e.stopPropagation()}

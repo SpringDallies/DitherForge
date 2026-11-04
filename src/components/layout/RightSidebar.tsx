@@ -15,7 +15,7 @@ import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToR
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 // @ts-ignore
 import { exportRaster } from '../../dither-engine/exporters.js';
-import { downloadAnimatedGif } from '../../utils/animationExport';
+import { downloadAnimatedGif, downloadAnimatedVideo } from '../../utils/animationExport';
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { 
   X,
@@ -1538,14 +1538,11 @@ export const RightSidebar: React.FC = () => {
               disabled={isExportingAnim}
               title={isExportingAnim ? "Exporting animation..." : "Click to export immediately"}
               onClick={() => {
-                const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
-                               (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
-                if (!canvas) return;
-                const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
                 if (appMode === 'animation') {
+                  if (!useAppStore.getState().sourceImageData) return;
                   const ext = videoExportFormat.toLowerCase();
+                  setIsExportingAnim(true);
                   if (ext === 'gif') {
-                    setIsExportingAnim(true);
                     downloadAnimatedGif(useAppStore.getState())
                       .catch((err) => {
                         console.error('GIF export failed:', err);
@@ -1553,35 +1550,26 @@ export const RightSidebar: React.FC = () => {
                       .finally(() => {
                         setIsExportingAnim(false);
                       });
-                    return;
+                  } else {
+                    downloadAnimatedVideo(
+                      useAppStore.getState(),
+                      ext as 'mp4' | 'mov' | 'webm'
+                    )
+                      .catch((err) => {
+                        console.error('Video export failed:', err);
+                      })
+                      .finally(() => {
+                        setIsExportingAnim(false);
+                      });
                   }
-                  const mime = ext === 'webm' ? 'video/webm' : 'video/mp4';
-                  if (typeof MediaRecorder !== 'undefined' && (canvas as any).captureStream) {
-                    const stream = (canvas as any).captureStream(useAppStore.getState().fps || 30);
-                    const rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported(mime) ? mime : undefined });
-                    const chunks: BlobPart[] = [];
-                    rec.ondataavailable = (ev) => { if (ev.data.size > 0) chunks.push(ev.data); };
-                    rec.onstop = () => {
-                      const blob = new Blob(chunks, { type: mime });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${baseName}_animated.${ext}`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    };
-                    useAppStore.getState().setCurrentTime(0);
-                    useAppStore.getState().setIsPlaying(true);
-                    rec.start();
-                    setTimeout(() => {
-                      rec.stop();
-                      useAppStore.getState().setIsPlaying(false);
-                    }, (useAppStore.getState().duration || 5) * 1000);
-                  }
-                } else {
-                  const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
-                  exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
+                  return;
                 }
+                const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
+                               (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
+                if (!canvas) return;
+                const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
+                const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
+                exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
               }}
             >
               {isExportingAnim ? 'Exporting…' : (appMode === 'animation' ? 'Export Video' : 'Export Image')}

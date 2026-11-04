@@ -1,6 +1,7 @@
 /**
  * Dependency-free GIF89a Encoder with LZW compression and median-cut color quantization.
  * Supports multi-frame looping animated GIFs directly from canvas frames.
+ * Optimized with reusable typed-array scratch buffers for low-end CPU/RAM hardware.
  */
 
 export interface GifFrameOptions {
@@ -18,6 +19,14 @@ interface QuantizedFrame {
   transparentIndex: number | null;
 }
 
+const HASH_BITS = 16;
+const HASH_SIZE = 1 << HASH_BITS; // 65536
+const HASH_MASK = HASH_SIZE - 1;
+
+// LZW open-addressing hash table constants (prime-sized or power-of-two > 4096 * 2)
+const LZW_HASH_SIZE = 16384;
+const LZW_HASH_MASK = LZW_HASH_SIZE - 1;
+
 export class GifEncoder {
   private width: number;
   private height: number;
@@ -27,10 +36,32 @@ export class GifEncoder {
   private chunkPos: number = 0;
   private totalBytes: number = 0;
 
+  // Reusable per-instance buffers to eliminate per-frame heap allocations
+  private indexedBuffer: Uint8Array;
+  private hashKeys: Int32Array;
+  private hashCounts: Uint32Array;
+  private hashIndices: Int32Array;
+  private usedSlots: Uint32Array;
+
+  // Reusable LZW dictionary & sub-block buffers
+  private lzwKey: Int32Array = new Int32Array(LZW_HASH_SIZE);
+  private lzwVal: Uint16Array = new Uint16Array(LZW_HASH_SIZE);
+  private lzwStamp: Uint32Array = new Uint32Array(LZW_HASH_SIZE);
+  private lzwGen: number = 1;
+  private lzwSubBlock: Uint8Array = new Uint8Array(255);
+
   constructor(width: number, height: number, loopCount: number = 0) {
     this.width = Math.max(1, Math.round(width));
     this.height = Math.max(1, Math.round(height));
     this.loopCount = loopCount;
+
+    const totalPixels = this.width * this.height;
+    this.indexedBuffer = new Uint8Array(totalPixels);
+    this.hashKeys = new Int32Array(HASH_SIZE);
+    this.hashKeys.fill(-1);
+    this.hashCounts = new Uint32Array(HASH_SIZE);
+    this.hashIndices = new Int32Array(HASH_SIZE);
+    this.usedSlots = new Uint32Array(HASH_SIZE);
 
     this.writeHeader();
   }
@@ -100,13 +131,24 @@ export class GifEncoder {
 
   /**
    * Quantize RGBA pixels to an indexed palette of up to 256 colors.
+   * Always inspects actual frame pixels so post-processing effect colors are preserved.
    */
   private quantize(pixelsRgba: Uint8ClampedArray): QuantizedFrame {
     const totalPixels = this.width * this.height;
-    const colorCounts = new Map<number, number>();
-    let hasTransparent = false;
+    if (this.indexedBuffer.length !== totalPixels) {
+      this.indexedBuffer = new Uint8Array(totalPixels);
+    }
+    const indexed = this.indexedBuffer;
+    const hashKeys = this.hashKeys;
+    const hashCounts = this.hashCounts;
+    const hashIndices = this.hashIndices;
+    const usedSlots = this.usedSlots;
 
-    // Scan unique colors and transparency
+    let usedCount = 0;
+    let hasTransparent = false;
+    let overflowedHash = false;
+
+    // 1. Scan unique colors and transparency using open-addressing hash table
     for (let i = 0; i < totalPixels; i++) {
       const idx = i * 4;
       const a = pixelsRgba[idx + 3];
@@ -114,54 +156,147 @@ export class GifEncoder {
         hasTransparent = true;
       } else {
         const rgb = (pixelsRgba[idx] << 16) | (pixelsRgba[idx + 1] << 8) | pixelsRgba[idx + 2];
-        colorCounts.set(rgb, (colorCounts.get(rgb) || 0) + 1);
+        let slot = ((rgb * 2654435761) >>> 16) & HASH_MASK;
+        let probes = 0;
+        while (true) {
+          const k = hashKeys[slot];
+          if (k === rgb) {
+            hashCounts[slot]++;
+            break;
+          }
+          if (k === -1) {
+            hashKeys[slot] = rgb;
+            hashCounts[slot] = 1;
+            usedSlots[usedCount++] = slot;
+            break;
+          }
+          slot = (slot + 1) & HASH_MASK;
+          if (++probes >= 128 || usedCount >= 49152) {
+            overflowedHash = true;
+            break;
+          }
+        }
+        if (overflowedHash) break;
       }
+    }
+
+    // Fallback to Map only if frame has >49k distinct colors or hash probe cap hit
+    if (overflowedHash) {
+      for (let i = 0; i < usedCount; i++) {
+        hashKeys[usedSlots[i]] = -1;
+      }
+      return this.quantizeFallbackMap(pixelsRgba, totalPixels, indexed);
     }
 
     const maxColors = hasTransparent ? 255 : 256;
 
-    // Fast path: distinct colors fit in palette directly
-    if (colorCounts.size <= maxColors) {
+    // 2. Fast path: distinct colors fit in GIF palette directly
+    if (usedCount <= maxColors) {
       const palette: [number, number, number][] = [];
-      const colorToIndex = new Map<number, number>();
       let transparentIndex: number | null = null;
 
       if (hasTransparent) {
         transparentIndex = 0;
-        palette.push([0, 0, 0]); // dummy transparent entry
+        palette.push([0, 0, 0]);
       }
 
-      for (const rgb of colorCounts.keys()) {
+      for (let i = 0; i < usedCount; i++) {
+        const slot = usedSlots[i];
+        const rgb = hashKeys[slot];
+        hashIndices[slot] = palette.length;
         palette.push([(rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF]);
-        colorToIndex.set(rgb, palette.length - 1);
       }
 
-      const indexed = new Uint8Array(totalPixels);
       for (let i = 0; i < totalPixels; i++) {
         const idx = i * 4;
         if (hasTransparent && pixelsRgba[idx + 3] < 128) {
           indexed[i] = transparentIndex!;
         } else {
           const rgb = (pixelsRgba[idx] << 16) | (pixelsRgba[idx + 1] << 8) | pixelsRgba[idx + 2];
-          indexed[i] = colorToIndex.get(rgb) ?? 0;
+          let slot = ((rgb * 2654435761) >>> 16) & HASH_MASK;
+          while (hashKeys[slot] !== rgb) {
+            slot = (slot + 1) & HASH_MASK;
+          }
+          indexed[i] = hashIndices[slot];
         }
+      }
+
+      for (let i = 0; i < usedCount; i++) {
+        hashKeys[usedSlots[i]] = -1;
       }
 
       return { palette, indexed, transparentIndex };
     }
 
-    // Median Cut Quantization for images with >256 unique colors
-    const uniqueList: { r: number; g: number; b: number; rgb: number; count: number }[] = [];
-    for (const [rgb, count] of colorCounts.entries()) {
-      uniqueList.push({
+    // 3. Median Cut Quantization for frames with >maxColors unique colors
+    const uniqueList: { r: number; g: number; b: number; rgb: number; count: number }[] = new Array(usedCount);
+    for (let i = 0; i < usedCount; i++) {
+      const slot = usedSlots[i];
+      const rgb = hashKeys[slot];
+      const count = hashCounts[slot];
+      hashIndices[slot] = -1; // mark as unmapped for nearest-color lookup
+      uniqueList[i] = {
         r: (rgb >> 16) & 0xFF,
         g: (rgb >> 8) & 0xFF,
         b: rgb & 0xFF,
         rgb,
         count
-      });
+      };
     }
 
+    const palette = this.runMedianCut(uniqueList, maxColors, hasTransparent);
+    const transparentIndex: number | null = hasTransparent ? 0 : null;
+    const startIdx = hasTransparent ? 1 : 0;
+    const palLen = palette.length;
+
+    for (let i = 0; i < totalPixels; i++) {
+      const idx = i * 4;
+      if (hasTransparent && pixelsRgba[idx + 3] < 128) {
+        indexed[i] = transparentIndex!;
+      } else {
+        const r = pixelsRgba[idx];
+        const g = pixelsRgba[idx + 1];
+        const b = pixelsRgba[idx + 2];
+        const rgb = (r << 16) | (g << 8) | b;
+
+        let slot = ((rgb * 2654435761) >>> 16) & HASH_MASK;
+        while (hashKeys[slot] !== rgb) {
+          slot = (slot + 1) & HASH_MASK;
+        }
+
+        let match = hashIndices[slot];
+        if (match === -1) {
+          let minD = Infinity;
+          match = startIdx;
+          for (let p = startIdx; p < palLen; p++) {
+            const pr = palette[p][0];
+            const pg = palette[p][1];
+            const pb = palette[p][2];
+            const d = (r - pr) * (r - pr) + (g - pg) * (g - pg) + (b - pb) * (b - pb);
+            if (d < minD) {
+              minD = d;
+              match = p;
+              if (d === 0) break;
+            }
+          }
+          hashIndices[slot] = match;
+        }
+        indexed[i] = match;
+      }
+    }
+
+    for (let i = 0; i < usedCount; i++) {
+      hashKeys[usedSlots[i]] = -1;
+    }
+
+    return { palette, indexed, transparentIndex };
+  }
+
+  private runMedianCut(
+    uniqueList: { r: number; g: number; b: number; rgb: number; count: number }[],
+    maxColors: number,
+    hasTransparent: boolean
+  ): [number, number, number][] {
     class ColorBox {
       colors: typeof uniqueList;
       minR = 255; maxR = 0;
@@ -264,16 +399,48 @@ export class GifEncoder {
     }
 
     const palette: [number, number, number][] = [];
-    let transparentIndex: number | null = null;
     if (hasTransparent) {
-      transparentIndex = 0;
       palette.push([0, 0, 0]);
     }
     for (let i = 0; i < boxes.length; i++) {
       palette.push(boxes[i].averageColor());
     }
+    return palette;
+  }
 
-    const indexed = new Uint8Array(totalPixels);
+  private quantizeFallbackMap(
+    pixelsRgba: Uint8ClampedArray,
+    totalPixels: number,
+    indexed: Uint8Array
+  ): QuantizedFrame {
+    const colorCounts = new Map<number, number>();
+    let hasTransparent = false;
+
+    for (let i = 0; i < totalPixels; i++) {
+      const idx = i * 4;
+      if (pixelsRgba[idx + 3] < 128) {
+        hasTransparent = true;
+      } else {
+        const rgb = (pixelsRgba[idx] << 16) | (pixelsRgba[idx + 1] << 8) | pixelsRgba[idx + 2];
+        colorCounts.set(rgb, (colorCounts.get(rgb) || 0) + 1);
+      }
+    }
+
+    const maxColors = hasTransparent ? 255 : 256;
+    const uniqueList: { r: number; g: number; b: number; rgb: number; count: number }[] = [];
+    for (const [rgb, count] of colorCounts.entries()) {
+      uniqueList.push({
+        r: (rgb >> 16) & 0xFF,
+        g: (rgb >> 8) & 0xFF,
+        b: rgb & 0xFF,
+        rgb,
+        count
+      });
+    }
+
+    const palette = this.runMedianCut(uniqueList, maxColors, hasTransparent);
+    const transparentIndex: number | null = hasTransparent ? 0 : null;
+    const startIdx = hasTransparent ? 1 : 0;
     const lookupCache = new Map<number, number>();
 
     for (let i = 0; i < totalPixels; i++) {
@@ -288,8 +455,7 @@ export class GifEncoder {
         let match = lookupCache.get(rgb);
         if (match === undefined) {
           let minD = Infinity;
-          match = hasTransparent ? 1 : 0;
-          const startIdx = hasTransparent ? 1 : 0;
+          match = startIdx;
           for (let p = startIdx; p < palette.length; p++) {
             const pr = palette[p][0];
             const pg = palette[p][1];
@@ -337,14 +503,15 @@ export class GifEncoder {
     // GIF delay is stored in units of 1/100 of a second (clamped to at least 2 = 20ms)
     const delayHundredths = Math.max(2, Math.round(delayMs / 10));
     const disposal = options.dispose ?? 2; // Restore to background by default
+    const effectiveTrans = options.transparent !== undefined ? options.transparent : transparentIndex;
 
     // Graphic Control Extension
     this.writeBytes([0x21, 0xF9, 0x04]);
-    const hasTrans = transparentIndex !== null;
+    const hasTrans = effectiveTrans !== null && effectiveTrans !== undefined;
     const packedGce = ((disposal & 0x07) << 2) | (hasTrans ? 0x01 : 0x00);
     this.writeByte(packedGce);
     this.writeUint16(delayHundredths);
-    this.writeByte(hasTrans ? (transparentIndex! & 0xFF) : 0);
+    this.writeByte(hasTrans ? (effectiveTrans! & 0xFF) : 0);
     this.writeByte(0x00); // Block terminator
 
     // Calculate Local Color Table size: 2^(N+1) entries
@@ -391,20 +558,27 @@ export class GifEncoder {
     let codeSize = minCodeSize + 1;
     let nextCode = eofCode + 1;
 
-    const dict = new Map<number, number>();
+    // Advance generation counter for O(1) dictionary reset
+    let gen = ++this.lzwGen;
+    if (gen >= 0xFFFFFFFF) {
+      this.lzwStamp.fill(0);
+      gen = this.lzwGen = 1;
+    }
+
+    const lzwKey = this.lzwKey;
+    const lzwVal = this.lzwVal;
+    const lzwStamp = this.lzwStamp;
+    const subBlock = this.lzwSubBlock;
 
     let curBits = 0;
     let curAccum = 0;
-    const subBlock = new Uint8Array(255);
     let subBlockLen = 0;
 
     const emitByte = (b: number): void => {
       subBlock[subBlockLen++] = b;
       if (subBlockLen === 255) {
         this.writeByte(255);
-        for (let j = 0; j < 255; j++) {
-          this.writeByte(subBlock[j]);
-        }
+        this.writeBytes(subBlock);
         subBlockLen = 0;
       }
     };
@@ -427,9 +601,7 @@ export class GifEncoder {
       }
       if (subBlockLen > 0) {
         this.writeByte(subBlockLen);
-        for (let j = 0; j < subBlockLen; j++) {
-          this.writeByte(subBlock[j]);
-        }
+        this.writeBytes(subBlock.subarray(0, subBlockLen));
         subBlockLen = 0;
       }
       this.writeByte(0); // Terminator
@@ -437,27 +609,42 @@ export class GifEncoder {
 
     emitCode(clearCode);
 
-    if (pixels.length > 0) {
+    const len = pixels.length;
+    if (len > 0) {
       let prefix = pixels[0];
 
-      for (let i = 1; i < pixels.length; i++) {
+      for (let i = 1; i < len; i++) {
         const c = pixels[i];
-        const key = (prefix << 16) | c;
+        const key = (prefix << 8) | c;
+        let slot = ((key * 2654435761) >>> 18) & LZW_HASH_MASK;
 
-        const val = dict.get(key);
-        if (val !== undefined) {
-          prefix = val;
-        } else {
+        let found = false;
+        while (lzwStamp[slot] === gen) {
+          if (lzwKey[slot] === key) {
+            prefix = lzwVal[slot];
+            found = true;
+            break;
+          }
+          slot = (slot + 1) & LZW_HASH_MASK;
+        }
+
+        if (!found) {
           emitCode(prefix);
 
           if (nextCode < 4096) {
-            dict.set(key, nextCode++);
+            lzwStamp[slot] = gen;
+            lzwKey[slot] = key;
+            lzwVal[slot] = nextCode++;
             if (nextCode === (1 << codeSize) + 1 && codeSize < 12) {
               codeSize++;
             }
           } else {
             emitCode(clearCode);
-            dict.clear();
+            gen = ++this.lzwGen;
+            if (gen >= 0xFFFFFFFF) {
+              this.lzwStamp.fill(0);
+              gen = this.lzwGen = 1;
+            }
             codeSize = minCodeSize + 1;
             nextCode = eofCode + 1;
           }

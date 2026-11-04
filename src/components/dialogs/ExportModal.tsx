@@ -228,7 +228,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   // Handle Image Export
   const handleExportImage = () => {
     if (format === 'gif') {
-      downloadAnimatedGif(useAppStore.getState());
+      const stateSnapshot = {
+        ...useAppStore.getState(),
+        imageFileName: filename.trim() || useAppStore.getState().imageFileName || 'ditherforge_export'
+      };
+      downloadAnimatedGif(stateSnapshot).catch((err) => {
+        console.error('GIF export failed:', err);
+      });
       onClose();
       return;
     }

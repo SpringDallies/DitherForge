@@ -47,9 +47,10 @@ export function applyExtendedAdjustments(
   height: number,
   blurRadius: number,
   denoiseStrength: number,
-  highlightAmount: number
+  highlightAmount: number,
+  scratchBuffer?: Uint8ClampedArray | null
 ): void {
-  // 1. Highlight adjustment
+  // 1. Highlight adjustment (targets bright luminances smoothly)
   if (highlightAmount !== 0) {
     const hFactor = (highlightAmount / 100) * 90;
     for (let i = 0; i < data.length; i += 4) {
@@ -65,73 +66,78 @@ export function applyExtendedAdjustments(
     }
   }
 
-  // 2. Separable Box Blur + Denoise smoothing
+  // 2. Separable Box Blur + Denoise smoothing (O(1) sliding window per pixel)
   const totalBlur = Math.round(blurRadius + (denoiseStrength / 100) * 3);
-  if (totalBlur <= 0 || width <= 0 || height <= 0) return;
+  if (totalBlur < 1 || width <= 0 || height <= 0) return;
 
-  const r = Math.min(10, totalBlur);
-  if (!exportBlurScratch || exportBlurScratch.length !== data.length) {
-    exportBlurScratch = new Uint8ClampedArray(data.length);
+  const rad = Math.min(20, totalBlur);
+  let temp: Uint8ClampedArray;
+  if (scratchBuffer && scratchBuffer.length === data.length) {
+    temp = scratchBuffer;
+  } else {
+    if (!exportBlurScratch || exportBlurScratch.length !== data.length) {
+      exportBlurScratch = new Uint8ClampedArray(data.length);
+    }
+    temp = exportBlurScratch;
   }
-  const temp = exportBlurScratch;
-  temp.set(data);
+  const blend = blurRadius > 0 ? 1.0 : Math.min(0.85, denoiseStrength / 100);
 
-  // Horizontal pass with sliding window over [max(0, x - r) .. min(width - 1, x + r)]
+  // Horizontal pass with sliding window: reads from `data`, writes into `temp`
   for (let y = 0; y < height; y++) {
-    const rowOffset = y * width * 4;
+    const rowOff = y * width * 4;
     let rSum = 0;
     let gSum = 0;
     let bSum = 0;
     let count = 0;
 
-    const initX1 = Math.min(width - 1, r);
-    for (let ix = 0; ix <= initX1; ix++) {
-      const idx = rowOffset + ix * 4;
-      rSum += temp[idx];
-      gSum += temp[idx + 1];
-      bSum += temp[idx + 2];
+    const initX1 = Math.min(width - 1, rad);
+    for (let k = 0; k <= initX1; k++) {
+      const idx = rowOff + k * 4;
+      rSum += data[idx];
+      gSum += data[idx + 1];
+      bSum += data[idx + 2];
       count++;
     }
 
     for (let x = 0; x < width; x++) {
-      const outIdx = rowOffset + x * 4;
-      data[outIdx] = Math.round(rSum / count);
-      data[outIdx + 1] = Math.round(gSum / count);
-      data[outIdx + 2] = Math.round(bSum / count);
+      const outIdx = rowOff + x * 4;
+      temp[outIdx] = rSum / count;
+      temp[outIdx + 1] = gSum / count;
+      temp[outIdx + 2] = bSum / count;
+      temp[outIdx + 3] = data[outIdx + 3];
 
-      // Advance window from x to x + 1
-      const removeX = x - r;
+      const removeX = x - rad;
       if (removeX >= 0) {
-        const remIdx = rowOffset + removeX * 4;
-        rSum -= temp[remIdx];
-        gSum -= temp[remIdx + 1];
-        bSum -= temp[remIdx + 2];
+        const remIdx = rowOff + removeX * 4;
+        rSum -= data[remIdx];
+        gSum -= data[remIdx + 1];
+        bSum -= data[remIdx + 2];
         count--;
       }
-      const addX = x + r + 1;
+      const addX = x + rad + 1;
       if (addX < width) {
-        const addIdx = rowOffset + addX * 4;
-        rSum += temp[addIdx];
-        gSum += temp[addIdx + 1];
-        bSum += temp[addIdx + 2];
+        const addIdx = rowOff + addX * 4;
+        rSum += data[addIdx];
+        gSum += data[addIdx + 1];
+        bSum += data[addIdx + 2];
         count++;
       }
     }
   }
 
-  // Vertical pass with sliding window over [max(0, y - r) .. min(height - 1, y + r)]
-  temp.set(data);
+  // Vertical pass with sliding window: reads from `temp`, blends into `data`
   const stride = width * 4;
+  const invBlend = 1 - blend;
   for (let x = 0; x < width; x++) {
-    const colOffset = x * 4;
+    const colOff = x * 4;
     let rSum = 0;
     let gSum = 0;
     let bSum = 0;
     let count = 0;
 
-    const initY1 = Math.min(height - 1, r);
-    for (let iy = 0; iy <= initY1; iy++) {
-      const idx = iy * stride + colOffset;
+    const initY1 = Math.min(height - 1, rad);
+    for (let k = 0; k <= initY1; k++) {
+      const idx = k * stride + colOff;
       rSum += temp[idx];
       gSum += temp[idx + 1];
       bSum += temp[idx + 2];
@@ -139,23 +145,25 @@ export function applyExtendedAdjustments(
     }
 
     for (let y = 0; y < height; y++) {
-      const outIdx = y * stride + colOffset;
-      data[outIdx] = Math.round(rSum / count);
-      data[outIdx + 1] = Math.round(gSum / count);
-      data[outIdx + 2] = Math.round(bSum / count);
+      const outIdx = y * stride + colOff;
+      const br = rSum / count;
+      const bg = gSum / count;
+      const bb = bSum / count;
+      data[outIdx] = data[outIdx] * invBlend + br * blend;
+      data[outIdx + 1] = data[outIdx + 1] * invBlend + bg * blend;
+      data[outIdx + 2] = data[outIdx + 2] * invBlend + bb * blend;
 
-      // Advance window from y to y + 1
-      const removeY = y - r;
+      const removeY = y - rad;
       if (removeY >= 0) {
-        const remIdx = removeY * stride + colOffset;
+        const remIdx = removeY * stride + colOff;
         rSum -= temp[remIdx];
         gSum -= temp[remIdx + 1];
         bSum -= temp[remIdx + 2];
         count--;
       }
-      const addY = y + r + 1;
+      const addY = y + rad + 1;
       if (addY < height) {
-        const addIdx = addY * stride + colOffset;
+        const addIdx = addY * stride + colOff;
         rSum += temp[addIdx];
         gSum += temp[addIdx + 1];
         bSum += temp[addIdx + 2];
@@ -292,20 +300,16 @@ function renderDeterministicAnimationFrame(
     // 1. Copy source base pixels into workBuffer
     workBuffer.set(basePixels);
 
-    // 2. Apply fast adjustments (brightness, contrast, saturation, gamma)
+    // 2. Apply fast adjustments (brightness, contrast, saturation, gamma, hue)
     applyTweaksFast(workBuffer, width, height, {
       brightness: effBrightness / 100,
       contrast: effContrast / 100,
       saturation: effSaturation / 100,
-      gamma: effGamma
+      gamma: effGamma,
+      hue: effHue
     });
 
-    // 3. Apply smooth linear HSV hue rotation
-    if (effHue !== 0) {
-      rotateHueHsvBuffer(workBuffer, byteLen, effHue);
-    }
-
-    // 4. Extended adjustments (blur, denoise, highlight)
+    // 3. Extended adjustments (blur, denoise, highlight)
     if (effBlur > 0 || effDenoise > 0 || effHighlight !== 0) {
       applyExtendedAdjustments(workBuffer, width, height, effBlur, effDenoise, effHighlight);
     }
@@ -523,7 +527,8 @@ export async function downloadAnimatedGif(
 export async function downloadAnimatedVideo(
   storeState: any,
   format: 'mp4' | 'mov' | 'webm' = 'webm',
-  onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void
+  onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void,
+  customFilename?: string
 ): Promise<void> {
   const {
     sourceImageData,
@@ -717,7 +722,8 @@ export async function downloadAnimatedVideo(
     recorder.stop();
     const videoBlob = await stoppedPromise;
 
-    const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
+    const rawName = customFilename || imageFileName || 'ditherforge_export';
+    const baseName = rawName.replace(/\.[^/.]+$/, '');
     const actualExt =
       ext === 'mov'
         ? 'mov'

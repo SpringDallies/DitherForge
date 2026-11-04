@@ -9,6 +9,7 @@ import {
 } from '../state/useAppStore';
 import { Dropdown } from './common/Dropdown';
 import { getStoredSettings, DitherForgeSettings } from './dialogs/SettingsDialog';
+import { downsampleAreaGamma } from '../utils/areaDownsample';
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
@@ -307,10 +308,39 @@ export const CenterViewport: React.FC = () => {
   const isSmoothDownscale = highQualityZoom && zoom < 100;
   const imageRenderingValue = isSmoothDownscale ? 'auto' : 'pixelated';
 
+  const renderHqPresentation = useCallback((imgData: ImageData, fw: number, fh: number) => {
+    if (!highQualityZoom || zoom >= 100) return;
+    const scale = zoom / 100;
+    const dw = Math.max(1, Math.round(fw * scale));
+    const dh = Math.max(1, Math.round(fh * scale));
+    const pCanvas = presentationCanvasRef.current;
+    if (!pCanvas) return;
+    if (pCanvas.width !== dw || pCanvas.height !== dh) {
+      pCanvas.width = dw;
+      pCanvas.height = dh;
+    }
+    const pCtx = pCanvas.getContext('2d');
+    if (!pCtx) return;
+    if (!hqPresentationBufferRef.current || hqPresentationBufferRef.current.width !== dw || hqPresentationBufferRef.current.height !== dh) {
+      hqPresentationBufferRef.current = new ImageData(dw, dh);
+    }
+    downsampleAreaGamma(imgData.data, fw, fh, dw, dh, hqPresentationBufferRef.current.data);
+    pCtx.putImageData(hqPresentationBufferRef.current, 0, 0);
+  }, [highQualityZoom, zoom]);
+
+  useEffect(() => {
+    if (highQualityZoom && zoom < 100 && lastRenderedFullImageRef.current && sourceImageData) {
+      renderHqPresentation(lastRenderedFullImageRef.current, sourceImageData.width, sourceImageData.height);
+    }
+  }, [zoom, highQualityZoom, renderHqPresentation, sourceImageData]);
+
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
   const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
+  const presentationCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const hqPresentationBufferRef = useRef<ImageData | null>(null);
+  const lastRenderedFullImageRef = useRef<ImageData | null>(null);
 
   const isElementUI = useCallback((el: Element | null): boolean => {
     if (!el) return false;
@@ -902,6 +932,10 @@ export const CenterViewport: React.FC = () => {
         cache.set(frameIndex, cachedFrame);
         ctx.clearRect(0, 0, fullWidth, fullHeight);
         ctx.putImageData(cachedFrame, 0, 0);
+        lastRenderedFullImageRef.current = cachedFrame;
+        if (highQualityZoom && zoom < 100) {
+          renderHqPresentation(cachedFrame, fullWidth, fullHeight);
+        }
         return;
       }
     }
@@ -1237,6 +1271,7 @@ export const CenterViewport: React.FC = () => {
     }
 
     const drawToCanvas = (imgData: ImageData) => {
+      lastRenderedFullImageRef.current = imgData;
       if (width === fullWidth && height === fullHeight) {
         ctx.clearRect(0, 0, fullWidth, fullHeight);
         ctx.putImageData(imgData, 0, 0);
@@ -1257,6 +1292,9 @@ export const CenterViewport: React.FC = () => {
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
         }
+      }
+      if (highQualityZoom && zoom < 100) {
+        renderHqPresentation(imgData, fullWidth, fullHeight);
       }
     };
 
@@ -1595,18 +1633,31 @@ export const CenterViewport: React.FC = () => {
               transform: `translate(${panX}px, ${panY}px) scale(${zoom / 100})`,
               transformOrigin: 'center center',
               transition: isPanning ? 'none' : 'transform 0.05s ease-out',
-              userSelect: 'none',
-              imageRendering: imageRenderingValue
+              userSelect: 'none'
             }}
           >
             <canvas
               ref={canvasRef}
               id="mainViewportCanvas"
-              className={`preview-canvas ${isSmoothDownscale ? 'smooth-downscale' : ''}`}
+              className="preview-canvas"
               style={{
-                imageRendering: imageRenderingValue
+                display: isSmoothDownscale ? 'none' : 'block',
+                imageRendering: 'pixelated'
               }}
             />
+            {isSmoothDownscale && (
+              <canvas
+                ref={presentationCanvasRef}
+                id="hqPresentationCanvas"
+                className="preview-canvas smooth-downscale"
+                style={{
+                  display: 'block',
+                  width: `${sourceImageData?.width || 0}px`,
+                  height: `${sourceImageData?.height || 0}px`,
+                  imageRendering: 'pixelated'
+                }}
+              />
+            )}
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>
                 <div className="compare-badge before" style={{ transform: `scale(${100 / Math.max(50, zoom)})`, transformOrigin: 'top left' }}>

@@ -4595,7 +4595,8 @@ body {
 
 .canvas-unframed-stage,
 .preview-canvas,
-canvas#mainViewportCanvas {
+canvas#mainViewportCanvas,
+canvas#hqPresentationCanvas {
   border: none !important;
   outline: none !important;
   border-radius: 0 !important;
@@ -4606,6 +4607,7 @@ canvas#mainViewportCanvas {
 }
 
 [data-high-quality-zoom="true"] canvas#mainViewportCanvas.smooth-downscale,
+[data-high-quality-zoom="true"] canvas#hqPresentationCanvas,
 [data-high-quality-zoom="true"] .canvas-unframed-stage.smooth-downscale {
   image-rendering: auto !important;
 }

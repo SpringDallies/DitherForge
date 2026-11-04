@@ -493,13 +493,15 @@ input[type="number"] {
   background: var(--canvas-bg);
 }
 
-canvas#mainViewportCanvas {
+canvas#mainViewportCanvas,
+canvas#hqPresentationCanvas {
   display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
 
 [data-high-quality-zoom="true"] canvas#mainViewportCanvas.smooth-downscale,
+[data-high-quality-zoom="true"] canvas#hqPresentationCanvas,
 [data-high-quality-zoom="true"] .canvas-unframed-stage.smooth-downscale {
   image-rendering: auto !important;
 }

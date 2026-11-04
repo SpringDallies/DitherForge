@@ -85,7 +85,29 @@ async function run() {
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
 
-    await new Promise((r) => setTimeout(r, 2000));
+    // Poll until window.__DITHERFORGE_STORE__ and #mainViewportCanvas are ready
+    let isStoreReady = false;
+    const maxAttempts = 30;
+    const pollIntervalMs = 500;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const ready = await evalInPage(
+          cdp,
+          'Boolean(window.__DITHERFORGE_STORE__ && document.querySelector("#mainViewportCanvas"))'
+        );
+        if (ready) {
+          isStoreReady = true;
+          break;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+    }
+
+    if (!isStoreReady) {
+      throw new Error(
+        `DitherForge application store or viewport canvas failed to initialize after ${maxAttempts * (pollIntervalMs / 1000)}s`
+      );
+    }
 
     console.log('==================================================================');
     console.log('  TESTING: THRESHOLD ANIMATION SCALE & SPATIAL CONSISTENCY        ');

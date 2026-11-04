@@ -129,8 +129,8 @@ const buildEffectsAnimatableProps = (): AnimatablePropDef[] => {
     if (eff.id === 'inverse_glow' || eff.id === 'inverse_vignette') continue;
     const defParams = eff.defaultParams || {};
     const displayName = eff.id === 'scanlines' ? 'CRT Lines' : eff.name;
-    for (const key of Object.keys(defParams)) {
-      if (typeof defParams[key] !== 'number') continue;
+    for (const [key, val] of Object.entries(defParams)) {
+      if (typeof val !== 'number') continue;
       let min = 0, max = 1, step = 0.05, defaultFrom = 0, defaultTo = 1;
       if (key === 'intensity') { min = 0; max = 2; step = 0.05; defaultFrom = 0; defaultTo = 1.2; }
       else if (key === 'radius') { min = 1; max = 24; step = 1; defaultFrom = 2; defaultTo = 16; }
@@ -233,10 +233,10 @@ export const getDynamicStyleAnimatableProps = (algorithmId: string): AnimatableP
           defaultTo: 1
         });
       } else {
-        const min = ctrl.min ?? 0;
-        const max = ctrl.max ?? 10;
-        const step = ctrl.step ?? 1;
-        const def = typeof ctrl.defaultValue === 'number' ? ctrl.defaultValue : min;
+        const min = ('min' in ctrl && typeof ctrl.min === 'number') ? ctrl.min : 0;
+        const max = ('max' in ctrl && typeof ctrl.max === 'number') ? ctrl.max : 10;
+        const step = ('step' in ctrl && typeof ctrl.step === 'number') ? ctrl.step : 1;
+        const def = ('defaultValue' in ctrl && typeof ctrl.defaultValue === 'number') ? ctrl.defaultValue : min;
         list.push({
           id: ctrl.id,
           label: ctrl.label || ctrl.id,

@@ -724,11 +724,10 @@ export async function downloadAnimatedVideo(
 
     const rawName = customFilename || imageFileName || 'ditherforge_export';
     const baseName = rawName.replace(/\.[^/.]+$/, '');
+    const finalMime = (recorder.mimeType || selectedMime || '').toLowerCase();
     const actualExt =
-      ext === 'mov'
-        ? 'mov'
-        : (recorder.mimeType || selectedMime).includes('mp4')
-        ? 'mp4'
+      finalMime.includes('mp4') || finalMime.includes('avc1')
+        ? (ext === 'mov' ? 'mov' : 'mp4')
         : 'webm';
     const url = URL.createObjectURL(videoBlob);
     const a = document.createElement('a');

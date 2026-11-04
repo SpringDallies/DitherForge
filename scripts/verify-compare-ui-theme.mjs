@@ -7,7 +7,7 @@ const userDataDir = path.join(process.env.TEMP || 'C:\\Temp', 'chrome-verify-com
 
 const chromeProc = spawn(chromePath, [
   '--headless=new',
-  '--remote-debugging-port=9810',
+  '--remote-debugging-port=9822',
   `--user-data-dir=${userDataDir}`,
   '--window-size=1400,900',
   '--disable-gpu',
@@ -16,7 +16,7 @@ const chromeProc = spawn(chromePath, [
   'http://127.0.0.1:5173/app.html'
 ], { stdio: 'ignore' });
 
-async function waitForCdp(port = 9810, retries = 30) {
+async function waitForCdp(port = 9822, retries = 30) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json`);
@@ -69,11 +69,11 @@ function cdpClient(wsUrl) {
 
 async function main() {
   console.log('==================================================================');
-  console.log('     DITHERFORGE COMPARE UI 1:1 REFERENCE VERIFICATION            ');
+  console.log('     DITHERFORGE COMPARE UI 1:1 ASSET VERIFICATION                ');
   console.log('==================================================================');
 
   try {
-    const wsUrl = await waitForCdp(9810);
+    const wsUrl = await waitForCdp(9822);
     const client = cdpClient(wsUrl);
     await client.open();
 
@@ -109,12 +109,12 @@ async function main() {
 
     await new Promise((r) => setTimeout(r, 800));
 
-    // Verify DOM elements, labels, and styles
+    // Verify DOM elements, labels, and handle asset
     const stylesRes = await client.send('Runtime.evaluate', {
       expression: `(function() {
         const divider = document.querySelector('.split-divider-overlay');
         const handle = document.querySelector('.split-handle');
-        const handleIcon = handle ? handle.querySelector('svg.split-handle-icon') : null;
+        const handleImg = handle ? handle.querySelector('img.split-handle-img') : null;
         const badgeDithered = document.querySelector('.compare-badge.dithered');
         const badgeOriginal = document.querySelector('.compare-badge.original');
 
@@ -137,8 +137,8 @@ async function main() {
           dividerBg: dividerStyle.backgroundColor,
           handleWidth: handleStyle.width,
           handleHeight: handleStyle.height,
-          handleRadius: handleStyle.borderRadius,
-          hasSIcon: !!handleIcon
+          hasHandleAsset: !!(handleImg && handleImg.src && handleImg.src.includes('compare-handle.webp')),
+          handleImgLoaded: !!(handleImg && handleImg.complete && handleImg.naturalWidth > 0)
         };
       })()`,
       returnByValue: true
@@ -156,15 +156,14 @@ async function main() {
     if (info.originalText !== 'Original') {
       throw new Error(`Expected right badge to be 'Original', got '${info.originalText}'`);
     }
-    if (!info.hasSIcon) {
-      throw new Error('Expected S-curve icon inside handle');
+    if (!info.hasHandleAsset) {
+      throw new Error('Expected split handle to use compare-handle.webp asset');
     }
 
     console.log(`  PASS: Left badge is "${info.ditheredText}" at left: ${info.ditheredLeft}`);
     console.log(`  PASS: Right badge is "${info.originalText}" at right: ${info.originalRight}`);
-    console.log(`  PASS: Split handle rendered as vertical pill (${info.handleWidth} x ${info.handleHeight}, radius: ${info.handleRadius})`);
-    console.log(`  PASS: S-curve icon rendered inside handle`);
-    console.log(`  PASS: Split divider rendered with width: ${info.dividerWidth}`);
+    console.log(`  PASS: Split handle uses compare-handle.webp asset (loaded: ${info.handleImgLoaded}, size: ${info.handleWidth} x ${info.handleHeight})`);
+    console.log(`  PASS: Split divider rendered with width: ${info.dividerWidth}, color: ${info.dividerBg}`);
 
     // Verify Dragging
     const handlePos = await client.send('Runtime.evaluate', {
@@ -216,7 +215,7 @@ async function main() {
     });
 
     console.log('==================================================================');
-    console.log('✅ ALL COMPARE UI 1:1 REFERENCE CHECKS PASSED');
+    console.log('✅ ALL COMPARE UI 1:1 ASSET CHECKS PASSED');
     console.log('==================================================================');
 
     client.close();

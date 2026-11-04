@@ -1685,22 +1685,12 @@ export const CenterViewport: React.FC = () => {
                   onMouseDown={(e) => { e.stopPropagation(); setIsDraggingSplitter(true); }}
                 >
                   <div className="split-handle">
-                    <svg
-                      width="11"
-                      height="24"
-                      viewBox="0 0 14 30"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="split-handle-icon"
-                    >
-                      <path
-                        d="M 9.5 5 C 4.5 5, 3.5 8.5, 3.5 12 C 3.5 16, 10.5 14, 10.5 18 C 10.5 21.5, 9.5 25, 4.5 25"
-                        stroke="currentColor"
-                        strokeWidth="2.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <img
+                      src={`${import.meta.env.BASE_URL}assets/compare-handle.webp`}
+                      alt="Compare Handle"
+                      className="split-handle-img"
+                      draggable={false}
+                    />
                   </div>
                 </div>
               </>

@@ -21,6 +21,7 @@ export interface DitherForgeSettings {
   topbarGlass: boolean;
   shadows: boolean;
   animations: boolean;
+  highQualityZoom: boolean;
 }
 
 export const DEFAULT_SETTINGS: DitherForgeSettings = {
@@ -38,6 +39,7 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   topbarGlass: true,
   shadows: true,
   animations: true,
+  highQualityZoom: true,
 };
 
 const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
@@ -50,6 +52,7 @@ export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   document.documentElement.setAttribute('data-topbar-glass', isTopbarGlass ? 'true' : 'false');
   document.documentElement.setAttribute('data-shadows', settings.shadows !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-animations', settings.animations !== false ? 'true' : 'false');
+  document.documentElement.setAttribute('data-high-quality-zoom', settings.highQualityZoom !== false ? 'true' : 'false');
 
   const blurRadius = settings.glassBlurRadius ?? 16;
   const opacity = settings.glassOpacity ?? 0.82;
@@ -378,6 +381,24 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 width={130}
                 value={settings.animations !== false ? 'enabled' : 'disabled'}
                 onChange={(val) => updateSetting('animations', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">High-quality zoom</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Smooths dither patterns when zoomed out below 100% to eliminate moiré artifacts while keeping zoom-in pixelated.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.highQualityZoom !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('highQualityZoom', val === 'enabled')}
                 items={[
                   { id: 'enabled', label: 'Enabled' },
                   { id: 'disabled', label: 'Disabled' }

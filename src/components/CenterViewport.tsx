@@ -8,6 +8,7 @@ import {
   getDynamicStyleAnimatableProps
 } from '../state/useAppStore';
 import { Dropdown } from './common/Dropdown';
+import { getStoredSettings, DitherForgeSettings } from './dialogs/SettingsDialog';
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
@@ -284,7 +285,29 @@ export const CenterViewport: React.FC = () => {
   const splitRatio = useAppStore((state) => state.splitRatio);
   const setSplitRatio = useAppStore((state) => state.setSplitRatio);
 
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [highQualityZoom, setHighQualityZoom] = useState<boolean>(() => {
+    return getStoredSettings().highQualityZoom !== false;
+  });
+
+  useEffect(() => {
+    const handleSettingsChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<DitherForgeSettings>;
+      if (customEvent.detail && typeof customEvent.detail.highQualityZoom === 'boolean') {
+        setHighQualityZoom(customEvent.detail.highQualityZoom);
+      } else {
+        setHighQualityZoom(getStoredSettings().highQualityZoom !== false);
+      }
+    };
+    window.addEventListener('ditherforge_settings_changed', handleSettingsChanged);
+    return () => {
+      window.removeEventListener('ditherforge_settings_changed', handleSettingsChanged);
+    };
+  }, []);
+
+  const isSmoothDownscale = highQualityZoom && zoom < 100;
+  const imageRenderingValue = isSmoothDownscale ? 'auto' : 'pixelated';
+
+  const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
   const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
@@ -1565,20 +1588,24 @@ export const CenterViewport: React.FC = () => {
           </div>
         ) : (
           <div
-            className="canvas-unframed-stage"
+            className={`canvas-unframed-stage ${isSmoothDownscale ? 'smooth-downscale' : ''}`}
             style={{
               position: 'relative',
               display: 'inline-block',
               transform: `translate(${panX}px, ${panY}px) scale(${zoom / 100})`,
               transformOrigin: 'center center',
               transition: isPanning ? 'none' : 'transform 0.05s ease-out',
-              userSelect: 'none'
+              userSelect: 'none',
+              imageRendering: imageRenderingValue
             }}
           >
             <canvas
               ref={canvasRef}
               id="mainViewportCanvas"
-              className="preview-canvas"
+              className={`preview-canvas ${isSmoothDownscale ? 'smooth-downscale' : ''}`}
+              style={{
+                imageRendering: imageRenderingValue
+              }}
             />
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>

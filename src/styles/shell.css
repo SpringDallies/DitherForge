@@ -4605,6 +4605,11 @@ canvas#mainViewportCanvas {
   image-rendering: pixelated;
 }
 
+[data-high-quality-zoom="true"] canvas#mainViewportCanvas.smooth-downscale,
+[data-high-quality-zoom="true"] .canvas-unframed-stage.smooth-downscale {
+  image-rendering: auto !important;
+}
+
 /* --- Frosted Glass Reactivity Across All Floating UI Panels & Nested Dropdowns --- */
 [data-glass-blur="true"] .right-sidebar,
 [data-glass-blur="true"] .df-playback-plus-btn,

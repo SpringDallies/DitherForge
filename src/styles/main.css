@@ -499,6 +499,11 @@ canvas#mainViewportCanvas {
   image-rendering: crisp-edges;
 }
 
+[data-high-quality-zoom="true"] canvas#mainViewportCanvas.smooth-downscale,
+[data-high-quality-zoom="true"] .canvas-unframed-stage.smooth-downscale {
+  image-rendering: auto !important;
+}
+
 /* Split Screen Comparison Slider */
 .split-slider-line {
   position: absolute;

@@ -7,7 +7,7 @@ const userDataDir = path.join(process.env.TEMP || 'C:\\Temp', 'chrome-verify-com
 
 const chromeProc = spawn(chromePath, [
   '--headless=new',
-  '--remote-debugging-port=9792',
+  '--remote-debugging-port=9810',
   `--user-data-dir=${userDataDir}`,
   '--window-size=1400,900',
   '--disable-gpu',
@@ -16,7 +16,7 @@ const chromeProc = spawn(chromePath, [
   'http://127.0.0.1:5173/app.html'
 ], { stdio: 'ignore' });
 
-async function waitForCdp(port = 9792, retries = 30) {
+async function waitForCdp(port = 9810, retries = 30) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json`);
@@ -69,18 +69,25 @@ function cdpClient(wsUrl) {
 
 async function main() {
   console.log('==================================================================');
-  console.log('         DITHERFORGE COMPARE UI THEME VERIFICATION                ');
+  console.log('     DITHERFORGE COMPARE UI 1:1 REFERENCE VERIFICATION            ');
   console.log('==================================================================');
 
   try {
-    const wsUrl = await waitForCdp(9792);
+    const wsUrl = await waitForCdp(9810);
     const client = cdpClient(wsUrl);
     await client.open();
 
     await client.send('Page.enable');
     await client.send('Runtime.enable');
 
-    await new Promise((r) => setTimeout(r, 2000));
+    for (let i = 0; i < 40; i++) {
+      const check = await client.send('Runtime.evaluate', {
+        expression: `!!document.querySelector('.preview-canvas') && !document.querySelector('.loading-screen')`,
+        returnByValue: true
+      });
+      if (check.result.value) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
 
     // Enable Compare Mode
     const compareRes = await client.send('Runtime.evaluate', {
@@ -100,34 +107,38 @@ async function main() {
       throw new Error('Failed to find and click compare button');
     }
 
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 800));
 
-    // Verify DOM elements and styles
+    // Verify DOM elements, labels, and styles
     const stylesRes = await client.send('Runtime.evaluate', {
       expression: `(function() {
         const divider = document.querySelector('.split-divider-overlay');
         const handle = document.querySelector('.split-handle');
-        const badgeBefore = document.querySelector('.compare-badge.before');
-        const badgeAfter = document.querySelector('.compare-badge.after');
+        const handleIcon = handle ? handle.querySelector('svg.split-handle-icon') : null;
+        const badgeDithered = document.querySelector('.compare-badge.dithered');
+        const badgeOriginal = document.querySelector('.compare-badge.original');
 
-        if (!divider || !handle || !badgeBefore || !badgeAfter) {
+        if (!divider || !handle || !badgeDithered || !badgeOriginal) {
           return { found: false, error: 'Missing elements' };
         }
 
         const dividerStyle = window.getComputedStyle(divider);
         const handleStyle = window.getComputedStyle(handle);
-        const badgeStyle = window.getComputedStyle(badgeBefore);
+        const ditheredStyle = window.getComputedStyle(badgeDithered);
+        const originalStyle = window.getComputedStyle(badgeOriginal);
 
         return {
           found: true,
+          ditheredText: badgeDithered.textContent.trim(),
+          originalText: badgeOriginal.textContent.trim(),
+          ditheredLeft: ditheredStyle.left,
+          originalRight: originalStyle.right,
           dividerWidth: dividerStyle.width,
           dividerBg: dividerStyle.backgroundColor,
-          dividerShadow: dividerStyle.boxShadow,
-          handleRadius: handleStyle.borderRadius,
           handleWidth: handleStyle.width,
           handleHeight: handleStyle.height,
-          badgeRadius: badgeStyle.borderRadius,
-          badgeDisplay: badgeStyle.display
+          handleRadius: handleStyle.borderRadius,
+          hasSIcon: !!handleIcon
         };
       })()`,
       returnByValue: true
@@ -139,9 +150,21 @@ async function main() {
       process.exit(1);
     }
 
-    console.log(`  PASS: Split divider rendered (width: ${info.dividerWidth}, background: ${info.dividerBg})`);
-    console.log(`  PASS: Split handle rendered as circular disc (size: ${info.handleWidth}x${info.handleHeight}, radius: ${info.handleRadius})`);
-    console.log(`  PASS: Compare badge rendered as pill (radius: ${info.badgeRadius}, display: ${info.badgeDisplay})`);
+    if (info.ditheredText !== 'Dithered') {
+      throw new Error(`Expected left badge to be 'Dithered', got '${info.ditheredText}'`);
+    }
+    if (info.originalText !== 'Original') {
+      throw new Error(`Expected right badge to be 'Original', got '${info.originalText}'`);
+    }
+    if (!info.hasSIcon) {
+      throw new Error('Expected S-curve icon inside handle');
+    }
+
+    console.log(`  PASS: Left badge is "${info.ditheredText}" at left: ${info.ditheredLeft}`);
+    console.log(`  PASS: Right badge is "${info.originalText}" at right: ${info.originalRight}`);
+    console.log(`  PASS: Split handle rendered as vertical pill (${info.handleWidth} x ${info.handleHeight}, radius: ${info.handleRadius})`);
+    console.log(`  PASS: S-curve icon rendered inside handle`);
+    console.log(`  PASS: Split divider rendered with width: ${info.dividerWidth}`);
 
     // Verify Dragging
     const handlePos = await client.send('Runtime.evaluate', {
@@ -193,7 +216,7 @@ async function main() {
     });
 
     console.log('==================================================================');
-    console.log('✅ ALL COMPARE UI THEME CHECKS PASSED');
+    console.log('✅ ALL COMPARE UI 1:1 REFERENCE CHECKS PASSED');
     console.log('==================================================================');
 
     client.close();

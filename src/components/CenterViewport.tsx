@@ -332,15 +332,15 @@ export const CenterViewport: React.FC = () => {
     if (highQualityZoom && zoom < 100 && lastRenderedFullImageRef.current && sourceImageData) {
       renderHqPresentation(lastRenderedFullImageRef.current, sourceImageData.width, sourceImageData.height);
     }
-  }, [zoom, highQualityZoom, renderHqPresentation, sourceImageData]);
+  }, [zoom, highQualityZoom, renderHqPresentation, sourceImageData]);
 
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
   const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
   const presentationCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hqPresentationBufferRef = useRef<ImageData | null>(null);
-  const lastRenderedFullImageRef = useRef<ImageData | null>(null);
+  const lastRenderedFullImageRef = useRef<ImageData | null>(null);
 
   const isElementUI = useCallback((el: Element | null): boolean => {
     if (!el) return false;
@@ -1310,7 +1310,7 @@ export const CenterViewport: React.FC = () => {
       const originalData = renderSource.data;
       for (let y = 0; y < height; y++) {
         const rowOffset = y * width;
-        for (let x = 0; x < splitX; x++) {
+        for (let x = splitX; x < width; x++) {
           const idx = (rowOffset + x) * 4;
           comp[idx] = originalData[idx];
           comp[idx + 1] = originalData[idx + 1];
@@ -1661,20 +1661,20 @@ export const CenterViewport: React.FC = () => {
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>
                 <div
-                  className="compare-badge before"
+                  className="compare-badge dithered before"
                   style={{
                     '--compare-badge-scale': 100 / Math.max(50, zoom)
                   } as React.CSSProperties}
                 >
-                  ORIGINAL
+                  Dithered
                 </div>
                 <div
-                  className="compare-badge after"
+                  className="compare-badge original after"
                   style={{
                     '--compare-badge-scale': 100 / Math.max(50, zoom)
                   } as React.CSSProperties}
                 >
-                  DITHERED
+                  Original
                 </div>
                 <div
                   className={`split-divider-overlay ${isDraggingSplitter ? 'dragging' : ''}`}
@@ -1685,7 +1685,22 @@ export const CenterViewport: React.FC = () => {
                   onMouseDown={(e) => { e.stopPropagation(); setIsDraggingSplitter(true); }}
                 >
                   <div className="split-handle">
-                    <MoveHorizontal size={14} strokeWidth={2.2} />
+                    <svg
+                      width="11"
+                      height="24"
+                      viewBox="0 0 14 30"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="split-handle-icon"
+                    >
+                      <path
+                        d="M 9.5 5 C 4.5 5, 3.5 8.5, 3.5 12 C 3.5 16, 10.5 14, 10.5 18 C 10.5 21.5, 9.5 25, 4.5 25"
+                        stroke="currentColor"
+                        strokeWidth="2.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   </div>
                 </div>
               </>

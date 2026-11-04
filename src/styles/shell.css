@@ -2746,60 +2746,96 @@ button .btn-icon:hover,
   top: 0;
   bottom: 0;
   width: 2px;
-  background: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.75), 0 0 1px rgba(0, 0, 0, 0.95);
   cursor: ew-resize;
   z-index: 20;
   transform: translateX(-50%);
   pointer-events: auto;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+.split-divider-overlay:hover,
+.split-divider-overlay.dragging {
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6), 0 0 3px rgba(0, 0, 0, 0.85);
 }
 .split-divider-overlay::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -8px;
-  right: -8px;
+  left: -12px;
+  right: -12px;
   cursor: ew-resize;
 }
 .split-handle {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: 24px;
-  height: 24px;
+  transform: translate(-50%, -50%) scale(var(--split-handle-scale, 1));
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: var(--bg-secondary);
-  border: 2px solid var(--accent-primary);
-  color: var(--accent-primary);
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: color-mix(in srgb, var(--bg-panel) 84%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1.5px solid color-mix(in srgb, var(--border-color) 70%, rgba(255, 255, 255, 0.28));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: var(--text-main);
   cursor: ew-resize;
-  box-shadow: none;
+  user-select: none;
+  transition: transform 120ms ease, border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+.split-divider-overlay:hover .split-handle,
+.split-handle:hover {
+  background-color: color-mix(in srgb, var(--bg-raised) 90%, transparent);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 12px rgba(255, 255, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: var(--text-main);
+  transform: translate(-50%, -50%) scale(calc(var(--split-handle-scale, 1) * 1.08));
+}
+.split-divider-overlay.dragging .split-handle,
+.split-handle:active {
+  background-color: color-mix(in srgb, var(--bg-panel) 95%, transparent);
+  border-color: var(--accent-primary);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 10px color-mix(in srgb, var(--accent-primary) 50%, transparent);
+  color: var(--accent-primary);
+  transform: translate(-50%, -50%) scale(calc(var(--split-handle-scale, 1) * 0.96));
 }
 .compare-badge {
   position: absolute;
-  top: 10px;
-  padding: 3px 8px;
-  font-size: 0.68rem;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  font-size: 0.65rem;
   font-family: var(--font-sans);
   font-weight: 600;
-  letter-spacing: 0.05em;
-  background: var(--bg-tertiary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background-color: color-mix(in srgb, var(--bg-panel) var(--glass-opacity, 75%), transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 12px)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 12px)) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, rgba(255, 255, 255, 0.18));
+  border-radius: 9999px;
   color: var(--text-main);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm, 4px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   pointer-events: none;
-  z-index: 10;
+  z-index: 15;
   user-select: none;
-  box-shadow: none;
+  transform: scale(var(--compare-badge-scale, 1));
 }
 .compare-badge.before {
-  left: 10px;
+  left: 12px;
+  transform-origin: top left;
 }
 .compare-badge.after {
-  right: 10px;
+  right: 12px;
+  transform-origin: top right;
 }
 /* ═══════════════════════════════════════════════════════════════
    PHASE 5 POLISH: ITEM 1 - PRESETS SECTION SPACING
@@ -3372,7 +3408,9 @@ body {
 [data-glass-blur="false"] .algo-listbox-panel,
 [data-glass-blur="false"] .dropdown-menu-popover,
 [data-glass-blur="false"] .replica-callout-popover,
-[data-glass-blur="false"] .modal-dialog {
+[data-glass-blur="false"] .modal-dialog,
+[data-glass-blur="false"] .compare-badge,
+[data-glass-blur="false"] .split-handle {
   background-color: var(--bg-secondary) !important;
 }
 /* Disabled Shadows */

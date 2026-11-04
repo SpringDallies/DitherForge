@@ -1660,18 +1660,33 @@ export const CenterViewport: React.FC = () => {
             )}
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>
-                <div className="compare-badge before" style={{ transform: `scale(${100 / Math.max(50, zoom)})`, transformOrigin: 'top left' }}>
+                <div
+                  className="compare-badge before"
+                  style={{
+                    '--compare-badge-scale': 100 / Math.max(50, zoom)
+                  } as React.CSSProperties}
+                >
                   ORIGINAL
                 </div>
-                <div className="compare-badge after" style={{ transform: `scale(${100 / Math.max(50, zoom)})`, transformOrigin: 'top right' }}>
+                <div
+                  className="compare-badge after"
+                  style={{
+                    '--compare-badge-scale': 100 / Math.max(50, zoom)
+                  } as React.CSSProperties}
+                >
                   DITHERED
                 </div>
                 <div
-                  className="split-divider-overlay"
-                  style={{ left: `${splitRatio * 100}%` }}
+                  className={`split-divider-overlay ${isDraggingSplitter ? 'dragging' : ''}`}
+                  style={{
+                    left: `${splitRatio * 100}%`,
+                    '--split-handle-scale': 100 / Math.max(50, Math.min(200, zoom))
+                  } as React.CSSProperties}
                   onMouseDown={(e) => { e.stopPropagation(); setIsDraggingSplitter(true); }}
                 >
-                  <div className="split-handle"><MoveHorizontal size={12} /></div>
+                  <div className="split-handle">
+                    <MoveHorizontal size={14} strokeWidth={2.2} />
+                  </div>
                 </div>
               </>
             )}

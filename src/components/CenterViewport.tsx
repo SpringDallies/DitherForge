@@ -9,12 +9,12 @@ import {
 } from '../state/useAppStore';
 import { Dropdown } from './common/Dropdown';
 // @ts-ignore
-import { applyDitherAlgorithm, applyTweaks } from '../dither-engine/algorithms.js';
+import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
+import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
 // @ts-ignore
 import { applyEffectStack } from '../dither-engine/effect-stack.js';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
-import { createProxyImageData } from '../utils/samplePattern';
 import {
   UploadCloud,
   FolderOpen,
@@ -24,10 +24,11 @@ import {
   Play,
   Pause,
   SkipForward,
-  Plus,
-  Trash2,
-  Copy
+  Plus
 } from 'lucide-react';
+
+// Maximum memory budget for pre-rendered animation frames in "Rendered" mode: 128 MB
+const MAX_RENDERED_CACHE_BYTES = 128 * 1024 * 1024;
 
 function applyEasing(t: number, mode: EasingMode): number {
   const clamped = Math.max(0, Math.min(1, t));
@@ -41,7 +42,7 @@ function applyEasing(t: number, mode: EasingMode): number {
     case 'pulse':
       return Math.sin(clamped * Math.PI);
     case 'step':
-      return clamped < 0.999 ? 0 : 1;
+      return clamped < 0.5 ? 0 : 1;
     default:
       return clamped;
   }
@@ -60,28 +61,13 @@ const getSliderFill = (val: number, min: number, max: number): React.CSSProperti
 };
 
 function shiftRgbHue(r: number, g: number, b: number, deg: number): [number, number, number] {
-  if (!deg) return [r, g, b];
-  const rad = (deg * Math.PI) / 180;
-  const cosA = Math.cos(rad);
-  const sinA = Math.sin(rad);
-  const sq13 = Math.sqrt(1 / 3);
-  const m00 = cosA + (1 - cosA) / 3;
-  const m01 = (1 / 3) * (1 - cosA) - sq13 * sinA;
-  const m02 = (1 / 3) * (1 - cosA) + sq13 * sinA;
-  const m10 = (1 / 3) * (1 - cosA) + sq13 * sinA;
-  const m11 = cosA + (1 / 3) * (1 - cosA);
-  const m12 = (1 / 3) * (1 - cosA) - sq13 * sinA;
-  const m20 = (1 / 3) * (1 - cosA) - sq13 * sinA;
-  const m21 = (1 / 3) * (1 - cosA) + sq13 * sinA;
-  const m22 = cosA + (1 / 3) * (1 - cosA);
-  return [
-    Math.max(0, Math.min(255, Math.round(r * m00 + g * m01 + b * m02))),
-    Math.max(0, Math.min(255, Math.round(r * m10 + g * m11 + b * m12))),
-    Math.max(0, Math.min(255, Math.round(r * m20 + g * m21 + b * m22)))
-  ];
+  return rotateHueHsvPixel(r, g, b, deg);
 }
 
-// Fast Separable Box Blur + Denoise + Highlight pass on RGBA buffer
+// Reusable scratch buffer for viewport separable box blur to avoid per-frame allocations
+let viewportBlurScratch: Uint8ClampedArray | null = null;
+
+// Fast O(1)-per-pixel Sliding-Window Separable Box Blur + Denoise + Highlight pass on RGBA buffer
 function applyExtendedAdjustments(
   data: Uint8ClampedArray,
   width: number,
@@ -106,55 +92,103 @@ function applyExtendedAdjustments(
     }
   }
 
-  // 2. Separable Box Blur + Denoise smoothing
+  // 2. Separable Box Blur + Denoise smoothing (O(1) sliding window per pixel)
   const totalBlur = Math.round(blurRadius + (denoiseStrength / 100) * 3);
-  if (totalBlur >= 1) {
+  if (totalBlur >= 1 && width > 0 && height > 0) {
     const rad = Math.min(20, totalBlur);
-    const temp = new Uint8ClampedArray(data.length);
+    if (!viewportBlurScratch || viewportBlurScratch.length !== data.length) {
+      viewportBlurScratch = new Uint8ClampedArray(data.length);
+    }
+    const temp = viewportBlurScratch;
     const blend = blurRadius > 0 ? 1.0 : Math.min(0.85, denoiseStrength / 100);
 
-    // Horizontal pass
+    // Horizontal pass with sliding window
     for (let y = 0; y < height; y++) {
-      const rowOff = y * width;
+      const rowOff = y * width * 4;
+      let rSum = 0;
+      let gSum = 0;
+      let bSum = 0;
+      let count = 0;
+
+      const initX1 = Math.min(width - 1, rad);
+      for (let k = 0; k <= initX1; k++) {
+        const idx = rowOff + k * 4;
+        rSum += data[idx];
+        gSum += data[idx + 1];
+        bSum += data[idx + 2];
+        count++;
+      }
+
       for (let x = 0; x < width; x++) {
-        let rSum = 0, gSum = 0, bSum = 0, count = 0;
-        const x0 = Math.max(0, x - rad);
-        const x1 = Math.min(width - 1, x + rad);
-        for (let k = x0; k <= x1; k++) {
-          const idx = (rowOff + k) * 4;
-          rSum += data[idx];
-          gSum += data[idx + 1];
-          bSum += data[idx + 2];
-          count++;
-        }
-        const outIdx = (rowOff + x) * 4;
+        const outIdx = rowOff + x * 4;
         temp[outIdx] = rSum / count;
         temp[outIdx + 1] = gSum / count;
         temp[outIdx + 2] = bSum / count;
         temp[outIdx + 3] = data[outIdx + 3];
+
+        const removeX = x - rad;
+        if (removeX >= 0) {
+          const remIdx = rowOff + removeX * 4;
+          rSum -= data[remIdx];
+          gSum -= data[remIdx + 1];
+          bSum -= data[remIdx + 2];
+          count--;
+        }
+        const addX = x + rad + 1;
+        if (addX < width) {
+          const addIdx = rowOff + addX * 4;
+          rSum += data[addIdx];
+          gSum += data[addIdx + 1];
+          bSum += data[addIdx + 2];
+          count++;
+        }
       }
     }
 
-    // Vertical pass
-    for (let y = 0; y < height; y++) {
-      const y0 = Math.max(0, y - rad);
-      const y1 = Math.min(height - 1, y + rad);
-      for (let x = 0; x < width; x++) {
-        let rSum = 0, gSum = 0, bSum = 0, count = 0;
-        for (let k = y0; k <= y1; k++) {
-          const idx = (k * width + x) * 4;
-          rSum += temp[idx];
-          gSum += temp[idx + 1];
-          bSum += temp[idx + 2];
-          count++;
-        }
-        const outIdx = (y * width + x) * 4;
+    // Vertical pass with sliding window
+    const stride = width * 4;
+    const invBlend = 1 - blend;
+    for (let x = 0; x < width; x++) {
+      const colOff = x * 4;
+      let rSum = 0;
+      let gSum = 0;
+      let bSum = 0;
+      let count = 0;
+
+      const initY1 = Math.min(height - 1, rad);
+      for (let k = 0; k <= initY1; k++) {
+        const idx = k * stride + colOff;
+        rSum += temp[idx];
+        gSum += temp[idx + 1];
+        bSum += temp[idx + 2];
+        count++;
+      }
+
+      for (let y = 0; y < height; y++) {
+        const outIdx = y * stride + colOff;
         const br = rSum / count;
         const bg = gSum / count;
         const bb = bSum / count;
-        data[outIdx] = data[outIdx] * (1 - blend) + br * blend;
-        data[outIdx + 1] = data[outIdx + 1] * (1 - blend) + bg * blend;
-        data[outIdx + 2] = data[outIdx + 2] * (1 - blend) + bb * blend;
+        data[outIdx] = data[outIdx] * invBlend + br * blend;
+        data[outIdx + 1] = data[outIdx + 1] * invBlend + bg * blend;
+        data[outIdx + 2] = data[outIdx + 2] * invBlend + bb * blend;
+
+        const removeY = y - rad;
+        if (removeY >= 0) {
+          const remIdx = removeY * stride + colOff;
+          rSum -= temp[remIdx];
+          gSum -= temp[remIdx + 1];
+          bSum -= temp[remIdx + 2];
+          count--;
+        }
+        const addY = y + rad + 1;
+        if (addY < height) {
+          const addIdx = addY * stride + colOff;
+          rSum += temp[addIdx];
+          gSum += temp[addIdx + 1];
+          bSum += temp[addIdx + 2];
+          count++;
+        }
       }
     }
   }
@@ -171,6 +205,8 @@ export const CenterViewport: React.FC = () => {
   const videoElRef = useRef<HTMLVideoElement | null>(null);
   const videoCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const scrubRafRef = useRef<number | null>(null);
+  const trackDragRafRef = useRef<number | null>(null);
+  const lastRenderMsUpdateWallRef = useRef<number>(0);
 
   const hasImage = useAppStore((state) => state.hasImage);
   const sourceImageData = useAppStore((state) => state.sourceImageData);
@@ -181,6 +217,7 @@ export const CenterViewport: React.FC = () => {
 
   const algorithmId = useAppStore((state) => state.algorithmId);
   const algoParams = useAppStore((state) => state.algoParams);
+
   const brightness = useAppStore((state) => state.brightness);
   const contrast = useAppStore((state) => state.contrast);
   const saturation = useAppStore((state) => state.saturation);
@@ -190,6 +227,7 @@ export const CenterViewport: React.FC = () => {
   const denoise = useAppStore((state) => state.denoise);
   const highlight = useAppStore((state) => state.highlight);
   const depth = useAppStore((state) => state.depth);
+
   const workingPalette = useAppStore((state) => state.workingPalette);
   const paletteDepth = useAppStore((state) => state.paletteDepth);
   const effects = useAppStore((state) => state.effects);
@@ -210,6 +248,10 @@ export const CenterViewport: React.FC = () => {
 
   const isPlaying = useAppStore((state) => state.isPlaying);
   const togglePlay = useAppStore((state) => state.togglePlay);
+  const playbackSpeed = useAppStore((state) => state.playbackSpeed);
+  const setPlaybackSpeed = useAppStore((state) => state.setPlaybackSpeed);
+  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
+  const speedMenuRef = useRef<HTMLDivElement | null>(null);
   const currentTime = useAppStore((state) => state.currentTime);
   const setCurrentTime = useAppStore((state) => state.setCurrentTime);
   const duration = useAppStore((state) => state.duration);
@@ -217,6 +259,7 @@ export const CenterViewport: React.FC = () => {
   const fps = useAppStore((state) => state.fps);
   const setFps = useAppStore((state) => state.setFps);
   const stepFrame = useAppStore((state) => state.stepFrame);
+
   const animationTracks = useAppStore((state) => state.animationTracks);
   const selectedTrackId = useAppStore((state) => state.selectedTrackId);
   const setSelectedTrackId = useAppStore((state) => state.setSelectedTrackId);
@@ -243,7 +286,7 @@ export const CenterViewport: React.FC = () => {
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
+  const [, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
   const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
 
   const isElementUI = useCallback((el: Element | null): boolean => {
@@ -285,6 +328,7 @@ export const CenterViewport: React.FC = () => {
     }
     return false;
   }, []);
+
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const [isScrubbingTimeline, setIsScrubbingTimeline] = useState(false);
   const [draggingTrackBar, setDraggingTrackBar] = useState<{
@@ -297,46 +341,19 @@ export const CenterViewport: React.FC = () => {
     didMove: boolean;
   } | null>(null);
 
-  // Default markerZoomLevel = 3 => 16 intervals (17 markers: 5 major, 4 medium, 8 minor matching image_4dd51b.png 1:1!)
+  // Default markerZoomLevel = 3 => 16 intervals (17 markers: 5 major, 4 medium, 8 minor)
   const [markerZoomLevel, setMarkerZoomLevel] = useState<number>(3);
-
   const [popupFpsInput, setPopupFpsInput] = useState<string>('30');
   const [popupDurationInput, setPopupDurationInput] = useState<string>('15s');
 
-  const [trackContextMenu, setTrackContextMenu] = useState<{
-    trackId: string;
-    x: number;
-    y: number;
-  } | null>(null);
-
   const lastRenderSignatureRef = useRef<string>('');
-
-  useEffect(() => {
-    if (!trackContextMenu) return;
-    const handleClose = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && target.closest('.df-track-context-menu')) return;
-      setTrackContextMenu(null);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setTrackContextMenu(null);
-    };
-    window.addEventListener('mousedown', handleClose);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('mousedown', handleClose);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [trackContextMenu]);
-
-  useEffect(() => {
-    const handleCloseTrackMenu = () => setTrackContextMenu(null);
-    window.addEventListener('close_track_context_menu', handleCloseTrackMenu);
-    return () => window.removeEventListener('close_track_context_menu', handleCloseTrackMenu);
-  }, []);
-
-  // Pre-rendered frame cache for Video: "Rendered" mode
+  // Pre-rendered frame cache for Video: "Rendered" mode (bounded by MAX_RENDERED_CACHE_BYTES)
   const renderedFramesCacheRef = useRef<Map<number, ImageData>>(new Map());
+  const renderedCacheBytesRef = useRef<number>(0);
+  // Cached pre-dither adjustments buffer to avoid full-resolution recomputation when only algorithm/style params animate
+  const adjustedBaseBufferRef = useRef<Uint8ClampedArray | null>(null);
+  const lastAdjustmentsSigRef = useRef<string>('');
+  const executeRenderPipelineRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (isCreateAnimationPopupOpen) {
@@ -345,9 +362,12 @@ export const CenterViewport: React.FC = () => {
     }
   }, [isCreateAnimationPopupOpen, fps, duration]);
 
-  // Invalidate pre-rendered cache when parameters or tracks change
+  // Invalidate pre-rendered frame cache when parameters or tracks change.
+  // Note: adjustedBaseBufferRef is NOT cleared when animationTracks/algoParams/effects/palette change,
+  // because adjustmentsSig inside executeRenderPipeline accurately tracks whether upstream adjustments changed!
   useEffect(() => {
     renderedFramesCacheRef.current.clear();
+    renderedCacheBytesRef.current = 0;
     lastRenderSignatureRef.current = '';
   }, [
     sourceImageData,
@@ -363,12 +383,22 @@ export const CenterViewport: React.FC = () => {
     highlight,
     depth,
     workingPalette,
+    previewPaletteId,
+    savedPalettes,
     paletteDepth,
     effects,
+    videoRenderMode,
+    previewQuality,
     animationTracks,
     duration,
     fps
   ]);
+
+  // Only clear adjustedBaseBufferRef when actual source image dimensions/pixels change
+  useEffect(() => {
+    lastAdjustmentsSigRef.current = '';
+    adjustedBaseBufferRef.current = null;
+  }, [sourceImageData, sourceVideoUrl]);
 
   // Sync HTMLVideoElement frame if a video file was imported
   useEffect(() => {
@@ -381,8 +411,19 @@ export const CenterViewport: React.FC = () => {
     vid.muted = true;
     vid.playsInline = true;
     vid.crossOrigin = 'anonymous';
+    vid.preload = 'auto';
+
+    // When an asynchronous video seek finishes, re-run the render pipeline so the new video frame is drawn
+    const handleSeeked = () => {
+      lastRenderSignatureRef.current = '';
+      lastAdjustmentsSigRef.current = '';
+      executeRenderPipelineRef.current();
+    };
+    vid.addEventListener('seeked', handleSeeked);
     videoElRef.current = vid;
+
     return () => {
+      vid.removeEventListener('seeked', handleSeeked);
       vid.pause();
       vid.src = '';
     };
@@ -405,7 +446,6 @@ export const CenterViewport: React.FC = () => {
     const parsedFps = Math.max(1, Math.min(120, parseInt(popupFpsInput, 10) || 30));
     const numericDur = parseFloat(popupDurationInput.replace(/[^0-9.]/g, ''));
     const parsedDur = Math.max(1, !isNaN(numericDur) && numericDur > 0 ? numericDur : 15);
-
     setFps(parsedFps);
     setDuration(parsedDur);
     setCurrentTime(0);
@@ -427,7 +467,6 @@ export const CenterViewport: React.FC = () => {
   useEffect(() => {
     const el = timelineGroupRef.current;
     if (!el || appMode !== 'animation' || !hasConfiguredAnimation) return;
-
     const handleNativeTimelineWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) {
         e.preventDefault();
@@ -436,35 +475,89 @@ export const CenterViewport: React.FC = () => {
         setMarkerZoomLevel((prev) => Math.max(1, Math.min(5, prev + delta)));
       }
     };
-
     el.addEventListener('wheel', handleNativeTimelineWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleNativeTimelineWheel);
   }, [appMode, hasConfiguredAnimation]);
 
-  // Playback loop rAF
+  // Close speed popover on outside click
+  useEffect(() => {
+    if (!isSpeedMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (speedMenuRef.current && !speedMenuRef.current.contains(e.target as Node)) {
+        setIsSpeedMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isSpeedMenuOpen]);
+
+  // Time-based Playback Clock with Frame-Quantized Zustand Updates & Smooth 60fps DOM Playhead
   useEffect(() => {
     if (appMode !== 'animation' || !isPlaying) return;
     let lastTs = performance.now();
+    let localTime = useAppStore.getState().currentTime;
+    let lastStoreTime = localTime;
+    let lastFrameIdx = Math.round(localTime * (useAppStore.getState().fps || 30));
     let animId: number;
 
     const tick = (now: number) => {
-      const dt = (now - lastTs) / 1000;
-      lastTs = now;
       const state = useAppStore.getState();
-      let nextTime = state.currentTime + dt;
-      if (nextTime >= state.duration) {
+      if (!state.isPlaying || state.appMode !== 'animation') return;
+
+      // If external action (e.g., Home/End/Scrub) changed currentTime, resync local clock
+      if (Math.abs(state.currentTime - lastStoreTime) > 0.0005) {
+        localTime = state.currentTime;
+      }
+
+      // Clamp single-frame dt to 0.25s max so slow frames or background tabs don't jump wildly
+      const rawDt = Math.max(0, (now - lastTs) / 1000);
+      const dt = Math.min(0.25, rawDt);
+      lastTs = now;
+
+      const speed = state.playbackSpeed || 1;
+      const dur = Math.max(0.1, state.duration || 15);
+      const activeFps = Math.max(1, state.fps || 30);
+      let nextTime = localTime + dt * speed;
+
+      if (nextTime >= dur) {
         if (state.videoPlaybackMode === 'looped') {
-          nextTime = nextTime % state.duration;
-          state.setCurrentTime(nextTime);
+          nextTime = nextTime % dur;
+          localTime = nextTime;
+          lastStoreTime = Number(nextTime.toFixed(4));
+          lastFrameIdx = Math.round(nextTime * activeFps);
+          if (playheadDomRef.current) {
+            playheadDomRef.current.style.left = `${(nextTime / dur) * 100}%`;
+          }
+          state.setCurrentTime(lastStoreTime);
           animId = requestAnimationFrame(tick);
         } else {
-          state.setCurrentTime(state.duration);
+          localTime = dur;
+          lastStoreTime = dur;
+          if (playheadDomRef.current) {
+            playheadDomRef.current.style.left = '100%';
+          }
+          state.setCurrentTime(dur);
           state.setIsPlaying(false);
         }
-      } else {
-        state.setCurrentTime(nextTime);
-        animId = requestAnimationFrame(tick);
+        return;
       }
+
+      localTime = nextTime;
+
+      // Update playhead DOM position directly at display refresh rate (zero React overhead)
+      if (playheadDomRef.current) {
+        playheadDomRef.current.style.left = `${Math.max(0, Math.min(100, (nextTime / dur) * 100))}%`;
+      }
+
+      // Only commit Zustand state update when crossing a discrete timeline frame boundary
+      const nextFrameIdx = Math.round(nextTime * activeFps);
+      if (nextFrameIdx !== lastFrameIdx) {
+        lastFrameIdx = nextFrameIdx;
+        lastStoreTime = Number(nextTime.toFixed(4));
+        state.setCurrentTime(lastStoreTime);
+      }
+
+      animId = requestAnimationFrame(tick);
     };
 
     animId = requestAnimationFrame(tick);
@@ -485,7 +578,6 @@ export const CenterViewport: React.FC = () => {
       ) {
         return;
       }
-
       if (appMode !== 'animation' || !hasConfiguredAnimation) return;
 
       // 1. Play / Pause (Space or K)
@@ -508,7 +600,6 @@ export const CenterViewport: React.FC = () => {
           return;
         }
       }
-
       if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'l') {
         if (!e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault();
@@ -528,7 +619,6 @@ export const CenterViewport: React.FC = () => {
         setCurrentTime(0);
         return;
       }
-
       if (e.key === 'End') {
         e.preventDefault();
         setCurrentTime(duration);
@@ -569,8 +659,7 @@ export const CenterViewport: React.FC = () => {
           return;
         }
       }
-
-      if (e.key === 'ArrowDown' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === 'ArrowDown' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
         if (animationTracks.length > 0) {
           e.preventDefault();
           if (!selectedTrackId) {
@@ -605,7 +694,6 @@ export const CenterViewport: React.FC = () => {
         duplicateAnimationTrack(selectedTrackId);
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
@@ -674,7 +762,6 @@ export const CenterViewport: React.FC = () => {
 
     window.addEventListener('mousemove', handleWindowMouseMove, { passive: true });
     window.addEventListener('mouseup', handleWindowMouseUp);
-
     return () => {
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
@@ -685,21 +772,26 @@ export const CenterViewport: React.FC = () => {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
     const handleNativeWheel = (e: WheelEvent) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.15 : 0.85;
       const state = useAppStore.getState();
       const newZoom = Math.max(10, Math.min(3200, Math.round(state.zoom * factor)));
       if (newZoom === state.zoom) return;
+
       const rect = container.getBoundingClientRect();
       const cursorX = e.clientX - (rect.left + rect.width / 2);
       const cursorY = e.clientY - (rect.top + rect.height / 2);
+
       const zoomRatio = newZoom / state.zoom;
       const newPanX = Math.round(cursorX - (cursorX - state.panX) * zoomRatio);
       const newPanY = Math.round(cursorY - (cursorY - state.panY) * zoomRatio);
+
       setZoom(newZoom);
       setPan(newPanX, newPanY);
     };
+
     container.addEventListener('wheel', handleNativeWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleNativeWheel);
   }, [setZoom, setPan]);
@@ -759,7 +851,6 @@ export const CenterViewport: React.FC = () => {
 
   const workBufferRef = useRef<Uint8ClampedArray | null>(null);
   const compositeBufferRef = useRef<Uint8ClampedArray | null>(null);
-  const proxyCacheRef = useRef<{ source: ImageData; low: ImageData; mid: ImageData } | null>(null);
   const proxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const executeRenderPipeline = useCallback(() => {
@@ -770,17 +861,23 @@ export const CenterViewport: React.FC = () => {
 
     const fullWidth = sourceImageData.width;
     const fullHeight = sourceImageData.height;
+
     if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
       canvas.width = fullWidth;
       canvas.height = fullHeight;
     }
 
     // Video: "Rendered" vs "Quick" behavior
-    // In "Rendered" mode, frames are pre-rendered at full resolution and cached by frame index for instant playback!
+    // In "Rendered" mode, frames are pre-rendered at full resolution and cached by frame index with LRU byte eviction!
     const frameIndex = appMode === 'animation' ? Math.round(currentTime * fps) : 0;
     if (appMode === 'animation' && videoRenderMode === 'rendered' && !showBeforeAfter && !isOriginalView && !sourceVideoUrl) {
-      const cachedFrame = renderedFramesCacheRef.current.get(frameIndex);
+      const cache = renderedFramesCacheRef.current;
+      const cachedFrame = cache.get(frameIndex);
       if (cachedFrame && cachedFrame.width === fullWidth && cachedFrame.height === fullHeight) {
+        // Refresh LRU order
+        cache.delete(frameIndex);
+        cache.set(frameIndex, cachedFrame);
+        ctx.clearRect(0, 0, fullWidth, fullHeight);
         ctx.putImageData(cachedFrame, 0, 0);
         return;
       }
@@ -788,19 +885,16 @@ export const CenterViewport: React.FC = () => {
 
     let effectiveQuality = previewQuality;
     if (appMode === 'animation') {
-      if (videoRenderMode === 'rendered') {
-        effectiveQuality = 'full';
-      } else if (isPlaying && videoRenderMode === 'quick' && effectiveQuality === 'full') {
-        effectiveQuality = 'mid';
-      }
+      effectiveQuality = 'full';
     }
 
     // If a video source is active, grab current video frame if ready
     let activeBaseImage = sourceImageData;
     if (sourceVideoUrl && videoElRef.current && videoElRef.current.readyState >= 2) {
       const vid = videoElRef.current;
-      if (Math.abs(vid.currentTime - currentTime) > 0.04) {
-        vid.currentTime = currentTime % (vid.duration || duration || 1);
+      const targetVidTime = currentTime % (vid.duration || duration || 1);
+      if (!vid.seeking && Math.abs(vid.currentTime - targetVidTime) > 0.04) {
+        vid.currentTime = targetVidTime;
       }
       if (!videoCanvasRef.current) {
         videoCanvasRef.current = document.createElement('canvas');
@@ -810,26 +904,17 @@ export const CenterViewport: React.FC = () => {
         vCan.width = fullWidth;
         vCan.height = fullHeight;
       }
-      const vCtx = vCan.getContext('2d');
+      const vCtx = vCan.getContext('2d', { willReadFrequently: true });
       if (vCtx) {
+        vCtx.clearRect(0, 0, fullWidth, fullHeight);
         vCtx.drawImage(vid, 0, 0, fullWidth, fullHeight);
         activeBaseImage = vCtx.getImageData(0, 0, fullWidth, fullHeight);
       }
     }
 
-    if (!sourceVideoUrl && proxyCacheRef.current?.source !== activeBaseImage) {
-      proxyCacheRef.current = {
-        source: activeBaseImage,
-        low: createProxyImageData(activeBaseImage, 320).data,
-        mid: createProxyImageData(activeBaseImage, 640).data
-      };
-    }
-
-    let renderSource = activeBaseImage;
-    if (!sourceVideoUrl && proxyCacheRef.current) {
-      if (effectiveQuality === 'low') renderSource = proxyCacheRef.current.low;
-      else if (effectiveQuality === 'mid') renderSource = proxyCacheRef.current.mid;
-    }
+    // Processing dimensions are ALWAYS fullWidth and fullHeight to strictly preserve
+    // the dithering coordinate system, Bayer matrix scale, and spatial frequency.
+    const renderSource = activeBaseImage;
 
     let effBrightness = brightness;
     let effContrast = contrast;
@@ -843,6 +928,7 @@ export const CenterViewport: React.FC = () => {
     let effPaletteDepth = paletteDepth;
     let effPaletteHueShift = 0;
     let effPaletteCycle = 0;
+
     const effAlgoParams: Record<string, any> = { ...currentParams };
     const effEffects = effects.map((e) => ({ ...e, params: { ...e.params } }));
     let animatedNoiseActive = false;
@@ -894,7 +980,17 @@ export const CenterViewport: React.FC = () => {
       }
     }
 
-    const paletteSig = (previewPaletteId || '') + ':' + (workingPalette?.length || 0) + ':' + (effPaletteDepth || 0) + ':' + effPaletteHueShift.toFixed(2) + ':' + effPaletteCycle;
+    const paletteSig =
+      (previewPaletteId || '') +
+      ':' +
+      (workingPalette?.length || 0) +
+      ':' +
+      (effPaletteDepth || 0) +
+      ':' +
+      effPaletteHueShift.toFixed(2) +
+      ':' +
+      effPaletteCycle;
+
     const renderSig = [
       sourceImageData.width,
       sourceImageData.height,
@@ -932,30 +1028,72 @@ export const CenterViewport: React.FC = () => {
     if (!workBufferRef.current || workBufferRef.current.length !== len) {
       workBufferRef.current = new Uint8ClampedArray(len);
     }
-    workBufferRef.current.set(renderSource.data);
-    const workingData = workBufferRef.current;
+
+    // Avoid unnecessary full-resolution recomputation:
+    // If only Threshold or algorithm/style/effect params are changing, reuse the pre-dither adjusted buffer!
+    const adjustmentsSig = [
+      width,
+      height,
+      sourceVideoUrl
+        ? currentTime.toFixed(2)
+        : sourceImageData.data[0] + '_' + sourceImageData.data[Math.min(100, len - 1)],
+      effBrightness.toFixed(3),
+      effContrast.toFixed(3),
+      effSaturation.toFixed(3),
+      effHue.toFixed(3),
+      effGamma.toFixed(3),
+      effBlur.toFixed(3),
+      effDenoise.toFixed(3),
+      effHighlight.toFixed(3)
+    ].join('::');
 
     const t0 = performance.now();
 
-    applyTweaks(workingData, width, height, {
-      brightness: effBrightness / 100,
-      contrast: effContrast / 100,
-      saturation: effSaturation / 100,
-      gamma: effGamma,
-      hue: effHue
-    });
+    if (
+      adjustedBaseBufferRef.current &&
+      adjustedBaseBufferRef.current.length === len &&
+      lastAdjustmentsSigRef.current === adjustmentsSig
+    ) {
+      // Unaffected intermediate processing result reused!
+      workBufferRef.current.set(adjustedBaseBufferRef.current);
+    } else {
+      if (!adjustedBaseBufferRef.current || adjustedBaseBufferRef.current.length !== len) {
+        adjustedBaseBufferRef.current = new Uint8ClampedArray(len);
+      }
+      adjustedBaseBufferRef.current.set(renderSource.data);
 
-    if (effBlur > 0 || effDenoise > 0 || effHighlight !== 0) {
-      applyExtendedAdjustments(workingData, width, height, effBlur, effDenoise, effHighlight);
+      applyTweaksFast(adjustedBaseBufferRef.current, width, height, {
+        brightness: effBrightness / 100,
+        contrast: effContrast / 100,
+        saturation: effSaturation / 100,
+        gamma: effGamma,
+        hue: effHue
+      });
+
+      if (effBlur > 0 || effDenoise > 0 || effHighlight !== 0) {
+        applyExtendedAdjustments(
+          adjustedBaseBufferRef.current,
+          width,
+          height,
+          effBlur,
+          effDenoise,
+          effHighlight
+        );
+      }
+
+      lastAdjustmentsSigRef.current = adjustmentsSig;
+      workBufferRef.current.set(adjustedBaseBufferRef.current);
     }
+
+    const workingData = workBufferRef.current;
 
     const activeNoiseVal = Number(effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0);
     if ((animatedNoiseActive || activeNoiseVal > 0) && activeNoiseVal > 0) {
-      const seedOffset = (animatedNoiseActive && appMode === 'animation') ? frameIndex * 1337 : 42;
+      const seedOffset = animatedNoiseActive && appMode === 'animation' ? frameIndex * 1337 : 42;
       const amp = activeNoiseVal * 110;
       for (let i = 0; i < len; i += 4) {
         const hash = Math.sin((i >> 2) * 12.9898 + seedOffset) * 43758.5453;
-        const n = ((hash - Math.floor(hash)) - 0.5) * amp;
+        const n = (hash - Math.floor(hash) - 0.5) * amp;
         workingData[i] = Math.max(0, Math.min(255, workingData[i] + n));
         workingData[i + 1] = Math.max(0, Math.min(255, workingData[i + 1] + n));
         workingData[i + 2] = Math.max(0, Math.min(255, workingData[i + 2] + n));
@@ -970,9 +1108,13 @@ export const CenterViewport: React.FC = () => {
           savedPalettes.find((p) => p.id === previewPaletteId);
         base = previewPal ? previewPal.colors : workingPalette;
       } else {
-        base = workingPalette && workingPalette.length > 0 ? workingPalette : BUILTIN_PALETTES[0].colors;
+        base =
+          workingPalette && workingPalette.length > 0 ? workingPalette : BUILTIN_PALETTES[0].colors;
       }
-      let sliced = base.slice(0, Math.max(2, Math.min(effPaletteDepth || base.length, base.length)));
+      let sliced = base.slice(
+        0,
+        Math.max(2, Math.min(effPaletteDepth || base.length, base.length))
+      );
       if (effPaletteCycle !== 0 && sliced.length > 1) {
         const shift = ((effPaletteCycle % sliced.length) + sliced.length) % sliced.length;
         sliced = [...sliced.slice(shift), ...sliced.slice(0, shift)];
@@ -1015,26 +1157,65 @@ export const CenterViewport: React.FC = () => {
       noiseAmount: effNoise,
       noise: effNoise,
       depth: effDepth,
-      temporalSeed: (animatedNoiseActive && appMode === 'animation') ? frameIndex : 0,
+      temporalSeed: animatedNoiseActive && appMode === 'animation' ? frameIndex : 0,
       offsetX: effAlgoParams.offsetX ?? 0,
       offsetY: effAlgoParams.offsetY ?? 0
     });
 
     applyEffectStack(ditherImageData, effEffects);
-    setLastRenderMs(performance.now() - t0);
 
-    // Store in Rendered frame cache when Video: Rendered mode is active
-    if (appMode === 'animation' && videoRenderMode === 'rendered' && width === fullWidth && height === fullHeight && !sourceVideoUrl) {
-      if (renderedFramesCacheRef.current.size < 360) {
-        renderedFramesCacheRef.current.set(
+    const elapsedMs = performance.now() - t0;
+    const nowWall = performance.now();
+    // Throttle Zustand store updates of lastRenderMs during active playback/scrubbing to avoid TopMenuBar re-render storms
+    if (!isPlaying && !isScrubbingTimeline) {
+      lastRenderMsUpdateWallRef.current = nowWall;
+      setLastRenderMs(elapsedMs);
+    } else if (nowWall - lastRenderMsUpdateWallRef.current >= 200) {
+      lastRenderMsUpdateWallRef.current = nowWall;
+      setLastRenderMs(elapsedMs);
+    }
+
+    // Store in Rendered frame cache when Video: Rendered mode is active (strictly bounded to 128 MB)
+    if (
+      appMode === 'animation' &&
+      videoRenderMode === 'rendered' &&
+      width === fullWidth &&
+      height === fullHeight &&
+      !sourceVideoUrl
+    ) {
+      const frameBytes = len;
+      if (frameBytes <= MAX_RENDERED_CACHE_BYTES) {
+        const cache = renderedFramesCacheRef.current;
+        if (cache.has(frameIndex)) {
+          cache.delete(frameIndex);
+          renderedCacheBytesRef.current = Math.max(0, renderedCacheBytesRef.current - frameBytes);
+        }
+        while (
+          cache.size > 0 &&
+          (renderedCacheBytesRef.current + frameBytes > MAX_RENDERED_CACHE_BYTES || cache.size >= 360)
+        ) {
+          const oldestKey = cache.keys().next().value;
+          if (oldestKey === undefined) break;
+          const evicted = cache.get(oldestKey);
+          cache.delete(oldestKey);
+          if (evicted) {
+            renderedCacheBytesRef.current = Math.max(
+              0,
+              renderedCacheBytesRef.current - evicted.data.byteLength
+            );
+          }
+        }
+        cache.set(
           frameIndex,
           new ImageData(new Uint8ClampedArray(ditherImageData.data), fullWidth, fullHeight)
         );
+        renderedCacheBytesRef.current += frameBytes;
       }
     }
 
     const drawToCanvas = (imgData: ImageData) => {
       if (width === fullWidth && height === fullHeight) {
+        ctx.clearRect(0, 0, fullWidth, fullHeight);
         ctx.putImageData(imgData, 0, 0);
       } else {
         if (!proxyCanvasRef.current) {
@@ -1047,7 +1228,9 @@ export const CenterViewport: React.FC = () => {
         }
         const offCtx = offscreen.getContext('2d');
         if (offCtx) {
+          offCtx.clearRect(0, 0, width, height);
           offCtx.putImageData(imgData, 0, 0);
+          ctx.clearRect(0, 0, fullWidth, fullHeight);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
         }
@@ -1085,6 +1268,7 @@ export const CenterViewport: React.FC = () => {
     appMode,
     videoRenderMode,
     isPlaying,
+    isScrubbingTimeline,
     currentTime,
     duration,
     fps,
@@ -1111,6 +1295,8 @@ export const CenterViewport: React.FC = () => {
     setLastRenderMs
   ]);
 
+  executeRenderPipelineRef.current = executeRenderPipeline;
+
   useEffect(() => {
     if (!sourceImageData) return;
     if (viewportUpdateMode === 'debounce' && !isPlaying && !isScrubbingTimeline) {
@@ -1130,7 +1316,7 @@ export const CenterViewport: React.FC = () => {
     executeRenderPipeline
   ]);
 
-  // Default markerZoomLevel = 3 => 16 subdivisions (17 ticks total: 5 major, 4 medium, 8 minor matching image_4dd51b.png!)
+  // Default markerZoomLevel = 3 => 16 subdivisions (17 ticks total: 5 major, 4 medium, 8 minor)
   const subdivisions = useMemo(() => 4 * Math.pow(2, markerZoomLevel - 1), [markerZoomLevel]);
 
   const rulerTicks = useMemo(() => {
@@ -1145,7 +1331,7 @@ export const CenterViewport: React.FC = () => {
   }, [subdivisions, duration]);
 
   // Ultra-smooth 60fps Playhead Scrubbing with subtle magnetic clip to ruler markers!
-  const updateScrubFromClientX = useCallback((clientX: number, disableClip = false) => {
+  const updateScrubFromClientX = useCallback((clientX: number, disableClip = false, flushImmediate = false) => {
     const el = timelineInnerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -1169,22 +1355,34 @@ export const CenterViewport: React.FC = () => {
     const nextTime = ratio * duration;
     if (scrubRafRef.current !== null) {
       cancelAnimationFrame(scrubRafRef.current);
-    }
-    scrubRafRef.current = requestAnimationFrame(() => {
-      setCurrentTime(nextTime);
       scrubRafRef.current = null;
-    });
+    }
+    if (flushImmediate) {
+      setCurrentTime(nextTime);
+    } else {
+      scrubRafRef.current = requestAnimationFrame(() => {
+        setCurrentTime(nextTime);
+        scrubRafRef.current = null;
+      });
+    }
   }, [duration, subdivisions, setCurrentTime]);
 
   useEffect(() => {
     if (!isScrubbingTimeline) return;
-    const onMove = (e: MouseEvent) => updateScrubFromClientX(e.clientX, e.shiftKey);
-    const onUp = () => setIsScrubbingTimeline(false);
+    const onMove = (e: MouseEvent) => updateScrubFromClientX(e.clientX, e.shiftKey, false);
+    const onUp = (e: MouseEvent) => {
+      updateScrubFromClientX(e.clientX, e.shiftKey, true);
+      setIsScrubbingTimeline(false);
+    };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (scrubRafRef.current !== null) {
+        cancelAnimationFrame(scrubRafRef.current);
+        scrubRafRef.current = null;
+      }
     };
   }, [isScrubbingTimeline, updateScrubFromClientX]);
 
@@ -1203,6 +1401,7 @@ export const CenterViewport: React.FC = () => {
       if (tr.id === ignoreTrackId) continue;
       targets.push(tr.startTime, tr.endTime);
     }
+
     let best = clamped;
     let bestDist = threshold;
     for (const target of targets) {
@@ -1215,13 +1414,16 @@ export const CenterViewport: React.FC = () => {
     return Number(best.toFixed(2));
   }, [duration, subdivisions, currentTime, rulerTicks, animationTracks]);
 
-  // Track Bar Dragging, Resizing & Click-to-Close Toggle
+  // Track Bar Dragging, Resizing & Click-to-Close Toggle (rAF-coalesced to avoid excessive store mutations)
   useEffect(() => {
     if (!draggingTrackBar) return;
-    const onMove = (e: MouseEvent) => {
+    let pendingClientX = draggingTrackBar.startX;
+    let pendingShiftKey = false;
+
+    const applyDragUpdate = (clientX: number, shiftKey: boolean) => {
       const el = timelineInnerRef.current;
       if (!el) return;
-      const dx = e.clientX - draggingTrackBar.startX;
+      const dx = clientX - draggingTrackBar.startX;
       if (Math.abs(dx) > 3 && !draggingTrackBar.didMove) {
         setDraggingTrackBar((prev) => (prev ? { ...prev, didMove: true } : null));
       }
@@ -1233,7 +1435,7 @@ export const CenterViewport: React.FC = () => {
       if (draggingTrackBar.mode === 'move') {
         const len = draggingTrackBar.origEnd - draggingTrackBar.origStart;
         let nextStart = Math.max(0, Math.min(duration - len, draggingTrackBar.origStart + dt));
-        nextStart = snapTimeValue(nextStart, draggingTrackBar.id, e.shiftKey);
+        nextStart = snapTimeValue(nextStart, draggingTrackBar.id, shiftKey);
         nextStart = Math.max(0, Math.min(duration - len, nextStart));
         updateAnimationTrack(draggingTrackBar.id, {
           startTime: Number(nextStart.toFixed(2)),
@@ -1241,26 +1443,48 @@ export const CenterViewport: React.FC = () => {
         });
       } else if (draggingTrackBar.mode === 'start') {
         const rawStart = Math.max(0, Math.min(draggingTrackBar.origEnd - minSpan, draggingTrackBar.origStart + dt));
-        const snappedStart = Math.max(0, Math.min(draggingTrackBar.origEnd - minSpan, snapTimeValue(rawStart, draggingTrackBar.id, e.shiftKey)));
+        const snappedStart = Math.max(0, Math.min(draggingTrackBar.origEnd - minSpan, snapTimeValue(rawStart, draggingTrackBar.id, shiftKey)));
         updateAnimationTrack(draggingTrackBar.id, { startTime: snappedStart });
       } else if (draggingTrackBar.mode === 'end') {
         const rawEnd = Math.min(duration, Math.max(draggingTrackBar.origStart + minSpan, draggingTrackBar.origEnd + dt));
-        const snappedEnd = Math.min(duration, Math.max(draggingTrackBar.origStart + minSpan, snapTimeValue(rawEnd, draggingTrackBar.id, e.shiftKey)));
+        const snappedEnd = Math.min(duration, Math.max(draggingTrackBar.origStart + minSpan, snapTimeValue(rawEnd, draggingTrackBar.id, shiftKey)));
         updateAnimationTrack(draggingTrackBar.id, { endTime: snappedEnd });
       }
     };
+
+    const onMove = (e: MouseEvent) => {
+      pendingClientX = e.clientX;
+      pendingShiftKey = e.shiftKey;
+      if (trackDragRafRef.current === null) {
+        trackDragRafRef.current = requestAnimationFrame(() => {
+          trackDragRafRef.current = null;
+          applyDragUpdate(pendingClientX, pendingShiftKey);
+        });
+      }
+    };
+
     const onUp = (e: MouseEvent) => {
+      if (trackDragRafRef.current !== null) {
+        cancelAnimationFrame(trackDragRafRef.current);
+        trackDragRafRef.current = null;
+        applyDragUpdate(e.clientX, e.shiftKey);
+      }
       const moved = Math.abs(e.clientX - draggingTrackBar.startX) > 3 || draggingTrackBar.didMove;
       if (!moved && draggingTrackBar.mode === 'move' && draggingTrackBar.wasAlreadySelected) {
         setSelectedTrackId(null);
       }
       setDraggingTrackBar(null);
     };
+
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (trackDragRafRef.current !== null) {
+        cancelAnimationFrame(trackDragRafRef.current);
+        trackDragRafRef.current = null;
+      }
     };
   }, [draggingTrackBar, duration, snapTimeValue, updateAnimationTrack, setSelectedTrackId]);
 
@@ -1356,7 +1580,6 @@ export const CenterViewport: React.FC = () => {
               id="mainViewportCanvas"
               className="preview-canvas"
             />
-
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>
                 <div className="compare-badge before" style={{ transform: `scale(${100 / Math.max(50, zoom)})`, transformOrigin: 'top left' }}>
@@ -1447,15 +1670,8 @@ export const CenterViewport: React.FC = () => {
                 ref={floatingEditorRef}
                 className="df-floating-property-editor"
                 onClick={(e) => e.stopPropagation()}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent('close_app_context_menu'));
-                  setTrackContextMenu({
-                    trackId: selectedTrack.id,
-                    x: e.clientX,
-                    y: e.clientY
-                  });
+                onContextMenu={() => {
+                  setSelectedTrackId(selectedTrack.id);
                 }}
               >
                 <div className="df-editor-field-group">
@@ -1577,7 +1793,6 @@ export const CenterViewport: React.FC = () => {
                     ]}
                   />
                 </div>
-
               </aside>
             )}
 
@@ -1621,9 +1836,36 @@ export const CenterViewport: React.FC = () => {
                     >
                       <SkipForward size={16} fill="currentColor" />
                     </button>
+                    <div className="df-speed-control-wrap" ref={speedMenuRef}>
+                      <button
+                        type="button"
+                        className={`df-transport-btn df-speed-btn ${playbackSpeed !== 1 ? 'speed-active' : ''}`}
+                        onClick={() => setIsSpeedMenuOpen((prev) => !prev)}
+                        title="Playback Speed"
+                        aria-label={`Playback Speed: ${playbackSpeed}x`}
+                      >
+                        <span className="df-speed-val-text">{playbackSpeed}x</span>
+                      </button>
+                      {isSpeedMenuOpen && (
+                        <div className="df-speed-popover" role="menu">
+                          {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4].map((spd) => (
+                            <button
+                              key={spd}
+                              type="button"
+                              className={`df-speed-popover-item ${playbackSpeed === spd ? 'active' : ''}`}
+                              onClick={() => {
+                                setPlaybackSpeed(spd);
+                                setIsSpeedMenuOpen(false);
+                              }}
+                            >
+                              <span>{spd}x</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-
                 <button
                   type="button"
                   className="df-playback-plus-btn"
@@ -1642,7 +1884,7 @@ export const CenterViewport: React.FC = () => {
               onMouseDown={(e) => {
                 if (!(e.target as HTMLElement).closest('.df-track-bar')) {
                   setIsScrubbingTimeline(true);
-                  updateScrubFromClientX(e.clientX, e.shiftKey);
+                  updateScrubFromClientX(e.clientX, e.shiftKey, false);
                 }
               }}
             >
@@ -1680,7 +1922,6 @@ export const CenterViewport: React.FC = () => {
                       const leftPct = Math.max(0, Math.min(100, (track.startTime / duration) * 100));
                       const widthPct = Math.max(2, Math.min(100 - leftPct, ((track.endTime - track.startTime) / duration) * 100));
                       const isSelected = track.id === selectedTrackId;
-
                       return (
                         <div key={track.id} className="df-track-lane">
                           <div
@@ -1689,16 +1930,8 @@ export const CenterViewport: React.FC = () => {
                               left: `${leftPct}%`,
                               width: `${widthPct}%`
                             }}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              window.dispatchEvent(new CustomEvent('close_app_context_menu'));
+                            onContextMenu={() => {
                               setSelectedTrackId(track.id);
-                              setTrackContextMenu({
-                                trackId: track.id,
-                                x: e.clientX,
-                                y: e.clientY
-                              });
                             }}
                             onMouseDown={(e) => {
                               e.stopPropagation();
@@ -1735,9 +1968,7 @@ export const CenterViewport: React.FC = () => {
                             >
                               <span className="df-track-handle-grip" />
                             </span>
-
                             <span className="df-track-bar-label">{track.label}</span>
-
                             <span
                               className={`df-track-handle right ${draggingTrackBar?.id === track.id && draggingTrackBar.mode === 'end' ? 'active' : ''}`}
                               onMouseDown={(e) => {
@@ -1767,53 +1998,8 @@ export const CenterViewport: React.FC = () => {
               </div>
             </div>
           </div>
-
-
-          {trackContextMenu && (
-            <div
-              className="df-track-context-menu"
-              style={{
-                left: `${Math.min(window.innerWidth - 180, trackContextMenu.x)}px`,
-                top: `${Math.min(window.innerHeight - 100, trackContextMenu.y)}px`
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="df-context-menu-item danger"
-                onClick={() => {
-                  removeAnimationTrack(trackContextMenu.trackId);
-                  if (selectedTrackId === trackContextMenu.trackId) {
-                    setSelectedTrackId(null);
-                  }
-                  setTrackContextMenu(null);
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Trash2 size={13} />
-                  <span>Delete Track</span>
-                </div>
-                <span className="df-context-shortcut">Del</span>
-              </button>
-              <button
-                type="button"
-                className="df-context-menu-item"
-                onClick={() => {
-                  duplicateAnimationTrack(trackContextMenu.trackId);
-                  setTrackContextMenu(null);
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Copy size={13} />
-                  <span>Duplicate</span>
-                </div>
-                <span className="df-context-shortcut">Ctrl+D</span>
-              </button>
-            </div>
-          )}
         </>
       )}
     </main>
   );
-};
+};

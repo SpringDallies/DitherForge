@@ -4,6 +4,8 @@ import { X, Download, Copy, Check } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 // @ts-ignore
 import { exportRaster, copyCanvasToClipboard, exportCharacterGrid, exportSvgContours } from '../../dither-engine/exporters.js';
+import { downloadAnimatedGif } from '../../utils/animationExport';
+import { useAppStore } from '../../state/useAppStore';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -11,7 +13,7 @@ interface ExportModalProps {
 }
 
 type TabType = 'image' | 'text' | 'vector';
-type ImageFormat = 'png' | 'jpg' | 'webp';
+type ImageFormat = 'png' | 'jpg' | 'webp' | 'gif';
 type CharSetType = 'ascii' | 'blocks' | 'braille';
 
 export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
@@ -48,16 +50,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
       setCopyError(null);
 
       // Read default format from ditherforge_settings in localStorage
-      try {
-        const stored = localStorage.getItem('ditherforge_settings');
-        if (stored) {
-          const settings = JSON.parse(stored);
-          if (settings.defaultExportFormat && ['png', 'jpg', 'webp'].includes(settings.defaultExportFormat)) {
-            setFormat(settings.defaultExportFormat);
+      if (useAppStore.getState().appMode === 'animation') {
+        setFormat('gif');
+      } else {
+        try {
+          const stored = localStorage.getItem('ditherforge_settings');
+          if (stored) {
+            const settings = JSON.parse(stored);
+            if (settings.defaultExportFormat && ['png', 'jpg', 'webp', 'gif'].includes(settings.defaultExportFormat)) {
+              setFormat(settings.defaultExportFormat);
+            }
           }
+        } catch (e) {
+          // Fallback default format is 'png'
         }
-      } catch (e) {
-        // Fallback default format is 'png'
       }
     }
   }, [isOpen]);
@@ -221,6 +227,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
   // Handle Image Export
   const handleExportImage = () => {
+    if (format === 'gif') {
+      downloadAnimatedGif(useAppStore.getState());
+      onClose();
+      return;
+    }
+
     const canvas = getSourceCanvas();
     if (!canvas) return;
 
@@ -323,6 +335,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                     <option value="png">PNG (Lossless 24/32-bit)</option>
                     <option value="jpg">JPG (Web Compressed)</option>
                     <option value="webp">WebP (Modern Lightweight)</option>
+                    <option value="gif">GIF (Animated / Multi-Frame)</option>
                   </select>
                 </div>
               </div>

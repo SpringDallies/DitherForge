@@ -73,7 +73,7 @@ export function evaluateEasing(t: number, easing: EasingType): number {
     case 'easeInOut':
       return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
     case 'step':
-      return t >= 1 ? 1 : 0;
+      return t < 0.5 ? 0 : 1;
     default:
       return t;
   }

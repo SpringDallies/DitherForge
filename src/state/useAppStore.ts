@@ -386,6 +386,8 @@ interface AppState {
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   togglePlay: () => void;
+  playbackSpeed: number;
+  setPlaybackSpeed: (speed: number) => void;
   currentTime: number;
   setCurrentTime: (t: number) => void;
   duration: number;
@@ -863,6 +865,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     return { isPlaying: !state.isPlaying };
   }),
+  playbackSpeed: 1,
+  setPlaybackSpeed: (playbackSpeed) => set({ playbackSpeed: Math.max(0.1, Number(playbackSpeed) || 1) }),
   currentTime: 0,
   setCurrentTime: (t) => set((state) => ({
     currentTime: Math.max(0, Math.min(state.duration, Number(t.toFixed(4))))
@@ -1045,3 +1049,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     showBeforeAfter: false
   }))
 }));
+
+if (typeof window !== 'undefined') {
+  (window as any).__DITHERFORGE_STORE__ = useAppStore;
+}

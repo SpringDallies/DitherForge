@@ -30,3 +30,16 @@ desktop.ini
 *.ntvs*
 *.njsproj
 *.sln
+
+scratch/
+benchmark_results*.json
+
+scripts/benchmark-baseline.mjs
+docs/screenshots/
+src-tauri/.cargo/
+src-tauri/Cargo.lock
+src-tauri/build.rs
+src-tauri/gen/
+src-tauri/icons/
+src-tauri/src/bin/
+src-tauri/src/fast_engine.rs

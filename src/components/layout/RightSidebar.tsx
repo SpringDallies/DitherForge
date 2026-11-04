@@ -15,6 +15,7 @@ import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToR
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 // @ts-ignore
 import { exportRaster } from '../../dither-engine/exporters.js';
+import { downloadAnimatedGif } from '../../utils/animationExport';
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { 
   X,
@@ -747,6 +748,7 @@ export const RightSidebar: React.FC = () => {
 
   const [exportFormat, setExportFormat] = useState<string>('PNG');
   const [videoExportFormat, setVideoExportFormat] = useState<'GIF' | 'MP4' | 'MOV' | 'WEBM'>('GIF');
+  const [isExportingAnim, setIsExportingAnim] = useState<boolean>(false);
 
   // Set of properties currently locked because they are controlled by the Animation Timeline
   const lockedAnimProps = useMemo(() => {
@@ -1533,7 +1535,8 @@ export const RightSidebar: React.FC = () => {
               type="button"
               id="export-action-btn"
               className="unified-pill-btn"
-              title="Click to export immediately"
+              disabled={isExportingAnim}
+              title={isExportingAnim ? "Exporting animation..." : "Click to export immediately"}
               onClick={() => {
                 const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
                                (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
@@ -1541,6 +1544,17 @@ export const RightSidebar: React.FC = () => {
                 const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
                 if (appMode === 'animation') {
                   const ext = videoExportFormat.toLowerCase();
+                  if (ext === 'gif') {
+                    setIsExportingAnim(true);
+                    downloadAnimatedGif(useAppStore.getState())
+                      .catch((err) => {
+                        console.error('GIF export failed:', err);
+                      })
+                      .finally(() => {
+                        setIsExportingAnim(false);
+                      });
+                    return;
+                  }
                   const mime = ext === 'webm' ? 'video/webm' : 'video/mp4';
                   if (typeof MediaRecorder !== 'undefined' && (canvas as any).captureStream) {
                     const stream = (canvas as any).captureStream(useAppStore.getState().fps || 30);
@@ -1570,7 +1584,7 @@ export const RightSidebar: React.FC = () => {
                 }
               }}
             >
-              {appMode === 'animation' ? 'Export Video' : 'Export Image'}
+              {isExportingAnim ? 'Exporting…' : (appMode === 'animation' ? 'Export Video' : 'Export Image')}
             </button>
             <button
               type="button"

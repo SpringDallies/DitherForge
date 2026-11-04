@@ -20,7 +20,9 @@ import {
   SkipForward,
   Settings,
   BookOpen,
-  Check
+  Check,
+  Trash2,
+  Sliders
 } from 'lucide-react';
 
 export interface AppContextMenuProps {
@@ -55,6 +57,16 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
   const loadImageFromData = useAppStore((s) => s.loadImageFromData);
   const setIsExportOpen = useAppStore((s) => s.setIsExportOpen);
   const setIsManualOpen = useAppStore((s) => s.setIsManualOpen);
+  const [contextType, setContextType] = useState<'app' | 'timeline'>('app');
+  const selectedTrackId = useAppStore((s) => s.selectedTrackId);
+  const setSelectedTrackId = useAppStore((s) => s.setSelectedTrackId);
+  const animationTracks = useAppStore((s) => s.animationTracks);
+  const duplicateAnimationTrack = useAppStore((s) => s.duplicateAnimationTrack);
+  const removeAnimationTrack = useAppStore((s) => s.removeAnimationTrack);
+  const stepFrame = useAppStore((s) => s.stepFrame);
+  const setIsCreateAnimationPopupOpen = useAppStore((s) => s.setIsCreateAnimationPopupOpen);
+
+  const selectedTrack = animationTracks.find((t) => t.id === selectedTrackId);
 
   const closeMenu = useCallback(() => {
     setIsOpen(false);
@@ -78,15 +90,23 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
         return;
       }
 
-      // DO NOT BREAK TIMELINE RIGHT-CLICK:
-      // If inside timeline track bar, property editor popup, or track context menu, ignore!
+      // If inside property editor popup or track context menu, ignore
       if (
-        target.closest('.df-track-bar') ||
-        target.closest('.df-floating-property-editor') ||
-        target.closest('.df-track-context-menu')
+        target.closest('.df-floating-property-editor')
       ) {
         return;
       }
+
+      const isTimelineClick = Boolean(
+        target.closest('.df-floating-timeline-group') ||
+        target.closest('.df-timeline-body-card') ||
+        target.closest('.df-playback-pill') ||
+        target.closest('.df-playback-plus-btn') ||
+        target.closest('.df-timeline-coord-stage') ||
+        target.closest('.df-tracks-lanes') ||
+        target.closest('.df-track-lane') ||
+        target.closest('.df-track-bar')
+      );
 
       e.preventDefault();
 
@@ -95,11 +115,12 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 
       const menuWidth = 250;
       const isAnim = useAppStore.getState().appMode === 'animation';
-      const approxHeight = isAnim ? 480 : 360;
+      const approxHeight = isTimelineClick ? 360 : (isAnim ? 480 : 360);
 
       const clampedX = Math.max(10, Math.min(window.innerWidth - menuWidth - 12, e.clientX));
       const clampedY = Math.max(10, Math.min(window.innerHeight - approxHeight - 12, e.clientY));
 
+      setContextType(isTimelineClick ? 'timeline' : 'app');
       setPosition({ x: clampedX, y: clampedY });
       setIsOpen(true);
     };
@@ -264,6 +285,193 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
+        {contextType === 'timeline' ? (
+          <>
+            <div className="df-app-context-section-label">Timeline</div>
+
+            {selectedTrack && (
+              <>
+                <button
+                  type="button"
+                  className="df-app-context-item"
+                  onClick={() => {
+                    closeMenu();
+                    duplicateAnimationTrack(selectedTrack.id);
+                  }}
+                >
+                  <div className="df-app-context-left">
+                    <Copy size={14} />
+                    <span>Duplicate Track</span>
+                  </div>
+                  <span className="df-app-context-shortcut">Ctrl+D</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="df-app-context-item danger"
+                  onClick={() => {
+                    closeMenu();
+                    removeAnimationTrack(selectedTrack.id);
+                    setSelectedTrackId(null);
+                  }}
+                >
+                  <div className="df-app-context-left" style={{ color: '#fb4934' }}>
+                    <Trash2 size={14} />
+                    <span>Delete Track</span>
+                  </div>
+                  <span className="df-app-context-shortcut">Del</span>
+                </button>
+
+                <div className="df-app-context-divider" />
+              </>
+            )}
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                togglePlay();
+              }}
+            >
+              <div className="df-app-context-left">
+                {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                <span>{isPlaying ? 'Pause' : 'Play'}</span>
+              </div>
+              <span className="df-app-context-shortcut">Space</span>
+            </button>
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                addAnimationTrack();
+              }}
+            >
+              <div className="df-app-context-left">
+                <Plus size={14} />
+                <span>Add Track</span>
+              </div>
+              <span className="df-app-context-shortcut">T</span>
+            </button>
+
+            <div className="df-app-context-divider" />
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                stepFrame(-1);
+              }}
+            >
+              <div className="df-app-context-left">
+                <SkipBack size={14} />
+                <span>Previous Frame</span>
+              </div>
+              <span className="df-app-context-shortcut">Left</span>
+            </button>
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                stepFrame(1);
+              }}
+            >
+              <div className="df-app-context-left">
+                <SkipForward size={14} />
+                <span>Next Frame</span>
+              </div>
+              <span className="df-app-context-shortcut">Right</span>
+            </button>
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                setCurrentTime(0);
+              }}
+            >
+              <div className="df-app-context-left">
+                <SkipBack size={14} />
+                <span>Jump to Start</span>
+              </div>
+              <span className="df-app-context-shortcut">Home</span>
+            </button>
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                setCurrentTime(duration);
+              }}
+            >
+              <div className="df-app-context-left">
+                <SkipForward size={14} />
+                <span>Jump to End</span>
+              </div>
+              <span className="df-app-context-shortcut">End</span>
+            </button>
+
+            <div className="df-app-context-divider" />
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                setIsCreateAnimationPopupOpen(true);
+              }}
+            >
+              <div className="df-app-context-left">
+                <Sliders size={14} />
+                <span>Timeline Settings (FPS & Duration)…</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                setIsExportOpen(true);
+              }}
+            >
+              <div className="df-app-context-left">
+                <Download size={14} />
+                <span>Export Animation / GIF…</span>
+              </div>
+              <span className="df-app-context-shortcut">Ctrl+E</span>
+            </button>
+
+            {animationTracks.length > 0 && (
+              <>
+                <div className="df-app-context-divider" />
+                <button
+                  type="button"
+                  className="df-app-context-item"
+                  style={{ color: '#fb4934' }}
+                  onClick={() => {
+                    closeMenu();
+                    animationTracks.forEach((t) => removeAnimationTrack(t.id));
+                    setSelectedTrackId(null);
+                  }}
+                >
+                  <div className="df-app-context-left" style={{ color: '#fb4934' }}>
+                    <Trash2 size={14} />
+                    <span>Clear All Tracks</span>
+                  </div>
+                </button>
+              </>
+            )}
+          </>
+        ) : (
+          <>
         {/* Section 1: File & Clipboard */}
         <button
           type="button"
@@ -522,6 +730,8 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
             <span>Algorithm Manual…</span>
           </div>
         </button>
+      </>
+        )}
       </div>
     </>
   );

@@ -13,8 +13,7 @@ import { downsampleAreaGamma } from '../utils/areaDownsample';
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
-// @ts-ignore
-import { applyEffectStack } from '../dither-engine/effect-stack.js';
+import { applyEffectPipeline } from '../effects';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import {
@@ -61,6 +60,117 @@ const getSliderFill = (val: number, min: number, max: number): React.CSSProperti
   const pct = Math.max(0, Math.min(100, ((val - min) / Math.max(0.0001, max - min)) * 100));
   return { '--slider-fill': `${pct.toFixed(1)}%` } as React.CSSProperties;
 };
+
+interface TrackNumInputProps {
+  value: number;
+  min?: number;
+  step?: number;
+  onChange: (val: number) => void;
+}
+
+const TrackNumInput: React.FC<TrackNumInputProps> = ({
+  value,
+  min,
+  step,
+  onChange
+}) => {
+  const [localText, setLocalText] = useState<string>(String(value));
+  const [isFocused, setIsFocused] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalText(String(value));
+    }
+  }, [value, isFocused]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === "" || raw === "-" || /^-?\d*\.?\d*$/.test(raw)) {
+      setLocalText(raw);
+      const parsed = parseFloat(raw);
+      if (!isNaN(parsed) && isFinite(parsed)) {
+        onChange(parsed);
+      }
+    }
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const parsed = parseFloat(localText);
+    if (isNaN(parsed) || !isFinite(parsed)) {
+      setLocalText(String(value));
+    } else {
+      const finalVal = min !== undefined ? Math.max(min, parsed) : parsed;
+      setLocalText(String(finalVal));
+      onChange(finalVal);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const current = parseFloat(localText);
+      const base = !isNaN(current) && isFinite(current) ? current : value;
+      const mult = e.shiftKey ? 10 : 1;
+      const delta = (step || 1) * mult;
+      const next = Math.round((base + delta) * 10000) / 10000;
+      const finalVal = min !== undefined ? Math.max(min, next) : next;
+      setLocalText(String(finalVal));
+      onChange(finalVal);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const current = parseFloat(localText);
+      const base = !isNaN(current) && isFinite(current) ? current : value;
+      const mult = e.shiftKey ? 10 : 1;
+      const delta = (step || 1) * mult;
+      const next = Math.round((base - delta) * 10000) / 10000;
+      const finalVal = min !== undefined ? Math.max(min, next) : next;
+      setLocalText(String(finalVal));
+      onChange(finalVal);
+    } else if (e.key === "Enter") {
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      className="control-num-input"
+      value={localText}
+      onFocus={() => setIsFocused(true)}
+      onBlur={handleBlur}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+    />
+  );
+};
+
+function createScaledProxyImageData(source: ImageData, scale: number): ImageData {
+  const targetW = Math.max(16, Math.round(source.width * scale));
+  const targetH = Math.max(16, Math.round(source.height * scale));
+
+  if (targetW >= source.width && targetH >= source.height) {
+    return source;
+  }
+
+  const srcCanvas = document.createElement("canvas");
+  srcCanvas.width = source.width;
+  srcCanvas.height = source.height;
+  const sCtx = srcCanvas.getContext("2d");
+  if (!sCtx) return source;
+  sCtx.putImageData(source, 0, 0);
+
+  const proxyCanvas = document.createElement("canvas");
+  proxyCanvas.width = targetW;
+  proxyCanvas.height = targetH;
+  const pCtx = proxyCanvas.getContext("2d");
+  if (!pCtx) return source;
+  pCtx.imageSmoothingEnabled = true;
+  pCtx.drawImage(srcCanvas, 0, 0, targetW, targetH);
+
+  return pCtx.getImageData(0, 0, targetW, targetH);
+}
 
 function shiftRgbHue(r: number, g: number, b: number, deg: number): [number, number, number] {
   return rotateHueHsvPixel(r, g, b, deg);
@@ -905,6 +1015,7 @@ export const CenterViewport: React.FC = () => {
   const workBufferRef = useRef<Uint8ClampedArray | null>(null);
   const compositeBufferRef = useRef<Uint8ClampedArray | null>(null);
   const proxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const proxyCacheRef = useRef<{ source: ImageData; low: ImageData; mid: ImageData } | null>(null);
 
   const executeRenderPipeline = useCallback(() => {
     const canvas = canvasRef.current;
@@ -941,7 +1052,7 @@ export const CenterViewport: React.FC = () => {
     }
 
     let effectiveQuality = previewQuality;
-    if (appMode === 'animation') {
+    if (appMode === 'animation' && videoRenderMode === 'rendered') {
       effectiveQuality = 'full';
     }
 
@@ -957,21 +1068,46 @@ export const CenterViewport: React.FC = () => {
         videoCanvasRef.current = document.createElement('canvas');
       }
       const vCan = videoCanvasRef.current;
-      if (vCan.width !== fullWidth || vCan.height !== fullHeight) {
-        vCan.width = fullWidth;
-        vCan.height = fullHeight;
+      let targetW = fullWidth;
+      let targetH = fullHeight;
+      if (effectiveQuality === 'low') {
+        const s = Math.min(0.25, 640 / Math.max(fullWidth, fullHeight));
+        targetW = Math.max(16, Math.round(fullWidth * s));
+        targetH = Math.max(16, Math.round(fullHeight * s));
+      } else if (effectiveQuality === 'mid') {
+        const s = Math.min(0.50, 1280 / Math.max(fullWidth, fullHeight));
+        targetW = Math.max(16, Math.round(fullWidth * s));
+        targetH = Math.max(16, Math.round(fullHeight * s));
+      }
+      if (vCan.width !== targetW || vCan.height !== targetH) {
+        vCan.width = targetW;
+        vCan.height = targetH;
       }
       const vCtx = vCan.getContext('2d', { willReadFrequently: true });
       if (vCtx) {
-        vCtx.clearRect(0, 0, fullWidth, fullHeight);
-        vCtx.drawImage(vid, 0, 0, fullWidth, fullHeight);
-        activeBaseImage = vCtx.getImageData(0, 0, fullWidth, fullHeight);
+        vCtx.clearRect(0, 0, targetW, targetH);
+        vCtx.drawImage(vid, 0, 0, targetW, targetH);
+        activeBaseImage = vCtx.getImageData(0, 0, targetW, targetH);
       }
     }
 
-    // Processing dimensions are ALWAYS fullWidth and fullHeight to strictly preserve
-    // the dithering coordinate system, Bayer matrix scale, and spatial frequency.
-    const renderSource = activeBaseImage;
+    let renderSource = activeBaseImage;
+    if (!sourceVideoUrl) {
+      if (!proxyCacheRef.current || proxyCacheRef.current.source !== activeBaseImage) {
+        const lowScale = Math.min(0.25, 640 / Math.max(fullWidth, fullHeight));
+        const midScale = Math.min(0.50, 1280 / Math.max(fullWidth, fullHeight));
+        proxyCacheRef.current = {
+          source: activeBaseImage,
+          low: createScaledProxyImageData(activeBaseImage, lowScale),
+          mid: createScaledProxyImageData(activeBaseImage, midScale)
+        };
+      }
+      if (effectiveQuality === 'low' && proxyCacheRef.current) {
+        renderSource = proxyCacheRef.current.low;
+      } else if (effectiveQuality === 'mid' && proxyCacheRef.current) {
+        renderSource = proxyCacheRef.current.mid;
+      }
+    }
 
     let effBrightness = brightness;
     let effContrast = contrast;
@@ -1219,7 +1355,11 @@ export const CenterViewport: React.FC = () => {
       offsetY: effAlgoParams.offsetY ?? 0
     });
 
-    applyEffectStack(ditherImageData, effEffects);
+    applyEffectPipeline(ditherImageData, effEffects, {
+      frameIndex,
+      time: currentTime,
+      fps
+    });
 
     const elapsedMs = performance.now() - t0;
     const nowWall = performance.now();
@@ -1271,8 +1411,8 @@ export const CenterViewport: React.FC = () => {
     }
 
     const drawToCanvas = (imgData: ImageData) => {
-      lastRenderedFullImageRef.current = imgData;
       if (width === fullWidth && height === fullHeight) {
+        lastRenderedFullImageRef.current = imgData;
         ctx.clearRect(0, 0, fullWidth, fullHeight);
         ctx.putImageData(imgData, 0, 0);
       } else {
@@ -1291,10 +1431,11 @@ export const CenterViewport: React.FC = () => {
           ctx.clearRect(0, 0, fullWidth, fullHeight);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
+          lastRenderedFullImageRef.current = ctx.getImageData(0, 0, fullWidth, fullHeight);
         }
       }
-      if (highQualityZoom && zoom < 100) {
-        renderHqPresentation(imgData, fullWidth, fullHeight);
+      if (highQualityZoom && zoom < 100 && lastRenderedFullImageRef.current) {
+        renderHqPresentation(lastRenderedFullImageRef.current, fullWidth, fullHeight);
       }
     };
 
@@ -1552,7 +1693,7 @@ export const CenterViewport: React.FC = () => {
   const selectedTrack = animationTracks.find((t) => t.id === selectedTrackId) || null;
   const playheadPercent = duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
 
-  const activeCat: AnimationCategory = selectedTrack?.category || 'adjustments';
+  const activeCat: AnimationCategory = selectedTrack?.category || 'style';
   const selectedPropList = useMemo(() => {
     if (activeCat === 'style') return dynamicStyleProps;
     return ANIMATABLE_PROPERTIES[activeCat] || ANIMATABLE_PROPERTIES.adjustments;
@@ -1561,6 +1702,13 @@ export const CenterViewport: React.FC = () => {
   const selectedPropMeta = selectedTrack?.property
     ? selectedPropList.find((p) => p.id === selectedTrack.property) || { min: 0, max: 1, step: 0.05 }
     : { min: 0, max: 1, step: 0.05 };
+
+  const effectiveMax = selectedTrack
+    ? Math.max(selectedPropMeta.max, selectedTrack.fromValue, selectedTrack.toValue)
+    : selectedPropMeta.max;
+  const effectiveMin = selectedTrack && selectedPropMeta.min !== undefined
+    ? Math.min(selectedPropMeta.min, selectedTrack.fromValue, selectedTrack.toValue)
+    : (selectedPropMeta.min ?? 0);
 
   return (
     <main
@@ -1794,10 +1942,10 @@ export const CenterViewport: React.FC = () => {
                       });
                     }}
                     items={[
-                      { id: 'adjustments', label: 'Adjustments' },
                       { id: 'style', label: 'Styles' },
-                      { id: 'effects', label: 'Effects Stack' },
-                      { id: 'palette', label: 'Colour Palette' }
+                      { id: 'adjustments', label: 'Adjustments' },
+                      { id: 'palette', label: 'Colour Palette' },
+                      { id: 'effects', label: 'Effects Stack' }
                     ]}
                   />
                 </div>
@@ -1811,7 +1959,7 @@ export const CenterViewport: React.FC = () => {
                     placeholder="No effect"
                     value={selectedTrack.property || ''}
                     onChange={(propId) => {
-                      const cat: AnimationCategory = selectedTrack.category || 'adjustments';
+                      const cat: AnimationCategory = selectedTrack.category || 'style';
                       const list = cat === 'style' ? dynamicStyleProps : ANIMATABLE_PROPERTIES[cat];
                       const meta = list.find((p) => p.id === propId);
                       if (!meta) return;
@@ -1830,45 +1978,53 @@ export const CenterViewport: React.FC = () => {
                   />
                 </div>
 
-                <div className="df-editor-slider-group">
-                  <div className="df-editor-label-row">
-                    <label className="df-editor-label">From</label>
-                    <span className="df-editor-val-readout">{selectedTrack.fromValue}</span>
+                <div className="slider-control-block">
+                  <div className="slider-label-above">
+                    <span className="df-editor-label">From</span>
                   </div>
-                  <div className="df-editor-slider-row">
-                    <span className="df-editor-bound">{selectedPropMeta.min}</span>
+                  <div className="slider-track-input-row">
                     <input
                       type="range"
-                      className="control-slider df-editor-range"
-                      min={selectedPropMeta.min}
-                      max={selectedPropMeta.max}
+                      className="control-slider"
+                      min={effectiveMin}
+                      max={effectiveMax}
                       step={selectedPropMeta.step}
                       value={selectedTrack.fromValue}
-                      style={getSliderFill(selectedTrack.fromValue, selectedPropMeta.min, selectedPropMeta.max)}
+                      style={getSliderFill(selectedTrack.fromValue, effectiveMin, effectiveMax)}
                       onChange={(e) => updateAnimationTrack(selectedTrack.id, { fromValue: parseFloat(e.target.value) })}
                     />
-                    <span className="df-editor-bound">{selectedPropMeta.max}</span>
+                    <TrackNumInput
+                      key={`${selectedTrack.id}-${selectedTrack.property}-from`}
+                      value={selectedTrack.fromValue}
+                      min={selectedPropMeta.min}
+                      step={selectedPropMeta.step}
+                      onChange={(val) => updateAnimationTrack(selectedTrack.id, { fromValue: val })}
+                    />
                   </div>
                 </div>
 
-                <div className="df-editor-slider-group">
-                  <div className="df-editor-label-row">
-                    <label className="df-editor-label">To</label>
-                    <span className="df-editor-val-readout">{selectedTrack.toValue}</span>
+                <div className="slider-control-block">
+                  <div className="slider-label-above">
+                    <span className="df-editor-label">To</span>
                   </div>
-                  <div className="df-editor-slider-row">
-                    <span className="df-editor-bound">{selectedPropMeta.min}</span>
+                  <div className="slider-track-input-row">
                     <input
                       type="range"
-                      className="control-slider df-editor-range"
-                      min={selectedPropMeta.min}
-                      max={selectedPropMeta.max}
+                      className="control-slider"
+                      min={effectiveMin}
+                      max={effectiveMax}
                       step={selectedPropMeta.step}
                       value={selectedTrack.toValue}
-                      style={getSliderFill(selectedTrack.toValue, selectedPropMeta.min, selectedPropMeta.max)}
+                      style={getSliderFill(selectedTrack.toValue, effectiveMin, effectiveMax)}
                       onChange={(e) => updateAnimationTrack(selectedTrack.id, { toValue: parseFloat(e.target.value) })}
                     />
-                    <span className="df-editor-bound">{selectedPropMeta.max}</span>
+                    <TrackNumInput
+                      key={`${selectedTrack.id}-${selectedTrack.property}-to`}
+                      value={selectedTrack.toValue}
+                      min={selectedPropMeta.min}
+                      step={selectedPropMeta.step}
+                      onChange={(val) => updateAnimationTrack(selectedTrack.id, { toValue: val })}
+                    />
                   </div>
                 </div>
 

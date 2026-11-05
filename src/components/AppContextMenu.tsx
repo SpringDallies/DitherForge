@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../state/useAppStore';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
+import { getExportCanvas } from '../utils/animationExport';
 import {
   Copy,
   Clipboard,
@@ -164,9 +165,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 
   // Actions
   const handleCopyResult = useCallback(() => {
-    const canvas =
-      (document.querySelector('canvas#mainViewportCanvas') as HTMLCanvasElement) ||
-      (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
+    const canvas = getExportCanvas();
     if (canvas) {
       copyCanvasToClipboard(canvas)
         .then(() => {

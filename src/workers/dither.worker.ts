@@ -4,7 +4,7 @@
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { applyTweaksFast } from '../utils/fastTweaks';
-import { applyEffectStack } from '../dither-engine/effect-stack.js';
+import { applyEffectPipeline } from '../effects';
 // @ts-ignore
 import { applyTemporalNoise } from '../dither-engine/temporal.js';
 
@@ -111,9 +111,14 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
       offsetY: params.offsetY ?? 0
     });
 
-    // 3. Post-Effects Stack
+    // 3. Post-Effects Pipeline
     if (effects && effects.length > 0) {
-      applyEffectStack(dummyImgData, effects);
+      const workerFrameIndex = temporal?.frameIndex || 0;
+      applyEffectPipeline(dummyImgData, effects, {
+        frameIndex: workerFrameIndex,
+        time: workerFrameIndex / 30,
+        fps: 30
+      });
     }
 
     const elapsedMs = performance.now() - t0;

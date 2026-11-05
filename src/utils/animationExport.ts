@@ -3,12 +3,12 @@ import { GifEncoder } from './gifEncoder.ts';
 // Import frozen dither engine UNCHANGED via allowJs
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
-// @ts-ignore
-import { applyEffectStack } from '../dither-engine/effect-stack.js';
+import { applyEffectPipeline } from '../effects';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 // @ts-ignore
 import { applyTweaksFast, rotateHueHsvBuffer, rotateHueHsvPixel } from './fastTweaks.ts';
+import { useAppStore } from '../state/useAppStore';
 
 export interface ExportGifOptions {
   onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void;
@@ -182,7 +182,7 @@ interface AdjustmentCacheHooks {
  * Evaluates all animation tracks at timestamp `t` and renders the dithered + post-processed
  * frame into `workBuffer` / `frameImageData`.
  */
-function renderDeterministicAnimationFrame(
+export function renderDeterministicAnimationFrame(
   storeState: any,
   basePixels: Uint8ClampedArray,
   width: number,
@@ -237,51 +237,53 @@ function renderDeterministicAnimationFrame(
   const effEffects = effects.map((e: any) => ({ ...e, params: { ...e.params } }));
   let animatedNoiseActive = false;
 
-  for (const track of animationTracks) {
-    if (!track.category || !track.property) continue;
-    if (t >= track.startTime && t <= track.endTime) {
-      const span = Math.max(0.001, track.endTime - track.startTime);
-      const rawProgress = (t - track.startTime) / span;
-      const eased = applyEasing(rawProgress, track.easing);
-      const val = track.fromValue + (track.toValue - track.fromValue) * eased;
+  if (storeState.appMode === 'animation' || storeState.appMode === undefined) {
+    for (const track of animationTracks) {
+      if (!track.category || !track.property) continue;
+      if (t >= track.startTime && t <= track.endTime) {
+        const span = Math.max(0.001, track.endTime - track.startTime);
+        const rawProgress = (t - track.startTime) / span;
+        const eased = applyEasing(rawProgress, track.easing);
+        const val = track.fromValue + (track.toValue - track.fromValue) * eased;
 
-      if (track.category === 'adjustments') {
-        if (track.property === 'brightness') effBrightness = val;
-        else if (track.property === 'contrast') effContrast = val;
-        else if (track.property === 'saturation') effSaturation = val;
-        else if (track.property === 'hue') effHue = val;
-        else if (track.property === 'gamma') effGamma = val;
-        else if (track.property === 'blur') effBlur = val;
-        else if (track.property === 'denoise') effDenoise = val;
-        else if (track.property === 'highlight') effHighlight = val;
-        else if (track.property === 'depth') effDepth = Math.round(val);
-      } else if (track.category === 'style') {
-        if (track.property === 'depth') {
-          effDepth = Math.round(val);
-        } else {
-          effAlgoParams[track.property] = val;
-          if (
-            track.property === 'noiseAmount' ||
-            track.property === 'noise' ||
-            track.property === 'randomVal'
-          ) {
-            effAlgoParams.noiseAmount = val;
-            effAlgoParams.noise = val;
-            effAlgoParams.randomVal = val;
-            animatedNoiseActive = true;
+        if (track.category === 'adjustments') {
+          if (track.property === 'brightness') effBrightness = val;
+          else if (track.property === 'contrast') effContrast = val;
+          else if (track.property === 'saturation') effSaturation = val;
+          else if (track.property === 'hue') effHue = val;
+          else if (track.property === 'gamma') effGamma = val;
+          else if (track.property === 'blur') effBlur = val;
+          else if (track.property === 'denoise') effDenoise = val;
+          else if (track.property === 'highlight') effHighlight = val;
+          else if (track.property === 'depth') effDepth = Math.round(val);
+        } else if (track.category === 'style') {
+          if (track.property === 'depth') {
+            effDepth = Math.round(val);
+          } else {
+            effAlgoParams[track.property] = val;
+            if (
+              track.property === 'noiseAmount' ||
+              track.property === 'noise' ||
+              track.property === 'randomVal'
+            ) {
+              effAlgoParams.noiseAmount = val;
+              effAlgoParams.noise = val;
+              effAlgoParams.randomVal = val;
+              animatedNoiseActive = true;
+            }
           }
+        } else if (track.category === 'effects') {
+          const [effectId, paramKey] = track.property.split('.');
+          const targetEffect = effEffects.find((e: any) => e.id === effectId);
+          if (targetEffect && paramKey) {
+            targetEffect.enabled = true;
+            targetEffect.params[paramKey] = val;
+          }
+        } else if (track.category === 'palette') {
+          if (track.property === 'paletteDepth') effPaletteDepth = Math.max(2, Math.round(val));
+          else if (track.property === 'paletteHueShift') effPaletteHueShift = val;
+          else if (track.property === 'paletteCycle') effPaletteCycle = Math.round(val);
         }
-      } else if (track.category === 'effects') {
-        const [effectId, paramKey] = track.property.split('.');
-        const targetEffect = effEffects.find((e: any) => e.id === effectId);
-        if (targetEffect && paramKey) {
-          targetEffect.enabled = true;
-          targetEffect.params[paramKey] = val;
-        }
-      } else if (track.category === 'palette') {
-        if (track.property === 'paletteDepth') effPaletteDepth = Math.max(2, Math.round(val));
-        else if (track.property === 'paletteHueShift') effPaletteHueShift = val;
-        else if (track.property === 'paletteCycle') effPaletteCycle = Math.round(val);
       }
     }
   }
@@ -375,6 +377,10 @@ function renderDeterministicAnimationFrame(
     strength: effAlgoParams.diffusionStrength ?? 1.0
   };
 
+  if (frameImageData.data !== workBuffer) {
+    frameImageData.data.set(workBuffer);
+  }
+
   applyDitherAlgorithm(frameImageData, {
     algorithmId,
     palette: slicedPalette,
@@ -394,8 +400,110 @@ function renderDeterministicAnimationFrame(
     offsetY: effAlgoParams.offsetY ?? 0
   });
 
-  // 8. Post-effects stack
-  applyEffectStack(frameImageData, effEffects);
+  // 8. Post-effects pipeline
+  applyEffectPipeline(frameImageData, effEffects, {
+    frameIndex: frameIdx,
+    time: t,
+    fps: storeState.fps || 30
+  });
+}
+
+// Reusable offscreen canvas & buffers for full-resolution exports
+let exportOffscreenCanvas: HTMLCanvasElement | null = null;
+let exportWorkBuffer: Uint8ClampedArray | null = null;
+let exportFrameImageData: ImageData | null = null;
+
+/**
+ * Renders the active frame at 100% native full resolution into an offscreen canvas.
+ * This ensures that regardless of viewport previewQuality ('low' or 'mid'),
+ * exports, SVGs, character grids, and clipboard copies always reflect full resolution.
+ */
+export function renderFullResolutionExportCanvas(storeState: any): HTMLCanvasElement | null {
+  const sourceImageData = storeState.sourceImageData;
+  if (!sourceImageData) return null;
+
+  const width = sourceImageData.width;
+  const height = sourceImageData.height;
+  const byteLen = width * height * 4;
+
+  if (!exportOffscreenCanvas) {
+    exportOffscreenCanvas = document.createElement('canvas');
+  }
+  if (exportOffscreenCanvas.width !== width || exportOffscreenCanvas.height !== height) {
+    exportOffscreenCanvas.width = width;
+    exportOffscreenCanvas.height = height;
+  }
+  const ctx = exportOffscreenCanvas.getContext('2d');
+  if (!ctx) return null;
+
+  if (!exportWorkBuffer || exportWorkBuffer.length !== byteLen) {
+    exportWorkBuffer = new Uint8ClampedArray(byteLen);
+  }
+  if (
+    !exportFrameImageData ||
+    exportFrameImageData.width !== width ||
+    exportFrameImageData.height !== height
+  ) {
+    exportFrameImageData = new ImageData(exportWorkBuffer as any, width, height);
+  }
+
+  let basePixels = sourceImageData.data;
+  if (storeState.sourceVideoUrl) {
+    const vid = document.querySelector('video') as HTMLVideoElement | null;
+    if (vid && vid.readyState >= 2) {
+      ctx.drawImage(vid, 0, 0, width, height);
+      basePixels = ctx.getImageData(0, 0, width, height).data;
+    }
+  }
+
+  const t = storeState.currentTime || 0;
+  const frameIdx = Math.round(t * (storeState.fps || 30));
+
+  renderDeterministicAnimationFrame(
+    storeState,
+    basePixels,
+    width,
+    height,
+    t,
+    frameIdx,
+    exportWorkBuffer,
+    exportFrameImageData,
+    undefined,
+    !storeState.sourceVideoUrl
+  );
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.putImageData(exportFrameImageData, 0, 0);
+  return exportOffscreenCanvas;
+}
+
+/**
+ * Returns a canvas guaranteed to contain the full-resolution, pristine dithered frame.
+ * If the visible viewport canvas is already running at 100% full quality without
+ * split-view or original-view active, it can be safely reused.
+ * Otherwise, it renders offscreen at native dimensions.
+ */
+export function getExportCanvas(): HTMLCanvasElement | null {
+  const state = useAppStore.getState();
+  const sourceImageData = state.sourceImageData;
+  if (!sourceImageData) return null;
+
+  const viewportCanvas =
+    (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
+    (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
+
+  if (
+    state.previewQuality === 'full' &&
+    !state.showBeforeAfter &&
+    !state.isOriginalView &&
+    viewportCanvas &&
+    viewportCanvas.width === sourceImageData.width &&
+    viewportCanvas.height === sourceImageData.height
+  ) {
+    return viewportCanvas;
+  }
+
+  return renderFullResolutionExportCanvas(state);
 }
 
 /**

@@ -5,6 +5,7 @@ import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
 import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans } from '../dither-engine/palettes.js';
 // @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../dither-engine/effect-stack.js';
+import { ALL_EFFECTS, getAllEffects, getEffectDescriptor, resolveEffectId, BlendMode } from '../effects';
 import { createCalibrationPattern } from '../utils/samplePattern';
 
 export type PreviewQuality = 'low' | 'mid' | 'full';
@@ -43,6 +44,8 @@ export interface EffectItem {
   name?: string;
   enabled: boolean;
   params: Record<string, any>;
+  opacity?: number;
+  blendMode?: BlendMode;
 }
 
 const DEFAULT_ALGO_PARAMS_TABLE: Record<string, Partial<AlgoParams>> = {
@@ -102,12 +105,14 @@ const buildInitialAlgoParamsMap = (): Record<string, AlgoParams> => {
 };
 
 const buildInitialEffects = (): EffectItem[] => {
-  return AVAILABLE_EFFECT_TYPES.map((eff: any) => ({
+  return getAllEffects().map((eff) => ({
     id: eff.id,
     type: eff.id,
     name: eff.name,
     enabled: false,
-    params: { ...eff.defaultParams }
+    params: { ...eff.defaultParams },
+    opacity: eff.defaultOpacity !== undefined ? eff.defaultOpacity : 1.0,
+    blendMode: eff.defaultBlendMode || 'normal'
   }));
 };
 
@@ -125,16 +130,16 @@ export interface AnimatablePropDef {
 
 const buildEffectsAnimatableProps = (): AnimatablePropDef[] => {
   const list: AnimatablePropDef[] = [];
-  for (const eff of AVAILABLE_EFFECT_TYPES) {
+  for (const eff of getAllEffects()) {
     if (eff.id === 'inverse_glow' || eff.id === 'inverse_vignette') continue;
     const defParams = eff.defaultParams || {};
-    const displayName = eff.id === 'scanlines' ? 'CRT Lines' : eff.name;
+    const displayName = eff.name;
     for (const [key, val] of Object.entries(defParams)) {
       if (typeof val !== 'number') continue;
       let min = 0, max = 1, step = 0.05, defaultFrom = 0, defaultTo = 1;
-      if (key === 'intensity') { min = 0; max = 2; step = 0.05; defaultFrom = 0; defaultTo = 1.2; }
-      else if (key === 'radius') { min = 1; max = 24; step = 1; defaultFrom = 2; defaultTo = 16; }
-      else if (key === 'dotSize' || key === 'thickness' || key === 'blockSize') { min = 1; max = 20; step = 1; defaultFrom = 1; defaultTo = 10; }
+      if (key === 'intensity' || key === 'highlightStrength' || key === 'shadowStrength') { min = 0; max = 2; step = 0.05; defaultFrom = 0; defaultTo = 1.2; }
+      else if (key === 'radius') { min = 1; max = 30; step = 1; defaultFrom = 2; defaultTo = 16; }
+      else if (key === 'dotSize' || key === 'thickness' || key === 'blockSize' || key === 'pitch' || key === 'size') { min = 1; max = 20; step = 1; defaultFrom = 1; defaultTo = 10; }
       else if (key === 'angle') { min = 0; max = 360; step = 1; defaultFrom = 0; defaultTo = 180; }
       else if (key === 'offsetX' || key === 'offsetY') { min = 0; max = 20; step = 1; defaultFrom = 0; defaultTo = 12; }
       else if (key === 'gamma') { min = 0.1; max = 3.0; step = 0.05; defaultFrom = 0.8; defaultTo = 2.0; }
@@ -358,6 +363,8 @@ interface AppState {
   toggleEffectEnabled: (id: string) => void;
   reorderEffects: (fromIndex: number, toIndex: number) => void;
   updateEffectParam: (id: string, key: string, value: any) => void;
+  setEffectOpacity: (id: string, opacity: number) => void;
+  setEffectBlendMode: (id: string, blendMode: BlendMode) => void;
   resetEffects: () => void;
   toggleEffect: (id: string) => void;
   addEffect: (effectType: string) => void;
@@ -782,10 +789,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   effects: buildInitialEffects(),
   addEffectInstance: (effectType) => set((state) => {
-    const meta = AVAILABLE_EFFECT_TYPES.find((e: any) => e.id === effectType);
+    const meta = getEffectDescriptor(effectType) || AVAILABLE_EFFECT_TYPES.find((e: any) => e.id === effectType);
     if (!meta) return state;
     return {
-      effects: [...state.effects, { id: `${effectType}_${Date.now()}`, type: effectType, name: meta.name, enabled: true, params: { ...meta.defaultParams } }]
+      effects: [
+        ...state.effects,
+        {
+          id: `${effectType}_${Date.now()}`,
+          type: effectType,
+          name: meta.name,
+          enabled: true,
+          params: { ...meta.defaultParams },
+          opacity: (meta as any).defaultOpacity !== undefined ? (meta as any).defaultOpacity : 1.0,
+          blendMode: (meta as any).defaultBlendMode || 'normal'
+        }
+      ]
     };
   }),
   removeEffectInstance: (id) => set((state) => ({ effects: state.effects.filter((e) => e.id !== id) })),
@@ -800,6 +818,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
   updateEffectParam: (id, key, value) => set((state) => ({
     effects: state.effects.map((e) => (e.id === id ? { ...e, params: { ...e.params, [key]: value } } : e))
+  })),
+  setEffectOpacity: (id, opacity) => set((state) => ({
+    effects: state.effects.map((e) => (e.id === id ? { ...e, opacity: Math.max(0, Math.min(1, opacity)) } : e))
+  })),
+  setEffectBlendMode: (id, blendMode) => set((state) => ({
+    effects: state.effects.map((e) => (e.id === id ? { ...e, blendMode } : e))
   })),
   resetEffects: () => set({ effects: buildInitialEffects() }),
   toggleEffect: (id) => get().toggleEffectEnabled(id),

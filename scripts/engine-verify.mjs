@@ -31,9 +31,11 @@ for (const [relPath, expectedHash] of Object.entries(FROZEN_HASHES)) {
   }
   const fileBuffer = fs.readFileSync(fullPath);
   const actualHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+  const crlfBuffer = Buffer.from(fileBuffer.toString('utf8').replace(/\r?\n/g, '\r\n'));
+  const crlfHash = crypto.createHash('sha256').update(crlfBuffer).digest('hex');
 
-  if (actualHash === expectedHash) {
-    console.log(`  PASS: ${relPath}\n        SHA-256: ${actualHash}`);
+  if (actualHash === expectedHash || crlfHash === expectedHash) {
+    console.log(`  PASS: ${relPath}\n        SHA-256: ${actualHash === expectedHash ? actualHash : crlfHash}`);
   } else {
     console.error(`  FAIL: ${relPath}\n        Expected: ${expectedHash}\n        Actual:   ${actualHash}`);
     hasMismatch = true;

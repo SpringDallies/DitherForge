@@ -4,7 +4,7 @@ import { X, Download, Copy, Check } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 // @ts-ignore
 import { exportRaster, copyCanvasToClipboard, exportCharacterGrid, exportSvgContours } from '../../dither-engine/exporters.js';
-import { downloadAnimatedGif } from '../../utils/animationExport';
+import { downloadAnimatedGif, getExportCanvas } from '../../utils/animationExport';
 import { useAppStore } from '../../state/useAppStore';
 
 interface ExportModalProps {
@@ -35,11 +35,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   // Canvas refs
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Get active canvas from viewport
+  // Get active canvas guaranteed to be full resolution
   const getSourceCanvas = (): HTMLCanvasElement | null => {
-    return (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
-           (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement) ||
-           null;
+    return getExportCanvas();
   };
 
   // Reset tab to 'image' and read settings when modal opens

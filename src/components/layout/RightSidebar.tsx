@@ -15,8 +15,10 @@ import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToR
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 // @ts-ignore
 import { exportRaster } from '../../dither-engine/exporters.js';
-import { downloadAnimatedGif, downloadAnimatedVideo } from '../../utils/animationExport';
+import { downloadAnimatedGif, downloadAnimatedVideo, getExportCanvas } from '../../utils/animationExport';
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
+import { getEffectDescriptor, getEffectParamsMeta, BlendMode, EffectCategory } from '../../effects';
+import { loadUserPresetsV2, saveUserPresetsV2, type PresetV2 } from '../../effects/presets';
 import { 
   X,
   ChevronLeft,
@@ -465,7 +467,7 @@ export const RightSidebar: React.FC = () => {
     };
   });
 
-  const [userPresets, setUserPresets] = useState<any[]>(() => loadUserPresets());
+  const [userPresets, setUserPresets] = useState<PresetV2[]>(() => loadUserPresetsV2());
   const [newPresetName, setNewPresetName] = useState('');
   const [isCreatePresetModalOpen, setIsCreatePresetModalOpen] = useState(false);
 
@@ -536,8 +538,15 @@ export const RightSidebar: React.FC = () => {
   const toggleEffectEnabled = useAppStore((state) => state.toggleEffectEnabled);
   const reorderEffects = useAppStore((state) => state.reorderEffects);
   const updateEffectParam = useAppStore((state) => state.updateEffectParam);
+  const setEffectOpacity = useAppStore((state) => state.setEffectOpacity);
+  const setEffectBlendMode = useAppStore((state) => state.setEffectBlendMode);
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
   const fitToViewport = useAppStore((state) => state.fitToViewport);
+
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+  const toggleCategory = useCallback((catId: string) => {
+    setCollapsedCategories((prev) => ({ ...prev, [catId]: !prev[catId] }));
+  }, []);
 
   // Local state for Swatch editing popover
   // Local state for Effects section (Phase 5)
@@ -645,6 +654,40 @@ export const RightSidebar: React.FC = () => {
     () => effects.filter((e) => e.id !== 'inverse_glow' && e.id !== 'inverse_vignette'),
     [effects]
   );
+
+  const EFFECT_CATEGORY_DEFS: { id: EffectCategory; label: string }[] = useMemo(
+    () => [
+      { id: 'crt', label: 'CRT & Display' },
+      { id: 'film', label: 'Film & Photo' },
+      { id: 'texture', label: 'Texture & Pixel' },
+      { id: 'print', label: 'Print & Ink' },
+      { id: 'glitch', label: 'Glitch & Signal' },
+      { id: 'color', label: 'Color & Tone' }
+    ],
+    []
+  );
+
+  const categorizedEffects = useMemo(() => {
+    const groups: Record<string, typeof visibleEffectsList> = {
+      crt: [],
+      film: [],
+      texture: [],
+      print: [],
+      glitch: [],
+      color: [],
+      other: []
+    };
+    visibleEffectsList.forEach((eff) => {
+      const desc = getEffectDescriptor(eff.type || eff.id);
+      const cat = desc?.category || 'other';
+      if (groups[cat]) {
+        groups[cat].push(eff);
+      } else {
+        groups.other.push(eff);
+      }
+    });
+    return groups;
+  }, [visibleEffectsList]);
 
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const setSidebarWidth = useAppStore((state) => state.setSidebarWidth);
@@ -1564,8 +1607,7 @@ export const RightSidebar: React.FC = () => {
                   }
                   return;
                 }
-                const canvas = (document.getElementById('mainViewportCanvas') as HTMLCanvasElement) ||
-                               (document.querySelector('canvas.preview-canvas') as HTMLCanvasElement);
+                const canvas = getExportCanvas();
                 if (!canvas) return;
                 const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
                 const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
@@ -2810,183 +2852,492 @@ export const RightSidebar: React.FC = () => {
             </div>
 
             {!collapsedSections.effects && (
-              <div className="replica-effects-card">
-                {visibleEffectsList.map((eff, index) => {
-                  const isExpanded = expandedEffectId === eff.id;
-                  const inversePairId = eff.id === 'glow' ? 'inverse_glow' : eff.id === 'vignette' ? 'inverse_vignette' : null;
-                  const inversePairEff = inversePairId ? effects.find((e) => e.id === inversePairId) : null;
-                  const isInverseActive = Boolean(inversePairEff?.enabled);
-                  const activeEff = isInverseActive && inversePairEff ? inversePairEff : eff;
-                  const isRowEnabled = eff.enabled || isInverseActive;
-
-                  const meta = AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
-                  const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
-
-                  const displayName = eff.id === 'scanlines' ? 'CRT Lines' : eff.name;
-                  const inverseName = eff.id === 'glow' ? 'Inverse Glow' : eff.id === 'vignette' ? 'Inverse Vignette' : 'Inverse';
+              <div className="effects-categories-container">
+                {EFFECT_CATEGORY_DEFS.map((catDef) => {
+                  const catEffects = categorizedEffects[catDef.id] || [];
+                  if (catEffects.length === 0) return null;
+                  const isCatCollapsed = Boolean(collapsedCategories[catDef.id]);
+                  const activeCount = catEffects.filter((e) => {
+                    const inversePairId = e.id === 'glow' ? 'inverse_glow' : e.id === 'vignette' ? 'inverse_vignette' : null;
+                    const inversePairEff = inversePairId ? effects.find((x) => x.id === inversePairId) : null;
+                    return e.enabled || Boolean(inversePairEff?.enabled);
+                  }).length;
 
                   return (
-                    <div key={eff.id} className="replica-effect-item">
+                    <div key={catDef.id} className="effects-category-accordion">
                       <div
-                        className="replica-effect-header-row"
-                        onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
+                        className="effects-category-header"
+                        onClick={() => toggleCategory(catDef.id)}
                       >
-                        <span className="replica-effect-title">{displayName}</span>
-                        <button
-                          type="button"
-                          className={`replica-effect-checkbox ${isRowEnabled ? 'checked' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isInverseActive && inversePairEff) {
-                              toggleEffectEnabled(inversePairEff.id);
-                            } else {
-                              toggleEffectEnabled(eff.id);
-                            }
+                        <div className="effects-category-title-group">
+                          <span className="effects-category-title">{catDef.label}</span>
+                          {activeCount > 0 && (
+                            <span className="effects-category-badge">{activeCount} active</span>
+                          )}
+                        </div>
+                        <ChevronDown
+                          size={16}
+                          strokeWidth={2.2}
+                          className="effects-category-chevron"
+                          style={{
+                            transform: isCatCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                            transition: 'transform 150ms ease'
                           }}
-                          aria-label={`Toggle ${displayName}`}
                         />
                       </div>
 
-                      {/* Expanded parameter card */}
-                      {isExpanded && (
-                        <div className="replica-effect-params-card">
-                          {Object.keys(defaultParams).map((key) => {
-                            const val = activeEff.params[key] !== undefined ? activeEff.params[key] : defaultParams[key];
+                      {!isCatCollapsed && (
+                        <div className="effects-category-body">
+                          {catEffects.map((eff, index) => {
+                            const isExpanded = expandedEffectId === eff.id;
+                            const inversePairId = eff.id === 'glow' ? 'inverse_glow' : eff.id === 'vignette' ? 'inverse_vignette' : null;
+                            const inversePairEff = inversePairId ? effects.find((e) => e.id === inversePairId) : null;
+                            const isInverseActive = Boolean(inversePairEff?.enabled);
+                            const activeEff = isInverseActive && inversePairEff ? inversePairEff : eff;
+                            const isRowEnabled = eff.enabled || isInverseActive;
 
-                            if (key === 'shape' && typeof defaultParams[key] === 'string') {
-                              return (
-                                <div key={key} className="slider-control-block">
-                                  <div className="slider-label-above">
-                                    <span>Shape</span>
-                                  </div>
-                                  <div className="replica-btn-grid-2" style={{ marginTop: '2px' }}>
-                                    <button
-                                      type="button"
-                                      className={`replica-btn-2 ${val === 'circle' ? 'active' : ''}`}
-                                      onClick={() => updateEffectParam(activeEff.id, 'shape', 'circle')}
-                                    >
-                                      Circle
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`replica-btn-2 ${val === 'diamond' ? 'active' : ''}`}
-                                      onClick={() => updateEffectParam(activeEff.id, 'shape', 'diamond')}
-                                    >
-                                      Diamond
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            }
+                            const desc = getEffectDescriptor(eff.type || eff.id);
+                            const meta = desc || AVAILABLE_EFFECT_TYPES.find((m: any) => m.id === (eff.type || eff.id));
+                            const defaultParams: Record<string, any> = meta ? (meta.defaultParams as any) : {};
+                            const paramsMeta = getEffectParamsMeta(desc);
 
-                            let min = 0;
-                            let max = 1;
-                            let step = 0.05;
-
-                            if (key === 'quality' || key === 'blackPoint' || key === 'whitePoint' || key === 'softness') {
-                              min = 0; max = 1; step = 0.05;
-                            } else if (key === 'intensity') {
-                              min = 0; max = 2; step = 0.05;
-                            } else if (key === 'radius') {
-                              min = 1; max = 24; step = 1;
-                            } else if (key === 'dotSize' || key === 'thickness' || key === 'blockSize') {
-                              min = 1; max = 20; step = 1;
-                            } else if (key === 'angle') {
-                              min = 0; max = 360; step = 1;
-                            } else if (key === 'offsetX' || key === 'offsetY') {
-                              min = 0; max = 20; step = 1;
-                            } else if (key === 'gamma') {
-                              min = 0.1; max = 3.0; step = 0.05;
-                            } else if (key === 'amount') {
-                              min = -1.0; max = 1.0; step = 0.05;
-                            }
-
-                            const numVal = typeof val === 'number' ? val : defaultParams[key];
-                            const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                            const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
-                            const displayVal = typeof numVal === 'number'
-                              ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
-                              : String(val);
+                            const displayName = desc?.name || eff.name || eff.id;
+                            const inverseName = eff.id === 'glow' ? 'Inverse Glow' : eff.id === 'vignette' ? 'Inverse Vignette' : 'Inverse';
 
                             return (
-                              <div key={key} className="slider-control-block">
-                                <div className="slider-label-above">
-                                  <span>{labelText}</span>
-                                </div>
-                                <div className="slider-track-input-row">
-                                  <input
-                                    type="range"
-                                    className="control-slider"
-                                    min={min}
-                                    max={max}
-                                    step={step}
-                                    value={numVal}
-                                    style={getSliderFill(numVal, min, max)}
-                                    {...sliderPointerProps}
-                                    onChange={(e) => {
-                                      const nextVal = Number(e.target.value);
-                                      updateEffectParam(eff.id, key, nextVal);
-                                      if (inversePairEff) updateEffectParam(inversePairEff.id, key, nextVal);
-                                    }}
-                                  />
-                                  <input
-                                    type="number"
-                                    className="control-num-input"
-                                    min={min}
-                                    max={max}
-                                    step={step}
-                                    value={displayVal}
-                                    onChange={(e) => {
-                                      const raw = parseFloat(e.target.value);
-                                      if (!isNaN(raw)) {
-                                        const clamped = Math.max(min, Math.min(max, raw));
-                                        updateEffectParam(eff.id, key, clamped);
-                                        if (inversePairEff) updateEffectParam(inversePairEff.id, key, clamped);
+                              <div key={eff.id} className="replica-effect-item">
+                                <div
+                                  className="replica-effect-header-row"
+                                  onClick={() => setExpandedEffectId(isExpanded ? null : eff.id)}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <ChevronDown
+                                      size={14}
+                                      strokeWidth={2.2}
+                                      style={{
+                                        transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                        transition: 'transform 140ms ease',
+                                        color: 'var(--text-secondary)'
+                                      }}
+                                    />
+                                    <span className="replica-effect-title">{displayName}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`toggle-square-btn ${isRowEnabled ? 'enabled' : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isInverseActive && inversePairEff) {
+                                        toggleEffectEnabled(inversePairEff.id);
+                                      } else {
+                                        toggleEffectEnabled(eff.id);
                                       }
                                     }}
-                                  />
+                                    aria-label={`Toggle ${displayName}`}
+                                  >
+                                    <span className={`toggle-square ${isRowEnabled ? 'enabled' : ''}`}>
+                                      {isRowEnabled && <Check size={12} strokeWidth={2.8} style={{ color: 'var(--text-on-accent, #fff)' }} />}
+                                    </span>
+                                  </button>
                                 </div>
+
+                                {isExpanded && (
+                                  <div className="replica-effect-params-card">
+                                    {/* Opacity Slider */}
+                                    <div className="slider-control-block">
+                                      <div className="slider-label-above">
+                                        <Tooltip text="Effect Opacity (0 to 100%). Double-click to reset.">
+                                          <span
+                                            onDoubleClick={() => {
+                                              setEffectOpacity(eff.id, 1.0);
+                                              if (inversePairEff) setEffectOpacity(inversePairEff.id, 1.0);
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                          >
+                                            Opacity
+                                          </span>
+                                        </Tooltip>
+                                      </div>
+                                      <div className="slider-track-input-row">
+                                        <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+                                          <input
+                                            type="range"
+                                            className="control-slider"
+                                            min={0}
+                                            max={1}
+                                            step={0.01}
+                                            value={activeEff.opacity !== undefined ? activeEff.opacity : 1.0}
+                                            style={getSliderFill(activeEff.opacity !== undefined ? activeEff.opacity : 1.0, 0, 1)}
+                                            {...sliderPointerProps}
+                                            onDoubleClick={() => {
+                                              setEffectOpacity(eff.id, 1.0);
+                                              if (inversePairEff) setEffectOpacity(inversePairEff.id, 1.0);
+                                            }}
+                                            onChange={(e) => {
+                                              const val = Number(e.target.value);
+                                              setEffectOpacity(eff.id, val);
+                                              if (inversePairEff) setEffectOpacity(inversePairEff.id, val);
+                                            }}
+                                          />
+                                        </Tooltip>
+                                        <input
+                                          type="number"
+                                          className="control-num-input"
+                                          min={0}
+                                          max={100}
+                                          step={1}
+                                          value={Math.round((activeEff.opacity !== undefined ? activeEff.opacity : 1.0) * 100)}
+                                          onChange={(e) => {
+                                            const raw = parseFloat(e.target.value);
+                                            if (!isNaN(raw)) {
+                                              const val = Math.max(0, Math.min(100, raw)) / 100;
+                                              setEffectOpacity(eff.id, val);
+                                              if (inversePairEff) setEffectOpacity(inversePairEff.id, val);
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Blend Mode Dropdown */}
+                                    <div className="picker-row" style={{ marginTop: '2px', marginBottom: '6px', gap: '4px' }}>
+                                      <span className="picker-label">Blend Mode</span>
+                                      <Dropdown
+                                        width="100%"
+                                        value={activeEff.blendMode || 'normal'}
+                                        onChange={(val) => {
+                                          const mode = val as BlendMode;
+                                          setEffectBlendMode(eff.id, mode);
+                                          if (inversePairEff) setEffectBlendMode(inversePairEff.id, mode);
+                                        }}
+                                        items={[
+                                          { id: 'normal', label: 'Normal' },
+                                          { id: 'screen', label: 'Screen' },
+                                          { id: 'multiply', label: 'Multiply' },
+                                          { id: 'overlay', label: 'Overlay' },
+                                          { id: 'soft-light', label: 'Soft Light' },
+                                          { id: 'add', label: 'Add' }
+                                        ]}
+                                      />
+                                    </div>
+
+                                    {/* Dynamic Parameters */}
+                                    {paramsMeta && paramsMeta.length > 0 ? (
+                                      paramsMeta.map((p) => {
+                                        const val = activeEff.params[p.id] !== undefined ? activeEff.params[p.id] : p.defaultValue;
+                                        if (p.type === 'select' && p.options) {
+                                          return (
+                                            <div key={p.id} className="picker-row" style={{ marginTop: '2px', marginBottom: '6px', gap: '4px' }}>
+                                              <span className="picker-label">{p.label}</span>
+                                              <Dropdown
+                                                width="100%"
+                                                value={String(val)}
+                                                onChange={(nextVal) => {
+                                                  updateEffectParam(eff.id, p.id, nextVal);
+                                                  if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, nextVal);
+                                                }}
+                                                items={(p.options || []).map((opt) => ({
+                                                  id: String(opt.value),
+                                                  label: opt.label
+                                                }))}
+                                              />
+                                            </div>
+                                          );
+                                        }
+                                        if (p.type === 'boolean') {
+                                          return (
+                                            <div key={p.id} className="serpentine-row param-toggle-row">
+                                              <button
+                                                type="button"
+                                                id={`toggle-${eff.id}-${p.id}`}
+                                                className={`toggle-square-btn ${Boolean(val) ? 'enabled' : ''}`}
+                                                onClick={() => {
+                                                  const nextVal = !Boolean(val);
+                                                  updateEffectParam(eff.id, p.id, nextVal);
+                                                  if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, nextVal);
+                                                }}
+                                                aria-label={`Toggle ${p.label}`}
+                                              >
+                                                <span className={`toggle-square ${Boolean(val) ? 'enabled' : ''}`}>
+                                                  {Boolean(val) && <Check size={12} strokeWidth={2.8} style={{ color: 'var(--text-on-accent, #fff)' }} />}
+                                                </span>
+                                              </button>
+                                              <label
+                                                htmlFor={`toggle-${eff.id}-${p.id}`}
+                                                className="serpentine-label"
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={() => {
+                                                  const nextVal = !Boolean(val);
+                                                  updateEffectParam(eff.id, p.id, nextVal);
+                                                  if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, nextVal);
+                                                }}
+                                              >
+                                                {p.label}
+                                              </label>
+                                            </div>
+                                          );
+                                        }
+                                        if (p.type === 'color') {
+                                          return (
+                                            <div key={p.id} className="slider-control-block">
+                                              <div className="slider-label-above">
+                                                <Tooltip text={`${p.label}. Double-click to reset.`}>
+                                                  <span
+                                                    onDoubleClick={() => {
+                                                      updateEffectParam(eff.id, p.id, p.defaultValue);
+                                                      if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, p.defaultValue);
+                                                    }}
+                                                    style={{ cursor: 'pointer' }}
+                                                  >
+                                                    {p.label}
+                                                  </span>
+                                                </Tooltip>
+                                              </div>
+                                              <div className="effect-color-input-row">
+                                                <input
+                                                  type="color"
+                                                  className="effect-color-picker"
+                                                  value={typeof val === 'string' && val.startsWith('#') ? val : '#ff5a3c'}
+                                                  onChange={(e) => {
+                                                    updateEffectParam(eff.id, p.id, e.target.value);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, e.target.value);
+                                                  }}
+                                                />
+                                                <input
+                                                  type="text"
+                                                  className="control-num-input"
+                                                  style={{ flex: 1, textTransform: 'uppercase' }}
+                                                  value={String(val || '')}
+                                                  onChange={(e) => {
+                                                    updateEffectParam(eff.id, p.id, e.target.value);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, e.target.value);
+                                                  }}
+                                                />
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        // Number / Range
+                                        const min = p.min !== undefined ? p.min : 0;
+                                        const max = p.max !== undefined ? p.max : 1;
+                                        const step = p.step !== undefined ? p.step : 0.05;
+                                        const numVal = typeof val === 'number' ? val : (p.defaultValue ?? min);
+                                        const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
+                                        const displayVal = Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString();
+
+                                        return (
+                                          <div key={p.id} className="slider-control-block">
+                                            <div className="slider-label-above">
+                                              <Tooltip text={`${p.label} (${min} to ${max})${p.unit ? ' ' + p.unit : ''}. Double-click to reset.`}>
+                                                <span
+                                                  onDoubleClick={() => {
+                                                    const def = p.defaultValue ?? min;
+                                                    updateEffectParam(eff.id, p.id, def);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, def);
+                                                  }}
+                                                  style={{ cursor: 'pointer' }}
+                                                >
+                                                  {p.label}
+                                                </span>
+                                              </Tooltip>
+                                            </div>
+                                            <div className="slider-track-input-row">
+                                              <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+                                                <input
+                                                  type="range"
+                                                  className="control-slider"
+                                                  min={min}
+                                                  max={max}
+                                                  step={step}
+                                                  value={numVal}
+                                                  style={getSliderFill(numVal, min, max)}
+                                                  {...sliderPointerProps}
+                                                  onDoubleClick={() => {
+                                                    const def = p.defaultValue ?? min;
+                                                    updateEffectParam(eff.id, p.id, def);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, def);
+                                                  }}
+                                                  onChange={(e) => {
+                                                    const nextVal = Number(e.target.value);
+                                                    updateEffectParam(eff.id, p.id, nextVal);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, nextVal);
+                                                  }}
+                                                />
+                                              </Tooltip>
+                                              <input
+                                                type="number"
+                                                className="control-num-input"
+                                                min={min}
+                                                max={max}
+                                                step={step}
+                                                value={displayVal}
+                                                onChange={(e) => {
+                                                  const raw = parseFloat(e.target.value);
+                                                  if (!isNaN(raw)) {
+                                                    const clamped = Math.max(min, Math.min(max, raw));
+                                                    updateEffectParam(eff.id, p.id, clamped);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, clamped);
+                                                  }
+                                                }}
+                                              />
+                                            </div>
+                                          </div>
+                                        );
+                                      })
+                                    ) : (
+                                      // Fallback to defaultParams iteration
+                                      Object.keys(defaultParams).map((key) => {
+                                        const val = activeEff.params[key] !== undefined ? activeEff.params[key] : defaultParams[key];
+                                        if (key === 'shape' && typeof defaultParams[key] === 'string') {
+                                          return (
+                                            <div key={key} className="picker-row" style={{ marginTop: '2px', marginBottom: '6px', gap: '4px' }}>
+                                              <span className="picker-label">Shape</span>
+                                              <Dropdown
+                                                width="100%"
+                                                value={String(val)}
+                                                onChange={(nextVal) => {
+                                                  updateEffectParam(activeEff.id, 'shape', nextVal);
+                                                }}
+                                                items={[
+                                                  { id: 'circle', label: 'Circle' },
+                                                  { id: 'diamond', label: 'Diamond' }
+                                                ]}
+                                              />
+                                            </div>
+                                          );
+                                        }
+                                        let min = 0; let max = 1; let step = 0.05;
+                                        if (key === 'quality' || key === 'blackPoint' || key === 'whitePoint' || key === 'softness') {
+                                          min = 0; max = 1; step = 0.05;
+                                        } else if (key === 'intensity') {
+                                          min = 0; max = 2; step = 0.05;
+                                        } else if (key === 'radius') {
+                                          min = 1; max = 24; step = 1;
+                                        } else if (key === 'dotSize' || key === 'thickness' || key === 'blockSize') {
+                                          min = 1; max = 20; step = 1;
+                                        } else if (key === 'angle') {
+                                          min = 0; max = 360; step = 1;
+                                        } else if (key === 'offsetX' || key === 'offsetY') {
+                                          min = 0; max = 20; step = 1;
+                                        } else if (key === 'gamma') {
+                                          min = 0.1; max = 3.0; step = 0.05;
+                                        } else if (key === 'amount') {
+                                          min = -1.0; max = 1.0; step = 0.05;
+                                        }
+                                        const numVal = typeof val === 'number' ? val : defaultParams[key];
+                                        const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                                        const decimals = step < 0.1 ? 2 : (step < 1 ? 1 : 0);
+                                        const displayVal = typeof numVal === 'number'
+                                          ? (Number.isInteger(numVal) ? numVal.toString() : parseFloat(numVal.toFixed(decimals)).toString())
+                                          : String(val);
+
+                                        return (
+                                          <div key={key} className="slider-control-block">
+                                            <div className="slider-label-above">
+                                              <Tooltip text={`${labelText} (${min} to ${max}). Double-click to reset.`}>
+                                                <span
+                                                  onDoubleClick={() => {
+                                                    updateEffectParam(eff.id, key, defaultParams[key]);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, key, defaultParams[key]);
+                                                  }}
+                                                  style={{ cursor: 'pointer' }}
+                                                >
+                                                  {labelText}
+                                                </span>
+                                              </Tooltip>
+                                            </div>
+                                            <div className="slider-track-input-row">
+                                              <Tooltip text="Double-click to reset to default" style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+                                                <input
+                                                  type="range"
+                                                  className="control-slider"
+                                                  min={min}
+                                                  max={max}
+                                                  step={step}
+                                                  value={numVal}
+                                                  style={getSliderFill(numVal, min, max)}
+                                                  {...sliderPointerProps}
+                                                  onDoubleClick={() => {
+                                                    updateEffectParam(eff.id, key, defaultParams[key]);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, key, defaultParams[key]);
+                                                  }}
+                                                  onChange={(e) => {
+                                                    const nextVal = Number(e.target.value);
+                                                    updateEffectParam(eff.id, key, nextVal);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, key, nextVal);
+                                                  }}
+                                                />
+                                              </Tooltip>
+                                              <input
+                                                type="number"
+                                                className="control-num-input"
+                                                min={min}
+                                                max={max}
+                                                step={step}
+                                                value={displayVal}
+                                                onChange={(e) => {
+                                                  const raw = parseFloat(e.target.value);
+                                                  if (!isNaN(raw)) {
+                                                    const clamped = Math.max(min, Math.min(max, raw));
+                                                    updateEffectParam(eff.id, key, clamped);
+                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, key, clamped);
+                                                  }
+                                                }}
+                                              />
+                                            </div>
+                                          </div>
+                                        );
+                                      })
+                                    )}
+
+                                    {/* Inverse Subtoggle for glow & vignette */}
+                                    {inversePairEff && (
+                                      <div className="serpentine-row param-toggle-row">
+                                        <button
+                                          type="button"
+                                          className={`toggle-square-btn ${isInverseActive ? 'enabled' : ''}`}
+                                          onClick={() => {
+                                            if (isInverseActive) {
+                                              toggleEffectEnabled(inversePairEff.id);
+                                              if (!eff.enabled) toggleEffectEnabled(eff.id);
+                                            } else {
+                                              if (eff.enabled) toggleEffectEnabled(eff.id);
+                                              toggleEffectEnabled(inversePairEff.id);
+                                            }
+                                          }}
+                                          aria-label={`Toggle ${inverseName}`}
+                                        >
+                                          <span className={`toggle-square ${isInverseActive ? 'enabled' : ''}`}>
+                                            {isInverseActive && <Check size={12} strokeWidth={2.8} style={{ color: 'var(--text-on-accent, #fff)' }} />}
+                                          </span>
+                                        </button>
+                                        <label
+                                          className="serpentine-label"
+                                          style={{ cursor: 'pointer' }}
+                                          onClick={() => {
+                                            if (isInverseActive) {
+                                              toggleEffectEnabled(inversePairEff.id);
+                                              if (!eff.enabled) toggleEffectEnabled(eff.id);
+                                            } else {
+                                              if (eff.enabled) toggleEffectEnabled(eff.id);
+                                              toggleEffectEnabled(inversePairEff.id);
+                                            }
+                                          }}
+                                        >
+                                          {inverseName}
+                                        </label>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {index < catEffects.length - 1 && (
+                                  <div className="replica-effect-divider" />
+                                )}
                               </div>
                             );
                           })}
-
-                          {/* Inverse Subtoggle for glow & vignette */}
-                          {inversePairEff && (
-                            <div
-                              className="replica-effect-subtoggle-row"
-                              onClick={() => {
-                                if (isInverseActive) {
-                                  toggleEffectEnabled(inversePairEff.id);
-                                  if (!eff.enabled) toggleEffectEnabled(eff.id);
-                                } else {
-                                  if (eff.enabled) toggleEffectEnabled(eff.id);
-                                  toggleEffectEnabled(inversePairEff.id);
-                                }
-                              }}
-                            >
-                              <span className="replica-effect-subtoggle-label">{inverseName}</span>
-                              <button
-                                type="button"
-                                className={`replica-effect-checkbox ${isInverseActive ? 'checked' : ''}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isInverseActive) {
-                                    toggleEffectEnabled(inversePairEff.id);
-                                    if (!eff.enabled) toggleEffectEnabled(eff.id);
-                                  } else {
-                                    if (eff.enabled) toggleEffectEnabled(eff.id);
-                                    toggleEffectEnabled(inversePairEff.id);
-                                  }
-                                }}
-                                aria-label={`Toggle ${inverseName}`}
-                              />
-                            </div>
-                          )}
                         </div>
-                      )}
-
-                      {index < visibleEffectsList.length - 1 && (
-                        <div className="replica-effect-divider" />
                       )}
                     </div>
                   );
@@ -3054,7 +3405,15 @@ export const RightSidebar: React.FC = () => {
                             if (preset.scale !== undefined) updateCurrentAlgoParam('scale', preset.scale);
                             if (preset.diffusionStrength !== undefined) updateCurrentAlgoParam('diffusionStrength', preset.diffusionStrength);
                             if (preset.serpentine !== undefined) updateCurrentAlgoParam('serpentine', preset.serpentine);
-                            if (preset.effects) useAppStore.setState({ effects: preset.effects });
+                            if (preset.effects) {
+                              useAppStore.setState({
+                                effects: preset.effects.map((e: any) => ({
+                                  ...e,
+                                  opacity: e.opacity !== undefined ? e.opacity : 1.0,
+                                  blendMode: e.blendMode || 'normal'
+                                }))
+                              });
+                            }
                           }}
                           title={`Apply preset: ${preset.name}`}
                         >
@@ -3065,7 +3424,7 @@ export const RightSidebar: React.FC = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               const updated = userPresets.filter((p) => p.id !== preset.id);
-                              saveUserPresets(updated);
+                              saveUserPresetsV2(updated);
                               setUserPresets(updated);
                             }}
                             title="Delete preset"
@@ -3113,7 +3472,8 @@ export const RightSidebar: React.FC = () => {
                         e.preventDefault();
                         const trimmed = newPresetName.trim();
                         if (!trimmed) return;
-                        const newPreset = {
+                        const newPreset: PresetV2 = {
+                          version: 2,
                           id: `user_${Date.now()}`,
                           name: trimmed,
                           algorithmId,
@@ -3128,11 +3488,17 @@ export const RightSidebar: React.FC = () => {
                           scale: currentParams?.scale,
                           diffusionStrength: currentParams?.diffusionStrength,
                           serpentine: currentParams?.serpentine,
-                          effects: JSON.parse(JSON.stringify(effects)),
+                          effects: effects.map((e) => ({
+                            id: e.type || e.id,
+                            enabled: Boolean(e.enabled),
+                            params: { ...e.params },
+                            opacity: e.opacity !== undefined ? e.opacity : 1.0,
+                            blendMode: e.blendMode || 'normal'
+                          })),
                           palette: [...workingPalette]
                         };
                         const updated = [...userPresets, newPreset];
-                        saveUserPresets(updated);
+                        saveUserPresetsV2(updated);
                         setUserPresets(updated);
                         setNewPresetName('');
                         setIsCreatePresetModalOpen(false);
@@ -3148,7 +3514,8 @@ export const RightSidebar: React.FC = () => {
                     onClick={() => {
                       const trimmed = newPresetName.trim();
                       if (!trimmed) return;
-                      const newPreset = {
+                      const newPreset: PresetV2 = {
+                        version: 2,
                         id: `user_${Date.now()}`,
                         name: trimmed,
                         algorithmId,
@@ -3163,11 +3530,17 @@ export const RightSidebar: React.FC = () => {
                         scale: currentParams?.scale,
                         diffusionStrength: currentParams?.diffusionStrength,
                         serpentine: currentParams?.serpentine,
-                        effects: JSON.parse(JSON.stringify(effects)),
+                        effects: effects.map((e) => ({
+                          id: e.type || e.id,
+                          enabled: Boolean(e.enabled),
+                          params: { ...e.params },
+                          opacity: e.opacity !== undefined ? e.opacity : 1.0,
+                          blendMode: e.blendMode || 'normal'
+                        })),
                         palette: [...workingPalette]
                       };
                       const updated = [...userPresets, newPreset];
-                      saveUserPresets(updated);
+                      saveUserPresetsV2(updated);
                       setUserPresets(updated);
                       setNewPresetName('');
                       setIsCreatePresetModalOpen(false);

@@ -3,6 +3,7 @@ import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
+import { getExportCanvas } from '../utils/animationExport';
 import {
   FolderOpen,
   Sparkles,
@@ -80,7 +81,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   }, []);
 
   const handleCopyClipboard = useCallback(() => {
-    const canvas = document.querySelector('canvas.preview-canvas') as HTMLCanvasElement;
+    const canvas = getExportCanvas();
     if (canvas) {
       copyCanvasToClipboard(canvas).catch((err: any) => {
         console.warn('Copy to clipboard failed:', err);

@@ -6,7 +6,7 @@ import { Tooltip } from '../common/Tooltip';
 import { ColorPicker } from '../common/ColorPicker';
 import { useAppStore } from '../../state/useAppStore';
 import { useLenis } from '../../hooks/useLenis';
-import { areAnimationsEnabled } from '../dialogs/SettingsDialog';
+import { areAnimationsEnabled, getStoredSettings, saveStoredSettings, type DitherForgeSettings } from '../dialogs/SettingsDialog';
 // Import frozen registries UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
@@ -789,9 +789,36 @@ export const RightSidebar: React.FC = () => {
     setActiveCategory(CATEGORY_KEYS[next]);
   };
 
-  const [exportFormat, setExportFormat] = useState<string>('PNG');
+  const getInitialExportFormat = (): string => {
+    try {
+      const fmt = getStoredSettings().defaultExportFormat;
+      if (fmt === 'webp') return 'WEBP';
+      if (fmt === 'jpg') return 'JPEG';
+      if (fmt === 'png') return 'PNG';
+      return (fmt || 'PNG').toUpperCase();
+    } catch {
+      return 'PNG';
+    }
+  };
+
+  const [exportFormat, setExportFormat] = useState<string>(getInitialExportFormat);
   const [videoExportFormat, setVideoExportFormat] = useState<'GIF' | 'MP4' | 'MOV' | 'WEBM'>('GIF');
   const [isExportingAnim, setIsExportingAnim] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleSettingsChanged = (e: Event) => {
+      const customEvt = e as CustomEvent<DitherForgeSettings>;
+      const fmt = customEvt.detail?.defaultExportFormat;
+      if (fmt) {
+        if (fmt === 'webp') setExportFormat('WEBP');
+        else if (fmt === 'jpg') setExportFormat('JPEG');
+        else if (fmt === 'png') setExportFormat('PNG');
+        else setExportFormat(fmt.toUpperCase());
+      }
+    };
+    window.addEventListener('ditherforge_settings_changed', handleSettingsChanged);
+    return () => window.removeEventListener('ditherforge_settings_changed', handleSettingsChanged);
+  }, []);
 
   // Set of properties currently locked because they are controlled by the Animation Timeline
   const lockedAnimProps = useMemo(() => {
@@ -1630,7 +1657,13 @@ export const RightSidebar: React.FC = () => {
                 } else {
                   const order = ['PNG', 'JPEG', 'WEBP'] as const;
                   const idx = order.findIndex((f) => f === exportFormat);
-                  setExportFormat(order[(idx + 1) % order.length]);
+                  const nextFormat = order[(idx + 1) % order.length];
+                  setExportFormat(nextFormat);
+                  try {
+                    const current = getStoredSettings();
+                    const mapped = nextFormat === 'JPEG' ? 'jpg' : (nextFormat.toLowerCase() as 'png' | 'webp');
+                    saveStoredSettings({ ...current, defaultExportFormat: mapped });
+                  } catch {}
                 }
               }}
             >

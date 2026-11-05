@@ -175,7 +175,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      if (spaceBelow < 280 && rect.top > 280) {
+      if (spaceBelow < 250 && rect.top > 220) {
         setDirection('up');
       } else {
         setDirection('down');
@@ -281,7 +281,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`effect-color-input-row ${className}`}
+      className={`effect-color-input-row ${className} ${isOpen ? 'popover-open' : ''}`}
       style={{ opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto' }}
     >
       {/* Trigger Swatch Button */}

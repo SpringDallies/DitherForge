@@ -3911,16 +3911,15 @@ body {
 .replica-callout-popover {
   position: absolute;
   top: calc(100% + 10px);
-  background-color: color-mix(in srgb, var(--bg-panel) var(--glass-opacity, 85%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 16px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  background-color: var(--bg-secondary) !important;
+  opacity: 1 !important;
   border: 1.5px solid var(--border-color);
   border-radius: 16px;
   padding: 12px;
   width: 220px;
-  z-index: 110;
+  z-index: 1000;
   box-sizing: border-box;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: left 160ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: left;
   transform-origin: top center;
@@ -4274,13 +4273,30 @@ body {
   background-color: var(--bg-panel);
   border: 1.5px solid var(--border-color);
   border-radius: 14px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   transition: border-color 0.15s ease;
+  position: relative;
 }
 .effects-category-accordion:hover {
   border-color: var(--border-hover);
+}
+.effects-category-accordion:has(.popover-open),
+.effects-category-accordion:has(.effect-color-popover),
+.effects-category-accordion:has(.custom-dropdown-container.open),
+.effects-category-accordion:has(.custom-dropdown-panel:not(.closing)) {
+  z-index: 100;
+}
+.replica-effect-item:has(.popover-open),
+.replica-effect-item:has(.effect-color-popover) {
+  z-index: 101;
+  position: relative;
+}
+.replica-effect-params-card:has(.popover-open),
+.replica-effect-params-card:has(.effect-color-popover) {
+  z-index: 102;
+  position: relative;
 }
 .effects-category-header {
   display: flex;
@@ -4291,6 +4307,12 @@ body {
   user-select: none;
   background-color: var(--bg-control);
   transition: background-color 0.15s ease;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+.effects-category-header.is-collapsed {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
 }
 .effects-category-header:hover {
   background-color: var(--bg-raised);
@@ -4407,21 +4429,23 @@ body {
   border-color: var(--accent-primary);
   background-color: var(--bg-control);
 }
+.effect-color-input-row.popover-open {
+  z-index: 103;
+}
 .effect-color-popover {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  background-color: color-mix(in srgb, var(--bg-panel) var(--glass-opacity, 92%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 16px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  background-color: var(--bg-secondary) !important;
+  opacity: 1 !important;
   border: 1.5px solid var(--border-color);
   border-radius: 16px;
   padding: 12px;
   width: 230px;
   max-width: 100%;
-  z-index: 550;
+  z-index: 1000;
   box-sizing: border-box;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15);
   animation: popoverQuickOpen 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform-origin: top left;
 }

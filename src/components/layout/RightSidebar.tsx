@@ -2864,9 +2864,9 @@ export const RightSidebar: React.FC = () => {
                   }).length;
 
                   return (
-                    <div key={catDef.id} className="effects-category-accordion">
+                    <div key={catDef.id} className={`effects-category-accordion ${isCatCollapsed ? 'is-collapsed' : ''}`}>
                       <div
-                        className="effects-category-header"
+                        className={`effects-category-header ${isCatCollapsed ? 'is-collapsed' : ''}`}
                         onClick={() => toggleCategory(catDef.id)}
                       >
                         <div className="effects-category-title-group">

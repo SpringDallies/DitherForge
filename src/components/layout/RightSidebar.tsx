@@ -28,8 +28,7 @@ import {
   Layers,
   Sun,
   Moon,
-  Plus,
-  Check
+  Plus
 } from 'lucide-react';
 
 const CATEGORY_KEYS = [
@@ -2935,9 +2934,7 @@ export const RightSidebar: React.FC = () => {
                                     }}
                                     aria-label={`Toggle ${displayName}`}
                                   >
-                                    <span className={`toggle-square ${isRowEnabled ? 'enabled' : ''}`}>
-                                      {isRowEnabled && <Check size={12} strokeWidth={2.8} style={{ color: 'var(--text-on-accent, #fff)' }} />}
-                                    </span>
+                                    <span className={`toggle-square ${isRowEnabled ? 'enabled' : ''}`} />
                                   </button>
                                 </div>
 
@@ -3058,9 +3055,7 @@ export const RightSidebar: React.FC = () => {
                                                 }}
                                                 aria-label={`Toggle ${p.label}`}
                                               >
-                                                <span className={`toggle-square ${Boolean(val) ? 'enabled' : ''}`}>
-                                                  {Boolean(val) && <Check size={12} strokeWidth={2.8} style={{ color: 'var(--text-on-accent, #fff)' }} />}
-                                                </span>
+                                                <span className={`toggle-square ${Boolean(val) ? 'enabled' : ''}`} />
                                               </button>
                                               <label
                                                 htmlFor={`toggle-${eff.id}-${p.id}`}
@@ -3307,9 +3302,7 @@ export const RightSidebar: React.FC = () => {
                                           }}
                                           aria-label={`Toggle ${inverseName}`}
                                         >
-                                          <span className={`toggle-square ${isInverseActive ? 'enabled' : ''}`}>
-                                            {isInverseActive && <Check size={12} strokeWidth={2.8} style={{ color: 'var(--text-on-accent, #fff)' }} />}
-                                          </span>
+                                          <span className={`toggle-square ${isInverseActive ? 'enabled' : ''}`} />
                                         </button>
                                         <label
                                           className="serpentine-label"

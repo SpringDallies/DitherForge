@@ -1,0 +1,110 @@
+{
+  "version": 2,
+  "id": "preset_super_8",
+  "name": "Super 8",
+  "description": "Vintage 8mm home movie camera emulsion with warm red highlight halation, mechanical gate wobble, exposure flicker, physical celluloid dust, edge light leaks, and faded film blacks.",
+  "algorithmId": "floyd-steinberg",
+  "effects": [
+    {
+      "id": "gate_weave",
+      "enabled": true,
+      "params": {
+        "amplitude": 2.0,
+        "frequency": 1.0,
+        "drift": 0.35,
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "exposure_flicker",
+      "enabled": true,
+      "params": {
+        "amplitude": 0.15,
+        "frequency": 0.8,
+        "mode": "stepped",
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "film_grain",
+      "enabled": true,
+      "params": {
+        "intensity": 0.4,
+        "size": 2,
+        "channelIndependence": 0.35,
+        "shadowWeight": 0.7,
+        "midWeight": 1.0,
+        "highlightWeight": 0.4,
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "dust_scratches",
+      "enabled": true,
+      "params": {
+        "density": 0.25,
+        "minSize": 1,
+        "maxSize": 3,
+        "scratchProbability": 0.4,
+        "streakLength": 50,
+        "colorMode": "mixed",
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "light_leaks",
+      "enabled": true,
+      "params": {
+        "direction": "top_left",
+        "radius": 0.85,
+        "tint": "#ff8844",
+        "secondaryTint": "#ff3366",
+        "intensity": 0.55,
+        "temporal": true
+      },
+      "opacity": 0.85,
+      "blendMode": "screen"
+    },
+    {
+      "id": "halation",
+      "enabled": true,
+      "params": {
+        "threshold": 0.6,
+        "radius": 12,
+        "tint": "#ff4a2c",
+        "intensity": 0.7,
+        "wideNarrowRatio": 0.4
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "filmFade",
+      "enabled": true,
+      "params": {
+        "lift": 0.12,
+        "fadeColor": "#2b2118"
+      },
+      "opacity": 0.75,
+      "blendMode": "normal"
+    },
+    {
+      "id": "vignette",
+      "enabled": true,
+      "params": {
+        "intensity": 0.5,
+        "radius": 0.75
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    }
+  ]
+}

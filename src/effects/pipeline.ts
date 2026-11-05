@@ -1,15 +1,35 @@
 // DitherForge Post-Effects Pipeline Execution & Ordering
 import type { EffectDescriptor, EffectItem, EffectContext } from './types';
 import { compositeEffectLayer } from './blendModes';
+import { canonicalizeEffectId, toDescriptorId } from './presets';
+import { clearFrameEchoHistory } from './glitch/frameEcho';
 
 /**
  * Canonical default pipeline ordering.
- * Used when sorting a chain by physical optical/electronic signal order.
+ * Orders effects according to physical optical/electronic signal flow:
+ * 1. Color mapping & tonality pre-pass
+ * 2. Camera mechanics & optical pre-pass
+ * 3. Print, ink & halftone
+ * 4. Glitch & signal degradation
+ * 5. Analog video / CRT signal & synthesis
+ * 6. Glow, Halation & Beam Blooming
+ * 7. Film emulsion, texture & compression artifacts
+ * 8. Vignette falloff
+ * 9. Physical CRT Glass (placed after Vignette in default chain)
  */
 export const DEFAULT_PIPELINE_ORDER: string[] = [
   // 1. Color mapping & tonality
+  'blueprint',
+  'blueprint_cyanotype',
+  'solarize',
+  'posterize',
+  'posterize_post',
   'gradient_map',
   'duotone',
+  'splitToning',
+  'split_toning',
+  'filmFade',
+  'film_fade',
   'curves_levels',
 
   // 2. Camera mechanics & optical pre-pass
@@ -19,10 +39,28 @@ export const DEFAULT_PIPELINE_ORDER: string[] = [
   'lens_aberration',
   'chromatic_aberration',
 
-  // 3. Halftone & Print
+  // 3. Print, ink & halftone
+  'risoMisreg',
+  'risograph_misregistration',
+  'rosetteAngles',
+  'rosette_angles',
   'halftone',
+  'photocopy',
+  'photocopy_degradation',
+  'outline',
+  'outline_overlay',
 
-  // 4. Analog Video / CRT Signal & Synthesis
+  // 4. Glitch & signal degradation
+  'bitCrush',
+  'bit_crush',
+  'sliceGlitch',
+  'slice_glitch',
+  'blockDisplacement',
+  'block_displacement',
+  'frameEcho',
+  'frame_echo',
+
+  // 5. Analog Video / CRT Signal & Synthesis
   'vhs_tracking',
   'head_switching_noise',
   'scanline_jitter',
@@ -31,13 +69,15 @@ export const DEFAULT_PIPELINE_ORDER: string[] = [
   'phosphor_mask',
   'scanlines',
 
-  // 5. Glow, Halation & Beam Blooming
+  // 6. Glow, Halation & Beam Blooming
   'halation',
   'phosphor_bloom',
   'glow',
   'inverse_glow',
 
-  // 6. Film emulsion & compression artifacts
+  // 7. Film emulsion, paper texture & compression artifacts
+  'paperTexture',
+  'paper_texture',
   'light_leaks',
   'film_grain',
   'dust_scratches',
@@ -45,13 +85,26 @@ export const DEFAULT_PIPELINE_ORDER: string[] = [
   'pixelate',
   'jpeg_artifacts',
 
-  // 7. Vignette falloff
+  // 8. Vignette falloff
   'vignette',
   'inverse_vignette',
 
-  // 8. Physical CRT Glass (placed after Vignette in default chain)
+  // 9. Physical CRT Glass (placed after Vignette in default chain)
   'screen_curvature'
 ];
+
+/**
+ * Finds the index of an effect in the canonical pipeline order, checking canonical and descriptor IDs.
+ */
+function getPipelineOrderIndex(id: string): number {
+  const directIdx = DEFAULT_PIPELINE_ORDER.indexOf(id);
+  if (directIdx !== -1) return directIdx;
+  const canonicalIdx = DEFAULT_PIPELINE_ORDER.indexOf(canonicalizeEffectId(id));
+  if (canonicalIdx !== -1) return canonicalIdx;
+  const descIdx = DEFAULT_PIPELINE_ORDER.indexOf(toDescriptorId(id));
+  if (descIdx !== -1) return descIdx;
+  return 999;
+}
 
 /**
  * Sorts an array of effect items by the canonical pipeline order.
@@ -60,10 +113,8 @@ export function sortEffectsByPipelineOrder(effects: EffectItem[]): EffectItem[] 
   return [...effects].sort((a, b) => {
     const idA = a.type || a.id;
     const idB = b.type || b.id;
-    const idxA = DEFAULT_PIPELINE_ORDER.indexOf(idA);
-    const idxB = DEFAULT_PIPELINE_ORDER.indexOf(idB);
-    const posA = idxA === -1 ? 999 : idxA;
-    const posB = idxB === -1 ? 999 : idxB;
+    const posA = getPipelineOrderIndex(idA);
+    const posB = getPipelineOrderIndex(idB);
     return posA - posB;
   });
 }
@@ -72,9 +123,16 @@ export function sortEffectsByPipelineOrder(effects: EffectItem[]): EffectItem[] 
 let pipelineLayerBuffer: Uint8ClampedArray | null = null;
 let pipelineAlphaBuffer: Uint8ClampedArray | null = null;
 
+// Reusable shared pipeline context for multi-effect chains (luminance cache, blur scratch buffers)
+export interface PipelineSharedContext {
+  luminance?: Uint8Array;
+  blurScratch?: Float32Array;
+  lutCache?: Map<string, Uint8Array>;
+}
+
 /**
  * Applies a stack of effects to an ImageData buffer with blend modes, opacity,
- * alpha preservation, and deterministic frame context.
+ * alpha preservation, deterministic frame context, and batched shared pass acceleration.
  */
 export function applyEffectPipeline(
   imageData: ImageData,
@@ -98,10 +156,23 @@ export function applyEffectPipeline(
     pipelineAlphaBuffer[i] = data[a];
   }
 
+  // Clear temporal buffer histories on sequence start (frame 0) for strict determinism
+  if (context.frameIndex === 0) {
+    try {
+      clearFrameEchoHistory();
+    } catch {
+      // ignore
+    }
+  }
+
   // Ensure layer scratch buffer is allocated
   if (!pipelineLayerBuffer || pipelineLayerBuffer.length !== len) {
     pipelineLayerBuffer = new Uint8ClampedArray(len);
   }
+
+  // Shared execution context across this stack
+  const shared: PipelineSharedContext = {};
+  const enrichedContext = { ...context, shared };
 
   for (let i = 0; i < effects.length; i++) {
     const item = effects[i];
@@ -127,7 +198,7 @@ export function applyEffectPipeline(
       } else if (descriptor.apply.length <= 2) {
         descriptor.apply({ data: pipelineLayerBuffer, width, height }, item.params);
       } else {
-        descriptor.apply(pipelineLayerBuffer, width, height, item.params, context);
+        descriptor.apply(pipelineLayerBuffer, width, height, item.params, enrichedContext);
       }
     } catch (e) {
       try {

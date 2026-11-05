@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "preset_gameboy_pocket",
+  "name": "GameBoy Pocket",
+  "description": "Original handheld 4-shade olive-green reflective LCD with subtle passive matrix slot mask grid, horizontal pixel separation scanlines, and 2x pixel scaling.",
+  "algorithmId": "bayer-4x4",
+  "paletteId": "monochrome_2bit",
+  "effects": [
+    {
+      "id": "gradient_map",
+      "enabled": true,
+      "params": {
+        "preset": "gameboy_dmg",
+        "space": "oklab",
+        "preserveLuminance": false,
+        "mix": 1.0
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "phosphor_mask",
+      "enabled": true,
+      "params": {
+        "maskType": "slot_mask",
+        "pitch": 2,
+        "intensity": 0.2,
+        "rgbBias": 0.3,
+        "vertical": false
+      },
+      "opacity": 0.5,
+      "blendMode": "multiply"
+    },
+    {
+      "id": "scanlines",
+      "enabled": true,
+      "params": {
+        "mode": "hard",
+        "thickness": 1,
+        "intensity": 0.25
+      },
+      "opacity": 0.7,
+      "blendMode": "multiply"
+    },
+    {
+      "id": "pixelate",
+      "enabled": true,
+      "params": {
+        "blockSize": 2
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    }
+  ]
+}

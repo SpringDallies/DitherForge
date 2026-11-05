@@ -6,7 +6,7 @@ import { textureEffects } from './texture';
 import { printEffects } from './print';
 import { glitchEffects } from './glitch';
 import { colorEffects } from './color';
-import { resolveEffectId } from './presets';
+import { resolveEffectId, canonicalizeEffectId, toDescriptorId } from './presets';
 import { applyEffectPipeline as execPipeline } from './pipeline';
 
 export * from './types';
@@ -33,23 +33,47 @@ export const ALL_EFFECTS: EffectDescriptor[] = [
 ];
 
 /**
- * Map indexed by canonical effect id for O(1) execution dispatch.
+ * Map indexed by canonical effect id, descriptor id, and aliases for O(1) execution dispatch.
  */
 const REGISTRY_MAP = new Map<string, EffectDescriptor>();
 for (const eff of ALL_EFFECTS) {
   REGISTRY_MAP.set(eff.id, eff);
+  const canonical = canonicalizeEffectId(eff.id);
+  if (canonical) REGISTRY_MAP.set(canonical, eff);
+  const desc = toDescriptorId(eff.id);
+  if (desc) REGISTRY_MAP.set(desc, eff);
 }
 
 /**
- * Retrieve an effect descriptor by canonical id or legacy alias.
+ * Retrieve an effect descriptor by canonical id, descriptor id, or legacy alias.
  */
 export function getEffectDescriptor(id: string): EffectDescriptor | undefined {
-  const canonical = resolveEffectId(id);
-  const cached = REGISTRY_MAP.get(canonical);
-  if (cached) return cached;
-  const dyn = getAllEffects().find((e) => e.id === canonical);
-  if (dyn) REGISTRY_MAP.set(canonical, dyn);
-  return dyn;
+  if (!id) return undefined;
+  const direct = REGISTRY_MAP.get(id);
+  if (direct) return direct;
+
+  const canonical = canonicalizeEffectId(id);
+  const byCanonical = REGISTRY_MAP.get(canonical);
+  if (byCanonical) return byCanonical;
+
+  const descId = toDescriptorId(id);
+  const byDesc = REGISTRY_MAP.get(descId);
+  if (byDesc) return byDesc;
+
+  const resolved = resolveEffectId(id);
+  const byResolved = REGISTRY_MAP.get(resolved);
+  if (byResolved) return byResolved;
+
+  const dyn = getAllEffects().find(
+    (e) => e.id === id || e.id === descId || e.id === canonical || e.id === resolved
+  );
+  if (dyn) {
+    REGISTRY_MAP.set(id, dyn);
+    REGISTRY_MAP.set(canonical, dyn);
+    REGISTRY_MAP.set(descId, dyn);
+    return dyn;
+  }
+  return undefined;
 }
 
 /**

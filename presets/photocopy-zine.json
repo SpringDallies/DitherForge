@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "id": "preset_photocopy_zine",
+  "name": "Photocopy Zine",
+  "description": "Underground punk zine photocopier aesthetic with high-contrast toner scatter, CMYK rosette screening angles, tactile fibrous newsprint, 2-ink Risograph color map, and split-toning.",
+  "algorithmId": "atkinson",
+  "effects": [
+    {
+      "id": "photocopy",
+      "enabled": true,
+      "params": {
+        "contrast": 1.8,
+        "streakAmount": 0.35,
+        "edgeDarkening": 0.4,
+        "speckleDensity": 0.25,
+        "blur": 0.5
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "rosetteAngles",
+      "enabled": true,
+      "params": {
+        "angleC": 15,
+        "angleM": 75,
+        "angleY": 0,
+        "angleK": 45,
+        "dotGain": 0.2,
+        "dotSize": 3
+      },
+      "opacity": 0.9,
+      "blendMode": "normal"
+    },
+    {
+      "id": "paperTexture",
+      "enabled": true,
+      "params": {
+        "fiberScale": 1.2,
+        "contrast": 0.4,
+        "tint": "#f4ecd8",
+        "opacity": 0.75,
+        "blendMode": "multiply"
+      },
+      "opacity": 0.75,
+      "blendMode": "multiply"
+    },
+    {
+      "id": "gradient_map",
+      "enabled": true,
+      "params": {
+        "preset": "riso_2ink",
+        "space": "oklab",
+        "preserveLuminance": true,
+        "mix": 1.0
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "splitToning",
+      "enabled": true,
+      "params": {
+        "shadowHue": 210,
+        "shadowSaturation": 0.4,
+        "highlightHue": 35,
+        "highlightSaturation": 0.35,
+        "balance": 0.0
+      },
+      "opacity": 0.85,
+      "blendMode": "normal"
+    }
+  ]
+}

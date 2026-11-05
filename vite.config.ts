@@ -1,6 +1,7 @@
-﻿import { defineConfig } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,19 +15,26 @@ export default defineConfig({
       name: 'serve-app-html',
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
-          if (req.url === '/' || req.url === '/index.html') {
-            req.url = '/app.html';
+          if (req.url === '/' || req.url === '/index.html' || req.url === '/DitherForge/' || req.url === '/DitherForge/index.html') {
+            req.url = req.url.startsWith('/DitherForge') ? '/DitherForge/app.html' : '/app.html';
           }
           next();
         });
       },
       configurePreviewServer(server) {
         server.middlewares.use((req, _res, next) => {
-          if (req.url === '/' || req.url === '/index.html') {
-            req.url = '/app.html';
+          if (req.url === '/' || req.url === '/index.html' || req.url === '/DitherForge/' || req.url === '/DitherForge/index.html') {
+            req.url = req.url.startsWith('/DitherForge') ? '/DitherForge/app.html' : '/app.html';
           }
           next();
         });
+      },
+      closeBundle() {
+        const distAppHtml = path.resolve(__dirname, 'dist', 'app.html');
+        const distIndexHtml = path.resolve(__dirname, 'dist', 'index.html');
+        if (fs.existsSync(distAppHtml) && !fs.existsSync(distIndexHtml)) {
+          fs.copyFileSync(distAppHtml, distIndexHtml);
+        }
       }
     }
   ],

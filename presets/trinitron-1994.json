@@ -1,0 +1,94 @@
+{
+  "version": 2,
+  "id": "preset_trinitron_1994",
+  "name": "Trinitron 1994",
+  "description": "Authentic 1990s Sony Trinitron CRT television with aperture grille phosphor mask, soft scanlines, curved tube face, beam blooming, halation, and edge convergence divergence.",
+  "algorithmId": "floyd-steinberg",
+  "effects": [
+    {
+      "id": "screen_curvature",
+      "enabled": true,
+      "params": {
+        "curvature": 0.14,
+        "cornerRounding": 0.08,
+        "edgeSampling": "black"
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "phosphor_mask",
+      "enabled": true,
+      "params": {
+        "maskType": "aperture_grille",
+        "pitch": 2,
+        "intensity": 0.35,
+        "rgbBias": 0.65,
+        "vertical": true
+      },
+      "opacity": 0.9,
+      "blendMode": "multiply"
+    },
+    {
+      "id": "scanlines",
+      "enabled": true,
+      "params": {
+        "mode": "soft",
+        "thickness": 1.5,
+        "intensity": 0.35
+      },
+      "opacity": 0.85,
+      "blendMode": "multiply"
+    },
+    {
+      "id": "phosphor_bloom",
+      "enabled": true,
+      "params": {
+        "threshold": 0.55,
+        "radius": 6,
+        "intensity": 0.45,
+        "tint": "#9be7ff"
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "halation",
+      "enabled": true,
+      "params": {
+        "threshold": 0.65,
+        "radius": 10,
+        "tint": "#ff5a3c",
+        "intensity": 0.5,
+        "wideNarrowRatio": 0.5
+      },
+      "opacity": 0.85,
+      "blendMode": "normal"
+    },
+    {
+      "id": "convergence_error",
+      "enabled": true,
+      "params": {
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "edgePx": 3.0,
+        "radialExponent": 2.0,
+        "redScale": 1.0,
+        "greenScale": 0.0,
+        "blueScale": -1.0
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "vignette",
+      "enabled": true,
+      "params": {
+        "intensity": 0.35,
+        "radius": 0.85
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    }
+  ]
+}

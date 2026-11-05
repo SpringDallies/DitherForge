@@ -1,0 +1,95 @@
+{
+  "version": 2,
+  "id": "preset_vhs_rental",
+  "name": "VHS Rental",
+  "description": "Worn magnetic videotape playback through consumer VCR with scrolling tracking band error, row-level horizontal jitter, helical scan head-switching noise, quantization crush, phosphor persistence echo, interlace combing, and lens aberration.",
+  "algorithmId": "floyd-steinberg",
+  "effects": [
+    {
+      "id": "vhs_tracking",
+      "enabled": true,
+      "params": {
+        "bandHeight": 38,
+        "scrollSpeed": 1.3,
+        "bandPosition": 0.78,
+        "opacity": 0.85,
+        "shear": 20,
+        "colorSmear": 5,
+        "dropoutDensity": 0.16,
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "head_switching_noise",
+      "enabled": true,
+      "params": {
+        "height": 12,
+        "intensity": 0.9,
+        "horizontalBias": 0.4,
+        "lineJitter": 7,
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "scanline_jitter",
+      "enabled": true,
+      "params": {
+        "amplitude": 3.5,
+        "frequency": 0.2,
+        "mode": "per_row",
+        "bandHeight": 8,
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "bitCrush",
+      "enabled": true,
+      "params": {
+        "depth": 5,
+        "sampleRate": 1,
+        "dither": 0.05
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "frameEcho",
+      "enabled": true,
+      "params": {
+        "decay": 0.65,
+        "delayFrames": 2,
+        "blend": "screen"
+      },
+      "opacity": 0.8,
+      "blendMode": "normal"
+    },
+    {
+      "id": "interlace_combing",
+      "enabled": true,
+      "params": {
+        "fieldOffset": 3.0,
+        "fieldPolarity": "odd_first",
+        "temporal": true
+      },
+      "opacity": 1.0,
+      "blendMode": "normal"
+    },
+    {
+      "id": "lens_aberration",
+      "enabled": true,
+      "params": {
+        "mode": "convergence",
+        "offsetX": 3,
+        "offsetY": 0
+      },
+      "opacity": 0.9,
+      "blendMode": "normal"
+    }
+  ]
+}

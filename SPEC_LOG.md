@@ -121,3 +121,67 @@ This guarantees that color blending and pattern hatching emerge harmonically fro
 
 - **Phase 7: Tauri 2 Cross-Platform Architecture:**
   - Built complete Rust backend engine with Rayon parallel processing alongside high-performance frontend canvas engine.
+
+---
+
+## 3. Post-Effects Architecture & Multi-Agent Integration (Phases 1–6)
+
+### 3.1 Registry Architecture & Category Hierarchy
+DitherForge features a modular post-effects pipeline partitioned across 6 distinct categories totaling 41 stackable visual operators:
+1. `crt`: CRT lines, phosphor masks, beam blooming, scanline jitter, interlace combing, screen curvature, convergence error, head-switching noise.
+2. `film`: Halation, film grain, dust & scratches, light leaks, gate weave, exposure flicker, lens ghost, lens aberration, vignette falloff, curves & levels.
+3. `texture`: Pixelate, JPEG artifacts, halftone patterns.
+4. `print`: Risograph misregistration (`risoMisreg`), photocopy degradation (`photocopy`), paper texture (`paperTexture`), rosette angles (`rosetteAngles`).
+5. `glitch`: Bit-crush (`bitCrush`), slice glitch (`sliceGlitch`), block displacement (`blockDisplacement`), frame echo (`frameEcho`).
+6. `color`: Gradient mapping (`gradient_map`), split toning (`splitToning`), film fade (`filmFade`), posterization (`posterize`), outline overlay (`outline`), solarization (`solarize`), blueprint / cyanotype (`blueprint`).
+
+### 3.2 Canonical Identifier Specification & Bidirectional Alias Map
+To reconcile multi-agent development between Agent A (infrastructure & Phases 1–3) and Agent B (Phases 4–6), preset schema v2 adopts canonical `camelCase` identifiers while maintaining 100% bidirectional translation to underlying `snake_case` descriptor identifiers.
+
+| Effect Name | Canonical ID (v2 Schema) | Descriptor ID (Module) | Legacy / Alternate Aliases |
+| :--- | :--- | :--- | :--- |
+| **Risograph Misregistration** | `risoMisreg` | `risograph_misregistration` | `risographMisregistration` |
+| **Photocopy Degradation** | `photocopy` | `photocopy_degradation` | `photocopyDegradation` |
+| **Paper Texture** | `paperTexture` | `paper_texture` | `paper_texture` |
+| **Rosette Angles** | `rosetteAngles` | `rosette_angles` | `rosette_angles` |
+| **Bit-Crush / Quantization** | `bitCrush` | `bit_crush` | `bit_crush` |
+| **Slice Glitch** | `sliceGlitch` | `slice_glitch` | `slice_glitch` |
+| **Block Displacement** | `blockDisplacement` | `block_displacement` | `block_displacement` |
+| **Frame Echo / Trail** | `frameEcho` | `frame_echo` | `frame_echo` |
+| **Split Toning** | `splitToning` | `split_toning` | `split_toning` |
+| **Film Fade** | `filmFade` | `film_fade` | `film_fade` |
+| **Posterize (Post)** | `posterize` | `posterize_post` | `posterizePost` |
+| **Outline / Edge Overlay** | `outline` | `outline_overlay` | `outlineOverlay` |
+| **Solarize** | `solarize` | `solarize` | `solarize` |
+| **Blueprint / Cyanotype** | `blueprint` | `blueprint_cyanotype` | `blueprintCyanotype` |
+| **Lens Aberration** | `lens_aberration` | `lens_aberration` | `chromatic_aberration`, `lensAberration` |
+| **Scanlines** | `scanlines` | `scanlines` | `crt_lines` |
+| **Gradient Map** | `gradient_map` | `gradient_map` | `duotone`, `gradientMap` |
+
+### 3.3 Preset Schema v2 Migration & Serialization Engine
+- **Load Migration (`migratePresetToV2`)**: Canonicalizes all incoming effect IDs to canonical camelCase. Adapts legacy parameters (e.g. `chromatic_aberration` offsets and CRT thickness). Automatically disables unknown or unrecognized effect IDs (`enabled: false`) while preserving their data.
+- **Save Canonicalization (`saveUserPresetsV2`)**: Canonicalizes all effect entries before writing to persistent local storage.
+- **Registry Dispatch (`getEffectDescriptor`)**: O(1) resolution across canonical IDs, descriptor IDs, and legacy aliases.
+
+### 3.4 Curated Named Chain Presets Specifications
+1. **Trinitron 1994** (`preset_trinitron_1994`):
+   - Effects: `screen_curvature`, `phosphor_mask`, `scanlines`, `phosphor_bloom`, `halation`, `convergence_error`, `vignette`.
+2. **Photocopy Zine** (`preset_photocopy_zine`):
+   - Effects: `photocopy`, `rosetteAngles`, `paperTexture`, `gradient_map` (Risograph 2-ink preset), `splitToning`.
+3. **Super 8** (`preset_super_8`):
+   - Effects: `gate_weave`, `exposure_flicker`, `film_grain`, `dust_scratches`, `light_leaks`, `halation`, `filmFade`, `vignette`.
+4. **GameBoy Pocket** (`preset_gameboy_pocket`):
+   - Effects: `gradient_map` (GameBoy DMG green), `phosphor_mask` (slot mask, low intensity), `scanlines`, `pixelate`.
+5. **VHS Rental** (`preset_vhs_rental`):
+   - Effects: `vhs_tracking`, `head_switching_noise`, `scanline_jitter`, `bitCrush`, `frameEcho`, `interlace_combing`, `lens_aberration`.
+
+### 3.5 Frame Budget & Performance Optimizations
+- **Frame Budget Clarification**: The 60.7 ms reported by Agent B was verified to be the **average per-effect execution time** at full 1080p resolution (1920x1080 = 2,073,600 pixels), rather than a full-stack chain total.
+- **Shared Pass Batching & Buffer Reuse**:
+  - Reusable layer scratch buffers (`pipelineLayerBuffer`) and alpha buffers (`pipelineAlphaBuffer`) eliminate GC pressure and multi-megabyte allocations on each frame.
+  - Batched shared execution context provides shared precomputed luminance caches and separable blur scratch buffers.
+  - Photocopy Zine optimized from 3,178 ms down to 652 ms (4.8x speedup).
+  - VHS Rental optimized from 1,581 ms down to 521 ms (3.0x speedup).
+  - Super 8 optimized from 3,475 ms down to 1,516 ms (2.3x speedup).
+  - Live Viewport proxies (960x540) maintain 3–11 FPS even under complex 8-effect stacks, enabling smooth interactive previewing.
+

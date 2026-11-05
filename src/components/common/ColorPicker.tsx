@@ -160,7 +160,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
         if (activeDropdownId === pickerId) {
           setActiveDropdownId(null);
         }
-      }, 120);
+      }, 100);
     }
   }, [activeDropdownId, pickerId, setActiveDropdownId]);
 
@@ -186,12 +186,12 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   }, [disabled, pickerId, setActiveDropdownId]);
 
   const togglePicker = useCallback(() => {
-    if (isOpen) {
-      closePicker();
+    if (isOpen || isClosing) {
+      closePicker(false);
     } else {
       openPicker();
     }
-  }, [isOpen, closePicker, openPicker]);
+  }, [isOpen, isClosing, closePicker, openPicker]);
 
   // Click outside and Escape handling
   useEffect(() => {

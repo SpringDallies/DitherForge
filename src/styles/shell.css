@@ -4331,14 +4331,19 @@ body {
   text-transform: uppercase;
 }
 .effects-category-badge {
-  font-family: var(--font-sans);
-  font-size: 0.72rem;
-  font-weight: 700;
-  background-color: var(--accent-primary);
-  color: var(--bg-panel);
-  padding: 2px 7px;
-  border-radius: 10px;
-  line-height: 1.2;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  background-color: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 32%, transparent);
+  border-radius: var(--radius-xs, 6px);
+  color: var(--accent-primary);
+  padding: 1px 7px;
+  line-height: 1.35;
+  display: inline-flex;
+  align-items: center;
 }
 .effects-category-chevron {
   color: var(--text-secondary);

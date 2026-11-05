@@ -1,5 +1,5 @@
 // Photocopy Degradation Effect
-// High-contrast toner curve, drum streak artifacts, toner speckles, scanner edge darkening, optical blur
+// High-contrast toner curve, drum streak artifacts, non-repeating 2D toner speckles, scanner edge darkening, continuous optical blur
 import {
   EffectDescriptor,
   ParamMeta,
@@ -22,15 +22,6 @@ export const photocopyDefaultParams: Required<PhotocopyParams> = {
   blur: 0.8,
   contrast: 2.2
 };
-
-// Static noise table for fast speckle generation
-const NOISE_TABLE = new Float32Array(2048);
-for (let i = 0; i < 2048; i++) {
-  let t = (i + 7) * 0x6D2B79F5;
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  NOISE_TABLE[i] = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-}
 
 export function applyPhotocopy(
   dataOrCtx: any,
@@ -68,20 +59,22 @@ export function applyPhotocopy(
     contrastLUT[i] = clamp(luma, 0, 1);
   }
 
-  // Generate 1D column streak modulation
+  // Generate 1D non-repeating column streak modulation
   const colStreaks = new Float32Array(width);
   if (streakAmount > 0) {
     for (let x = 0; x < width; x++) {
-      const streakNoise = NOISE_TABLE[(x * 13) & 2047];
-      if (streakNoise < 0.05 * streakAmount) {
-        colStreaks[x] = -0.15 * streakAmount;
-      } else if (streakNoise > 1.0 - 0.03 * streakAmount) {
-        colStreaks[x] = 0.1 * streakAmount;
+      let s = Math.imul(x + 0x517cc1b7, 0x9e3779b9);
+      s = Math.imul(s ^ (s >>> 16), 0x85ebca6b);
+      const sVal = ((s ^ (s >>> 15)) >>> 0) * 2.3283064365386963e-10;
+      if (sVal < 0.03 * streakAmount) {
+        colStreaks[x] = -0.22 * streakAmount * (0.6 + 0.4 * (((s >> 8) & 0xff) / 255));
+      } else if (sVal > 1.0 - 0.02 * streakAmount) {
+        colStreaks[x] = 0.16 * streakAmount * (0.6 + 0.4 * (((s >> 8) & 0xff) / 255));
       }
     }
   }
 
-  // Precompute 1D edge darkening factors along X and Y to avoid 2D pow math per pixel
+  // Precompute 1D edge darkening factors along X to avoid 2D pow math per pixel
   const edgeDistX = new Float32Array(width);
   if (edgeDarkening > 0) {
     for (let x = 0; x < width; x++) {
@@ -92,14 +85,14 @@ export function applyPhotocopy(
 
   // Single-channel working buffer for grayscale toner intensity
   const working = new Float32Array(totalPixels);
-  const speckleThreshLow = 0.02 * speckleDensity;
-  const speckleThreshHigh = 1.0 - speckleThreshLow * 0.5;
+  const speckleThreshLow = 0.025 * speckleDensity;
+  const speckleThreshHigh = 1.0 - 0.015 * speckleDensity;
 
   for (let y = 0; y < height; y++) {
     const rowOffset = y * width;
     const normY = y / height;
     const edY = edgeDarkening > 0 ? Math.min(normY, 1 - normY) * 2 : 1;
-    const noiseRow = (y * 73) & 2047;
+    const yMix = Math.imul(y + 101, 0xc2b2ae35);
 
     for (let x = 0; x < width; x++) {
       const idx = rowOffset + x;
@@ -124,11 +117,17 @@ export function applyPhotocopy(
       }
 
       if (speckleDensity > 0) {
-        const noiseVal = NOISE_TABLE[(noiseRow + x) & 2047];
-        if (noiseVal < speckleThreshLow) {
-          luma -= 0.7;
-        } else if (noiseVal > speckleThreshHigh) {
-          luma += 0.7;
+        let hInt = Math.imul(x + 0x9e3779b9, 0x85ebca6b) ^ yMix;
+        hInt = Math.imul(hInt ^ (hInt >>> 16), 0x7feb352d);
+        const u = (hInt ^ (hInt >>> 15)) >>> 0;
+        const randVal = u * 2.3283064365386963e-10;
+
+        if (randVal < speckleThreshLow) {
+          // Dark electrostatic toner speckle
+          luma -= 0.65 + 0.3 * (((u >> 8) & 0xff) / 255);
+        } else if (luma < 0.35 && randVal > speckleThreshHigh) {
+          // Paper fiber void / toner flaking
+          luma += 0.5 + 0.4 * (((u >> 16) & 0xff) / 255);
         }
       }
 
@@ -136,31 +135,50 @@ export function applyPhotocopy(
     }
   }
 
-  // Fast separable box/triangle optical blur if blur > 0.1
+  // Smooth, continuous separable Gaussian optical blur
   let finalToner = working;
-  if (blurRadius >= 0.5) {
+  if (blurRadius > 0.01) {
+    const sigma = blurRadius * 0.75 + 0.1;
+    const radius = Math.min(8, Math.max(1, Math.ceil(sigma * 2.4)));
+    const kLen = radius * 2 + 1;
+    const kernel = new Float32Array(kLen);
+    let kSum = 0;
+    const twoSigmaSq = 2 * sigma * sigma;
+    for (let i = -radius; i <= radius; i++) {
+      const w = Math.exp(-(i * i) / twoSigmaSq);
+      kernel[i + radius] = w;
+      kSum += w;
+    }
+    const invKSum = 1 / kSum;
+    for (let i = 0; i < kLen; i++) {
+      kernel[i] *= invKSum;
+    }
+
+    // Horizontal separable pass
     const temp = new Float32Array(totalPixels);
-    // Horizontal 3-tap blur: (left + 2*center + right) / 4
     for (let y = 0; y < height; y++) {
       const row = y * width;
       for (let x = 0; x < width; x++) {
-        const left = working[row + (x > 0 ? x - 1 : 0)];
-        const center = working[row + x];
-        const right = working[row + (x < width - 1 ? x + 1 : width - 1)];
-        temp[row + x] = (left + center * 2 + right) * 0.25;
+        let sum = 0;
+        for (let k = -radius; k <= radius; k++) {
+          const sx = clamp(x + k, 0, width - 1);
+          sum += working[row + sx] * kernel[k + radius];
+        }
+        temp[row + x] = sum;
       }
     }
+
+    // Vertical separable pass
     finalToner = new Float32Array(totalPixels);
-    // Vertical 3-tap blur
     for (let y = 0; y < height; y++) {
       const row = y * width;
-      const topRow = (y > 0 ? y - 1 : 0) * width;
-      const btmRow = (y < height - 1 ? y + 1 : height - 1) * width;
       for (let x = 0; x < width; x++) {
-        const top = temp[topRow + x];
-        const center = temp[row + x];
-        const btm = temp[btmRow + x];
-        finalToner[row + x] = (top + center * 2 + btm) * 0.25;
+        let sum = 0;
+        for (let k = -radius; k <= radius; k++) {
+          const sy = clamp(y + k, 0, height - 1);
+          sum += temp[sy * width + x] * kernel[k + radius];
+        }
+        finalToner[row + x] = sum;
       }
     }
   }

@@ -141,9 +141,9 @@ assert(TEMPORAL_PATTERNS.length === 9,
 
 // 5. Presets
 console.log("\n[5] BUILT-IN PRESETS (src/ui/presets.js)");
-assert(BUILTIN_PRESETS.length === 10,
-  `Built-in factory presets count matches 10 (found: ${BUILTIN_PRESETS.length})`,
-  `Built-in factory presets mismatch: expected 10, got ${BUILTIN_PRESETS.length}`);
+assert(BUILTIN_PRESETS.length === 0,
+  `Built-in factory presets count matches 0 (purged, user presets only) (found: ${BUILTIN_PRESETS.length})`,
+  `Built-in factory presets mismatch: expected 0, got ${BUILTIN_PRESETS.length}`);
 
 // 6. Source File Parsing: app.html (active Vite entry) + src/main.js (legacy controller bindings)
 // The legacy root index.html was removed; app.html is the active entry that loads src/index.tsx (React).

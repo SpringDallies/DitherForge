@@ -1,5 +1,5 @@
 // Paper Texture Effect
-// Procedural fiber/linen grain with warm paper tint and multiply/overlay blending
+// Realistic procedural cellulose pulp fibers with fine tooth, organic clouding, paper tint, and alpha-preserving blending
 import {
   EffectDescriptor,
   ParamMeta,
@@ -25,13 +25,10 @@ export const paperTextureDefaultParams: Required<PaperTextureParams> = {
   blendMode: 'multiply'
 };
 
-// Static 2048-entry noise table for fast grain synthesis
-const NOISE_TABLE = new Float32Array(2048);
-for (let i = 0; i < 2048; i++) {
-  let t = (i + 13) * 0x6D2B79F5;
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  NOISE_TABLE[i] = (((t ^ (t >>> 14)) >>> 0) / 4294967296) - 0.5;
+function hash2D(x: number, y: number, seed: number = 0): number {
+  let h = Math.imul(x + 0x9e3779b9, 0x85ebca6b) ^ Math.imul(y + seed, 0xc2b2ae35);
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+  return ((h ^ (h >>> 15)) >>> 0) * 2.3283064365386963e-10;
 }
 
 export function applyPaperTexture(
@@ -52,41 +49,126 @@ export function applyPaperTexture(
   const blendMode = p.blendMode;
 
   const totalPixels = width * height;
-  const invScale = 1.0 / scale;
 
-  // Precompute 1D harmonic waves across X and Y to eliminate 18+ million trig calls
-  const sinX = new Float32Array(width);
-  const cosX = new Float32Array(width);
-  for (let x = 0; x < width; x++) {
-    sinX[x] = Math.sin(x * invScale * Math.PI * 2);
-    cosX[x] = Math.cos(x * invScale * 0.5);
+  // 1. Procedural Curved Cellulose Fiber Synthesis
+  // Renders authentic intertwined pulp strands (anti-aliased curved filaments)
+  const fiberBuffer = new Float32Array(totalPixels);
+  const cellSize = Math.max(8, Math.round(scale * 0.9));
+  const cols = Math.ceil(width / cellSize) + 2;
+  const rows = Math.ceil(height / cellSize) + 2;
+
+  for (let cy = -1; cy < rows; cy++) {
+    for (let cx = -1; cx < cols; cx++) {
+      for (let k = 0; k < 2; k++) {
+        let state = (Math.imul(cx + 0x517cc1b7, 0x9e3779b9) ^ Math.imul(cy + 101, 0x85ebca6b) ^ Math.imul(k + 17, 0xc2b2ae35)) >>> 0;
+        state = (state + 0x9e3779b9) >>> 0;
+        const r1 = ((Math.imul(state ^ (state >>> 16), 0x85ebca6b) >>> 0)) * 2.3283064365386963e-10;
+        state = (state + 0x9e3779b9) >>> 0;
+        const r2 = ((Math.imul(state ^ (state >>> 16), 0x85ebca6b) >>> 0)) * 2.3283064365386963e-10;
+        state = (state + 0x9e3779b9) >>> 0;
+        const r3 = ((Math.imul(state ^ (state >>> 16), 0x85ebca6b) >>> 0)) * 2.3283064365386963e-10;
+        state = (state + 0x9e3779b9) >>> 0;
+        const r4 = ((Math.imul(state ^ (state >>> 16), 0x85ebca6b) >>> 0)) * 2.3283064365386963e-10;
+        state = (state + 0x9e3779b9) >>> 0;
+        const r5 = ((Math.imul(state ^ (state >>> 16), 0x85ebca6b) >>> 0)) * 2.3283064365386963e-10;
+
+        const x0 = cx * cellSize + r1 * cellSize;
+        const y0 = cy * cellSize + r2 * cellSize;
+        const len = scale * (0.8 + r3 * 1.1);
+        const angle = r4 * Math.PI * 2;
+        const dAngle = (r5 - 0.5) * 1.4;
+        const isDark = r1 < 0.32;
+        const baseInt = isDark ? -0.25 - 0.2 * r2 : 0.16 + 0.16 * r2;
+
+        const steps = Math.max(2, Math.ceil(len / 1.5));
+        const stepSize = len / steps;
+        const stepDAngle = dAngle / steps;
+        const rotCos = Math.cos(stepDAngle);
+        const rotSin = Math.sin(stepDAngle);
+        let curX = x0, curY = y0;
+        let dirX = Math.cos(angle) * stepSize;
+        let dirY = Math.sin(angle) * stepSize;
+
+        for (let s = 0; s <= steps; s++) {
+          const ix = curX | 0;
+          const iy = curY | 0;
+          if (ix >= 0 && ix < width - 1 && iy >= 0 && iy < height - 1) {
+            const fx = curX - ix;
+            const fy = curY - iy;
+            const t = s / steps;
+            const taper = t * (1 - t) * 4;
+            const val = baseInt * taper;
+            const idx = iy * width + ix;
+            fiberBuffer[idx] += val * (1 - fx) * (1 - fy);
+            fiberBuffer[idx + 1] += val * fx * (1 - fy);
+            fiberBuffer[idx + width] += val * (1 - fx) * fy;
+            fiberBuffer[idx + width + 1] += val * fx * fy;
+          }
+          curX += dirX;
+          curY += dirY;
+          const nextDirX = dirX * rotCos - dirY * rotSin;
+          const nextDirY = dirX * rotSin + dirY * rotCos;
+          dirX = nextDirX;
+          dirY = nextDirY;
+        }
+      }
+    }
   }
 
-  const sinY = new Float32Array(height);
-  const cosY = new Float32Array(height);
-  for (let y = 0; y < height; y++) {
-    sinY[y] = Math.sin(y * invScale * Math.PI * 2);
-    cosY[y] = Math.cos(y * invScale * 0.5);
+  // 2. Low-frequency organic pulp cloudiness (flocculation / formation index)
+  const cloudStep = Math.max(16, Math.round(scale * 1.5));
+  const gw = Math.ceil(width / cloudStep) + 2;
+  const gh = Math.ceil(height / cloudStep) + 2;
+  const cloudGrid = new Float32Array(gw * gh);
+  for (let gy = 0; gy < gh; gy++) {
+    for (let gx = 0; gx < gw; gx++) {
+      cloudGrid[gy * gw + gx] = hash2D(gx, gy, 101);
+    }
+  }
+
+  const gxLUT = new Int32Array(width);
+  const uLUT = new Float32Array(width);
+  const invULUT = new Float32Array(width);
+  for (let x = 0; x < width; x++) {
+    const gx = (x / cloudStep) | 0;
+    const tx = (x - gx * cloudStep) / cloudStep;
+    const u = tx * tx * (3 - 2 * tx);
+    gxLUT[x] = gx;
+    uLUT[x] = u;
+    invULUT[x] = 1 - u;
   }
 
   const tintR = tint[0];
   const tintG = tint[1];
   const tintB = tint[2];
 
+  // 3. Composite Surface Modulation & Alpha-Preserved Blending
   for (let y = 0; y < height; y++) {
+    const gy = (y / cloudStep) | 0;
+    const ty = (y - gy * cloudStep) / cloudStep;
+    const v = ty * ty * (3 - 2 * ty);
+    const invV = 1 - v;
     const rowOffset = y * width;
-    const syCos = cosY[y];
-    const sySin = sinY[y];
-    const noiseRow = (y * 67) & 2047;
+    const gRow0 = gy * gw;
+    const gRow1 = (gy + 1) * gw;
+    const yMix = Math.imul(y + 71, 0xc2b2ae35);
 
     for (let x = 0; x < width; x++) {
-      // 1D decomposed weave calculation
-      const weaveH = sinX[x] * syCos;
-      const weaveV = sySin * cosX[x];
-      const weave = (weaveH + weaveV) * 0.5;
+      const gx = gxLUT[x];
+      const u = uLUT[x];
+      const invU = invULUT[x];
 
-      const fineGrain = NOISE_TABLE[(noiseRow + x) & 2047] * 0.4;
-      const rawSurface = (weave * 0.5 + fineGrain) * contrast;
+      const top = cloudGrid[gRow0 + gx] * invU + cloudGrid[gRow0 + gx + 1] * u;
+      const bot = cloudGrid[gRow1 + gx] * invU + cloudGrid[gRow1 + gx + 1] * u;
+      const cloud = (top * invV + bot * v) - 0.5;
+
+      // Organic paper tooth (fine microscopic roughness)
+      let hInt = Math.imul(x + 0x9e3779b9, 0x85ebca6b) ^ yMix;
+      hInt = Math.imul(hInt ^ (hInt >>> 16), 0x7feb352d);
+      const tooth = (((hInt ^ (hInt >>> 15)) >>> 0) * 2.3283064365386963e-10) - 0.5;
+
+      const fiber = fiberBuffer[rowOffset + x];
+      const rawSurface = (fiber * 1.5 + tooth * 0.35 + cloud * 0.25) * contrast;
       const grainFactor = 1.0 + rawSurface;
 
       let paperR = tintR * grainFactor;

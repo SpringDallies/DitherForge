@@ -1206,7 +1206,7 @@ export const CenterViewport: React.FC = () => {
       JSON.stringify(effAlgoParams),
       JSON.stringify(effEffects),
       sourceVideoUrl ? Math.round(currentTime * 30) : '',
-      animatedNoiseActive ? frameIndex : ''
+      appMode === 'animation' ? frameIndex : (animatedNoiseActive ? frameIndex : '')
     ].join('::');
 
     if (renderSig === lastRenderSignatureRef.current) {

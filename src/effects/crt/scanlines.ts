@@ -25,11 +25,13 @@ export function applyScanlines(
 
   const boost = 1 + intensity * 0.08;
   const dim = 1 - intensity * 0.04;
+  const rollOffset = Math.floor(frameIdx * speed);
 
   if (mode === 'soft') {
     // Exact sinusoidal beam formula with luma-adaptive core
     for (let y = 0; y < height; y++) {
-      const phase = ((y % period) + 0.5) / period;
+      const effY = y - rollOffset;
+      const phase = (((effY % period) + period) % period + 0.5) / period;
       const beam = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
 
       for (let x = 0; x < width; x++) {
@@ -55,7 +57,8 @@ export function applyScanlines(
   } else if (mode === 'hard') {
     // Sharp rectangular alternating scanline bars
     for (let y = 0; y < height; y++) {
-      const inGap = (y % period) >= thickness;
+      const effY = y - rollOffset;
+      const inGap = (((effY % period) + period) % period) >= thickness;
       const scanGain = inGap ? 1 - intensity : 1.0;
 
       for (let x = 0; x < width; x++) {
@@ -88,8 +91,9 @@ export function applyScanlines(
       const dist = Math.abs(y - rollY);
       const rollFactor = dist < beamRadius ? Math.cos((dist / beamRadius) * (Math.PI / 2)) * 0.25 : 0;
 
-      // Base soft scanline
-      const phase = ((y % period) + 0.5) / period;
+      // Base soft scanline rolling along with beam
+      const effY = y - rollOffset;
+      const phase = (((effY % period) + period) % period + 0.5) / period;
       const beam = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
       const scanGain = (1 - intensity * (1 - beam)) + rollFactor;
 

@@ -230,7 +230,7 @@ export function resolveAnimatedStateAtFrame(state: any, frame: number): Resolved
 
   // Construct temporal descriptor
   let temporal: ResolvedAnimatedState['temporal'] = undefined;
-  if (state.workspaceMode === 'animation') {
+  if (state.appMode === 'animation' || state.workspaceMode === 'animation') {
     const isAnimating = state.isPlaying || state.animateStill || frame > 0 || temporalIntensity > 0;
     const activeIntensity = temporalIntensity > 0 ? temporalIntensity : 0;
     const pattern = state.temporalPattern || state.temporalPatternId || 'grain';

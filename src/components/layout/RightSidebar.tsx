@@ -2872,7 +2872,12 @@ export const RightSidebar: React.FC = () => {
                         <div className="effects-category-title-group">
                           <span className="effects-category-title">{catDef.label}</span>
                           {activeCount > 0 && (
-                            <span className="effects-category-badge">{activeCount} active</span>
+                            <span
+                              className="effects-category-badge"
+                              title={`${activeCount} active effect${activeCount > 1 ? 's' : ''}`}
+                            >
+                              {activeCount}
+                            </span>
                           )}
                         </div>
                         <ChevronDown

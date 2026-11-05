@@ -730,7 +730,33 @@ export const CenterViewport: React.FC = () => {
   // Full Timeline Keyboard Controls (Space/K for Play/Pause, Arrows/J/L for Frames, Home/End, Up/Down for Tracks, T for Add Track)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
+      if (appMode !== 'animation') return;
+
+      const target = e.target as HTMLElement | null;
+
+      // 1. Play / Pause (Space or K)
+      // Must NOT scroll right sidebar; must toggle playback even when focused/cursor in timeline property popup or right sidebar
+      if ((e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar' || e.key.toLowerCase() === 'k') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const isEditingText = Boolean(
+          target &&
+          !target.closest('.df-floating-property-editor') &&
+          (
+            target.closest('.modal-dialog, .df-create-anim-dialog, .dialog-modal') ||
+            (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text' && target.id === 'style-search-input') ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable
+          )
+        );
+
+        if (!isEditingText) {
+          e.preventDefault();
+          e.stopPropagation();
+          togglePlay();
+          return;
+        }
+      }
+
+      // For non-Space timeline controls, ignore if focused inside inputs/textareas/selects
       if (
         target &&
         (
@@ -741,14 +767,8 @@ export const CenterViewport: React.FC = () => {
       ) {
         return;
       }
-      if (appMode !== 'animation' || !hasConfiguredAnimation) return;
 
-      // 1. Play / Pause (Space or K)
-      if ((e.code === 'Space' || e.key.toLowerCase() === 'k') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        togglePlay();
-        return;
-      }
+      if (!hasConfiguredAnimation) return;
 
       // 2. Step Backward / Forward (Left/Right Arrows or J/L)
       if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'j') {
@@ -857,8 +877,8 @@ export const CenterViewport: React.FC = () => {
         duplicateAnimationTrack(selectedTrackId);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [
     selectedTrackId,
     appMode,

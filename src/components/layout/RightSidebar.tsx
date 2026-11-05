@@ -3,6 +3,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMe
 import { LoadingScreen } from '../common/LoadingScreen';
 import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
+import { ColorPicker } from '../common/ColorPicker';
 import { useAppStore } from '../../state/useAppStore';
 import { useLenis } from '../../hooks/useLenis';
 import { areAnimationsEnabled } from '../dialogs/SettingsDialog';
@@ -3079,8 +3080,9 @@ export const RightSidebar: React.FC = () => {
                                                 <Tooltip text={`${p.label}. Double-click to reset.`}>
                                                   <span
                                                     onDoubleClick={() => {
-                                                      updateEffectParam(eff.id, p.id, p.defaultValue);
-                                                      if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, p.defaultValue);
+                                                      const def = p.defaultValue || '#ff5a3c';
+                                                      updateEffectParam(eff.id, p.id, def);
+                                                      if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, def);
                                                     }}
                                                     style={{ cursor: 'pointer' }}
                                                   >
@@ -3088,27 +3090,15 @@ export const RightSidebar: React.FC = () => {
                                                   </span>
                                                 </Tooltip>
                                               </div>
-                                              <div className="effect-color-input-row">
-                                                <input
-                                                  type="color"
-                                                  className="effect-color-picker"
-                                                  value={typeof val === 'string' && val.startsWith('#') ? val : '#ff5a3c'}
-                                                  onChange={(e) => {
-                                                    updateEffectParam(eff.id, p.id, e.target.value);
-                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, e.target.value);
-                                                  }}
-                                                />
-                                                <input
-                                                  type="text"
-                                                  className="control-num-input"
-                                                  style={{ flex: 1, textTransform: 'uppercase' }}
-                                                  value={String(val || '')}
-                                                  onChange={(e) => {
-                                                    updateEffectParam(eff.id, p.id, e.target.value);
-                                                    if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, e.target.value);
-                                                  }}
-                                                />
-                                              </div>
+                                              <ColorPicker
+                                                id={`effect-color-${eff.id}-${p.id}`}
+                                                value={typeof val === 'string' && val.startsWith('#') ? val : (p.defaultValue || '#ff5a3c')}
+                                                defaultValue={p.defaultValue}
+                                                onChange={(newHex) => {
+                                                  updateEffectParam(eff.id, p.id, newHex);
+                                                  if (inversePairEff) updateEffectParam(inversePairEff.id, p.id, newHex);
+                                                }}
+                                              />
                                             </div>
                                           );
                                         }

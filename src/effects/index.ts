@@ -6,7 +6,7 @@ import { textureEffects } from './texture';
 import { printEffects } from './print';
 import { glitchEffects } from './glitch';
 import { colorEffects } from './color';
-import { resolveEffectId, canonicalizeEffectId, toDescriptorId } from './presets';
+import { resolveEffectId, canonicalizeEffectId, toDescriptorId, mergePresetEffects, type PresetEffectV2 } from './presets';
 import { applyEffectPipeline as execPipeline } from './pipeline';
 
 export * from './types';
@@ -106,4 +106,14 @@ export function applyEffectPipeline(
   context: EffectContext = { frameIndex: 0, time: 0, fps: 30 }
 ): void {
   execPipeline(imageData, effects, context, getEffectDescriptor);
+}
+
+/**
+ * Merges preset effects into the full application stack using all registered effect descriptors.
+ */
+export function mergePresetEffectsToFullStack(
+  currentEffects: EffectItem[] = [],
+  presetEffects: PresetEffectV2[] = []
+): EffectItem[] {
+  return mergePresetEffects(currentEffects, presetEffects, ALL_EFFECTS);
 }

@@ -1,5 +1,5 @@
 // DitherForge Preset Schema v2 & Migration Engine
-import type { PresetV2, PresetEffectV2, EffectDescriptor } from './types';
+import type { PresetV2, PresetEffectV2, EffectDescriptor, EffectItem } from './types';
 
 export type { PresetV2, PresetEffectV2 };
 
@@ -247,6 +247,43 @@ export function migratePresetToV2(
 const STORAGE_KEY_V2 = 'ditherforge_user_presets_v2';
 const STORAGE_KEY_V1 = 'ditherforge_user_presets';
 
+/**
+ * Known built-in and premade preset IDs across all versions of DitherForge.
+ */
+export const PREMADE_PRESET_IDS = new Set<string>([
+  'preset_trinitron_1994',
+  'preset_photocopy_zine',
+  'preset_super_8',
+  'preset_gameboy_pocket',
+  'preset_vhs_rental',
+  'mac_1984',
+  'gameboy_classic',
+  'cyberpunk_terminal',
+  'c64_nostalgia',
+  'amber_crt_monitor',
+  'vhs_tape_decay',
+  'newsprint_halftone',
+  'vaporwave_sunset',
+  'nordic_deep_frost',
+  'pico_pixel_fantasy',
+  'glitch_matrix',
+  'newspaper_print',
+  'synthwave_sunset',
+  'newspaper_newsprint',
+  'gameboy_dmg',
+  'vcr_sp_mode',
+  'lofi_security_cam'
+]);
+
+export function isPremadePreset(preset: any): boolean {
+  if (!preset || typeof preset !== 'object') return false;
+  const id = String(preset.id || '').trim();
+  const name = String(preset.name || '').trim().toLowerCase();
+  if (PREMADE_PRESET_IDS.has(id)) return true;
+  if (NAMED_CHAIN_PRESETS.some((n) => n.id === id || n.name.toLowerCase() === name)) return true;
+  return false;
+}
+
 export function saveUserPresetsV2(presets: PresetV2[]): void {
   try {
     const canonicalized = presets.map((p) => ({
@@ -268,8 +305,14 @@ export function loadUserPresetsV2(registryLookup?: (id: string) => EffectDescrip
     const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
     if (rawV2) {
       const parsed = JSON.parse(rawV2);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((p) => migratePresetToV2(p, registryLookup));
+      if (Array.isArray(parsed)) {
+        const userOnly = parsed
+          .filter((p) => !isPremadePreset(p))
+          .map((p) => migratePresetToV2(p, registryLookup));
+        if (userOnly.length !== parsed.length) {
+          saveUserPresetsV2(userOnly);
+        }
+        return userOnly;
       }
     }
 
@@ -277,16 +320,132 @@ export function loadUserPresetsV2(registryLookup?: (id: string) => EffectDescrip
     const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
     if (rawV1) {
       const parsed = JSON.parse(rawV1);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const migrated = parsed.map((p) => migratePresetToV2(p, registryLookup));
-        saveUserPresetsV2(migrated);
-        return migrated;
+      if (Array.isArray(parsed)) {
+        const userOnly = parsed
+          .filter((p) => !isPremadePreset(p))
+          .map((p) => migratePresetToV2(p, registryLookup));
+        saveUserPresetsV2(userOnly);
+        return userOnly;
       }
     }
   } catch (e) {
     console.error('Failed to load user presets', e);
   }
-  return [...NAMED_CHAIN_PRESETS];
+  return [];
+}
+
+/**
+ * Merges preset effects into the full application effects stack.
+ * Guarantees that ALL effects remain in the stack:
+ * - Effects included in the preset are enabled (or set to preset.enabled) and their params/opacity/blendMode applied.
+ * - Effects not included in the preset remain in the list but are disabled (enabled: false).
+ * This prevents effects from disappearing from the UI upon preset selection.
+ */
+export function mergePresetEffects(
+  currentEffects: EffectItem[] = [],
+  presetEffects: PresetEffectV2[] = [],
+  allDescriptors?: EffectDescriptor[]
+): EffectItem[] {
+  const presetMap = new Map<string, PresetEffectV2>();
+  for (const pe of presetEffects) {
+    if (!pe) continue;
+    const rawId = String(pe.id || '').trim();
+    if (!rawId) continue;
+    presetMap.set(rawId, pe);
+    const canonical = canonicalizeEffectId(rawId);
+    if (canonical) presetMap.set(canonical, pe);
+    const descId = toDescriptorId(rawId);
+    if (descId) presetMap.set(descId, pe);
+    const resolved = resolveEffectId(rawId);
+    if (resolved) presetMap.set(resolved, pe);
+  }
+
+  const descriptors = allDescriptors && allDescriptors.length > 0 ? allDescriptors : [];
+  const currentById = new Map<string, EffectItem>();
+  for (const item of currentEffects) {
+    if (item && item.id) {
+      currentById.set(item.id, item);
+      if (item.type) currentById.set(item.type, item);
+      const canonical = canonicalizeEffectId(item.id);
+      if (canonical) currentById.set(canonical, item);
+      const descId = toDescriptorId(item.id);
+      if (descId) currentById.set(descId, item);
+    }
+  }
+
+  // 1. If descriptors are available, build/restore the complete stack using them as the source of truth
+  if (descriptors.length > 0) {
+    return descriptors.map((desc) => {
+      const existing =
+        currentById.get(desc.id) ||
+        currentById.get(toDescriptorId(desc.id)) ||
+        currentById.get(canonicalizeEffectId(desc.id));
+
+      const match =
+        presetMap.get(desc.id) ||
+        presetMap.get(canonicalizeEffectId(desc.id)) ||
+        presetMap.get(toDescriptorId(desc.id)) ||
+        (existing ? (presetMap.get(existing.id) || (existing.type ? presetMap.get(existing.type) : undefined)) : undefined);
+
+      if (match) {
+        return {
+          id: desc.id,
+          type: desc.id,
+          name: desc.name,
+          enabled: match.enabled !== undefined ? Boolean(match.enabled) : true,
+          params: {
+            ...(desc.defaultParams || {}),
+            ...(existing?.params || {}),
+            ...(match.params || {})
+          },
+          opacity: match.opacity !== undefined ? match.opacity : (existing?.opacity ?? desc.defaultOpacity ?? 1.0),
+          blendMode: match.blendMode || existing?.blendMode || desc.defaultBlendMode || 'normal'
+        };
+      }
+
+      return {
+        id: desc.id,
+        type: desc.id,
+        name: desc.name,
+        enabled: false,
+        params: {
+          ...(desc.defaultParams || {}),
+          ...(existing?.params || {})
+        },
+        opacity: existing?.opacity !== undefined ? existing.opacity : (desc.defaultOpacity ?? 1.0),
+        blendMode: existing?.blendMode || desc.defaultBlendMode || 'normal'
+      };
+    });
+  }
+
+  // 2. Fallback if descriptors are omitted: operate on currentEffects directly
+  return currentEffects.map((item) => {
+    const canonical = canonicalizeEffectId(item.id);
+    const descId = toDescriptorId(item.id);
+    const match =
+      presetMap.get(item.id) ||
+      (item.type ? presetMap.get(item.type) : undefined) ||
+      presetMap.get(canonical) ||
+      presetMap.get(descId);
+
+    if (match) {
+      return {
+        ...item,
+        enabled: match.enabled !== undefined ? Boolean(match.enabled) : true,
+        params: {
+          ...item.params,
+          ...(match.params || {})
+        },
+        opacity: match.opacity !== undefined ? match.opacity : (item.opacity ?? 1.0),
+        blendMode: match.blendMode || item.blendMode || 'normal'
+      };
+    }
+
+    return {
+      ...item,
+      enabled: false
+    };
+  });
 }
 
 /**

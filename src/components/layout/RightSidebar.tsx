@@ -18,7 +18,7 @@ import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 import { exportRaster } from '../../dither-engine/exporters.js';
 import { downloadAnimatedGif, downloadAnimatedVideo, getExportCanvas } from '../../utils/animationExport';
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
-import { getEffectDescriptor, getEffectParamsMeta, BlendMode, EffectCategory } from '../../effects';
+import { getEffectDescriptor, getEffectParamsMeta, getAllEffects, mergePresetEffects, BlendMode, EffectCategory } from '../../effects';
 import { loadUserPresetsV2, saveUserPresetsV2, type PresetV2 } from '../../effects/presets';
 import { 
   X,
@@ -3393,15 +3393,14 @@ export const RightSidebar: React.FC = () => {
                             if (preset.scale !== undefined) updateCurrentAlgoParam('scale', preset.scale);
                             if (preset.diffusionStrength !== undefined) updateCurrentAlgoParam('diffusionStrength', preset.diffusionStrength);
                             if (preset.serpentine !== undefined) updateCurrentAlgoParam('serpentine', preset.serpentine);
-                            if (preset.effects) {
-                              useAppStore.setState({
-                                effects: preset.effects.map((e: any) => ({
-                                  ...e,
-                                  opacity: e.opacity !== undefined ? e.opacity : 1.0,
-                                  blendMode: e.blendMode || 'normal'
-                                }))
-                              });
-                            }
+                            const currentEffects = useAppStore.getState().effects;
+                            const presetEffects = Array.isArray(preset.effects) ? preset.effects : [];
+                            const mergedEffects = mergePresetEffects(
+                              currentEffects,
+                              presetEffects,
+                              getAllEffects()
+                            );
+                            useAppStore.setState({ effects: mergedEffects });
                           }}
                           title={`Apply preset: ${preset.name}`}
                         >

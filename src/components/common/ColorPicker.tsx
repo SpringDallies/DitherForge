@@ -107,7 +107,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     } catch {
       return [0, 0, 100] as [number, number, number];
     }
-  }, []);
+  }, [value]);
 
   const [localHsl, setLocalHsl] = useState<[number, number, number]>(initialHsl);
   const currentHslRef = useRef<[number, number, number]>(initialHsl);
@@ -372,11 +372,19 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
                 max={360}
                 step={1}
                 value={safeHsl[0]}
-                onPointerDown={() => {
+                onPointerDown={(e) => {
+                  try {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  } catch {}
                   isDraggingRef.current = true;
                   setIsDragging(true);
                 }}
-                onPointerUp={() => {
+                onPointerUp={(e) => {
+                  try {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }
+                  } catch {}
                   isDraggingRef.current = false;
                   setIsDragging(false);
                 }}
@@ -399,11 +407,19 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
                 style={{
                   background: `linear-gradient(to right, hsl(${safeHsl[0]}, 0%, 50%), hsl(${safeHsl[0]}, 100%, 50%))`
                 }}
-                onPointerDown={() => {
+                onPointerDown={(e) => {
+                  try {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  } catch {}
                   isDraggingRef.current = true;
                   setIsDragging(true);
                 }}
-                onPointerUp={() => {
+                onPointerUp={(e) => {
+                  try {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }
+                  } catch {}
                   isDraggingRef.current = false;
                   setIsDragging(false);
                 }}
@@ -426,11 +442,19 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
                 style={{
                   background: `linear-gradient(to right, #000000, hsl(${safeHsl[0]}, ${safeHsl[1]}%, 50%), #ffffff)`
                 }}
-                onPointerDown={() => {
+                onPointerDown={(e) => {
+                  try {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  } catch {}
                   isDraggingRef.current = true;
                   setIsDragging(true);
                 }}
-                onPointerUp={() => {
+                onPointerUp={(e) => {
+                  try {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }
+                  } catch {}
                   isDraggingRef.current = false;
                   setIsDragging(false);
                 }}

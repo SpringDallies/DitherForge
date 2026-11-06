@@ -50,14 +50,14 @@ export const SHORTCUTS: ShortcutItem[] = [
     label: 'Undo',
     shortcut: 'Ctrl+Z',
     category: 'Edit',
-    description: 'Undo previous modification (Deferred to Phase 7.3)'
+    description: 'Undo previous modification across all adjustments, algorithms, effects, and palettes'
   },
   {
     id: 'redo',
     label: 'Redo',
-    shortcut: 'Ctrl+Y',
+    shortcut: 'Ctrl+Shift+Z',
     category: 'Edit',
-    description: 'Redo previously undone modification (Deferred to Phase 7.3)'
+    description: 'Redo previously undone modification across all adjustments, algorithms, effects, and palettes'
   },
   {
     id: 'reset-adjustments',

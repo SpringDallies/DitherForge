@@ -12,6 +12,7 @@ import { getStoredSettings, DitherForgeSettings } from './dialogs/SettingsDialog
 import { downsampleAreaGamma } from '../utils/areaDownsample';
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
+import { EngineBridge } from '../services/EngineBridge';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
 import { applyEffectPipeline } from '../effects';
 // @ts-ignore
@@ -382,6 +383,7 @@ export const CenterViewport: React.FC = () => {
   const removeAnimationTrack = useAppStore((state) => state.removeAnimationTrack);
 
   const isDraggingSlider = useAppStore((state) => state.isDraggingSlider);
+  const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
   const setLastRenderMs = useAppStore((state) => state.setLastRenderMs);
 
   const zoom = useAppStore((state) => state.zoom);
@@ -1052,12 +1054,15 @@ export const CenterViewport: React.FC = () => {
   const compositeBufferRef = useRef<Uint8ClampedArray | null>(null);
   const proxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const proxyCacheRef = useRef<{ source: ImageData; low: ImageData; mid: ImageData } | null>(null);
+  const renderNonceRef = useRef<number>(0);
 
-  const executeRenderPipeline = useCallback(() => {
+  const executeRenderPipeline = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas || !sourceImageData) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    const currentNonce = ++renderNonceRef.current;
 
     const fullWidth = sourceImageData.width;
     const fullHeight = sourceImageData.height;
@@ -1372,7 +1377,7 @@ export const CenterViewport: React.FC = () => {
       strength: effAlgoParams.diffusionStrength ?? 1.0
     };
 
-    applyDitherAlgorithm(ditherImageData, {
+    await EngineBridge.dither(ditherImageData, {
       algorithmId,
       palette,
       ...mappedControls,
@@ -1390,6 +1395,10 @@ export const CenterViewport: React.FC = () => {
       offsetX: effAlgoParams.offsetX ?? 0,
       offsetY: effAlgoParams.offsetY ?? 0
     });
+
+    if (currentNonce !== renderNonceRef.current) {
+      return;
+    }
 
     applyEffectPipeline(ditherImageData, effEffects, {
       frameIndex,
@@ -1655,6 +1664,7 @@ export const CenterViewport: React.FC = () => {
   // Track Bar Dragging, Resizing & Click-to-Close Toggle (rAF-coalesced to avoid excessive store mutations)
   useEffect(() => {
     if (!draggingTrackBar) return;
+    setIsDraggingSlider(true);
     let pendingClientX = draggingTrackBar.startX;
     let pendingShiftKey = false;
 
@@ -1717,6 +1727,7 @@ export const CenterViewport: React.FC = () => {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => {
+      setIsDraggingSlider(false);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       if (trackDragRafRef.current !== null) {
@@ -1724,7 +1735,7 @@ export const CenterViewport: React.FC = () => {
         trackDragRafRef.current = null;
       }
     };
-  }, [draggingTrackBar, duration, snapTimeValue, updateAnimationTrack, setSelectedTrackId]);
+  }, [draggingTrackBar, duration, snapTimeValue, updateAnimationTrack, setSelectedTrackId, setIsDraggingSlider]);
 
   const selectedTrack = animationTracks.find((t) => t.id === selectedTrackId) || null;
   const playheadPercent = duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
@@ -2028,6 +2039,8 @@ export const CenterViewport: React.FC = () => {
                       step={selectedPropMeta.step}
                       value={selectedTrack.fromValue}
                       style={getSliderFill(selectedTrack.fromValue, effectiveMin, effectiveMax)}
+                      onPointerDown={() => setIsDraggingSlider(true)}
+                      onPointerUp={() => setIsDraggingSlider(false)}
                       onChange={(e) => updateAnimationTrack(selectedTrack.id, { fromValue: parseFloat(e.target.value) })}
                     />
                     <TrackNumInput
@@ -2053,6 +2066,8 @@ export const CenterViewport: React.FC = () => {
                       step={selectedPropMeta.step}
                       value={selectedTrack.toValue}
                       style={getSliderFill(selectedTrack.toValue, effectiveMin, effectiveMax)}
+                      onPointerDown={() => setIsDraggingSlider(true)}
+                      onPointerUp={() => setIsDraggingSlider(false)}
                       onChange={(e) => updateAnimationTrack(selectedTrack.id, { toValue: parseFloat(e.target.value) })}
                     />
                     <TrackNumInput

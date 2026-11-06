@@ -7,6 +7,7 @@ import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans } from 
 import { AVAILABLE_EFFECT_TYPES } from '../dither-engine/effect-stack.js';
 import { ALL_EFFECTS, getAllEffects, getEffectDescriptor, resolveEffectId, BlendMode } from '../effects';
 import { createCalibrationPattern } from '../utils/samplePattern';
+import { historyManager } from './historyManager';
 
 export type PreviewQuality = 'low' | 'mid' | 'full';
 export type ViewportUpdateMode = 'live' | 'debounce';
@@ -453,6 +454,13 @@ interface AppState {
   setIsManualOpen: (open: boolean) => void;
   setIsExportOpen: (open: boolean) => void;
   resetAll: () => void;
+
+  // Application-level Undo / Redo History
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => void;
+  redo: () => void;
+  clearHistory: () => void;
 }
 
 const STORAGE_KEY_SIDEBAR_WIDTH = 'ditherforge_sidebar_width';
@@ -515,48 +523,55 @@ export const useAppStore = create<AppState>((set, get) => ({
   sourceImageData: getInitialCalibrationPattern(),
   sourceVideoUrl: null,
 
-  loadImageFromData: (imageData, name = 'uploaded_image.png') => set((state) => {
-    if (state.sourceVideoUrl) {
-      try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
-    }
-    return {
-      hasImage: true,
-      imageName: name,
-      imageFileName: name,
-      imageWidth: imageData.width,
-      imageHeight: imageData.height,
-      sourceImageData: imageData,
-      sourceVideoUrl: null,
-      panX: 0,
-      panY: 0
-    };
-  }),
+  loadImageFromData: (imageData, name = 'uploaded_image.png') => {
+    historyManager.clearHistory();
+    set((state) => {
+      if (state.sourceVideoUrl) {
+        try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
+      }
+      return {
+        hasImage: true,
+        imageName: name,
+        imageFileName: name,
+        imageWidth: imageData.width,
+        imageHeight: imageData.height,
+        sourceImageData: imageData,
+        sourceVideoUrl: null,
+        panX: 0,
+        panY: 0
+      };
+    });
+  },
 
   // Video Import: automatically switches to Animated Mode and sets timeline duration!
-  loadVideoSource: (videoUrl, firstFrame, durationSec, name) => set((state) => {
-    if (state.sourceVideoUrl && state.sourceVideoUrl !== videoUrl) {
-      try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
-    }
-    const validDur = Math.max(1, Math.round(durationSec || 5));
-    return {
-      hasImage: true,
-      imageName: name,
-      imageFileName: name,
-      imageWidth: firstFrame.width,
-      imageHeight: firstFrame.height,
-      sourceImageData: firstFrame,
-      sourceVideoUrl: videoUrl,
-      appMode: 'animation',
-      hasConfiguredAnimation: true,
-      isCreateAnimationPopupOpen: false,
-      duration: validDur,
-      currentTime: 0,
-      panX: 0,
-      panY: 0
-    };
-  }),
+  loadVideoSource: (videoUrl, firstFrame, durationSec, name) => {
+    historyManager.clearHistory();
+    set((state) => {
+      if (state.sourceVideoUrl && state.sourceVideoUrl !== videoUrl) {
+        try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
+      }
+      const validDur = Math.max(1, Math.round(durationSec || 5));
+      return {
+        hasImage: true,
+        imageName: name,
+        imageFileName: name,
+        imageWidth: firstFrame.width,
+        imageHeight: firstFrame.height,
+        sourceImageData: firstFrame,
+        sourceVideoUrl: videoUrl,
+        appMode: 'animation',
+        hasConfiguredAnimation: true,
+        isCreateAnimationPopupOpen: false,
+        duration: validDur,
+        currentTime: 0,
+        panX: 0,
+        panY: 0
+      };
+    });
+  },
 
   loadSampleImage: () => {
+    historyManager.clearHistory();
     const sample = getInitialCalibrationPattern() || createCalibrationPattern(400, 300);
     set((state) => {
       if (state.sourceVideoUrl) {
@@ -576,20 +591,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  clearImage: () => set((state) => {
-    if (state.sourceVideoUrl) {
-      try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
-    }
-    return {
-      hasImage: false,
-      imageName: '',
-      imageFileName: '',
-      imageWidth: 0,
-      imageHeight: 0,
-      sourceImageData: null,
-      sourceVideoUrl: null
-    };
-  }),
+  clearImage: () => {
+    historyManager.clearHistory();
+    set((state) => {
+      if (state.sourceVideoUrl) {
+        try { URL.revokeObjectURL(state.sourceVideoUrl); } catch {}
+      }
+      return {
+        hasImage: false,
+        imageName: '',
+        imageFileName: '',
+        imageWidth: 0,
+        imageHeight: 0,
+        sourceImageData: null,
+        sourceVideoUrl: null
+      };
+    });
+  },
 
   favoriteAlgorithms: [],
   addFavorite: (id) => set((state) => {
@@ -1073,8 +1091,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     splitRatio: 0.5,
     hasUserMovedSplitRatio: false,
     showBeforeAfter: false
-  }))
+  })),
+
+  // Application-level Undo / Redo History
+  canUndo: false,
+  canRedo: false,
+  undo: () => historyManager.undo(),
+  redo: () => historyManager.redo(),
+  clearHistory: () => historyManager.clearHistory()
 }));
+
+historyManager.init(useAppStore);
 
 if (typeof window !== 'undefined') {
   (window as any).__DITHERFORGE_STORE__ = useAppStore;

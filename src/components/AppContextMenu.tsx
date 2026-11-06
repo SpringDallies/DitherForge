@@ -23,7 +23,9 @@ import {
   BookOpen,
   Check,
   Trash2,
-  Sliders
+  Sliders,
+  Undo,
+  Redo
 } from 'lucide-react';
 
 export interface AppContextMenuProps {
@@ -47,6 +49,10 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
   const duration = useAppStore((s) => s.duration);
   const setCurrentTime = useAppStore((s) => s.setCurrentTime);
   const addAnimationTrack = useAppStore((s) => s.addAnimationTrack);
+  const canUndo = useAppStore((s) => s.canUndo);
+  const canRedo = useAppStore((s) => s.canRedo);
+  const undo = useAppStore((s) => s.undo);
+  const redo = useAppStore((s) => s.redo);
   const showBeforeAfter = useAppStore((s) => s.showBeforeAfter);
   const toggleBeforeAfter = useAppStore((s) => s.toggleBeforeAfter);
   const fitToViewport = useAppStore((s) => s.fitToViewport);
@@ -583,6 +589,41 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
             {showBeforeAfter && <Check size={12} style={{ color: 'var(--text-main)' }} />}
             <span className="df-app-context-shortcut">\</span>
           </div>
+        </button>
+
+        <div className="df-app-context-divider" />
+
+        {/* Section: Undo / Redo */}
+        <button
+          type="button"
+          className="df-app-context-item"
+          disabled={!canUndo}
+          onClick={() => {
+            closeMenu();
+            undo();
+          }}
+        >
+          <div className="df-app-context-left">
+            <Undo size={14} />
+            <span>Undo</span>
+          </div>
+          <span className="df-app-context-shortcut">Ctrl+Z</span>
+        </button>
+
+        <button
+          type="button"
+          className="df-app-context-item"
+          disabled={!canRedo}
+          onClick={() => {
+            closeMenu();
+            redo();
+          }}
+        >
+          <div className="df-app-context-left">
+            <Redo size={14} />
+            <span>Redo</span>
+          </div>
+          <span className="df-app-context-shortcut">Ctrl+Shift+Z</span>
         </button>
 
         <div className="df-app-context-divider" />

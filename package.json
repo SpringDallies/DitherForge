@@ -13,9 +13,10 @@
     "inventory:check": "node scripts/inventory-check.mjs",
     "engine:verify": "node scripts/engine-verify.mjs",
     "test:golden": "node tests/golden/run-golden-tests.mjs",
-    "test": "npx tsx tests/effects-infrastructure.test.mjs && npx tsx tests/effects-registry.test.mjs && npx tsx tests/golden/effects/index.mjs && npx tsx tests/integration-named-presets.test.mjs && npx tsx tests/effects-alias-roundtrip.test.mjs && npx tsx tests/gate-agent-b-effects.test.mjs && npx tsx tests/animation-viewport-overlap.test.mjs"
+    "test": "npx tsx tests/effects-infrastructure.test.mjs && npx tsx tests/effects-registry.test.mjs && npx tsx tests/golden/effects/index.mjs && npx tsx tests/integration-named-presets.test.mjs && npx tsx tests/effects-alias-roundtrip.test.mjs && npx tsx tests/gate-agent-b-effects.test.mjs && npx tsx tests/animation-viewport-overlap.test.mjs && npx tsx tests/undo-redo-all-events.test.mjs"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
     "lenis": "^1.3.27",
     "lucide-react": "^1.55.0",
     "react": "^19.3.0",

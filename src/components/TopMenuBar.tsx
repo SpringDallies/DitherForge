@@ -14,7 +14,9 @@ import {
   ZoomOut,
   Maximize2,
   Check,
-  ChevronRight
+  ChevronRight,
+  Undo,
+  Redo
 } from 'lucide-react';
 
 interface TopMenuBarProps {
@@ -76,6 +78,11 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const zoom = useAppStore((state) => state.zoom);
   const setZoom = useAppStore((state) => state.setZoom);
 
+  const canUndo = useAppStore((state) => state.canUndo);
+  const canRedo = useAppStore((state) => state.canRedo);
+  const undo = useAppStore((state) => state.undo);
+  const redo = useAppStore((state) => state.redo);
+
   const handleOpenFileDialog = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -125,16 +132,38 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         return;
       }
       const target = e.target as HTMLElement;
-      if (!target) return;
-      const tag = target.tagName;
-      if (
-        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
-        tag === 'BUTTON' || tag === 'A' ||
+      const isTextInput = target && (
+        (target.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button', 'submit'].includes((target as HTMLInputElement).type?.toLowerCase())) ||
+        target.tagName === 'TEXTAREA' ||
         target.isContentEditable ||
-        target.closest('button, a, input, textarea, select, [contenteditable="true"]')
-      ) {
+        Boolean(target.closest('[contenteditable="true"]'))
+      );
+
+      // Check Undo / Redo FIRST (supported globally across app unless typing in text inputs)
+      if (e.ctrlKey || e.metaKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'z') {
+          if (isTextInput) return;
+          e.preventDefault();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+          return;
+        }
+        if (k === 'y') {
+          if (isTextInput) return;
+          e.preventDefault();
+          redo();
+          return;
+        }
+      }
+
+      if (isTextInput) {
         return;
       }
+
       if (e.ctrlKey || e.metaKey) {
         if (e.key.toLowerCase() === 'o') { e.preventDefault(); handleOpenFileDialog(); return; }
         if (e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) { e.preventDefault(); handleCopyClipboard(); return; }
@@ -152,7 +181,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeMenu, handleOpenFileDialog, handleCopyClipboard, handleZoomIn, handleZoomOut, handleFit, resetZoom, toggleBeforeAfter]);
+  }, [activeMenu, handleOpenFileDialog, handleCopyClipboard, handleZoomIn, handleZoomOut, handleFit, resetZoom, toggleBeforeAfter, undo, redo]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -247,6 +276,23 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
             </button>
             {activeMenu === 'edit' && (
               <div className="dropdown-menu-popover" role="menu">
+                <button
+                  type="button"
+                  className="dropdown-menu-item"
+                  disabled={!canUndo}
+                  onClick={() => { undo(); setActiveMenu(null); }}
+                >
+                  <Undo size={13} /><span>Undo</span><span className="menu-shortcut">Ctrl+Z</span>
+                </button>
+                <button
+                  type="button"
+                  className="dropdown-menu-item"
+                  disabled={!canRedo}
+                  onClick={() => { redo(); setActiveMenu(null); }}
+                >
+                  <Redo size={13} /><span>Redo</span><span className="menu-shortcut">Ctrl+Shift+Z</span>
+                </button>
+                <div className="dropdown-divider" />
                 <button className="dropdown-menu-item" onClick={() => { resetAllAdjustments(); setActiveMenu(null); }}>
                   <RotateCcw size={13} /><span>Reset Adjustments</span>
                 </button>

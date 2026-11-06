@@ -5753,6 +5753,12 @@ canvas#hqPresentationCanvas {
   transform: scale(0.99);
 }
 
+.df-app-context-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .df-app-context-left {
   display: flex;
   align-items: center;

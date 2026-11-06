@@ -41,113 +41,66 @@ export function applyRosetteAngles(
 
   // Convert angles to radians and precompute cos/sin
   const rad = Math.PI / 180.0;
-  const cosC = Math.cos(p.angleC * rad), sinC = Math.sin(p.angleC * rad);
-  const cosM = Math.cos(p.angleM * rad), sinM = Math.sin(p.angleM * rad);
-  const cosY = Math.cos(p.angleY * rad), sinY = Math.sin(p.angleY * rad);
-  const cosK = Math.cos(p.angleK * rad), sinK = Math.sin(p.angleK * rad);
+  const angles = [p.angleC * rad, p.angleM * rad, p.angleY * rad, p.angleK * rad];
+  const cosA = [Math.cos(angles[0]), Math.cos(angles[1]), Math.cos(angles[2]), Math.cos(angles[3])];
+  const sinA = [Math.sin(angles[0]), Math.sin(angles[1]), Math.sin(angles[2]), Math.sin(angles[3])];
 
-  const halfDot = dotSize * 0.5;
-  const maxDistSq = halfDot * halfDot * 2;
+  const copy = new Uint8ClampedArray(data);
   const inv255 = 1.0 / 255.0;
 
   for (let y = 0; y < height; y++) {
-    const rowOffset = y * width;
-
-    // Row-constant projection offsets
-    const baseRotXC = -y * sinC, baseRotYC = y * cosC;
-    const baseRotXM = -y * sinM, baseRotYM = y * cosM;
-    const baseRotXY = -y * sinY, baseRotYY = y * cosY;
-    const baseRotXK = -y * sinK, baseRotYK = y * cosK;
-
     for (let x = 0; x < width; x++) {
-      const idx = (rowOffset + x) * 4;
-      const r = data[idx] * inv255;
-      const g = data[idx + 1] * inv255;
-      const b = data[idx + 2] * inv255;
+      let inkC = 0, inkM = 0, inkY = 0, inkK = 0;
 
-      // Fast RGB to CMYK
-      let maxVal = r > g ? r : g;
-      if (b > maxVal) maxVal = b;
-      const k = 1.0 - maxVal;
+      for (let ch = 0; ch < 4; ch++) {
+        const ca = cosA[ch];
+        const sa = sinA[ch];
 
-      let c = 0, m = 0, yVal = 0, kVal = k;
-      if (k < 0.999) {
-        const invK = 1.0 / (1.0 - k);
-        c = (1.0 - r - k) * invK;
-        m = (1.0 - g - k) * invK;
-        yVal = (1.0 - b - k) * invK;
-        if (c < 0) c = 0; else if (c > 1) c = 1;
-        if (m < 0) m = 0; else if (m > 1) m = 1;
-        if (yVal < 0) yVal = 0; else if (yVal > 1) yVal = 1;
-      }
-      if (kVal < 0) kVal = 0; else if (kVal > 1) kVal = 1;
+        // Screen-space coordinates for channel angle
+        const u = x * ca - y * sa;
+        const v = x * sa + y * ca;
 
-      // Cyan dot
-      let hasC = 0;
-      if (c > 0.001) {
-        if (c >= 0.999) {
-          hasC = 1;
-        } else {
-          const rx = x * cosC + baseRotXC;
-          const ry = x * sinC + baseRotYC;
-          const u = ((rx % dotSize) + dotSize) % dotSize - halfDot;
-          const v = ((ry % dotSize) + dotSize) % dotSize - halfDot;
-          const targetArea = c + dotGain * (1.0 - c) * 0.5;
-          if (u * u + v * v <= targetArea * maxDistSq) hasC = 1;
-        }
-      }
+        // Cell center in screen space
+        const cellU = (Math.floor(u / dotSize) + 0.5) * dotSize;
+        const cellV = (Math.floor(v / dotSize) + 0.5) * dotSize;
 
-      // Magenta dot
-      let hasM = 0;
-      if (m > 0.001) {
-        if (m >= 0.999) {
-          hasM = 1;
-        } else {
-          const rx = x * cosM + baseRotXM;
-          const ry = x * sinM + baseRotYM;
-          const u = ((rx % dotSize) + dotSize) % dotSize - halfDot;
-          const v = ((ry % dotSize) + dotSize) % dotSize - halfDot;
-          const targetArea = m + dotGain * (1.0 - m) * 0.5;
-          if (u * u + v * v <= targetArea * maxDistSq) hasM = 1;
-        }
+        // Sample cell center in source space
+        const cx = clamp(Math.round(cellU * ca + cellV * sa), 0, width - 1);
+        const cy = clamp(Math.round(-cellU * sa + cellV * ca), 0, height - 1);
+
+        const sIdx = (cy * width + cx) * 4;
+        const r = copy[sIdx] * inv255;
+        const g = copy[sIdx + 1] * inv255;
+        const b = copy[sIdx + 2] * inv255;
+
+        // Rich black GCR: separates black from chromatic inks while preserving C/M/Y screen angles
+        const kMax = 1.0 - Math.max(r, Math.max(g, b));
+        const k = kMax * 0.65;
+        const denom = 1.0 - k;
+        let chVal = 0;
+        if (ch === 0) chVal = denom > 0.0001 ? clamp((1.0 - r - k) / denom, 0, 1) : 0;
+        else if (ch === 1) chVal = denom > 0.0001 ? clamp((1.0 - g - k) / denom, 0, 1) : 0;
+        else if (ch === 2) chVal = denom > 0.0001 ? clamp((1.0 - b - k) / denom, 0, 1) : 0;
+        else chVal = clamp(k, 0, 1);
+
+        const du = u - cellU;
+        const dv = v - cellV;
+        const dist = Math.hypot(du, dv);
+        const targetRadius = (Math.sqrt(chVal) + dotGain * 0.5) * (dotSize * 0.68);
+        const edge = targetRadius - dist;
+        const ink = clamp(edge + 0.5, 0, 1);
+
+        if (ch === 0) inkC = ink;
+        else if (ch === 1) inkM = ink;
+        else if (ch === 2) inkY = ink;
+        else inkK = ink;
       }
 
-      // Yellow dot
-      let hasY = 0;
-      if (yVal > 0.001) {
-        if (yVal >= 0.999) {
-          hasY = 1;
-        } else {
-          const rx = x * cosY + baseRotXY;
-          const ry = x * sinY + baseRotYY;
-          const u = ((rx % dotSize) + dotSize) % dotSize - halfDot;
-          const v = ((ry % dotSize) + dotSize) % dotSize - halfDot;
-          const targetArea = yVal + dotGain * (1.0 - yVal) * 0.5;
-          if (u * u + v * v <= targetArea * maxDistSq) hasY = 1;
-        }
-      }
-
-      // Black dot
-      let hasK = 0;
-      if (kVal > 0.001) {
-        if (kVal >= 0.999) {
-          hasK = 1;
-        } else {
-          const rx = x * cosK + baseRotXK;
-          const ry = x * sinK + baseRotYK;
-          const u = ((rx % dotSize) + dotSize) % dotSize - halfDot;
-          const v = ((ry % dotSize) + dotSize) % dotSize - halfDot;
-          const targetArea = kVal + dotGain * (1.0 - kVal) * 0.5;
-          if (u * u + v * v <= targetArea * maxDistSq) hasK = 1;
-        }
-      }
-
-      // Recombine subtractive inks back to RGB
-      const invDotK = 1.0 - hasK;
-      data[idx] = Math.round((1.0 - hasC) * invDotK * 255);
-      data[idx + 1] = Math.round((1.0 - hasM) * invDotK * 255);
-      data[idx + 2] = Math.round((1.0 - hasY) * invDotK * 255);
-      // alpha data[idx + 3] preserved
+      const pIdx = (y * width + x) * 4;
+      data[pIdx] = clamp(Math.round((1.0 - inkC) * (1.0 - inkK) * 255), 0, 255);
+      data[pIdx + 1] = clamp(Math.round((1.0 - inkM) * (1.0 - inkK) * 255), 0, 255);
+      data[pIdx + 2] = clamp(Math.round((1.0 - inkY) * (1.0 - inkK) * 255), 0, 255);
+      // alpha data[pIdx + 3] preserved
     }
   }
 }

@@ -55,29 +55,13 @@ export function applySplitToning(
     highlightWeightLUT[i] = smoothstep(pivot, 1.0, luma) * highlightStr;
   }
 
-  const sBlendR = new Uint8Array(256);
-  const sBlendG = new Uint8Array(256);
-  const sBlendB = new Uint8Array(256);
-  const hBlendR = new Uint8Array(256);
-  const hBlendG = new Uint8Array(256);
-  const hBlendB = new Uint8Array(256);
-
-  for (let i = 0; i < 256; i++) {
-    sBlendR[i] = blendChannel(i, shadowColor[0], 'soft-light');
-    sBlendG[i] = blendChannel(i, shadowColor[1], 'soft-light');
-    sBlendB[i] = blendChannel(i, shadowColor[2], 'soft-light');
-    hBlendR[i] = blendChannel(i, highlightColor[0], 'soft-light');
-    hBlendG[i] = blendChannel(i, highlightColor[1], 'soft-light');
-    hBlendB[i] = blendChannel(i, highlightColor[2], 'soft-light');
-  }
-
   for (let i = 0; i < totalPixels; i++) {
     const idx = i * 4;
     const r = data[idx];
     const g = data[idx + 1];
     const b = data[idx + 2];
 
-    const luma = (54 * r + 182 * g + 19 * b) >> 8; // fast integer luma: (0.2126*r + 0.7152*g + 0.0722*b)
+    const luma = (54 * r + 182 * g + 19 * b) >> 8;
     const sw = shadowWeightLUT[luma];
     const hw = highlightWeightLUT[luma];
 
@@ -86,20 +70,25 @@ export function applySplitToning(
     let resB = b;
 
     if (sw > 0) {
-      resR += (sBlendR[r] - r) * sw;
-      resG += (sBlendG[g] - g) * sw;
-      resB += (sBlendB[b] - b) * sw;
+      // Tint shadows towards shadowColor even on pure black pixels
+      const sFactor = sw * 0.8;
+      resR += (shadowColor[0] - resR) * sFactor * (1.0 - resR / 255.0);
+      resG += (shadowColor[1] - resG) * sFactor * (1.0 - resG / 255.0);
+      resB += (shadowColor[2] - resB) * sFactor * (1.0 - resB / 255.0);
     }
 
     if (hw > 0) {
-      resR += (hBlendR[r] - r) * hw;
-      resG += (hBlendG[g] - g) * hw;
-      resB += (hBlendB[b] - b) * hw;
+      // Tint highlights towards highlightColor even on pure white pixels
+      const hFactor = hw * 0.8;
+      const lightFactor = (resR * 54 + resG * 182 + resB * 19) / 65025.0;
+      resR += (highlightColor[0] - resR) * hFactor * lightFactor;
+      resG += (highlightColor[1] - resG) * hFactor * lightFactor;
+      resB += (highlightColor[2] - resB) * hFactor * lightFactor;
     }
 
-    data[idx] = resR < 0 ? 0 : resR > 255 ? 255 : resR;
-    data[idx + 1] = resG < 0 ? 0 : resG > 255 ? 255 : resG;
-    data[idx + 2] = resB < 0 ? 0 : resB > 255 ? 255 : resB;
+    data[idx] = clamp(Math.round(resR), 0, 255);
+    data[idx + 1] = clamp(Math.round(resG), 0, 255);
+    data[idx + 2] = clamp(Math.round(resB), 0, 255);
     // alpha data[idx + 3] preserved
   }
 }

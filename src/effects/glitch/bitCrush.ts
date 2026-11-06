@@ -9,12 +9,15 @@ import {
 
 export interface BitCrushParams {
   bits?: number;
+  depth?: number; // preset compatibility alias
+  sampleRate?: number; // 1 to 16 (default: 2)
   mode?: 'per-channel' | 'luminance-only';
   dither?: number;
 }
 
-export const bitCrushDefaultParams: Required<BitCrushParams> = {
+export const bitCrushDefaultParams: Required<Omit<BitCrushParams, 'depth'>> = {
   bits: 3,
+  sampleRate: 2,
   mode: 'per-channel',
   dither: 0.0
 };
@@ -30,7 +33,9 @@ export function applyBitCrush(
   const { data, width, height } = resolved;
   const p = { ...bitCrushDefaultParams, ...resolved.params };
 
-  const bits = clamp(Math.round(p.bits), 1, 8);
+  const rawBits = p.bits ?? (p as any).depth ?? 3;
+  const bits = clamp(Math.round(rawBits), 1, 8);
+  const sampleRate = clamp(Math.round(p.sampleRate ?? 2), 1, 16);
   const mode = p.mode;
   const ditherAmt = clamp(p.dither, 0, 1);
 
@@ -45,51 +50,52 @@ export function applyBitCrush(
     quantLut[i] = clamp(Math.round(q), 0, 255);
   }
 
-  if (mode === 'luminance-only') {
-    for (let i = 0; i < totalPixels; i++) {
-      const idx = i * 4;
-      const r = data[idx];
-      const g = data[idx + 1];
-      const b = data[idx + 2];
+  // Preserve alpha
+  const origAlpha = new Uint8ClampedArray(totalPixels);
+  for (let i = 0, a = 3; i < totalPixels; i++, a += 4) {
+    origAlpha[i] = data[a];
+  }
 
-      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      let ditherOffset = 0;
+  const src = new Uint8ClampedArray(data);
+
+  for (let y = 0; y < height; y++) {
+    const srcY = sampleRate > 1 ? Math.floor(y / sampleRate) * sampleRate : y;
+    const srcRow = srcY * width;
+    const dstRow = y * width;
+
+    for (let x = 0; x < width; x++) {
+      const srcX = sampleRate > 1 ? Math.floor(x / sampleRate) * sampleRate : x;
+      const srcIdx = (srcRow + srcX) * 4;
+      const dstIdx = (dstRow + x) * 4;
+
+      let r = src[srcIdx];
+      let g = src[srcIdx + 1];
+      let b = src[srcIdx + 2];
+
       if (ditherAmt > 0) {
-        const x = i % width;
-        const y = Math.floor(i / width);
         const bayer = ((x & 1) ^ ((y & 1) << 1)) / 4.0 - 0.375;
-        ditherOffset = bayer * step * ditherAmt;
+        const offset = bayer * step * ditherAmt;
+        r = clamp(Math.round(r + offset), 0, 255);
+        g = clamp(Math.round(g + offset), 0, 255);
+        b = clamp(Math.round(b + offset), 0, 255);
       }
 
-      const clampedLuma = clamp(Math.round(luma + ditherOffset), 0, 255);
-      const qLuma = quantLut[clampedLuma];
-      const ratio = luma > 0.001 ? qLuma / luma : 0;
+      if (mode === 'luminance-only') {
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        const clampedLuma = clamp(Math.round(luma), 0, 255);
+        const qLuma = quantLut[clampedLuma];
+        const ratio = luma > 0.001 ? qLuma / luma : 0;
 
-      data[idx] = clamp(Math.round(r * ratio), 0, 255);
-      data[idx + 1] = clamp(Math.round(g * ratio), 0, 255);
-      data[idx + 2] = clamp(Math.round(b * ratio), 0, 255);
-    }
-  } else {
-    if (ditherAmt <= 0.001) {
-      for (let i = 0; i < totalPixels; i++) {
-        const idx = i * 4;
-        data[idx] = quantLut[data[idx]];
-        data[idx + 1] = quantLut[data[idx + 1]];
-        data[idx + 2] = quantLut[data[idx + 2]];
+        data[dstIdx] = clamp(Math.round(r * ratio), 0, 255);
+        data[dstIdx + 1] = clamp(Math.round(g * ratio), 0, 255);
+        data[dstIdx + 2] = clamp(Math.round(b * ratio), 0, 255);
+      } else {
+        data[dstIdx] = quantLut[r];
+        data[dstIdx + 1] = quantLut[g];
+        data[dstIdx + 2] = quantLut[b];
       }
-    } else {
-      for (let y = 0; y < height; y++) {
-        const rowOffset = y * width;
-        for (let x = 0; x < width; x++) {
-          const idx = (rowOffset + x) * 4;
-          const bayer = ((x & 1) ^ ((y & 1) << 1)) / 4.0 - 0.375;
-          const offset = bayer * step * ditherAmt;
 
-          data[idx] = quantLut[clamp(Math.round(data[idx] + offset), 0, 255)];
-          data[idx + 1] = quantLut[clamp(Math.round(data[idx + 1] + offset), 0, 255)];
-          data[idx + 2] = quantLut[clamp(Math.round(data[idx + 2] + offset), 0, 255)];
-        }
-      }
+      data[dstIdx + 3] = origAlpha[dstRow + x];
     }
   }
 }
@@ -104,6 +110,16 @@ export const bitCrushParamsMeta: ParamMeta[] = [
     step: 1,
     defaultValue: 3,
     unit: 'bits'
+  },
+  {
+    id: 'sampleRate',
+    label: 'Decimation / Sample Rate',
+    type: 'number',
+    min: 1,
+    max: 16,
+    step: 1,
+    defaultValue: 2,
+    unit: 'px'
   },
   {
     id: 'mode',

@@ -4923,6 +4923,10 @@ body {
   box-shadow: none !important;
 }
 
+.canvas-area.animation-active {
+  padding-bottom: 252px !important;
+}
+
 .canvas-unframed-stage,
 .preview-canvas,
 canvas#mainViewportCanvas,

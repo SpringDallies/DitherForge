@@ -984,10 +984,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(3200, zoom)) }),
   setPan: (panX, panY) => set({ panX, panY }),
   fitToViewport: (containerWidth, containerHeight) => {
-    const { imageWidth, imageHeight } = get();
+    const { imageWidth, imageHeight, appMode, hasConfiguredAnimation } = get();
     if (!imageWidth || !imageHeight) return;
+    const isAnim = appMode === 'animation' && hasConfiguredAnimation;
+    const timelineH = isAnim ? 252 : 0;
     const availableW = Math.max(100, containerWidth - 40);
-    const availableH = Math.max(100, containerHeight - 40);
+    const availableH = Math.max(100, containerHeight - timelineH - 40);
     const scale = Math.min(availableW / imageWidth, availableH / imageHeight, 1.0);
     const fitZoom = Math.max(25, Math.round(scale * 100));
     set({ zoom: fitZoom, panX: 0, panY: 0 });

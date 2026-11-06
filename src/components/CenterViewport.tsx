@@ -309,6 +309,7 @@ function applyExtendedAdjustments(
 export const CenterViewport: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const timelineInnerRef = useRef<HTMLDivElement | null>(null);
   const timelineGroupRef = useRef<HTMLDivElement | null>(null);
@@ -963,9 +964,24 @@ export const CenterViewport: React.FC = () => {
       const newZoom = Math.max(10, Math.min(3200, Math.round(state.zoom * factor)));
       if (newZoom === state.zoom) return;
 
-      const rect = container.getBoundingClientRect();
-      const cursorX = e.clientX - (rect.left + rect.width / 2);
-      const cursorY = e.clientY - (rect.top + rect.height / 2);
+      let unpannedStageCenterX: number;
+      let unpannedStageCenterY: number;
+
+      if (stageRef.current) {
+        const stageRect = stageRef.current.getBoundingClientRect();
+        unpannedStageCenterX = (stageRect.left + stageRect.width / 2) - state.panX;
+        unpannedStageCenterY = (stageRect.top + stageRect.height / 2) - state.panY;
+      } else {
+        const rect = container.getBoundingClientRect();
+        const padRight = state.sidebarWidth + 14;
+        const padTop = 38;
+        const padBottom = (state.appMode === 'animation' && state.hasConfiguredAnimation) ? 252 : 0;
+        unpannedStageCenterX = rect.left + (rect.width - padRight) / 2;
+        unpannedStageCenterY = rect.top + padTop + (rect.height - padTop - padBottom) / 2;
+      }
+
+      const cursorX = e.clientX - unpannedStageCenterX;
+      const cursorY = e.clientY - unpannedStageCenterY;
 
       const zoomRatio = newZoom / state.zoom;
       const newPanX = Math.round(cursorX - (cursorX - state.panX) * zoomRatio);
@@ -1755,7 +1771,7 @@ export const CenterViewport: React.FC = () => {
       {/* 1. Full-Bleed Workspace Image Area */}
       <div
         ref={containerRef}
-        className="canvas-area"
+        className={`canvas-area ${appMode === 'animation' && hasConfiguredAnimation ? 'animation-active' : ''}`}
         style={{
           cursor: isDraggingSplitter ? 'ew-resize' : isPanning ? 'grabbing' : 'default'
         }}
@@ -1794,6 +1810,7 @@ export const CenterViewport: React.FC = () => {
           </div>
         ) : (
           <div
+            ref={stageRef}
             className={`canvas-unframed-stage ${isSmoothDownscale ? 'smooth-downscale' : ''}`}
             style={{
               position: 'relative',

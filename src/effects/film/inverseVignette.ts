@@ -16,7 +16,16 @@ export function applyInverseVignette(
   const cx = width * 0.5;
   const cy = height * 0.5;
   const maxD = Math.sqrt(cx * cx + cy * cy) * rad;
+  const maxD2 = maxD * maxD;
+  const invMaxD2 = 1.0 / maxD2;
   const exp = 1 / (softness + 0.01);
+  const halfExp = exp * 0.5;
+
+  const dx2Table = new Float64Array(width);
+  for (let x = 0; x < width; x++) {
+    const dx = x - cx;
+    dx2Table[x] = dx * dx;
+  }
 
   for (let y = 0; y < height; y++) {
     const dy = y - cy;
@@ -24,11 +33,17 @@ export function applyInverseVignette(
     const rowOffset = y * width;
 
     for (let x = 0; x < width; x++) {
-      const dx = x - cx;
-      const dist = Math.sqrt(dx * dx + dy2);
-      const edgeFactor = Math.max(0, Math.min(1, Math.pow(dist / maxD, exp)));
-
+      const d2 = dx2Table[x] + dy2;
       const idx = (rowOffset + x) * 4;
+
+      if (d2 >= maxD2) {
+        data[idx] = 255;
+        data[idx + 1] = 255;
+        data[idx + 2] = 255;
+        continue;
+      }
+
+      const edgeFactor = Math.pow(d2 * invMaxD2, halfExp);
       data[idx] = Math.min(255, Math.round(data[idx] + (255 - data[idx]) * edgeFactor));
       data[idx + 1] = Math.min(255, Math.round(data[idx + 1] + (255 - data[idx + 1]) * edgeFactor));
       data[idx + 2] = Math.min(255, Math.round(data[idx + 2] + (255 - data[idx + 2]) * edgeFactor));

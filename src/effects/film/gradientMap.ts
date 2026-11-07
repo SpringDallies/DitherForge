@@ -162,6 +162,56 @@ function buildGradientLUT(
   return lut;
 }
 
+const MAX_LUT_CACHE_SIZE = 32;
+const moduleLutCache = new Map<string, Uint8Array>();
+
+export function getOrBuildGradientLUT(
+  stops: GradientStop[],
+  space: 'oklab' | 'linear' | 'srgb',
+  preset = 'custom',
+  customStops?: GradientStop[],
+  context?: any
+): Uint8Array {
+  // Generate deterministic key based on stops, color space, and preset
+  let key: string;
+  if (preset !== 'custom' && (!customStops || customStops === GRADIENT_PRESETS[preset])) {
+    key = `${preset}_${space}`;
+  } else {
+    key = `${space}:${stops.map((s) => `${s.pos.toFixed(4)}_${s.color[0]}_${s.color[1]}_${s.color[2]}`).join('|')}`;
+  }
+
+  // 1. Check pipeline context cache
+  const sharedLutCache = context?.shared?.lutCache as Map<string, Uint8Array> | undefined;
+  if (sharedLutCache?.has(key)) {
+    return sharedLutCache.get(key)!;
+  }
+
+  // 2. Check module LRU cache
+  if (moduleLutCache.has(key)) {
+    const val = moduleLutCache.get(key)!;
+    moduleLutCache.delete(key);
+    moduleLutCache.set(key, val);
+    if (sharedLutCache) sharedLutCache.set(key, val);
+    return val;
+  }
+
+  // 3. Build LUT
+  const lut = buildGradientLUT(stops, space);
+
+  // Store in bounded LRU cache
+  if (moduleLutCache.size >= MAX_LUT_CACHE_SIZE) {
+    const firstKey = moduleLutCache.keys().next().value;
+    if (firstKey !== undefined) moduleLutCache.delete(firstKey);
+  }
+  moduleLutCache.set(key, lut);
+
+  if (sharedLutCache) {
+    sharedLutCache.set(key, lut);
+  }
+
+  return lut;
+}
+
 const paramsMeta: ParamMeta[] = [
   {
     id: 'preset',
@@ -220,22 +270,25 @@ export const gradientMapEffect: EffectDescriptor<GradientMapParams> = {
   defaultOpacity: 1.0,
   defaultBlendMode: 'normal',
   paramsMeta,
-  apply: (dataOrCtx, widthOrParams, height, paramsArg) => {
+  apply: (dataOrCtx, widthOrParams, height, paramsArg, contextArg) => {
     let data: Uint8ClampedArray;
     let w: number;
     let h: number;
     let params: GradientMapParams;
+    let context: any;
 
     if (dataOrCtx && dataOrCtx.data && typeof dataOrCtx.width === 'number') {
       data = dataOrCtx.data;
       w = dataOrCtx.width;
       h = dataOrCtx.height;
       params = (widthOrParams || {}) as GradientMapParams;
+      context = height;
     } else {
       data = dataOrCtx;
       w = widthOrParams;
       h = height;
       params = (paramsArg || {}) as GradientMapParams;
+      context = contextArg;
     }
 
     const {
@@ -252,7 +305,7 @@ export const gradientMapEffect: EffectDescriptor<GradientMapParams> = {
       ? GRADIENT_PRESETS[preset]
       : (customStops && customStops.length >= 2 ? customStops : GRADIENT_PRESETS.gameboy_dmg);
 
-    const lut = buildGradientLUT(stops, space);
+    const lut = getOrBuildGradientLUT(stops, space, preset, customStops, context);
     const pixelCount = w * h;
     const blendFactor = Math.max(0, Math.min(1, mix));
     const invBlend = 1.0 - blendFactor;

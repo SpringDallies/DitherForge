@@ -2,7 +2,7 @@
 // Threshold-gated highlight scatter along photographic film emulsion layers
 // Emulates red/orange halation around bright light sources due to rem-jet reflection
 
-import type { EffectDescriptor, ParamMeta } from '../types';
+import type { EffectDescriptor, ParamMeta, EffectContext } from '../types';
 
 export interface HalationParams {
   threshold: number;
@@ -78,6 +78,23 @@ function parseHexColor(hex: string): [number, number, number] {
   return [255, 90, 60];
 }
 
+// Fallback local scratch buffers for standalone calls
+const localScratchFloats = new Map<number, Float32Array>();
+
+function getScratchFloat(len: number, slot: number, context?: EffectContext): Float32Array {
+  const shared = (context as any)?.shared;
+  if (shared?.getScratchFloat32) {
+    return shared.getScratchFloat32(len, slot);
+  }
+  const existing = localScratchFloats.get(slot);
+  if (!existing || existing.length !== len) {
+    const next = new Float32Array(len);
+    localScratchFloats.set(slot, next);
+    return next;
+  }
+  return existing;
+}
+
 // Separable fast box/gaussian approximation pass on single-channel or 3-channel buffers
 function fastBlurChannel(
   src: Float32Array,
@@ -139,22 +156,25 @@ export const halationEffect: EffectDescriptor<HalationParams> = {
   defaultOpacity: 1.0,
   defaultBlendMode: 'normal',
   paramsMeta,
-  apply: (dataOrCtx, widthOrParams, height, paramsArg) => {
+  apply: (dataOrCtx, widthOrParams, height, paramsArg, contextArg) => {
     let data: Uint8ClampedArray;
     let w: number;
     let h: number;
     let params: HalationParams;
+    let context: EffectContext | undefined;
 
     if (dataOrCtx && dataOrCtx.data && typeof dataOrCtx.width === 'number') {
       data = dataOrCtx.data;
       w = dataOrCtx.width;
       h = dataOrCtx.height;
       params = (widthOrParams || {}) as HalationParams;
+      context = height as EffectContext | undefined;
     } else {
       data = dataOrCtx;
       w = widthOrParams;
       h = height;
       params = (paramsArg || {}) as HalationParams;
+      context = contextArg;
     }
 
     const {
@@ -172,8 +192,8 @@ export const halationEffect: EffectDescriptor<HalationParams> = {
     const thresh255 = threshold * 255;
     const denom = Math.max(1, 255 - thresh255);
 
-    // 1. Extract thresholded highlight bloom plate
-    const highlightPlate = new Float32Array(pixelCount);
+    // 1. Extract thresholded highlight bloom plate (reusing slot 0 scratch buffer)
+    const highlightPlate = getScratchFloat(pixelCount, 0, context);
     for (let i = 0; i < pixelCount; i++) {
       const idx = i * 4;
       const r = data[idx];
@@ -184,16 +204,18 @@ export const halationEffect: EffectDescriptor<HalationParams> = {
       if (lum > thresh255) {
         const excess = (lum - thresh255) / denom;
         highlightPlate[i] = excess * excess; // Quadratic soft falloff
+      } else {
+        highlightPlate[i] = 0;
       }
     }
 
-    // 2. Multi-scale blur passes (Narrow and Wide)
+    // 2. Multi-scale blur passes (Narrow and Wide) using scratch slots 1, 2, 3
     const narrowRadius = Math.max(1, Math.round(radius * 0.45));
     const wideRadius = Math.max(2, Math.round(radius * 1.5));
 
-    const narrowBlur = new Float32Array(pixelCount);
-    const wideBlur = new Float32Array(pixelCount);
-    const tempBuffer = new Float32Array(pixelCount);
+    const narrowBlur = getScratchFloat(pixelCount, 1, context);
+    const wideBlur = getScratchFloat(pixelCount, 2, context);
+    const tempBuffer = getScratchFloat(pixelCount, 3, context);
 
     fastBlurChannel(highlightPlate, narrowBlur, tempBuffer, w, h, narrowRadius);
     // Double-pass for gaussian approximation

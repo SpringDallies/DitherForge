@@ -128,6 +128,39 @@ export interface PipelineSharedContext {
   luminance?: Uint8Array;
   blurScratch?: Float32Array;
   lutCache?: Map<string, Uint8Array>;
+  scratchUint8?: Map<number, Uint8ClampedArray>;
+  scratchFloat32?: Map<number, Float32Array>;
+  getScratchUint8?: (minBytes: number, slot?: number) => Uint8ClampedArray;
+  getScratchFloat32?: (minFloats: number, slot?: number) => Float32Array;
+}
+
+export function createPipelineSharedContext(): PipelineSharedContext {
+  const scratchUint8 = new Map<number, Uint8ClampedArray>();
+  const scratchFloat32 = new Map<number, Float32Array>();
+
+  return {
+    lutCache: new Map<string, Uint8Array>(),
+    scratchUint8,
+    scratchFloat32,
+    getScratchUint8(minBytes: number, slot = 0): Uint8ClampedArray {
+      const existing = scratchUint8.get(slot);
+      if (!existing || existing.length !== minBytes) {
+        const next = new Uint8ClampedArray(minBytes);
+        scratchUint8.set(slot, next);
+        return next;
+      }
+      return existing;
+    },
+    getScratchFloat32(minFloats: number, slot = 0): Float32Array {
+      const existing = scratchFloat32.get(slot);
+      if (!existing || existing.length !== minFloats) {
+        const next = new Float32Array(minFloats);
+        scratchFloat32.set(slot, next);
+        return next;
+      }
+      return existing;
+    }
+  };
 }
 
 /**
@@ -148,14 +181,6 @@ export function applyEffectPipeline(
   const len = data.length;
   const numPixels = width * height;
 
-  // Snapshot original alpha channel to guarantee transparency preservation across all post-effects
-  if (!pipelineAlphaBuffer || pipelineAlphaBuffer.length !== numPixels) {
-    pipelineAlphaBuffer = new Uint8ClampedArray(numPixels);
-  }
-  for (let i = 0, a = 3; i < numPixels; i++, a += 4) {
-    pipelineAlphaBuffer[i] = data[a];
-  }
-
   // Clear temporal buffer histories on sequence start (frame 0) for strict determinism
   if (context.frameIndex === 0) {
     try {
@@ -165,13 +190,31 @@ export function applyEffectPipeline(
     }
   }
 
-  // Ensure layer scratch buffer is allocated
-  if (!pipelineLayerBuffer || pipelineLayerBuffer.length !== len) {
-    pipelineLayerBuffer = new Uint8ClampedArray(len);
+  // Pre-scan active effects for metadata (alpha mutation)
+  let requiresAlphaRestoration = false;
+  for (let i = 0; i < effects.length; i++) {
+    const item = effects[i];
+    if (!item.enabled) continue;
+    const effId = item.type || item.id;
+    const descriptor = registryLookup ? registryLookup(effId) : undefined;
+    if (descriptor && descriptor.mutatesAlpha === true) {
+      requiresAlphaRestoration = true;
+      break;
+    }
+  }
+
+  // Snapshot original alpha channel only if an active effect mutates alpha
+  if (requiresAlphaRestoration) {
+    if (!pipelineAlphaBuffer || pipelineAlphaBuffer.length !== numPixels) {
+      pipelineAlphaBuffer = new Uint8ClampedArray(numPixels);
+    }
+    for (let i = 0, a = 3; i < numPixels; i++, a += 4) {
+      pipelineAlphaBuffer[i] = data[a];
+    }
   }
 
   // Shared execution context across this stack
-  const shared: PipelineSharedContext = {};
+  const shared: PipelineSharedContext = (context as any)?.shared || createPipelineSharedContext();
   const enrichedContext = { ...context, shared };
 
   for (let i = 0; i < effects.length; i++) {
@@ -187,33 +230,51 @@ export function applyEffectPipeline(
 
     const blendMode = item.blendMode || descriptor.defaultBlendMode || 'normal';
 
-    // Copy base pixels into layer buffer
-    pipelineLayerBuffer.set(data);
+    // Fast-path: operate directly in-place on data when opacity is 100%, blendMode is normal,
+    // and effect does not forbid in-place operation. Skips layer buffer copy and compositeEffectLayer.
+    const canInPlace =
+      opacity >= 0.999 &&
+      blendMode === 'normal' &&
+      descriptor.canOperateInPlace !== false;
 
-    // Apply the effect onto the layer buffer, accommodating both (data, width, height, params, context)
-    // and ({ data, width, height }, params) signatures.
+    let targetBuffer: Uint8ClampedArray;
+    if (canInPlace) {
+      targetBuffer = data;
+    } else {
+      if (!pipelineLayerBuffer || pipelineLayerBuffer.length !== len) {
+        pipelineLayerBuffer = new Uint8ClampedArray(len);
+      }
+      pipelineLayerBuffer.set(data);
+      targetBuffer = pipelineLayerBuffer;
+    }
+
+    // Apply the effect onto the target buffer
     try {
       if (typeof descriptor.applyFrame === 'function') {
-        descriptor.applyFrame({ data: pipelineLayerBuffer, width, height }, item.params, context.frameIndex);
+        descriptor.applyFrame({ data: targetBuffer, width, height }, item.params, context.frameIndex);
       } else if (descriptor.apply.length <= 2) {
-        descriptor.apply({ data: pipelineLayerBuffer, width, height }, item.params);
+        descriptor.apply({ data: targetBuffer, width, height }, item.params);
       } else {
-        descriptor.apply(pipelineLayerBuffer, width, height, item.params, enrichedContext);
+        descriptor.apply(targetBuffer, width, height, item.params, enrichedContext);
       }
     } catch (e) {
       try {
-        descriptor.apply({ data: pipelineLayerBuffer, width, height }, item.params);
+        descriptor.apply({ data: targetBuffer, width, height }, item.params);
       } catch (err) {
         console.error(`Failed to apply effect ${effId}:`, err);
       }
     }
 
-    // Composite layer onto base data with specified blendMode and opacity
-    compositeEffectLayer(data, pipelineLayerBuffer, len, opacity, blendMode);
+    // Composite layer onto base data when not using in-place fast-path
+    if (!canInPlace) {
+      compositeEffectLayer(data, targetBuffer, len, opacity, blendMode);
+    }
   }
 
-  // Restore exact incoming alpha
-  for (let i = 0, a = 3; i < numPixels; i++, a += 4) {
-    data[a] = pipelineAlphaBuffer[i];
+  // Restore exact incoming alpha if an effect mutated it
+  if (requiresAlphaRestoration && pipelineAlphaBuffer) {
+    for (let i = 0, a = 3; i < numPixels; i++, a += 4) {
+      data[a] = pipelineAlphaBuffer[i];
+    }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useId } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useId } from 'react';
 import { X } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { useAppStore } from '../../state/useAppStore';
@@ -60,6 +60,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<number | null>(null);
 
   const selectedItem = useMemo(
@@ -77,12 +78,23 @@ export const Dropdown: React.FC<DropdownProps> = ({
     );
   }, [items, search, searchable]);
 
+  const [effectiveDirection, setEffectiveDirection] = useState<'up' | 'down'>(direction);
+
   const openDropdown = () => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
     setIsClosing(false);
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 260 && rect.top > spaceBelow) {
+        setEffectiveDirection('up');
+      } else {
+        setEffectiveDirection('down');
+      }
+    }
     setActiveDropdownId(dropdownId);
   };
 
@@ -129,6 +141,47 @@ export const Dropdown: React.FC<DropdownProps> = ({
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     };
   }, []);
+
+  // Programmatically focus search input when searchable dropdown opens (preventing scroll jump)
+  useEffect(() => {
+    if (isOpen && searchable) {
+      const timer = window.setTimeout(() => {
+        searchInputRef.current?.focus({ preventScroll: true });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, searchable]);
+
+  // Scroll selected option into view within the dropdown list without scrolling ancestor containers
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const scroller = panelRef.current?.querySelector('.custom-dropdown-items') as HTMLElement | null;
+    const selected = scroller?.querySelector('[role="option"][aria-selected="true"]') as HTMLElement | null;
+    if (scroller && selected) {
+      const sTop = selected.offsetTop;
+      const sHeight = selected.offsetHeight;
+      const cScroll = scroller.scrollTop;
+      const cHeight = scroller.clientHeight;
+      if (sTop < cScroll) {
+        scroller.scrollTop = sTop;
+      } else if (sTop + sHeight > cScroll + cHeight) {
+        scroller.scrollTop = sTop + sHeight - cHeight;
+      }
+    }
+  }, [isOpen]);
+
+  // Stop native wheel propagation from scrolling the sidebar container underneath
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el || !isOpen) return;
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', handleNativeWheel, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -204,11 +257,12 @@ export const Dropdown: React.FC<DropdownProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`custom-dropdown-container ${className}`}
+      className={`custom-dropdown-container ${className} ${isOpen && !isClosing ? 'open' : ''}`}
       style={{
         width: width ?? '100%',
         opacity: disabled ? 0.5 : 1,
-        pointerEvents: disabled ? 'none' : 'auto'
+        pointerEvents: disabled ? 'none' : 'auto',
+        zIndex: (isOpen || isClosing) ? 1000 : undefined
       }}
     >
       {tooltip && !isOpen ? (
@@ -222,7 +276,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
       {(isOpen || isClosing) && (
         <div
           ref={panelRef}
-          className={`custom-dropdown-panel ${direction === 'up' ? 'direction-up' : ''} ${searchable ? 'has-search' : 'single-list'} ${isClosing ? 'closing' : ''}`}
+          className={`custom-dropdown-panel ${effectiveDirection === 'up' ? 'direction-up' : ''} ${searchable ? 'has-search' : 'single-list'} ${isClosing ? 'closing' : ''}`}
           role="listbox"
           data-lenis-prevent
           onWheel={(e) => e.stopPropagation()}
@@ -233,11 +287,11 @@ export const Dropdown: React.FC<DropdownProps> = ({
             <>
               <div className="custom-dropdown-search-container">
                 <input
+                  ref={searchInputRef}
                   type="text"
                   className="custom-dropdown-search-input"
                   placeholder="Search..."
                   value={search}
-                  autoFocus
                   onChange={(e) => setSearch(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -259,13 +313,13 @@ export const Dropdown: React.FC<DropdownProps> = ({
                             onHoverItem?.(item.id);
                           }}
                           onMouseDown={(e) => {
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             onChange(item.id);
                             closeDropdown();
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
                           }}
                         >
                           <span className="custom-dropdown-item-label">{item.label}</span>
@@ -280,9 +334,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
                                 title="Delete custom palette"
                                 aria-label={`Delete ${item.label}`}
                                 onMouseDown={(e) => {
-                                  // The row selects/closes on mousedown; without this the
-                                  // item unmounts before the click reaches the trash.
-                                  e.preventDefault();
                                   e.stopPropagation();
                                 }}
                                 onClick={(e) => {
@@ -319,13 +370,13 @@ export const Dropdown: React.FC<DropdownProps> = ({
                         onHoverItem?.(item.id);
                       }}
                       onMouseDown={(e) => {
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         onChange(item.id);
                         closeDropdown();
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
                       }}
                     >
                       <span className="custom-dropdown-item-label">{item.label}</span>
@@ -340,7 +391,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
                             title="Delete custom palette"
                             aria-label={`Delete ${item.label}`}
                             onMouseDown={(e) => {
-                              e.preventDefault();
                               e.stopPropagation();
                             }}
                             onClick={(e) => {

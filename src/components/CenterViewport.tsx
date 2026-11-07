@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useAppStore,
@@ -421,6 +421,16 @@ export const CenterViewport: React.FC = () => {
   const isSmoothDownscale = highQualityZoom && zoom < 100;
   const imageRenderingValue = isSmoothDownscale ? 'auto' : 'pixelated';
 
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [isWheelZooming, setIsWheelZooming] = useState(false);
+  const wheelZoomTimeoutRef = useRef<number | null>(null);
+  const [, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
+  const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
+  const presentationCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const hqPresentationBufferRef = useRef<ImageData | null>(null);
+  const lastRenderedFullImageRef = useRef<ImageData | null>(null);
+
   const renderHqPresentation = useCallback((imgData: ImageData, fw: number, fh: number) => {
     if (!highQualityZoom || zoom >= 100) return;
     const scale = zoom / 100;
@@ -441,19 +451,18 @@ export const CenterViewport: React.FC = () => {
     pCtx.putImageData(hqPresentationBufferRef.current, 0, 0);
   }, [highQualityZoom, zoom]);
 
-  useEffect(() => {
+  // Synchronously render high-quality downscale presentation (<100%) or restore main canvas (>=100%)
+  // before browser paints, preventing image disappearing/flickering in WebKitGTK.
+  useLayoutEffect(() => {
     if (highQualityZoom && zoom < 100 && lastRenderedFullImageRef.current && sourceImageData) {
       renderHqPresentation(lastRenderedFullImageRef.current, sourceImageData.width, sourceImageData.height);
+    } else if (lastRenderedFullImageRef.current && canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.putImageData(lastRenderedFullImageRef.current, 0, 0);
+      }
     }
   }, [zoom, highQualityZoom, renderHqPresentation, sourceImageData]);
-
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
-  const [, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
-  const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
-  const presentationCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const hqPresentationBufferRef = useRef<ImageData | null>(null);
-  const lastRenderedFullImageRef = useRef<ImageData | null>(null);
 
   const isElementUI = useCallback((el: Element | null): boolean => {
     if (!el) return false;
@@ -989,12 +998,26 @@ export const CenterViewport: React.FC = () => {
       const newPanX = Math.round(cursorX - (cursorX - state.panX) * zoomRatio);
       const newPanY = Math.round(cursorY - (cursorY - state.panY) * zoomRatio);
 
+      setIsWheelZooming(true);
+      if (wheelZoomTimeoutRef.current) {
+        clearTimeout(wheelZoomTimeoutRef.current);
+      }
+      wheelZoomTimeoutRef.current = window.setTimeout(() => {
+        setIsWheelZooming(false);
+        wheelZoomTimeoutRef.current = null;
+      }, 80);
+
       setZoom(newZoom);
       setPan(newPanX, newPanY);
     };
 
     container.addEventListener('wheel', handleNativeWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleNativeWheel);
+    return () => {
+      container.removeEventListener('wheel', handleNativeWheel);
+      if (wheelZoomTimeoutRef.current) {
+        clearTimeout(wheelZoomTimeoutRef.current);
+      }
+    };
   }, [setZoom, setPan]);
 
   // Handle Both Image and MP4/Video File Drops & Imports!
@@ -1055,6 +1078,8 @@ export const CenterViewport: React.FC = () => {
   const proxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const proxyCacheRef = useRef<{ source: ImageData; low: ImageData; mid: ImageData } | null>(null);
   const renderNonceRef = useRef<number>(0);
+  const isRenderingRef = useRef<boolean>(false);
+  const pendingRenderRef = useRef<boolean>(false);
 
   const executeRenderPipeline = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -1062,7 +1087,14 @@ export const CenterViewport: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const currentNonce = ++renderNonceRef.current;
+    if (isRenderingRef.current) {
+      pendingRenderRef.current = true;
+      return;
+    }
+    isRenderingRef.current = true;
+
+    try {
+      const currentNonce = ++renderNonceRef.current;
 
     const fullWidth = sourceImageData.width;
     const fullHeight = sourceImageData.height;
@@ -1508,6 +1540,15 @@ export const CenterViewport: React.FC = () => {
     } else {
       drawToCanvas(ditherImageData);
     }
+  } finally {
+    isRenderingRef.current = false;
+    if (pendingRenderRef.current) {
+      pendingRenderRef.current = false;
+      requestAnimationFrame(() => {
+        executeRenderPipelineRef.current();
+      });
+    }
+  }
   }, [
     sourceImageData,
     sourceVideoUrl,
@@ -1552,6 +1593,12 @@ export const CenterViewport: React.FC = () => {
         executeRenderPipeline();
       }, 140);
       return () => clearTimeout(timer);
+    }
+    if (isDraggingSlider) {
+      let rafId = requestAnimationFrame(() => {
+        executeRenderPipeline();
+      });
+      return () => cancelAnimationFrame(rafId);
     }
     executeRenderPipeline();
   }, [
@@ -1828,7 +1875,7 @@ export const CenterViewport: React.FC = () => {
               display: 'inline-block',
               transform: `translate(${panX}px, ${panY}px) scale(${zoom / 100})`,
               transformOrigin: 'center center',
-              transition: isPanning ? 'none' : 'transform 0.05s ease-out',
+              transition: (isPanning || isWheelZooming) ? 'none' : 'transform 0.05s ease-out',
               userSelect: 'none'
             }}
           >
@@ -1837,23 +1884,27 @@ export const CenterViewport: React.FC = () => {
               id="mainViewportCanvas"
               className="preview-canvas"
               style={{
-                display: isSmoothDownscale ? 'none' : 'block',
+                display: 'block',
+                visibility: isSmoothDownscale ? 'hidden' : 'visible',
                 imageRendering: 'pixelated'
               }}
             />
-            {isSmoothDownscale && (
-              <canvas
-                ref={presentationCanvasRef}
-                id="hqPresentationCanvas"
-                className="preview-canvas smooth-downscale"
-                style={{
-                  display: 'block',
-                  width: `${sourceImageData?.width || 0}px`,
-                  height: `${sourceImageData?.height || 0}px`,
-                  imageRendering: 'pixelated'
-                }}
-              />
-            )}
+            <canvas
+              ref={presentationCanvasRef}
+              id="hqPresentationCanvas"
+              className="preview-canvas smooth-downscale"
+              style={{
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: `${sourceImageData?.width || 0}px`,
+                height: `${sourceImageData?.height || 0}px`,
+                visibility: isSmoothDownscale ? 'visible' : 'hidden',
+                pointerEvents: 'none',
+                imageRendering: 'pixelated'
+              }}
+            />
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>
                 <div
@@ -2308,4 +2359,4 @@ export const CenterViewport: React.FC = () => {
       )}
     </main>
   );
-};
+};

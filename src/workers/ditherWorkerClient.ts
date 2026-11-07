@@ -1,4 +1,9 @@
 import type { WorkerDitherRequest, WorkerDitherResponse } from './dither.worker';
+import { EngineBridge } from '../services/EngineBridge';
+import { applyFastTweaks } from '../utils/fastTweaks';
+import { applyEffectPipeline } from '../effects';
+// @ts-ignore
+import { applyTemporalNoise } from '../dither-engine/temporal.js';
 
 export interface PendingRequest {
   requestId: number;
@@ -13,6 +18,13 @@ export class DitherWorkerClient {
   private nextRequestId: number = 1;
   private defaultTimeoutMs: number;
   private workerFactory: () => Worker;
+  private rustInFlight: boolean = false;
+  private latestQueuedRust: {
+    request: Omit<WorkerDitherRequest, 'requestId'>;
+    requestId: number;
+    resolve: (res: WorkerDitherResponse) => void;
+    reject: (err: Error) => void;
+  } | null = null;
 
   constructor(
     workerFactory?: () => Worker,
@@ -100,11 +112,37 @@ export class DitherWorkerClient {
     }
   }
 
-  public execute(
+  public async execute(
     request: Omit<WorkerDitherRequest, 'requestId'>,
     timeoutMs?: number
   ): Promise<WorkerDitherResponse> {
     const requestId = this.nextRequestId++;
+    const settings = (request as any).settings || request;
+    const algorithmId = settings.algorithmId || (request as any).algorithmId;
+
+    // Route full pipeline (Tweaks -> Temporal Noise -> Dither -> Post-Effects) to Rust with single-flight coalescing
+    if (EngineBridge.isTauri() && EngineBridge.isAlgorithmSupported(algorithmId)) {
+      if (this.rustInFlight) {
+        // Supersede any previously queued intermediate slider frame immediately
+        if (this.latestQueuedRust) {
+          this.latestQueuedRust.resolve({
+            requestId: this.latestQueuedRust.requestId,
+            success: true,
+            buffer: this.latestQueuedRust.request.buffer,
+            width: this.latestQueuedRust.request.width,
+            height: this.latestQueuedRust.request.height,
+            elapsedMs: 0
+          });
+        }
+        return new Promise<WorkerDitherResponse>((resolve, reject) => {
+          this.latestQueuedRust = { request, requestId, resolve, reject };
+        });
+      }
+
+      return this.runRustPipeline(request, requestId);
+    }
+
+    // Fallback to Web Worker for browser or non-migrated algorithms
     const fullRequest: WorkerDitherRequest = {
       ...request,
       requestId
@@ -142,6 +180,108 @@ export class DitherWorkerClient {
         reject(postErr instanceof Error ? postErr : new Error(String(postErr)));
       }
     });
+  }
+
+  private async runRustPipeline(
+    request: Omit<WorkerDitherRequest, 'requestId'>,
+    requestId: number
+  ): Promise<WorkerDitherResponse> {
+    this.rustInFlight = true;
+    try {
+      const t0 = performance.now();
+      const settings = (request as any).settings || request;
+      const algorithmId = settings.algorithmId || (request as any).algorithmId;
+      const width = request.width;
+      const height = request.height;
+      const data = new Uint8ClampedArray(request.buffer);
+      const imgData = { data, width, height } as ImageData;
+
+      const tweaks = (request as any).tweaks || settings;
+      const temporal = (request as any).temporal;
+      const isTemporalActive = Boolean(
+        temporal &&
+        temporal.patternId &&
+        temporal.patternId !== 'none' &&
+        (temporal.intensity > 0 || temporal.frameIndex > 0 || temporal.isPlaying)
+      );
+
+      const temporalPattern = isTemporalActive
+        ? temporal.patternId
+        : (settings.temporalNoise && settings.temporalIntensity > 0 ? (settings.temporalPattern || 'grain') : 'none');
+      const temporalIntensity = isTemporalActive
+        ? (temporal.intensity > 0 ? temporal.intensity : 0.5)
+        : (settings.temporalNoise ? (settings.temporalIntensity || 0) : 0);
+      const temporalSpeed = isTemporalActive
+        ? (temporal.speed || 1.0)
+        : (settings.temporalSpeed || 1.0);
+
+      const rawParams = (request as any).params || {};
+      const mappedControls = {
+        ...rawParams,
+        bleed: rawParams.bleed ?? (rawParams.bleedFraction !== undefined ? rawParams.bleedFraction / 100 : undefined),
+        smoothing: rawParams.smoothing ?? rawParams.smoothingFactor,
+        scale: rawParams.scale ?? settings.scale ?? 1.0
+      };
+
+      const effects = (request as any).effects || settings.effects || [];
+      const frameIndex = temporal?.frameIndex ?? rawParams.temporalSeed ?? settings.temporalSeed ?? 0;
+
+      const ditherSettings = {
+        ...((request as any).settings || {}),
+        algorithmId,
+        palette: (request as any).palette || settings.palette,
+        ...mappedControls,
+        controls: mappedControls,
+        brightness: tweaks?.brightness ?? settings.brightness ?? 0,
+        contrast: tweaks?.contrast ?? settings.contrast ?? 0,
+        saturation: tweaks?.saturation ?? settings.saturation ?? 0,
+        gamma: tweaks?.gamma ?? settings.gamma ?? 1.0,
+        hue: tweaks?.hue ?? settings.hue ?? 0,
+        temporalPattern,
+        temporalIntensity,
+        temporalSpeed,
+        threshold: rawParams.threshold ?? settings.threshold ?? 0.5,
+        scale: mappedControls.scale,
+        bleed: mappedControls.bleed,
+        smoothing: mappedControls.smoothing,
+        diffusionStrength: rawParams.diffusionStrength ?? settings.diffusionStrength ?? 1.0,
+        serpentine: rawParams.serpentine ?? settings.serpentine ?? false,
+        noiseAmount: rawParams.noiseAmount ?? settings.noiseAmount ?? 0.0,
+        depth: rawParams.depth ?? settings.depth ?? 8,
+        temporalSeed: frameIndex,
+        offsetX: rawParams.offsetX ?? settings.offsetX ?? 0,
+        offsetY: rawParams.offsetY ?? settings.offsetY ?? 0,
+        effectStack: effects
+      };
+
+      const bridgeResult = await EngineBridge.dither(imgData, ditherSettings);
+
+      if (bridgeResult.backend !== 'rust') {
+        if (Array.isArray(effects) && effects.some((e: any) => e.enabled)) {
+          applyEffectPipeline(imgData, effects, {
+            frameIndex,
+            time: frameIndex / 30,
+            fps: 30
+          });
+        }
+      }
+
+      return {
+        requestId,
+        success: true,
+        buffer: data.buffer,
+        width,
+        height,
+        elapsedMs: performance.now() - t0
+      } as WorkerDitherResponse;
+    } finally {
+      this.rustInFlight = false;
+      if (this.latestQueuedRust) {
+        const next = this.latestQueuedRust;
+        this.latestQueuedRust = null;
+        this.runRustPipeline(next.request, next.requestId).then(next.resolve, next.reject);
+      }
+    }
   }
 
   public getPendingCount(): number {

@@ -44,8 +44,17 @@ export const App: React.FC = () => {
     const finishBoot = () => {
       if (active && !cleanupDone) {
         cleanupDone = true;
+        const w = window as any;
+        const invokeFn = w.__TAURI_INTERNALS__?.invoke || w.__TAURI__?.core?.invoke;
+        if (typeof invokeFn === 'function') {
+          invokeFn('show_main_window').catch(() => {});
+        }
         const loader = document.getElementById('boot-loader');
-        if (loader) loader.remove();
+        if (loader) {
+          loader.style.transition = 'opacity 120ms ease-out';
+          loader.style.opacity = '0';
+          setTimeout(() => loader.remove(), 130);
+        }
       }
     };
 

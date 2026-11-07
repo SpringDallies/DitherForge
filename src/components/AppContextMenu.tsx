@@ -148,6 +148,8 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
     if (!isOpen) return;
 
     const handleMouseDown = (e: MouseEvent) => {
+      // Don't close on right-click; handleContextMenu will reposition the menu seamlessly
+      if (e.button === 2) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         closeMenu();
       }

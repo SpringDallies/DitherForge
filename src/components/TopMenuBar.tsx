@@ -115,13 +115,17 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   }, [zoom, setZoom]);
 
   useEffect(() => {
-    const handleWindowClick = () => {
-      setActiveMenu(null);
-      setIsThemesSubmenuOpen(false);
+    if (!activeMenu) return;
+    const handleOutsideMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest?.('.menu-dropdowns')) {
+        setActiveMenu(null);
+        setIsThemesSubmenuOpen(false);
+      }
     };
-    window.addEventListener('click', handleWindowClick);
-    return () => window.removeEventListener('click', handleWindowClick);
-  }, []);
+    window.addEventListener('mousedown', handleOutsideMouseDown);
+    return () => window.removeEventListener('mousedown', handleOutsideMouseDown);
+  }, [activeMenu]);
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -345,20 +349,22 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 >
                   <span>Themes</span>
                   <ChevronRight size={13} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
-                  <div className={`dropdown-menu-popover dropdown-submenu-popover ${isThemesSubmenuOpen ? 'open' : ''}`}>
-                    {THEMES.map((theme) => (
-                      <button
-                        key={theme.id}
-                        className="dropdown-menu-item"
-                        onClick={() => { setActiveTheme(theme.id); setActiveMenu(null); setIsThemesSubmenuOpen(false); }}
-                      >
-                        <span style={{ width: '14px', display: 'inline-flex', alignItems: 'center' }}>
-                          {activeTheme === theme.id && <Check size={13} style={{ color: 'var(--text-main)' }} />}
-                        </span>
-                        <span>{theme.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {isThemesSubmenuOpen && (
+                    <div className="dropdown-submenu-popover open" role="menu">
+                      {THEMES.map((theme) => (
+                        <button
+                          key={theme.id}
+                          className="dropdown-menu-item"
+                          onClick={() => { setActiveTheme(theme.id); setActiveMenu(null); setIsThemesSubmenuOpen(false); }}
+                        >
+                          <span style={{ width: '14px', display: 'inline-flex', alignItems: 'center' }}>
+                            {activeTheme === theme.id && <Check size={13} style={{ color: 'var(--text-main)' }} />}
+                          </span>
+                          <span>{theme.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

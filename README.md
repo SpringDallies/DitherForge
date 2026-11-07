@@ -51,37 +51,154 @@ PNG, JPG, WebP, SVG vector contours, TXT character grids (ASCII, Unicode Blocks,
 ### Studio UI
 - Smooth zoom, pan, 1:1 view, and fit-to-window.
 - Before/After toggle and draggable split comparison.
-- 9 themes.
-- Preset manager with built-in and user presets.
+- 9 themes with unified high-legibility menus.
+- Preset manager with user-saved presets and undo/redo history.
 - In-app algorithm reference.
 
 ---
 
-## Getting Started
+## Installation & Getting Started
 
-### Web App
-```powershell
+### Prerequisites
+
+| Tool | Version Requirement | Notes |
+| :--- | :--- | :--- |
+| **Node.js** | `>= 18.0.0` (LTS recommended) | Includes `npm` |
+| **Rust & Cargo** | `>= 1.75.0` (stable) | Required for desktop native engine (`rustup default stable`) |
+
+#### System Packages for Desktop App (Tauri v2)
+
+<details>
+<summary><b>Linux (Ubuntu / Debian / Mint)</b></summary>
+
+```bash
+sudo apt-get update && sudo apt-get install -y \
+  libwebkit2gtk-4.1-dev \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libxdo-dev \
+  libssl-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev
+```
+</details>
+
+<details>
+<summary><b>Linux (Fedora / RHEL)</b></summary>
+
+```bash
+sudo dnf install -y \
+  webkit2gtk4.1-devel \
+  openssl-devel \
+  curl \
+  wget \
+  libappindicator-gtk3-devel \
+  librsvg2-devel
+```
+</details>
+
+<details>
+<summary><b>Linux (Arch / Manjaro)</b></summary>
+
+```bash
+sudo pacman -S --needed \
+  webkit2gtk-4.1 \
+  base-devel \
+  curl \
+  wget \
+  openssl \
+  libappindicator-gtk3 \
+  librsvg
+```
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+# Install Xcode Command Line Tools
+xcode-select --install
+```
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+- Install [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (select "Desktop development with C++").
+- Microsoft Edge WebView2 (included by default on Windows 10/11).
+</details>
+
+---
+
+### 1. Clone & Install Dependencies
+
+```bash
+git clone https://github.com/SpringDallies/DitherForge.git
+cd DitherForge
 npm install
+```
+
+---
+
+### 2. Web Application
+
+#### Development Server
+```bash
 npm run dev
 ```
-Open `http://localhost:5173/`.
+Open [http://localhost:5173/](http://localhost:5173/) in any modern evergreen browser (Chrome, Edge, Firefox, Safari).
 
-Production build:
-```powershell
+#### Production Build & Local Preview
+```bash
 npm run build
 npm run serve
 ```
-Open `http://localhost:8080/`.
+Serves the bundled production application at [http://localhost:8080/](http://localhost:8080/).
 
-### Desktop App
-```powershell
-npm install
+---
+
+### 3. Desktop Application (Tauri v2 Native Backend)
+
+The desktop edition pairs the React interface with an ultra-low-latency Rust backend powered by SIMD parallel image diffusion, zero-allocation FastPaletteLUT cache, and native raw binary IPC.
+
+#### Run in Development Mode
+```bash
 npm run tauri dev
 ```
 
-Release build:
-```powershell
+#### Build Production Standalone Executable / Installer
+```bash
 npm run tauri build
+```
+Build outputs will be generated in `src-tauri/target/release/bundle/`:
+- **Linux:** `.deb`, `.rpm`, `.AppImage`
+- **Windows:** `.msi`, standalone `.exe`
+- **macOS:** `.dmg`, `.app`
+
+---
+
+## Testing & Verification Suites
+
+DitherForge maintains full parity between its JavaScript reference engine and the native Rust SIMD acceleration engine.
+
+```bash
+# Run all frontend integration and effects tests
+npm test
+
+# Run bit-identical golden tests (112 test cases)
+npm run test:golden
+
+# Verify engine freeze hashes and feature inventories
+npm run inventory:check
+npm run engine:verify
+
+# Run full 308-case Rust vs JS algorithm and effects parity suite
+node tests/rust-parity.test.mjs
+
+# Verify special & glitch dynamic slider parameter modulation
+node tests/special-sliders-verification.test.mjs
 ```
 
 ---

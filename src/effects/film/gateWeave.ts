@@ -54,6 +54,22 @@ function hashFrame(seed: number): number {
   return (h / 4294967295) * 2.0 - 1.0;
 }
 
+const localScratchUint8 = new Map<number, Uint8ClampedArray>();
+
+function getScratchUint8(len: number, slot: number, context?: EffectContext): Uint8ClampedArray {
+  const shared = (context as any)?.shared;
+  if (shared?.getScratchUint8) {
+    return shared.getScratchUint8(len, slot);
+  }
+  const existing = localScratchUint8.get(slot);
+  if (!existing || existing.length !== len) {
+    const next = new Uint8ClampedArray(len);
+    localScratchUint8.set(slot, next);
+    return next;
+  }
+  return existing;
+}
+
 export const gateWeaveEffect: EffectDescriptor<GateWeaveParams> = {
   id: 'gate_weave',
   name: 'Gate Weave',
@@ -113,7 +129,8 @@ export const gateWeaveEffect: EffectDescriptor<GateWeaveParams> = {
 
     if (Math.abs(shiftX) < 0.001 && Math.abs(shiftY) < 0.001) return;
 
-    const src = new Uint8ClampedArray(data);
+    const src = getScratchUint8(data.length, 0, context);
+    src.set(data);
 
     for (let y = 0; y < h; y++) {
       const srcY = y - shiftY;

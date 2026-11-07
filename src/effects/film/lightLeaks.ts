@@ -155,17 +155,25 @@ export const lightLeaksEffect: EffectDescriptor<LightLeaksParams> = {
     else if (direction === 'right') { ox = w; oy = h / 2; isCorner = false; }
 
     const maxDist = (isCorner ? Math.hypot(w, h) : Math.max(w, h)) * Math.max(0.05, radius);
+    const maxDist2 = maxDist * maxDist;
     const invMaxDist = 1.0 / maxDist;
+
+    const dx2Table = new Float64Array(w);
+    for (let x = 0; x < w; x++) {
+      const dx = x - ox;
+      dx2Table[x] = dx * dx;
+    }
 
     for (let y = 0; y < h; y++) {
       const dy = y - oy;
+      const dy2 = dy * dy;
       const rowOffset = y * w * 4;
 
       for (let x = 0; x < w; x++) {
-        const dx = x - ox;
-        const dist = Math.hypot(dx, dy);
-        if (dist >= maxDist) continue;
+        const d2 = dx2Table[x] + dy2;
+        if (d2 >= maxDist2) continue;
 
+        const dist = Math.sqrt(d2);
         const normDist = dist * invMaxDist;
         // Smooth exponential falloff
         const falloff = Math.pow(1.0 - normDist, 1.8) * effIntensity;

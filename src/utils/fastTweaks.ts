@@ -219,3 +219,5 @@ export function applyTweaksFast(
     rotateHueHsvBuffer(data, len, hue);
   }
 }
+
+export const applyFastTweaks = applyTweaksFast;

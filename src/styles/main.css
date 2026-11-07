@@ -19,6 +19,15 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
 }
 
 /* Global Number Input Spinner Removal */

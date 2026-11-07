@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-  base: process.env.NODE_ENV === 'production' ? '/DitherForge/' : '/',
+  base: (process.env.GITHUB_ACTIONS && !process.env.TAURI_ENV_PLATFORM) ? '/DitherForge/' : '/',
   plugins: [
     react(),
     {
@@ -46,7 +46,11 @@ export default defineConfig({
     }
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
-    open: false
+    open: false,
+    watch: {
+      ignored: ['**/src-tauri/**']
+    }
   }
 });

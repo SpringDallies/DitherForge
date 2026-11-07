@@ -1,0 +1,334 @@
+{
+  "320x240": {
+    "effects": {
+      "halation": {
+        "name": "Halation",
+        "medianMs": 6.49,
+        "minMs": 6.35,
+        "allocCount": 4,
+        "allocMB": 1.17
+      },
+      "blur_sharpen": {
+        "name": "Blur / Sharpen",
+        "medianMs": 9.42,
+        "minMs": 8.2,
+        "allocCount": 3,
+        "allocMB": 0.88
+      },
+      "lens_aberration": {
+        "name": "Lens Aberration",
+        "medianMs": 1.8,
+        "minMs": 1.7,
+        "allocCount": 1,
+        "allocMB": 0.29
+      },
+      "gate_weave": {
+        "name": "Gate Weave",
+        "medianMs": 3.3,
+        "minMs": 3.08,
+        "allocCount": 1,
+        "allocMB": 0.29
+      },
+      "glow": {
+        "name": "Glow",
+        "medianMs": 18.37,
+        "minMs": 18.12,
+        "allocCount": 6,
+        "allocMB": 1.76
+      },
+      "vignette": {
+        "name": "Vignette",
+        "medianMs": 10.19,
+        "minMs": 10.18,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "inverse_vignette": {
+        "name": "Inverse Vignette",
+        "medianMs": 10.57,
+        "minMs": 10.5,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "light_leaks": {
+        "name": "Light Leaks",
+        "medianMs": 11.11,
+        "minMs": 11.04,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "film_grain": {
+        "name": "Film Grain",
+        "medianMs": 5.95,
+        "minMs": 5.88,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "gradient_map": {
+        "name": "Gradient Map",
+        "medianMs": 1.68,
+        "minMs": 1.55,
+        "allocCount": 0,
+        "allocMB": 0
+      }
+    },
+    "stacked": {
+      "medianMs": 52.1,
+      "allocCount": 7,
+      "allocMB": 2.05
+    },
+    "animation10Frames": {
+      "totalMs": 565.42,
+      "fps": 17.7
+    }
+  },
+  "640x480": {
+    "effects": {
+      "halation": {
+        "name": "Halation",
+        "medianMs": 27.7,
+        "minMs": 26.1,
+        "allocCount": 4,
+        "allocMB": 4.69
+      },
+      "blur_sharpen": {
+        "name": "Blur / Sharpen",
+        "medianMs": 40.1,
+        "minMs": 38.39,
+        "allocCount": 3,
+        "allocMB": 3.52
+      },
+      "lens_aberration": {
+        "name": "Lens Aberration",
+        "medianMs": 6.72,
+        "minMs": 6.62,
+        "allocCount": 1,
+        "allocMB": 1.17
+      },
+      "gate_weave": {
+        "name": "Gate Weave",
+        "medianMs": 13.23,
+        "minMs": 12.49,
+        "allocCount": 1,
+        "allocMB": 1.17
+      },
+      "glow": {
+        "name": "Glow",
+        "medianMs": 78.73,
+        "minMs": 75.82,
+        "allocCount": 6,
+        "allocMB": 7.03
+      },
+      "vignette": {
+        "name": "Vignette",
+        "medianMs": 40.15,
+        "minMs": 39.84,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "inverse_vignette": {
+        "name": "Inverse Vignette",
+        "medianMs": 41.43,
+        "minMs": 40.92,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "light_leaks": {
+        "name": "Light Leaks",
+        "medianMs": 43.73,
+        "minMs": 43.37,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "film_grain": {
+        "name": "Film Grain",
+        "medianMs": 23.5,
+        "minMs": 23.2,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "gradient_map": {
+        "name": "Gradient Map",
+        "medianMs": 6.08,
+        "minMs": 6,
+        "allocCount": 0,
+        "allocMB": 0
+      }
+    },
+    "stacked": {
+      "medianMs": 226.47,
+      "allocCount": 7,
+      "allocMB": 8.2
+    },
+    "animation10Frames": {
+      "totalMs": 2350.89,
+      "fps": 4.3
+    }
+  },
+  "1280x720": {
+    "effects": {
+      "halation": {
+        "name": "Halation",
+        "medianMs": 109.4,
+        "minMs": 104.12,
+        "allocCount": 4,
+        "allocMB": 14.06
+      },
+      "blur_sharpen": {
+        "name": "Blur / Sharpen",
+        "medianMs": 174.91,
+        "minMs": 158.8,
+        "allocCount": 3,
+        "allocMB": 10.55
+      },
+      "lens_aberration": {
+        "name": "Lens Aberration",
+        "medianMs": 20.07,
+        "minMs": 19.57,
+        "allocCount": 1,
+        "allocMB": 3.52
+      },
+      "gate_weave": {
+        "name": "Gate Weave",
+        "medianMs": 39.8,
+        "minMs": 37.87,
+        "allocCount": 1,
+        "allocMB": 3.52
+      },
+      "glow": {
+        "name": "Glow",
+        "medianMs": 248.59,
+        "minMs": 242.53,
+        "allocCount": 6,
+        "allocMB": 21.09
+      },
+      "vignette": {
+        "name": "Vignette",
+        "medianMs": 112.11,
+        "minMs": 111.58,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "inverse_vignette": {
+        "name": "Inverse Vignette",
+        "medianMs": 115.63,
+        "minMs": 115.33,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "light_leaks": {
+        "name": "Light Leaks",
+        "medianMs": 124.34,
+        "minMs": 124.16,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "film_grain": {
+        "name": "Film Grain",
+        "medianMs": 70.41,
+        "minMs": 69.87,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "gradient_map": {
+        "name": "Gradient Map",
+        "medianMs": 18.28,
+        "minMs": 17.88,
+        "allocCount": 0,
+        "allocMB": 0
+      }
+    },
+    "stacked": {
+      "medianMs": 731.35,
+      "allocCount": 7,
+      "allocMB": 24.61
+    },
+    "animation10Frames": {
+      "totalMs": 7527.66,
+      "fps": 1.3
+    }
+  },
+  "1920x1080": {
+    "effects": {
+      "halation": {
+        "name": "Halation",
+        "medianMs": 260.38,
+        "minMs": 240.53,
+        "allocCount": 4,
+        "allocMB": 31.64
+      },
+      "blur_sharpen": {
+        "name": "Blur / Sharpen",
+        "medianMs": 332.32,
+        "minMs": 300.53,
+        "allocCount": 3,
+        "allocMB": 23.73
+      },
+      "lens_aberration": {
+        "name": "Lens Aberration",
+        "medianMs": 45.68,
+        "minMs": 44.49,
+        "allocCount": 1,
+        "allocMB": 7.91
+      },
+      "gate_weave": {
+        "name": "Gate Weave",
+        "medianMs": 85.91,
+        "minMs": 82.56,
+        "allocCount": 1,
+        "allocMB": 7.91
+      },
+      "glow": {
+        "name": "Glow",
+        "medianMs": 576.63,
+        "minMs": 550.02,
+        "allocCount": 6,
+        "allocMB": 47.46
+      },
+      "vignette": {
+        "name": "Vignette",
+        "medianMs": 247.75,
+        "minMs": 247.07,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "inverse_vignette": {
+        "name": "Inverse Vignette",
+        "medianMs": 263.57,
+        "minMs": 255.36,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "light_leaks": {
+        "name": "Light Leaks",
+        "medianMs": 278.29,
+        "minMs": 276.69,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "film_grain": {
+        "name": "Film Grain",
+        "medianMs": 159.3,
+        "minMs": 158.2,
+        "allocCount": 0,
+        "allocMB": 0
+      },
+      "gradient_map": {
+        "name": "Gradient Map",
+        "medianMs": 41.14,
+        "minMs": 40.3,
+        "allocCount": 0,
+        "allocMB": 0
+      }
+    },
+    "stacked": {
+      "medianMs": 1776.29,
+      "allocCount": 7,
+      "allocMB": 55.37
+    },
+    "animation10Frames": {
+      "totalMs": 17582.58,
+      "fps": 0.6
+    }
+  }
+}

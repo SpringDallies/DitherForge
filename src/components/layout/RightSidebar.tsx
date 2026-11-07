@@ -755,20 +755,12 @@ export const RightSidebar: React.FC = () => {
     };
   }, [setIsDraggingSlider]);
 
-  const handleSliderPointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+  const handleSliderPointerDown = (_e: React.PointerEvent<HTMLInputElement>) => {
     setIsDraggingSlider(true);
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {}
   };
 
-  const handleSliderPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
+  const handleSliderPointerUp = (_e: React.PointerEvent<HTMLInputElement>) => {
     setIsDraggingSlider(false);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {}
   };
 
   const sliderPointerProps = {
@@ -960,11 +952,24 @@ export const RightSidebar: React.FC = () => {
   useEffect(() => {
     if (isAlgoListboxOpen) {
       setTimeout(() => {
-        searchInputRef.current?.focus();
+        searchInputRef.current?.focus({ preventScroll: true });
       }, 0);
     } else {
       setSearchQuery('');
     }
+  }, [isAlgoListboxOpen]);
+
+  // Stop native wheel propagation from scrolling the sidebar container underneath
+  useEffect(() => {
+    const el = listboxPanelRef.current;
+    if (!el || !isAlgoListboxOpen) return;
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', handleNativeWheel, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', handleNativeWheel);
+    };
   }, [isAlgoListboxOpen]);
 
   // Position the list so the picked algorithm is the first row you see.
@@ -985,15 +990,29 @@ export const RightSidebar: React.FC = () => {
   }, [isAlgoListboxOpen]);
 
 
+  const scrollTargetIntoScroller = (scroller: HTMLElement | null, target: HTMLElement | null) => {
+    if (!scroller || !target) return;
+    const tTop = target.offsetTop;
+    const tHeight = target.offsetHeight;
+    const cScroll = scroller.scrollTop;
+    const cHeight = scroller.clientHeight;
+    if (tTop < cScroll) {
+      scroller.scrollTop = tTop;
+    } else if (tTop + tHeight > cScroll + cHeight) {
+      scroller.scrollTop = tTop + tHeight - cHeight;
+    }
+  };
+
   // Keyboard navigation for listbox
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (searchFilteredAlgos.length > 0) {
         setFocusedAlgoIndex(0);
-        const firstItem = listboxPanelRef.current?.querySelector('.algo-listbox-item') as HTMLElement;
-        firstItem?.focus();
-        firstItem?.scrollIntoView({ block: 'nearest' });
+        const scroller = listboxPanelRef.current?.querySelector('.algo-listbox-items') as HTMLElement | null;
+        const firstItem = scroller?.querySelector('.algo-listbox-item') as HTMLElement | null;
+        firstItem?.focus({ preventScroll: true });
+        scrollTargetIntoScroller(scroller, firstItem);
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -1008,6 +1027,7 @@ export const RightSidebar: React.FC = () => {
   };
 
   const handleListboxKeyDown = (e: React.KeyboardEvent) => {
+    const scroller = listboxPanelRef.current?.querySelector('.algo-listbox-items') as HTMLElement | null;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!isAlgoListboxOpen) {
@@ -1018,7 +1038,7 @@ export const RightSidebar: React.FC = () => {
         setFocusedAlgoIndex((prev) => {
           const next = prev < searchFilteredAlgos.length - 1 ? prev + 1 : 0;
           const target = listboxPanelRef.current?.querySelectorAll('.algo-listbox-item')[next] as HTMLElement;
-          target?.scrollIntoView({ block: 'nearest' });
+          scrollTargetIntoScroller(scroller, target);
           return next;
         });
       }
@@ -1029,12 +1049,12 @@ export const RightSidebar: React.FC = () => {
         const idx = searchFilteredAlgos.findIndex((a: any) => a.id === algorithmId);
         setFocusedAlgoIndex(idx >= 0 ? idx : 0);
       } else if (focusedAlgoIndex === 0) {
-        searchInputRef.current?.focus();
+        searchInputRef.current?.focus({ preventScroll: true });
       } else {
         setFocusedAlgoIndex((prev) => {
           const next = prev > 0 ? prev - 1 : 0;
           const target = listboxPanelRef.current?.querySelectorAll('.algo-listbox-item')[next] as HTMLElement;
-          target?.scrollIntoView({ block: 'nearest' });
+          scrollTargetIntoScroller(scroller, target);
           return next;
         });
       }
@@ -1697,7 +1717,7 @@ export const RightSidebar: React.FC = () => {
             {!collapsedSections.style && (
               <div className="section-content section-card">
                 {/* Category Row */}
-                <div className="picker-row-inline">
+                <div className="picker-row-inline" style={{ zIndex: activeDropdownId === 'style-category-dropdown' ? 100 : 10 }}>
                   <span className="picker-label-inline">Category</span>
                   <div className="picker-box-with-steppers">
                     <Dropdown
@@ -1721,7 +1741,7 @@ export const RightSidebar: React.FC = () => {
                 </div>
 
                 {/* Algorithm Row */}
-                <div className="picker-row-inline">
+                <div className="picker-row-inline" style={{ zIndex: (isAlgoListboxOpen || isAlgoListboxClosing) ? 100 : 9 }}>
                   <span className="picker-label-inline">Algorithm</span>
                   <div className="picker-box-with-steppers">
                     <div className="algo-listbox-container" ref={listboxRef}>
@@ -1748,6 +1768,7 @@ export const RightSidebar: React.FC = () => {
                           className={`algo-listbox-panel ${isAlgoListboxClosing ? 'closing' : ''}`}
                           role="listbox"
                           ref={listboxPanelRef}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onWheel={(e) => e.stopPropagation()}
                           data-lenis-prevent-wheel
                         >
@@ -2514,7 +2535,7 @@ export const RightSidebar: React.FC = () => {
                 )}
 
                 {/* 1. Palette Row */}
-                <div className="replica-row">
+                <div className="replica-row" style={{ position: 'relative', zIndex: activeDropdownId === 'palette-builtin-dropdown' ? 100 : 10 }}>
                   <span className="replica-label">Palette</span>
                   <Dropdown
                     id="palette-builtin-dropdown"
@@ -2695,7 +2716,7 @@ export const RightSidebar: React.FC = () => {
                 )}
 
                 {/* 5. Misc. Row with Palette options Dropdown */}
-                <div className="replica-row">
+                <div className="replica-row" style={{ position: 'relative', zIndex: (isMiscOpen || isMiscClosing) ? 100 : 9 }}>
                   <span className="replica-label">Misc.</span>
                   <div className="replica-dropdown-wrapper" ref={miscWrapperRef}>
                     <div className={`replica-picker-box ${isMiscOpen ? 'open' : ''}`}>
@@ -2741,7 +2762,10 @@ export const RightSidebar: React.FC = () => {
 
                     {/* Palette options Dropdown Panel (ditherforgeadvancedcolorpalette2.webp) */}
                     {(isMiscOpen || isMiscClosing) && (
-                      <div className={`palette-options-card ${isMiscClosing ? 'closing' : ''}`}>
+                      <div
+                        className={`palette-options-card ${isMiscClosing ? 'closing' : ''}`}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
                         <div
                           className="palette-options-header"
                           onClick={() => closeMiscDropdown()}

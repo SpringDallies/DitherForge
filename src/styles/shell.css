@@ -266,23 +266,21 @@ body {
 .custom-dropdown-placeholder-text {
   color: var(--text-muted);
 }
-/* Quick, Non-Resource-Intensive Open & Close Animations (GPU-accelerated opacity & transform) */
+/* Quick, Crisp Open & Close Animations (Pure opacity fade with GPU isolation, perfectly stable under WebKitGTK compositing) */
 @keyframes dropdownQuickOpen {
   from {
-    transform: translateY(-5px) scale(0.98);
+    opacity: 0;
   }
   to {
-    transform: translateY(0) scale(1);
+    opacity: 1;
   }
 }
 @keyframes dropdownQuickClose {
   from {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
   }
 }
 .custom-dropdown-panel {
@@ -308,20 +306,25 @@ body {
   overscroll-behavior: contain;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-  animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: top center;
+  animation: dropdownQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   box-sizing: border-box !important;
 }
 .custom-dropdown-panel.direction-up {
   top: auto !important;
   bottom: calc(100% + 6px) !important;
-  transform-origin: bottom center !important;
 }
 
 .custom-dropdown-panel.closing,
 .algo-listbox-panel.closing,
+.palette-options-card.closing,
 .dropdown-menu-popover.closing {
-  animation: dropdownQuickClose 110ms cubic-bezier(0.4, 0, 1, 1) forwards !important;
+  animation: dropdownQuickClose 100ms cubic-bezier(0.4, 0, 1, 1) forwards !important;
   pointer-events: none !important;
 }
 .custom-dropdown-panel.has-search {
@@ -581,8 +584,13 @@ body {
   overflow: visible;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-  animation: dropdownQuickOpen 130ms cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: top center;
+  animation: dropdownQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 .algo-search-container {
   position: relative;
@@ -1194,8 +1202,11 @@ body {
   position: relative;
 }
 .picker-box-with-steppers:has(.open),
-.picker-row-inline:has(.open) {
-  z-index: 60;
+.picker-box-with-steppers:has(.closing),
+.picker-row-inline:has(.open),
+.picker-row-inline:has(.closing),
+.picker-row-inline:has([role="listbox"]) {
+  z-index: 100 !important;
 }
 .picker-box-with-steppers .algo-listbox-container,
 .picker-box-with-steppers .custom-dropdown-container {
@@ -2378,7 +2389,9 @@ button .btn-icon:hover,
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  background-color: transparent;
+  background-color: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
   border: 1.5px solid var(--border-color, #5A5A5A);
   border-radius: 12px;
   min-width: 220px;
@@ -2387,20 +2400,17 @@ button .btn-icon:hover,
   display: flex;
   flex-direction: column;
   padding: 6px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  animation: dropdownQuickOpen 120ms cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: top left;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: dropdownQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 .dropdown-menu-popover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 20px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 20px));
-  border-radius: inherit;
-  z-index: -1;
-  pointer-events: none;
+  display: none !important;
 }
 .dropdown-menu-item {
   background: transparent;
@@ -2448,41 +2458,36 @@ button .btn-icon:hover,
   position: relative;
 }
 .dropdown-submenu-popover {
-  display: none;
   position: absolute;
-  top: -4px;
-  left: 100%;
+  top: -6px;
+  left: calc(100% + 8px);
   margin-left: 0;
   min-width: 190px;
   z-index: 1050;
+  background-color: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
+  backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  border: 1.5px solid var(--border-color, #5A5A5A);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: dropdownQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 .dropdown-submenu-popover::before {
   content: '';
   position: absolute;
-  top: -6px;
-  bottom: -6px;
-  left: -14px;
-  width: 16px;
-  background: transparent;
-  pointer-events: auto;
-}
-.submenu-safe-triangle-overlay {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-  z-index: 99999;
-}
-.submenu-safe-triangle-polygon {
-  pointer-events: auto;
-  fill: transparent;
-  cursor: default;
-}
-.dropdown-submenu-trigger:hover > .dropdown-submenu-popover,
-.dropdown-submenu-trigger.active > .dropdown-submenu-popover,
-.dropdown-submenu-popover.open {
-  display: flex;
+  top: 0;
+  left: -12px;
+  width: 12px;
+  height: 100%;
 }
 .shortcut-kbd {
   background-color: var(--bg-tertiary);
@@ -3397,7 +3402,8 @@ body {
 [data-glass-blur="false"] .dropdown-menu-popover::after {
   display: none !important;
 }
-[data-glass-blur="false"] .dropdown-menu-popover {
+[data-glass-blur="false"] .dropdown-menu-popover,
+[data-glass-blur="false"] .dropdown-submenu-popover {
   background-color: var(--bg-secondary) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -3406,6 +3412,7 @@ body {
 [data-glass-blur="false"] .custom-dropdown-panel,
 [data-glass-blur="false"] .algo-listbox-panel,
 [data-glass-blur="false"] .dropdown-menu-popover,
+[data-glass-blur="false"] .dropdown-submenu-popover,
 [data-glass-blur="false"] .replica-callout-popover,
 [data-glass-blur="false"] .modal-dialog,
 [data-glass-blur="false"] .compare-badge,
@@ -3423,6 +3430,7 @@ body {
 [data-glass-blur="false"] .custom-dropdown-panel,
 [data-glass-blur="false"] .algo-listbox-panel,
 [data-glass-blur="false"] .dropdown-menu-popover,
+[data-glass-blur="false"] .dropdown-submenu-popover,
 [data-glass-blur="false"] .replica-callout-popover,
 [data-glass-blur="false"] .modal-dialog,
 [data-glass-blur="false"] .compare-badge,
@@ -3462,6 +3470,11 @@ body {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+}
+.replica-row:has(.open),
+.replica-row:has(.closing),
+.replica-row:has([role="listbox"]) {
+  z-index: 100 !important;
 }
 .replica-label {
   width: 60px;
@@ -3814,10 +3827,13 @@ body {
   z-index: 100;
   box-sizing: border-box;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  animation: dropdownQuickOpen 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-.palette-options-card.closing {
-  animation: dropdownQuickClose 0.11s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: dropdownQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 .palette-options-header {
   display: flex;
@@ -3891,21 +3907,17 @@ body {
 @keyframes popoverQuickOpen {
   from {
     opacity: 0;
-    transform: translateY(-5px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 @keyframes popoverQuickClose {
   from {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
   }
 }
 .replica-callout-popover {
@@ -3922,7 +3934,9 @@ body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: left 160ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: left;
-  transform-origin: top center;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 .replica-callout-popover.opening {
   animation: popoverQuickOpen 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -5220,17 +5234,17 @@ canvas#hqPresentationCanvas {
   z-index: 500;
   min-width: 68px;
   overflow: hidden;
-  animation: speedPopoverQuickOpen 120ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: speedPopoverQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  isolation: isolate;
+  will-change: opacity;
 }
 
 @keyframes speedPopoverQuickOpen {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(4px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 
@@ -5654,7 +5668,13 @@ canvas#hqPresentationCanvas {
   flex-direction: column;
   gap: 2px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  animation: dropdownQuickOpen 110ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: dropdownQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   user-select: none;
 }
 
@@ -5715,7 +5735,13 @@ canvas#hqPresentationCanvas {
   flex-direction: column;
   gap: 2px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
-  animation: dropdownQuickOpen 110ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: dropdownQuickOpen 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   user-select: none;
   pointer-events: auto;
 }
@@ -5887,27 +5913,21 @@ canvas#hqPresentationCanvas {
   .custom-dropdown-panel,
   .algo-listbox-panel,
   .palette-options-card,
-  .df-speed-popover,
-  .dropdown-menu-popover,
-  .dropdown-submenu-popover
+  .df-speed-popover
 ) {
   background-color: color-mix(in srgb, var(--bg-secondary, #1e1e20) 58%, transparent) !important;
   -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
   backdrop-filter: blur(20px) saturate(150%) !important;
-  transition: backdrop-filter 150ms ease, -webkit-backdrop-filter 150ms ease, background-color 150ms ease;
 }
 
-/* When hovering inside any open glass dropdown panel, thicken the panel's glass blur */
+/* Dropdown menus & submenus float directly over user image canvas: ensure solid 96% readability */
 [data-glass-blur="true"] :is(
-  .custom-dropdown-panel:hover,
-  .algo-listbox-panel:hover,
-  .palette-options-card:hover,
-  .df-speed-popover:hover,
-  .dropdown-menu-popover:hover,
-  .dropdown-submenu-popover:hover
+  .dropdown-menu-popover,
+  .dropdown-submenu-popover
 ) {
-  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
-  backdrop-filter: blur(32px) saturate(180%) !important;
+  background-color: color-mix(in srgb, var(--bg-secondary, #1e1e20) 96%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(150%) !important;
+  backdrop-filter: blur(24px) saturate(150%) !important;
 }
 
 /* Ensure inner scrollable card in Algorithm listbox is transparent so panel glass shows through */

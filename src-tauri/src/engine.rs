@@ -61,11 +61,18 @@ pub trait DitherAlgorithm: Send + Sync {
 
 #[inline(always)]
 pub fn color_dist_sq(c1: &[f32; 3], c2: &[u8; 4]) -> f32 {
-    let dr = c1[0] - (c2[0] as f32);
-    let dg = c1[1] - (c2[1] as f32);
-    let db = c1[2] - (c2[2] as f32);
-    // Rec. 709 luminance weighted metric for optimal visual perception
-    0.2126 * dr * dr + 0.7152 * dg * dg + 0.0722 * db * db
+    let r1 = c1[0];
+    let g1 = c1[1];
+    let b1 = c1[2];
+    let r2 = c2[0] as f32;
+    let g2 = c2[1] as f32;
+    let b2 = c2[2] as f32;
+    let r_bar = (r1 + r2) * 0.5;
+    let dr = r1 - r2;
+    let dg = g1 - g2;
+    let db = b1 - b2;
+    // Fast Redmean color distance matching JavaScript engine:
+    (2.0 + r_bar / 256.0) * dr * dr + 4.0 * dg * dg + (2.0 + (255.0 - r_bar) / 256.0) * db * db
 }
 
 #[inline(always)]

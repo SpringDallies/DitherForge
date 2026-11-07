@@ -1,21 +1,18 @@
-import type { EffectDescriptor } from '../types';
+import type { EffectDescriptor, EffectContext } from '../types';
 
 export interface BlurSharpenParams {
   amount: number;
 }
 
-export function applyBlurSharpen(
-  data: Uint8ClampedArray,
-  width: number,
-  height: number,
-  params: BlurSharpenParams
-): void {
-  const amt = params.amount !== undefined ? Number(params.amount) : 0.8;
-  if (amt === 0) return;
+const localScratchFloats = new Map<number, Float32Array>();
+let cachedKernel: Float32Array | null = null;
+let cachedRad = -1;
+let cachedSigma = -1;
 
-  const rad = amt < 0 ? Math.max(1, Math.round(Math.abs(amt) * 6)) : 2;
-  const sigma = Math.max(0.8, rad * 0.55);
-
+function getBlurKernel(rad: number, sigma: number): Float32Array {
+  if (cachedKernel && cachedRad === rad && cachedSigma === sigma) {
+    return cachedKernel;
+  }
   const kSize = rad * 2 + 1;
   const kernel = new Float32Array(kSize);
   let kSum = 0;
@@ -27,14 +24,49 @@ export function applyBlurSharpen(
   for (let k = 0; k < kSize; k++) {
     kernel[k] /= kSum;
   }
+  cachedKernel = kernel;
+  cachedRad = rad;
+  cachedSigma = sigma;
+  return kernel;
+}
 
-  const copy = new Uint8ClampedArray(data);
+function getScratchFloat(len: number, slot: number, context?: EffectContext): Float32Array {
+  const shared = (context as any)?.shared;
+  if (shared?.getScratchFloat32) {
+    return shared.getScratchFloat32(len, slot);
+  }
+  const existing = localScratchFloats.get(slot);
+  if (!existing || existing.length !== len) {
+    const next = new Float32Array(len);
+    localScratchFloats.set(slot, next);
+    return next;
+  }
+  return existing;
+}
+
+export function applyBlurSharpen(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  params: BlurSharpenParams,
+  context?: EffectContext
+): void {
+  const amt = params.amount !== undefined ? Number(params.amount) : 0.8;
+  if (amt === 0) return;
+
+  const rad = amt < 0 ? Math.max(1, Math.round(Math.abs(amt) * 6)) : 2;
+  const sigma = Math.max(0.8, rad * 0.55);
+
   const numPixels = width * height;
-  const tempR = new Float32Array(numPixels);
-  const tempG = new Float32Array(numPixels);
-  const tempB = new Float32Array(numPixels);
+  const kernel = getBlurKernel(rad, sigma);
 
-  // Pass 1: Horizontal separable blur
+  // Fused reusable scratch buffers: eliminates 100% of allocations while preserving
+  // single-pass loop traversal for optimal cache locality and execution speed.
+  const tempR = getScratchFloat(numPixels, 0, context);
+  const tempG = getScratchFloat(numPixels, 1, context);
+  const tempB = getScratchFloat(numPixels, 2, context);
+
+  // Pass 1: Horizontal separable blur (reads directly from data, no full copy needed)
   for (let y = 0; y < height; y++) {
     const rowOffset = y * width;
     for (let x = 0; x < width; x++) {
@@ -43,9 +75,9 @@ export function applyBlurSharpen(
         const nx = Math.max(0, Math.min(width - 1, x + d));
         const sIdx = (rowOffset + nx) * 4;
         const kw = kernel[d + rad];
-        accR += copy[sIdx] * kw;
-        accG += copy[sIdx + 1] * kw;
-        accB += copy[sIdx + 2] * kw;
+        accR += data[sIdx] * kw;
+        accG += data[sIdx + 1] * kw;
+        accB += data[sIdx + 2] * kw;
       }
       const dOffset = rowOffset + x;
       tempR[dOffset] = accR;
@@ -54,9 +86,10 @@ export function applyBlurSharpen(
     }
   }
 
-  // Pass 2: Vertical separable blur & blend / unsharp mask
+  // Pass 2: Vertical separable blur & blend / unsharp mask directly into data
   const isBlur = amt < 0;
   const blend = Math.min(1, Math.abs(amt));
+  const invBlend = 1 - blend;
   const sharpenFactor = amt * 1.8;
 
   for (let x = 0; x < width; x++) {
@@ -72,14 +105,14 @@ export function applyBlurSharpen(
       }
 
       const idx = (y * width + x) * 4;
-      const origR = copy[idx];
-      const origG = copy[idx + 1];
-      const origB = copy[idx + 2];
+      const origR = data[idx];
+      const origG = data[idx + 1];
+      const origB = data[idx + 2];
 
       if (isBlur) {
-        data[idx] = Math.max(0, Math.min(255, Math.round(origR * (1 - blend) + blurredR * blend)));
-        data[idx + 1] = Math.max(0, Math.min(255, Math.round(origG * (1 - blend) + blurredG * blend)));
-        data[idx + 2] = Math.max(0, Math.min(255, Math.round(origB * (1 - blend) + blurredB * blend)));
+        data[idx] = Math.max(0, Math.min(255, Math.round(origR * invBlend + blurredR * blend)));
+        data[idx + 1] = Math.max(0, Math.min(255, Math.round(origG * invBlend + blurredG * blend)));
+        data[idx + 2] = Math.max(0, Math.min(255, Math.round(origB * invBlend + blurredB * blend)));
       } else {
         data[idx] = Math.max(0, Math.min(255, Math.round(origR + (origR - blurredR) * sharpenFactor)));
         data[idx + 1] = Math.max(0, Math.min(255, Math.round(origG + (origG - blurredG) * sharpenFactor)));
@@ -108,5 +141,27 @@ export const blurSharpenEffect: EffectDescriptor<BlurSharpenParams> = {
       defaultValue: 0.8
     }
   ],
-  apply: (data, width, height, params) => applyBlurSharpen(data, width, height, params)
+  apply: (dataOrCtx, widthOrParams, height, paramsArg, contextArg) => {
+    let data: Uint8ClampedArray;
+    let w: number;
+    let h: number;
+    let params: BlurSharpenParams;
+    let context: EffectContext | undefined;
+
+    if (dataOrCtx && dataOrCtx.data && typeof dataOrCtx.width === 'number') {
+      data = dataOrCtx.data;
+      w = dataOrCtx.width;
+      h = dataOrCtx.height;
+      params = (widthOrParams || {}) as BlurSharpenParams;
+      context = height as EffectContext | undefined;
+    } else {
+      data = dataOrCtx;
+      w = widthOrParams;
+      h = height;
+      params = (paramsArg || {}) as BlurSharpenParams;
+      context = contextArg;
+    }
+
+    applyBlurSharpen(data, w, h, params, context);
+  }
 };

@@ -138,16 +138,22 @@ export const filmGrainEffect: EffectDescriptor<FilmGrainParams> = {
     const grainSize = Math.max(1, Math.min(4, Math.round(size)));
     const frameIdx = temporal ? (context.frameIndex || 0) : 0;
     const baseSeed = (frameIdx * 1973) ^ 0x1337;
+    const seed1 = baseSeed + 101;
+    const seed2 = baseSeed + 307;
+    const seed3 = baseSeed + 521;
     const chroma = Math.max(0, Math.min(1, channelIndependence));
     const monoWeight = 1.0 - chroma;
+    const isMono = chroma <= 0.001;
     const maxAmplitude = intensity * 128;
+    const inv255 = 1.0 / 255;
+    const isUnitGrain = grainSize === 1;
 
     for (let y = 0; y < h; y++) {
-      const gy = Math.floor(y / grainSize);
+      const gy = isUnitGrain ? y : Math.floor(y / grainSize);
       const rowOffset = y * w * 4;
 
       for (let x = 0; x < w; x++) {
-        const gx = Math.floor(x / grainSize);
+        const gx = isUnitGrain ? x : Math.floor(x / grainSize);
         const idx = rowOffset + x * 4;
 
         const r = data[idx];
@@ -155,7 +161,7 @@ export const filmGrainEffect: EffectDescriptor<FilmGrainParams> = {
         const b = data[idx + 2];
 
         // Normalized luminance (0..1)
-        const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) * inv255;
 
         // Film grain response curve:
         // Midtones exhibit the highest optical density granularity;
@@ -169,9 +175,16 @@ export const filmGrainEffect: EffectDescriptor<FilmGrainParams> = {
         if (amp <= 0.01) continue;
 
         const monoNoise = hashPoint(gx, gy, baseSeed);
-        const rNoise = (monoNoise * monoWeight + hashPoint(gx, gy, baseSeed + 101) * chroma) * amp;
-        const gNoise = (monoNoise * monoWeight + hashPoint(gx, gy, baseSeed + 307) * chroma) * amp;
-        const bNoise = (monoNoise * monoWeight + hashPoint(gx, gy, baseSeed + 521) * chroma) * amp;
+        let rNoise: number, gNoise: number, bNoise: number;
+        if (isMono) {
+          rNoise = monoNoise * amp;
+          gNoise = rNoise;
+          bNoise = rNoise;
+        } else {
+          rNoise = (monoNoise * monoWeight + hashPoint(gx, gy, seed1) * chroma) * amp;
+          gNoise = (monoNoise * monoWeight + hashPoint(gx, gy, seed2) * chroma) * amp;
+          bNoise = (monoNoise * monoWeight + hashPoint(gx, gy, seed3) * chroma) * amp;
+        }
 
         data[idx] = Math.max(0, Math.min(255, Math.round(r + rNoise)));
         data[idx + 1] = Math.max(0, Math.min(255, Math.round(g + gNoise)));

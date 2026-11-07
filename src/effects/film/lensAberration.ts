@@ -1,4 +1,4 @@
-import type { EffectDescriptor } from '../types';
+import type { EffectDescriptor, EffectContext } from '../types';
 
 export type LensAberrationMode = 'uniform' | 'radial' | 'convergence';
 
@@ -11,14 +11,32 @@ export interface LensAberrationParams {
   centerY?: number;
 }
 
+const localScratchUint8 = new Map<number, Uint8ClampedArray>();
+
+function getScratchUint8(len: number, slot: number, context?: EffectContext): Uint8ClampedArray {
+  const shared = (context as any)?.shared;
+  if (shared?.getScratchUint8) {
+    return shared.getScratchUint8(len, slot);
+  }
+  const existing = localScratchUint8.get(slot);
+  if (!existing || existing.length !== len) {
+    const next = new Uint8ClampedArray(len);
+    localScratchUint8.set(slot, next);
+    return next;
+  }
+  return existing;
+}
+
 export function applyLensAberration(
   data: Uint8ClampedArray,
   width: number,
   height: number,
-  params: LensAberrationParams
+  params: LensAberrationParams,
+  context?: EffectContext
 ): void {
   const mode = params.mode || 'uniform';
-  const copy = new Uint8ClampedArray(data);
+  const copy = getScratchUint8(data.length, 0, context);
+  copy.set(data);
 
   if (mode === 'uniform') {
     // Exact baseline chromatic aberration channel shift
@@ -44,28 +62,26 @@ export function applyLensAberration(
     }
   } else if (mode === 'radial') {
     // Radial chromatic displacement expanding outward from optical center
+    // Mathematically: (dx / dist) * (dist / maxRadius) * strength = dx * (strength / maxRadius)
     const cx = (params.centerX !== undefined ? params.centerX : 0.5) * width;
     const cy = (params.centerY !== undefined ? params.centerY : 0.5) * height;
     const maxRadius = Math.hypot(width * 0.5, height * 0.5) || 1;
     const strength = params.intensity !== undefined ? params.intensity : 6;
+    const scale = strength / maxRadius;
 
     for (let y = 0; y < height; y++) {
       const dy = y - cy;
+      const dirY = dy * scale;
+      const ry = Math.max(0, Math.min(height - 1, Math.round(y + dirY)));
+      const by = Math.max(0, Math.min(height - 1, Math.round(y - dirY)));
       const rowOffset = y * width;
 
       for (let x = 0; x < width; x++) {
         const dx = x - cx;
-        const dist = Math.hypot(dx, dy);
-        const normDist = dist / maxRadius;
-        const shift = normDist * strength;
-
-        const dirX = dist > 0.001 ? (dx / dist) * shift : 0;
-        const dirY = dist > 0.001 ? (dy / dist) * shift : 0;
+        const dirX = dx * scale;
 
         const rx = Math.max(0, Math.min(width - 1, Math.round(x + dirX)));
-        const ry = Math.max(0, Math.min(height - 1, Math.round(y + dirY)));
         const bx = Math.max(0, Math.min(width - 1, Math.round(x - dirX)));
-        const by = Math.max(0, Math.min(height - 1, Math.round(y - dirY)));
 
         const idx = (rowOffset + x) * 4;
         data[idx] = copy[(ry * width + rx) * 4];
@@ -75,23 +91,25 @@ export function applyLensAberration(
     }
   } else if (mode === 'convergence') {
     // Non-linear color fringing accentuating optical edges
+    // shift = (dist / maxRadius)^2 * strength; (dx / dist) * shift = dx * dist * (strength / maxRadius^2)
     const cx = (params.centerX !== undefined ? params.centerX : 0.5) * width;
     const cy = (params.centerY !== undefined ? params.centerY : 0.5) * height;
     const maxRadius = Math.hypot(width * 0.5, height * 0.5) || 1;
     const strength = params.intensity !== undefined ? params.intensity : 8;
+    const convFactor = strength / (maxRadius * maxRadius);
 
     for (let y = 0; y < height; y++) {
       const dy = y - cy;
+      const dy2 = dy * dy;
       const rowOffset = y * width;
 
       for (let x = 0; x < width; x++) {
         const dx = x - cx;
-        const dist = Math.hypot(dx, dy);
-        const normDist = dist / maxRadius;
-        const shift = Math.pow(normDist, 2) * strength;
+        const dist = Math.sqrt(dx * dx + dy2);
+        const dirScale = dist * convFactor;
 
-        const dirX = dist > 0.001 ? (dx / dist) * shift : 0;
-        const dirY = dist > 0.001 ? (dy / dist) * shift : 0;
+        const dirX = dx * dirScale;
+        const dirY = dy * dirScale;
 
         const rx = Math.max(0, Math.min(width - 1, Math.round(x + dirX)));
         const ry = Math.max(0, Math.min(height - 1, Math.round(y + dirY)));
@@ -158,5 +176,27 @@ export const lensAberrationEffect: EffectDescriptor<LensAberrationParams> = {
       unit: 'px'
     }
   ],
-  apply: (data, width, height, params) => applyLensAberration(data, width, height, params)
+  apply: (dataOrCtx, widthOrParams, height, paramsArg, contextArg) => {
+    let data: Uint8ClampedArray;
+    let w: number;
+    let h: number;
+    let params: LensAberrationParams;
+    let context: EffectContext | undefined;
+
+    if (dataOrCtx && dataOrCtx.data && typeof dataOrCtx.width === 'number') {
+      data = dataOrCtx.data;
+      w = dataOrCtx.width;
+      h = dataOrCtx.height;
+      params = (widthOrParams || {}) as LensAberrationParams;
+      context = height as EffectContext | undefined;
+    } else {
+      data = dataOrCtx;
+      w = widthOrParams;
+      h = height;
+      params = (paramsArg || {}) as LensAberrationParams;
+      context = contextArg;
+    }
+
+    applyLensAberration(data, w, h, params, context);
+  }
 };

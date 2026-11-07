@@ -72,6 +72,8 @@ export interface EffectDescriptor<P = any> {
   defaultParams: P;
   defaultOpacity?: number;
   defaultBlendMode?: BlendMode;
+  mutatesAlpha?: boolean;
+  canOperateInPlace?: boolean;
   paramsMeta?: ParamMeta[];
   params?: any[];
   apply: (

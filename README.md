@@ -170,12 +170,42 @@ npm run tauri dev
 
 #### Build Production Standalone Executable / Installer
 ```bash
+# On Linux, set APPIMAGE_EXTRACT_AND_RUN=1 if building without FUSE / in containers
+export APPIMAGE_EXTRACT_AND_RUN=1
 npm run tauri build
 ```
+
+You can also build individual bundle formats:
+```bash
+npm run tauri build -- -b deb       # Debian / Ubuntu package (.deb)
+npm run tauri build -- -b appimage  # Portable standalone AppImage (.AppImage)
+npm run tauri build -- -b rpm       # Fedora / RHEL package (.rpm)
+```
+
 Build outputs will be generated in `src-tauri/target/release/bundle/`:
-- **Linux:** `.deb`, `.rpm`, `.AppImage`
+- **Linux:**
+  - `bundle/deb/DitherForge_1.0.0_amd64.deb`
+  - `bundle/rpm/DitherForge-1.0.0-1.x86_64.rpm`
+  - `bundle/appimage/DitherForge_1.0.0_amd64.AppImage`
 - **Windows:** `.msi`, standalone `.exe`
 - **macOS:** `.dmg`, `.app`
+
+#### Installing & Running on Linux
+- **AppImage (Standalone Portable):**
+  ```bash
+  chmod +x src-tauri/target/release/bundle/appimage/DitherForge_1.0.0_amd64.AppImage
+  ./src-tauri/target/release/bundle/appimage/DitherForge_1.0.0_amd64.AppImage
+  ```
+- **Debian / Ubuntu / Mint (.deb):**
+  ```bash
+  sudo apt install ./src-tauri/target/release/bundle/deb/DitherForge_1.0.0_amd64.deb
+  # or: sudo dpkg -i src-tauri/target/release/bundle/deb/DitherForge_1.0.0_amd64.deb
+  ```
+- **Fedora / RHEL (.rpm):**
+  ```bash
+  sudo dnf install ./src-tauri/target/release/bundle/rpm/DitherForge-1.0.0-1.x86_64.rpm
+  # or: sudo rpm -i src-tauri/target/release/bundle/rpm/DitherForge-1.0.0-1.x86_64.rpm
+  ```
 
 ---
 

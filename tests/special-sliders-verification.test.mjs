@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const RUST_BIN = path.resolve(__dirname, '../src-tauri/target_check/release/test_parity');
+const checkBin = path.resolve(__dirname, '../src-tauri/target_check/release/test_parity');
+const defaultBin = path.resolve(__dirname, '../src-tauri/target/release/test_parity');
+const RUST_BIN = (process.env.CARGO_TARGET_DIR && fs.existsSync(path.resolve(process.env.CARGO_TARGET_DIR, 'release/test_parity')))
+  ? path.resolve(process.env.CARGO_TARGET_DIR, 'release/test_parity')
+  : (fs.existsSync(checkBin) ? checkBin : defaultBin);
 
 function runRust(width, height, input, algorithm, palette, customParams = {}) {
   const header = {

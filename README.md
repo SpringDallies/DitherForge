@@ -187,8 +187,15 @@ Build outputs will be generated in `src-tauri/target/release/bundle/`:
   - `bundle/deb/DitherForge_1.0.0_amd64.deb`
   - `bundle/rpm/DitherForge-1.0.0-1.x86_64.rpm`
   - `bundle/appimage/DitherForge_1.0.0_amd64.AppImage`
-- **Windows:** `.msi`, standalone `.exe`
-- **macOS:** `.dmg`, `.app`
+- **Windows:** `bundle/msi/DitherForge_1.0.0_x64_en-US.msi`, `bundle/nsis/DitherForge_1.0.0_x64-setup.exe`
+- **macOS:** `bundle/dmg/DitherForge_1.0.0_universal.dmg` (or `aarch64` / `x64`), `bundle/macos/DitherForge.app`
+
+> [!NOTE]
+> **Cross-Platform Release Builds (Windows & macOS):**
+> Because Tauri dynamically links against each operating system's native Webview (Microsoft Edge WebView2 on Windows, Apple Cocoa WebKit on macOS, and WebKitGTK on Linux), native executables must be built on their respective host OS or compiled via GitHub Actions:
+> - **Building on Windows:** Clone repo on a Windows machine and run `npm run tauri build` to output the `.msi` and `.exe` installers.
+> - **Building on macOS:** Clone repo on a Mac and run `npm run tauri build` to output `.dmg` and `.app`.
+> - **Automated Multi-Platform Release (CI):** Run the included [`.github/workflows/release.yml`](./.github/workflows/release.yml) on GitHub Actions (`workflow_dispatch` or push tag `v*`). It compiles Windows (`windows-latest`), macOS (`macos-latest` for Apple Silicon & Intel), and Linux (`ubuntu-22.04`) in parallel and publishes all installers to GitHub Releases.
 
 #### Installing & Running on Linux
 - **AppImage (Standalone Portable):**

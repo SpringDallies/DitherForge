@@ -551,8 +551,13 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
     let noise_amt = header.noise_amount.unwrap_or(0.0);
     let has_tweaks = b != 0.0 || c != 0.0 || s != 0.0 || (g - 1.0).abs() > 0.001 || hue.abs() > 0.001;
     let has_temporal = temp_pat != "none" && !temp_pat.is_empty() && temp_int > 0.001;
+    let lum_threshold = header.luminance_threshold.unwrap_or_else(|| {
+        header.threshold.map(|t| if t <= 1.0 { (t * 100.0).round() } else { t }).unwrap_or(50.0)
+    });
     let has_lum_shift = header.algorithm != "none"
-        && header.luminance_threshold.map_or(false, |lt| (lt - 50.0).abs() > 0.001);
+        && header.algorithm != "threshold"
+        && header.algorithm != "fixed_threshold"
+        && (lum_threshold - 50.0).abs() > 0.001;
     let has_pre_noise = header.algorithm != "none"
         && header.algorithm != "static_snow"
         && noise_amt > 0.001;
@@ -574,14 +579,12 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
                 temp_spd,
             );
         }
-        if let Some(lum_threshold) = header.luminance_threshold {
-            if header.algorithm != "none" && (lum_threshold - 50.0).abs() > 0.001 {
-                let shift = (50.0 - lum_threshold) * 4.0;
-                for i in (0..modified.len()).step_by(4) {
-                    modified[i] = ((modified[i] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
-                    modified[i + 1] = ((modified[i + 1] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
-                    modified[i + 2] = ((modified[i + 2] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
-                }
+        if has_lum_shift {
+            let shift = (50.0 - lum_threshold) * 4.0;
+            for i in (0..modified.len()).step_by(4) {
+                modified[i] = ((modified[i] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
+                modified[i + 1] = ((modified[i + 1] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
+                modified[i + 2] = ((modified[i + 2] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
             }
         }
         if has_pre_noise {

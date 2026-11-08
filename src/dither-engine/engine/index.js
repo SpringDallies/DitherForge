@@ -289,12 +289,22 @@ export function dispatchDither(algorithmId, width, height, inputBuffer, params =
     data = new Uint8ClampedArray(inputBuffer);
   }
 
-  // 1. Apply Luminance Threshold (only when explicitly set by an algorithm control or preset)
-  if (normId !== 'none' && params.luminanceThreshold !== undefined) {
-    const lumThreshold = Number(params.luminanceThreshold);
-    if (!isNaN(lumThreshold) && lumThreshold !== 50) {
-      applyLuminanceThreshold(data, lumThreshold);
-    }
+  // 1. Apply Luminance Threshold
+  let lumThreshold = 50;
+  if (params.luminanceThreshold !== undefined) {
+    lumThreshold = Number(params.luminanceThreshold);
+  } else if (params.threshold !== undefined) {
+    const rawT = Number(params.threshold);
+    lumThreshold = rawT <= 1.0 ? Math.round(rawT * 100) : rawT;
+  }
+  if (
+    normId !== 'none' &&
+    normId !== 'threshold' &&
+    normId !== 'fixed-threshold' &&
+    !isNaN(lumThreshold) &&
+    lumThreshold !== 50
+  ) {
+    applyLuminanceThreshold(data, lumThreshold);
   }
 
   // 2. Apply Pixel-Kernel Scale via Downsample -> Dither -> Nearest Upscale

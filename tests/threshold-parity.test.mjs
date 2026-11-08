@@ -93,7 +93,10 @@ const testAlgorithms = [
   'bayer-8x8',
   'thresholder',
   'checkers',
-  'floyd-steinberg'
+  'floyd-steinberg',
+  'atkinson',
+  'stucki',
+  'sierra'
 ];
 
 const thresholdValues = [0.05, 0.20, 0.35, 0.50, 0.65, 0.80, 0.95];
@@ -107,8 +110,8 @@ for (const algo of testAlgorithms) {
 
   for (const t of thresholdValues) {
     const input = createGrayscaleRamp(W, H);
-    const rustOut = runRust(W, H, input, algo, monoPalette, { threshold: t });
-    const jsOut = runJS(W, H, input, algo, monoPalette, { threshold: t });
+    const rustOut = runRust(W, H, input, algo, monoPalette, { threshold: t, serpentine: false });
+    const jsOut = runJS(W, H, input, algo, monoPalette, { threshold: t, serpentine: false });
 
     // 1. Compare parity
     let diff = 0;

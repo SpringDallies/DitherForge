@@ -204,7 +204,13 @@ fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> Resu
         ..Default::default()
     };
 
-    let lum_threshold = header.luminance_threshold.unwrap_or(50.0);
+    let lum_threshold = header.luminance_threshold.unwrap_or_else(|| {
+        header.threshold.map(|t| if t <= 1.0 { (t * 100.0).round() } else { t }).unwrap_or(50.0)
+    });
+    let has_lum_shift = header.algorithm != "none"
+        && header.algorithm != "threshold"
+        && header.algorithm != "fixed_threshold"
+        && (lum_threshold - 50.0).abs() > 0.001;
 
     let mut b = header.brightness.unwrap_or(0.0);
     if b.abs() > 1.0 { b /= 100.0; }
@@ -216,12 +222,12 @@ fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> Resu
     let has_tweaks = b != 0.0 || c != 0.0 || s != 0.0 || (g - 1.0).abs() > 0.001;
 
     let working_input: Vec<u8>;
-    let input_slice: &[u8] = if has_tweaks || (header.algorithm != "none" && (lum_threshold - 50.0).abs() > 0.001) {
+    let input_slice: &[u8] = if has_tweaks || has_lum_shift {
         let mut modified = pixel_data.to_vec();
         if has_tweaks {
             apply_raw_pre_adjustments(&mut modified, b, c, s, g);
         }
-        if header.algorithm != "none" && (lum_threshold - 50.0).abs() > 0.001 {
+        if has_lum_shift {
             let shift = (50.0 - lum_threshold) * 4.0;
             for i in (0..modified.len()).step_by(4) {
                 modified[i] = ((modified[i] as f32 + shift).round().clamp(0.0, 255.0)) as u8;

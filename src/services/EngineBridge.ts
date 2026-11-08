@@ -424,10 +424,11 @@ class EngineBridgeService {
     const rawThreshold = settings.threshold ?? userControls.threshold ?? 0.5;
     const threshold = rawThreshold > 1 ? rawThreshold / 100 : rawThreshold;
 
-    // Only send luminance_threshold when explicitly set by an algorithm control
+    // Only send luminance_threshold when explicitly set by an algorithm control,
+    // otherwise derive from threshold for algorithms with luminance threshold support
     const lumThreshold = userControls.luminanceThreshold !== undefined
       ? Number(userControls.luminanceThreshold)
-      : undefined;
+      : Math.round(threshold * 100);
 
     const scale = settings.scale ?? userControls.scale ?? 1.0;
     const diffStrength = settings.diffusionStrength ?? userControls.diffusionStrength ?? 1.0;
@@ -635,7 +636,7 @@ class EngineBridgeService {
     const threshold = rawThreshold > 1 ? rawThreshold / 100 : rawThreshold;
     const lumThreshold = userControls.luminanceThreshold !== undefined
       ? Number(userControls.luminanceThreshold)
-      : undefined;
+      : Math.round(threshold * 100);
 
     const baseHeader = {
       width,

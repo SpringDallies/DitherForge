@@ -82,9 +82,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}
-          releaseName: 'DitherForge ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}'
-          releaseBody: 'DitherForge standalone desktop release for Windows, macOS, and Linux.'
+          tagName: "${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}"
+          releaseName: "DitherForge ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}"
+          releaseBody: "DitherForge standalone desktop release for Windows, macOS, and Linux."
           releaseDraft: ${{ github.event.inputs.draft == 'true' }}
           prerelease: false
           args: ${{ matrix.args }}

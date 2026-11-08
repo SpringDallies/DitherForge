@@ -118,6 +118,7 @@ export class FastPaletteLUT {
   quantizeLum(curLum) {
     const lums = this.sortedLuminances;
     const N = this.paletteSize;
+    const bias = this.thresholdBias !== undefined ? Math.max(0.05, Math.min(0.95, this.thresholdBias)) : 0.5;
     let sortedIdx = 0;
     if (curLum <= lums[0]) {
       sortedIdx = 0;
@@ -127,7 +128,7 @@ export class FastPaletteLUT {
       sortedIdx = N - 1;
       for (let i = 0; i < N - 1; i++) {
         if (curLum <= lums[i + 1]) {
-          const mid = (lums[i] + lums[i + 1]) * 0.5;
+          const mid = lums[i] + (lums[i + 1] - lums[i]) * bias;
           sortedIdx = curLum < mid ? i : i + 1;
           break;
         }

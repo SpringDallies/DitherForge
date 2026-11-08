@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Settings } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 import { Dropdown } from '../common/Dropdown';
+import { useAppStore } from '../../state/useAppStore';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 
@@ -588,6 +589,32 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                   style={{ minWidth: '70px', padding: '4px 12px' }}
                 >
                   Purge
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: VIDEO ENGINE */}
+          <div className="settings-section">
+            <div className="settings-section-title">VIDEO ENGINE</div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">FFmpeg Native Backend</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Video decoding, H.264 / VP9 encoding, and audio synchronization
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-default"
+                  onClick={() => {
+                    useAppStore.getState().setIsFfmpegModalOpen(true);
+                  }}
+                  style={{ minWidth: '70px', padding: '4px 12px' }}
+                >
+                  Configure
                 </button>
               </div>
             </div>

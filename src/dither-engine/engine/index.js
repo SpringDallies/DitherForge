@@ -105,6 +105,8 @@ export const ALGORITHM_DISPATCH = {
   'sine-distort': Special.ditherSineDistort,
   'sine-wave-modulation': Special.ditherSineWaveModulation,
   'thresholder': Special.ditherThresholder,
+  'threshold': Special.ditherPureThreshold,
+  'fixed-threshold': Special.ditherPureThreshold,
   'topography': Special.ditherTopography,
   'vortex': Special.ditherVortex,
   'wave': Special.ditherWave
@@ -287,15 +289,10 @@ export function dispatchDither(algorithmId, width, height, inputBuffer, params =
     data = new Uint8ClampedArray(inputBuffer);
   }
 
-  // 1. Apply Luminance Threshold (for all algorithms except 'none')
-  if (normId !== 'none') {
-    let lumThreshold = 50;
-    if (params.luminanceThreshold !== undefined) {
-      lumThreshold = Number(params.luminanceThreshold);
-    } else if (params.threshold !== undefined) {
-      lumThreshold = Number(params.threshold) <= 1 ? Math.round(Number(params.threshold) * 100) : Number(params.threshold);
-    }
-    if (lumThreshold !== 50) {
+  // 1. Apply Luminance Threshold (only when explicitly set by an algorithm control or preset)
+  if (normId !== 'none' && params.luminanceThreshold !== undefined) {
+    const lumThreshold = Number(params.luminanceThreshold);
+    if (!isNaN(lumThreshold) && lumThreshold !== 50) {
       applyLuminanceThreshold(data, lumThreshold);
     }
   }

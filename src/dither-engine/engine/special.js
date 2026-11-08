@@ -809,6 +809,21 @@ export function ditherThresholder(w, h, data, palette, controls = {}) {
   return out;
 }
 
+export function ditherPureThreshold(w, h, data, palette, controls = {}) {
+  const lut = new FastPaletteLUT(palette, 0.5);
+  const out = new Uint8ClampedArray(data.length);
+  const t = controls.threshold !== undefined ? Number(controls.threshold) : 0.5;
+  for (let i = 0; i < data.length; i += 4) {
+    const { c1, c2, frac } = lut.findPair(data[i], data[i + 1], data[i + 2]);
+    const chosen = frac > t ? c2 : c1;
+    out[i] = chosen[0];
+    out[i + 1] = chosen[1];
+    out[i + 2] = chosen[2];
+    out[i + 3] = data[i + 3];
+  }
+  return out;
+}
+
 export function ditherTopography(w, h, data, palette, controls = {}) {
   const lut = new FastPaletteLUT(palette, controls);
   const out = new Uint8ClampedArray(data.length);

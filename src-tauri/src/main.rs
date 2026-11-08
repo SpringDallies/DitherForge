@@ -3,6 +3,7 @@
 mod algorithms;
 mod effects;
 mod engine;
+mod ffmpeg;
 mod palette;
 
 use algorithms::{
@@ -295,7 +296,7 @@ pub struct BinaryProcessHeader {
     pub effect_stack: Vec<PostEffect>,
 }
 
-fn rotate_hue_hsv_buffer(data: &mut [u8], deg: f32) {
+pub fn rotate_hue_hsv_buffer(data: &mut [u8], deg: f32) {
     let norm_deg = deg.rem_euclid(360.0);
     if norm_deg <= 0.001 || (360.0 - norm_deg) <= 0.001 {
         return;
@@ -341,7 +342,7 @@ fn rotate_hue_hsv_buffer(data: &mut [u8], deg: f32) {
     }
 }
 
-fn apply_raw_pre_adjustments(
+pub fn apply_raw_pre_adjustments(
     data: &mut [u8],
     brightness: f32,
     contrast: f32,
@@ -443,7 +444,7 @@ fn apply_raw_temporal_noise(
     }
 }
 
-fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> Result<Vec<u8>, String> {
+pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> Result<Vec<u8>, String> {
     validate_image_dimensions(header.width, header.height)?;
     let expected_pixel_bytes = (header.width as usize) * (header.height as usize) * 4;
     if pixel_data.len() != expected_pixel_bytes {
@@ -843,6 +844,77 @@ fn purge_temp_cache() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&path).map_err(|e| format!("Failed to read file {}: {}", path, e))
+}
+
+#[tauri::command]
+fn check_ffmpeg_status() -> ffmpeg::FfmpegStatus {
+    ffmpeg::get_ffmpeg_status()
+}
+
+#[tauri::command]
+fn install_ffmpeg_system() -> Result<ffmpeg::InstallResult, String> {
+    ffmpeg::install_ffmpeg()
+}
+
+#[tauri::command]
+fn probe_video_native(video_path: String) -> Result<ffmpeg::VideoInfo, String> {
+    ffmpeg::probe_video(&video_path)
+}
+
+#[tauri::command]
+fn extract_video_frame_native(
+    video_path: String,
+    timestamp_sec: f64,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<Vec<u8>, String> {
+    let (_, _, raw) = ffmpeg::extract_single_frame(&video_path, timestamp_sec, width, height)?;
+    Ok(raw)
+}
+
+#[tauri::command]
+async fn export_video_native_ffmpeg(
+    window: tauri::Window,
+    request: ffmpeg::NativeVideoExportRequest,
+) -> Result<ffmpeg::VideoExportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        ffmpeg::export_video_native_ffmpeg(Some(window), request)
+    })
+    .await
+    .map_err(|e| format!("Video export task panicked: {}", e))?
+}
+
+#[tauri::command]
+fn start_ffmpeg_stream(
+    output_path: String,
+    format: String,
+    width: u32,
+    height: u32,
+    fps: f64,
+    has_audio: bool,
+    input_audio_path: Option<String>,
+) -> Result<String, String> {
+    ffmpeg::start_ffmpeg_stream(output_path, format, width, height, fps, has_audio, input_audio_path)
+}
+
+#[tauri::command]
+fn write_ffmpeg_stream_frame(session_id: String, frame_bytes: Vec<u8>) -> Result<(), String> {
+    ffmpeg::write_ffmpeg_stream_frame(&session_id, &frame_bytes)
+}
+
+#[tauri::command]
+fn finish_ffmpeg_stream(session_id: String) -> Result<ffmpeg::VideoExportResult, String> {
+    ffmpeg::finish_ffmpeg_stream(&session_id)
+}
+
+#[tauri::command]
+fn cancel_ffmpeg_stream(session_id: String) -> Result<(), String> {
+    ffmpeg::cancel_ffmpeg_stream(&session_id)
+}
+
+#[tauri::command]
 fn show_main_window(window: tauri::Window) {
     let _ = window.show();
     let _ = window.set_focus();
@@ -879,7 +951,17 @@ fn main() {
             process_animation_batch,
             export_media_native,
             purge_temp_cache,
-            show_main_window
+            read_binary_file,
+            show_main_window,
+            check_ffmpeg_status,
+            install_ffmpeg_system,
+            probe_video_native,
+            extract_video_frame_native,
+            export_video_native_ffmpeg,
+            start_ffmpeg_stream,
+            write_ffmpeg_stream_frame,
+            finish_ffmpeg_stream,
+            cancel_ffmpeg_stream
         ])
         .run(tauri::generate_context!())
         .expect("error while running DitherForge application");

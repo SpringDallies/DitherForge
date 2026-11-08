@@ -10,6 +10,8 @@ import { AppContextMenu } from './components/AppContextMenu';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
 import './styles/preferences.css';
 import { SettingsDialog, getStoredSettings, applyPerformanceSettings } from './components/dialogs/SettingsDialog';
+import { FfmpegInstallModal } from './components/dialogs/FfmpegInstallModal';
+import { ffmpegService } from './services/ffmpegService';
 
 export const App: React.FC = () => {
   const activeTheme = useAppStore((state) => state.activeTheme);
@@ -18,6 +20,27 @@ export const App: React.FC = () => {
   const isManualOpen = useAppStore((state) => state.isManualOpen);
   const setIsManualOpen = useAppStore((state) => state.setIsManualOpen);
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
+  const appMode = useAppStore((state) => state.appMode);
+  const isFfmpegModalOpen = useAppStore((state) => state.isFfmpegModalOpen);
+  const setIsFfmpegModalOpen = useAppStore((state) => state.setIsFfmpegModalOpen);
+  const ffmpegStatus = useAppStore((state) => state.ffmpegStatus);
+  const setFfmpegStatus = useAppStore((state) => state.setFfmpegStatus);
+
+  // When switching to Animation Mode:
+  // 1. Check whether FFmpeg is installed and executable via `check_ffmpeg_status`.
+  // 2. If available, initialize native video pipeline.
+  // 3. If missing, display in-app installation prompt.
+  useEffect(() => {
+    if (appMode !== 'animation') return;
+    if (ffmpegService.isTauri()) {
+      ffmpegService.getStatus().then((status) => {
+        setFfmpegStatus(status);
+        if (!status.ffmpeg_available) {
+          setIsFfmpegModalOpen(true);
+        }
+      });
+    }
+  }, [appMode]);
 
   const [isPeekOpen, setIsPeekOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('settings') === 'true');
@@ -243,6 +266,17 @@ export const App: React.FC = () => {
       <SettingsDialog
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      {/* FFmpeg Video Engine Installation / Status Modal */}
+      <FfmpegInstallModal
+        isOpen={isFfmpegModalOpen}
+        onClose={() => setIsFfmpegModalOpen(false)}
+        status={ffmpegStatus}
+        onRefresh={async () => {
+          const s = await ffmpegService.getStatus(true);
+          setFfmpegStatus(s);
+        }}
       />
 
       {/* Global Application Right-Click Context Menu */}

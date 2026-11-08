@@ -9,6 +9,8 @@ import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 // @ts-ignore
 import { applyTweaksFast, rotateHueHsvBuffer, rotateHueHsvPixel } from './fastTweaks.ts';
 import { useAppStore } from '../state/useAppStore';
+import { ffmpegService } from '../services/ffmpegService';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface ExportGifOptions {
   onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void;
@@ -628,6 +630,192 @@ export async function downloadAnimatedGif(
 }
 
 /**
+ * Native FFmpeg streaming video export (MP4 / WebM / MOV).
+ * Streams rendered RGBA frames directly into an FFmpeg encoder process with bounded
+ * single-frame memory, zero disk bloat, and full audio synchronization.
+ */
+export async function exportAnimatedVideoFfmpeg(
+  storeState: any,
+  format: 'mp4' | 'mov' | 'webm' = 'mp4',
+  onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void,
+  customFilename?: string
+): Promise<void> {
+  const {
+    sourceImageData,
+    sourceVideoUrl,
+    duration = 5,
+    fps = 30,
+    playbackSpeed = 1,
+    imageFileName = 'ditherforge_export'
+  } = storeState;
+
+  if (!sourceImageData) {
+    throw new Error('No active image loaded to export');
+  }
+
+  const width = sourceImageData.width;
+  const height = sourceImageData.height;
+  const byteLen = width * height * 4;
+
+  const targetFps = Math.min(60, Math.max(1, Math.round(fps || 30)));
+  const frameWallSec = 1 / targetFps;
+  const speed = Math.max(0.1, Number(playbackSpeed) || 1);
+  const timelineStep = frameWallSec * speed;
+  const totalFrames = Math.max(1, Math.ceil(duration / timelineStep));
+
+  const ext = format.toLowerCase();
+  const rawName = customFilename || imageFileName || 'ditherforge_export';
+  const baseName = rawName.replace(/\.[^/.]+$/, '');
+  const timestamp = Date.now();
+  const tempPath = `/tmp/df_export_${timestamp}.${ext}`;
+
+  let offscreenVid: HTMLVideoElement | null = null;
+  let vidExtractCanvas: HTMLCanvasElement | null = null;
+  let vidExtractCtx: CanvasRenderingContext2D | null = null;
+
+  if (sourceVideoUrl) {
+    offscreenVid = document.createElement('video');
+    offscreenVid.src = sourceVideoUrl;
+    offscreenVid.muted = true;
+    offscreenVid.playsInline = true;
+    offscreenVid.crossOrigin = 'anonymous';
+    offscreenVid.preload = 'auto';
+    await new Promise<void>((resolve) => {
+      if (!offscreenVid) return resolve();
+      const onReady = () => {
+        offscreenVid?.removeEventListener('loadeddata', onReady);
+        offscreenVid?.removeEventListener('error', onReady);
+        resolve();
+      };
+      if (offscreenVid.readyState >= 2) {
+        resolve();
+      } else {
+        offscreenVid.addEventListener('loadeddata', onReady);
+        offscreenVid.addEventListener('error', onReady);
+      }
+    });
+    vidExtractCanvas = document.createElement('canvas');
+    vidExtractCanvas.width = width;
+    vidExtractCanvas.height = height;
+    vidExtractCtx = vidExtractCanvas.getContext('2d', { willReadFrequently: true });
+  }
+
+  const sessionId = await ffmpegService.startStream(
+    tempPath,
+    ext,
+    width,
+    height,
+    targetFps,
+    Boolean(sourceVideoUrl)
+  );
+
+  const workBuffer = new Uint8ClampedArray(byteLen);
+  const frameImageData: any =
+    typeof ImageData !== 'undefined'
+      ? new ImageData(workBuffer, width, height)
+      : { width, height, data: workBuffer };
+
+  let cachedAdjustedBuffer: Uint8ClampedArray | null = null;
+  let lastAdjustmentsSig = '';
+
+  const cacheHooks: AdjustmentCacheHooks = {
+    getCachedAdjusted: (sig: string) =>
+      lastAdjustmentsSig === sig && cachedAdjustedBuffer ? cachedAdjustedBuffer : null,
+    setCachedAdjusted: (sig: string, buf: Uint8ClampedArray) => {
+      if (!cachedAdjustedBuffer || cachedAdjustedBuffer.length !== buf.length) {
+        cachedAdjustedBuffer = new Uint8ClampedArray(buf.length);
+      }
+      cachedAdjustedBuffer.set(buf);
+      lastAdjustmentsSig = sig;
+    }
+  };
+
+  try {
+    for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+      const t = Math.min(duration, frameIdx * timelineStep);
+
+      let frameBasePixels = sourceImageData.data;
+      const isStaticSource = !(offscreenVid && vidExtractCtx);
+      if (offscreenVid && vidExtractCtx) {
+        const vidDur = offscreenVid.duration || duration || 1;
+        const targetVidTime = t % vidDur;
+        if (Math.abs(offscreenVid.currentTime - targetVidTime) > 0.005) {
+          await new Promise<void>((resolve) => {
+            if (!offscreenVid) return resolve();
+            const onSeeked = () => {
+              offscreenVid?.removeEventListener('seeked', onSeeked);
+              resolve();
+            };
+            offscreenVid.addEventListener('seeked', onSeeked);
+            offscreenVid.currentTime = targetVidTime;
+          });
+        }
+        vidExtractCtx.clearRect(0, 0, width, height);
+        vidExtractCtx.drawImage(offscreenVid, 0, 0, width, height);
+        frameBasePixels = vidExtractCtx.getImageData(0, 0, width, height).data;
+      }
+
+      renderDeterministicAnimationFrame(
+        storeState,
+        frameBasePixels,
+        width,
+        height,
+        t,
+        frameIdx,
+        workBuffer,
+        frameImageData,
+        cacheHooks,
+        isStaticSource
+      );
+
+      // Write pristine raw RGBA frame to FFmpeg stream stdin
+      await ffmpegService.writeStreamFrame(sessionId, workBuffer);
+
+      if (onProgress) {
+        onProgress((frameIdx + 1) / totalFrames, frameIdx + 1, totalFrames);
+      }
+
+      // Non-blocking UI yield every 3 frames
+      if (frameIdx % 3 === 0 && totalFrames > 3) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    const exportResult = await ffmpegService.finishStream(sessionId);
+    const rawBytes = await invoke<number[]>('read_binary_file', { path: exportResult.output_path });
+    const u8Bytes = new Uint8Array(rawBytes);
+
+    const mime =
+      ext === 'mp4'
+        ? 'video/mp4'
+        : ext === 'mov'
+        ? 'video/quicktime'
+        : 'video/webm';
+
+    const videoBlob = new Blob([u8Bytes], { type: mime });
+    const url = URL.createObjectURL(videoBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${baseName}_animated.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    try {
+      await ffmpegService.cancelStream(sessionId);
+    } catch {}
+    throw err;
+  } finally {
+    if (offscreenVid) {
+      offscreenVid.pause();
+      offscreenVid.src = '';
+      offscreenVid.load();
+    }
+  }
+}
+
+/**
  * Deterministic offscreen video export (WebM / MP4 / MOV) using an isolated offscreen canvas.
  * Guarantee: Never touches the visible viewport canvas, never moves the visible playhead,
  * never triggers visible playback, and respects playbackSpeed and easing curves.
@@ -638,6 +826,20 @@ export async function downloadAnimatedVideo(
   onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void,
   customFilename?: string
 ): Promise<void> {
+  // 1. In Tauri environment with FFmpeg available, prioritize native FFmpeg export
+  if (ffmpegService.isTauri()) {
+    try {
+      const isAvail = await ffmpegService.isAvailable();
+      if (isAvail) {
+        await exportAnimatedVideoFfmpeg(storeState, format, onProgress, customFilename);
+        return;
+      }
+    } catch (ffmpegErr) {
+      console.warn('[downloadAnimatedVideo] Native FFmpeg export failed, using browser fallback:', ffmpegErr);
+    }
+  }
+
+  // 2. Browser fallback using MediaRecorder + Canvas captureStream
   const {
     sourceImageData,
     sourceVideoUrl,

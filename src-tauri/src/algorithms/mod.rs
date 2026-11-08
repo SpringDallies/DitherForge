@@ -517,10 +517,11 @@ pub fn dither_raw_pattern(
 
             let pat_val: f32 = match pattern_id {
                 "checkered" | "checkers" => {
-                    let c_size = params.checkers_size.unwrap_or(2.0).max(1.0);
+                    let c_size = params.checkers_size.unwrap_or(8.0).max(1.0);
                     let csx = (sx as f32 / c_size).floor() as i32;
                     let csy = (sy as f32 / c_size).floor() as i32;
-                    if (csx + csy).rem_euclid(2) == 0 { 0.75 } else { 0.25 }
+                    let is_alt = (csx + csy).rem_euclid(2) == 1;
+                    if is_alt { 0.35 } else { 0.65 }
                 }
                 "horizontal_lines" => {
                     let dens = params.line_density.unwrap_or(4.0).max(1.0) as i32;
@@ -2014,16 +2015,17 @@ pub fn dither_pure_threshold(
 ) {
     let w = width as usize;
     let h = height as usize;
+    let t = threshold.clamp(0.0, 1.0);
 
     for y in 0..h {
         for x in 0..w {
             let idx = (y * w + x) * 4;
-            let chosen = lut.inline_pair_match(
+            let (c1, c2, frac) = lut.find_pair(
                 input[idx] as f32,
                 input[idx + 1] as f32,
                 input[idx + 2] as f32,
-                threshold,
             );
+            let chosen = if frac > t { c2 } else { c1 };
             out[idx] = chosen[0];
             out[idx + 1] = chosen[1];
             out[idx + 2] = chosen[2];

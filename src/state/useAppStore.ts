@@ -391,6 +391,10 @@ interface AppState {
   setHasConfiguredAnimation: (val: boolean) => void;
   isCreateAnimationPopupOpen: boolean;
   setIsCreateAnimationPopupOpen: (open: boolean) => void;
+  isFfmpegModalOpen: boolean;
+  setIsFfmpegModalOpen: (open: boolean) => void;
+  ffmpegStatus: any;
+  setFfmpegStatus: (status: any) => void;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   togglePlay: () => void;
@@ -898,6 +902,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setHasConfiguredAnimation: (hasConfiguredAnimation) => set({ hasConfiguredAnimation }),
   isCreateAnimationPopupOpen: false,
   setIsCreateAnimationPopupOpen: (isCreateAnimationPopupOpen) => set({ isCreateAnimationPopupOpen }),
+  isFfmpegModalOpen: false,
+  setIsFfmpegModalOpen: (isFfmpegModalOpen) => set({ isFfmpegModalOpen }),
+  ffmpegStatus: null,
+  setFfmpegStatus: (ffmpegStatus) => set({ ffmpegStatus }),
 
   isPlaying: false,
   setIsPlaying: (isPlaying) => set({ isPlaying }),

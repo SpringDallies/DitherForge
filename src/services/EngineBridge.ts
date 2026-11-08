@@ -280,6 +280,14 @@ export const MIGRATED_ALGORITHMS = new Set<string>([
 class EngineBridgeService {
   private rustAvailable: boolean | null = null;
   private checkingRust: Promise<boolean> | null = null;
+  private lastBackend: 'rust' | 'js' | 'js-fallback' = 'js';
+
+  /**
+   * Returns the backend that executed the most recent image processing operation.
+   */
+  public getLastBackend(): 'rust' | 'js' | 'js-fallback' {
+    return this.lastBackend;
+  }
 
   /**
    * Detects whether the application is running inside a Tauri webview.
@@ -563,6 +571,7 @@ class EngineBridgeService {
     if (canUseRust) {
       try {
         await this.dispatchRust(imageData, settings);
+        this.lastBackend = 'rust';
         return {
           backend: 'rust',
           elapsedMs: performance.now() - t0
@@ -574,6 +583,7 @@ class EngineBridgeService {
         );
         // Fall back to JavaScript engine
         applyDitherAlgorithm(imageData, settings);
+        this.lastBackend = 'js-fallback';
         return {
           backend: 'js-fallback',
           elapsedMs: performance.now() - t0
@@ -583,6 +593,7 @@ class EngineBridgeService {
 
     // Default JavaScript execution
     applyDitherAlgorithm(imageData, settings);
+    this.lastBackend = 'js';
     return {
       backend: 'js',
       elapsedMs: performance.now() - t0
@@ -596,6 +607,7 @@ class EngineBridgeService {
   public ditherSync(imageData: ImageData, settings: DitherSettings): EngineBridgeResult {
     const t0 = performance.now();
     applyDitherAlgorithm(imageData, settings);
+    this.lastBackend = 'js';
     return {
       backend: 'js',
       elapsedMs: performance.now() - t0
@@ -623,7 +635,7 @@ class EngineBridgeService {
     const threshold = rawThreshold > 1 ? rawThreshold / 100 : rawThreshold;
     const lumThreshold = userControls.luminanceThreshold !== undefined
       ? Number(userControls.luminanceThreshold)
-      : (threshold <= 1.0 ? Math.round(threshold * 100) : threshold);
+      : undefined;
 
     const baseHeader = {
       width,

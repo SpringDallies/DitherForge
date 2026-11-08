@@ -315,17 +315,7 @@ fn main() {
         ..Default::default()
     };
 
-    let lum_threshold = header.luminance_threshold.unwrap_or_else(|| {
-        if let Some(t) = header.threshold {
-            if t <= 1.0 {
-                (t * 100.0).round()
-            } else {
-                t
-            }
-        } else {
-            50.0
-        }
-    });
+    let lum_threshold = header.luminance_threshold.unwrap_or(50.0);
 
     let mut b = header.brightness.unwrap_or(0.0);
     if b.abs() > 1.0 { b /= 100.0; }

@@ -173,6 +173,53 @@ function createScaledProxyImageData(source: ImageData, scale: number): ImageData
   return pCtx.getImageData(0, 0, targetW, targetH);
 }
 
+function downsampleBuffer(
+  src: Uint8ClampedArray | Uint8Array,
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number
+): Uint8ClampedArray {
+  const dst = new Uint8ClampedArray(dstW * dstH * 4);
+  if (dstW * 2 === srcW && dstH * 2 === srcH) {
+    for (let dy = 0; dy < dstH; dy++) {
+      const row0 = dy * 2 * srcW * 4;
+      const row1 = (dy * 2 + 1) * srcW * 4;
+      const dstRow = dy * dstW * 4;
+      for (let dx = 0; dx < dstW; dx++) {
+        const sx = dx * 2;
+        const i00 = row0 + sx * 4;
+        const i01 = row0 + (sx + 1) * 4;
+        const i10 = row1 + sx * 4;
+        const i11 = row1 + (sx + 1) * 4;
+        const dIdx = dstRow + dx * 4;
+        dst[dIdx] = (src[i00] + src[i01] + src[i10] + src[i11]) >> 2;
+        dst[dIdx + 1] = (src[i00 + 1] + src[i01 + 1] + src[i10 + 1] + src[i11 + 1]) >> 2;
+        dst[dIdx + 2] = (src[i00 + 2] + src[i01 + 2] + src[i10 + 2] + src[i11 + 2]) >> 2;
+        dst[dIdx + 3] = (src[i00 + 3] + src[i01 + 3] + src[i10 + 3] + src[i11 + 3]) >> 2;
+      }
+    }
+    return dst;
+  }
+  const xRatio = srcW / dstW;
+  const yRatio = srcH / dstH;
+  for (let dy = 0; dy < dstH; dy++) {
+    const sy = Math.min(srcH - 1, Math.floor(dy * yRatio));
+    const srcRow = sy * srcW * 4;
+    const dstRow = dy * dstW * 4;
+    for (let dx = 0; dx < dstW; dx++) {
+      const sx = Math.min(srcW - 1, Math.floor(dx * xRatio));
+      const sIdx = srcRow + sx * 4;
+      const dIdx = dstRow + dx * 4;
+      dst[dIdx] = src[sIdx];
+      dst[dIdx + 1] = src[sIdx + 1];
+      dst[dIdx + 2] = src[sIdx + 2];
+      dst[dIdx + 3] = src[sIdx + 3];
+    }
+  }
+  return dst;
+}
+
 function shiftRgbHue(r: number, g: number, b: number, deg: number): [number, number, number] {
   return rotateHueHsvPixel(r, g, b, deg);
 }
@@ -354,6 +401,7 @@ export const CenterViewport: React.FC = () => {
   const setAppMode = useAppStore((state) => state.setAppMode);
   const videoPlaybackMode = useAppStore((state) => state.videoPlaybackMode);
   const videoRenderMode = useAppStore((state) => state.videoRenderMode);
+  const previewMode = useAppStore((state) => state.previewMode ?? state.videoRenderMode);
 
   const hasConfiguredAnimation = useAppStore((state) => state.hasConfiguredAnimation);
   const setHasConfiguredAnimation = useAppStore((state) => state.setHasConfiguredAnimation);
@@ -422,47 +470,21 @@ export const CenterViewport: React.FC = () => {
   const imageRenderingValue = isSmoothDownscale ? 'auto' : 'pixelated';
 
   const [isDragOver, setIsDragOver] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const panRef = useRef({ x: panX, y: panY });
+  const rafIdRef = useRef<number | null>(null);
   const [isWheelZooming, setIsWheelZooming] = useState(false);
   const wheelZoomTimeoutRef = useRef<number | null>(null);
-  const [, setPanStart] = useState({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
-  const panStartRef = useRef({ x: 0, y: 0, startPanX: 0, startPanY: 0 });
-  const presentationCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const hqPresentationBufferRef = useRef<ImageData | null>(null);
+  const isRenderingFrameRef = useRef(false);
+  const timecodeCurrentRef = useRef<HTMLSpanElement | null>(null);
   const lastRenderedFullImageRef = useRef<ImageData | null>(null);
 
-  const renderHqPresentation = useCallback((imgData: ImageData, fw: number, fh: number) => {
-    if (!highQualityZoom || zoom >= 100) return;
-    const scale = zoom / 100;
-    const dw = Math.max(1, Math.round(fw * scale));
-    const dh = Math.max(1, Math.round(fh * scale));
-    const pCanvas = presentationCanvasRef.current;
-    if (!pCanvas) return;
-    if (pCanvas.width !== dw || pCanvas.height !== dh) {
-      pCanvas.width = dw;
-      pCanvas.height = dh;
+  useEffect(() => {
+    if (!isDraggingRef.current) {
+      panRef.current = { x: panX, y: panY };
     }
-    const pCtx = pCanvas.getContext('2d');
-    if (!pCtx) return;
-    if (!hqPresentationBufferRef.current || hqPresentationBufferRef.current.width !== dw || hqPresentationBufferRef.current.height !== dh) {
-      hqPresentationBufferRef.current = new ImageData(dw, dh);
-    }
-    downsampleAreaGamma(imgData.data, fw, fh, dw, dh, hqPresentationBufferRef.current.data);
-    pCtx.putImageData(hqPresentationBufferRef.current, 0, 0);
-  }, [highQualityZoom, zoom]);
-
-  // Synchronously render high-quality downscale presentation (<100%) or restore main canvas (>=100%)
-  // before browser paints, preventing image disappearing/flickering in WebKitGTK.
-  useLayoutEffect(() => {
-    if (highQualityZoom && zoom < 100 && lastRenderedFullImageRef.current && sourceImageData) {
-      renderHqPresentation(lastRenderedFullImageRef.current, sourceImageData.width, sourceImageData.height);
-    } else if (lastRenderedFullImageRef.current && canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        ctx.putImageData(lastRenderedFullImageRef.current, 0, 0);
-      }
-    }
-  }, [zoom, highQualityZoom, renderHqPresentation, sourceImageData]);
+  }, [panX, panY]);
 
   const isElementUI = useCallback((el: Element | null): boolean => {
     if (!el) return false;
@@ -528,7 +550,7 @@ export const CenterViewport: React.FC = () => {
   // Cached pre-dither adjustments buffer to avoid full-resolution recomputation when only algorithm/style params animate
   const adjustedBaseBufferRef = useRef<Uint8ClampedArray | null>(null);
   const lastAdjustmentsSigRef = useRef<string>('');
-  const executeRenderPipelineRef = useRef<() => void>(() => {});
+  const executeRenderPipelineRef = useRef<(overrideTime?: number) => Promise<void> | void>(() => {});
 
   useEffect(() => {
     if (isCreateAnimationPopupOpen) {
@@ -657,16 +679,20 @@ export const CenterViewport: React.FC = () => {
   // Close speed popover on outside click
   useEffect(() => {
     if (!isSpeedMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | PointerEvent) => {
       if (speedMenuRef.current && !speedMenuRef.current.contains(e.target as Node)) {
         setIsSpeedMenuOpen(false);
       }
     };
-    window.addEventListener('mousedown', handleClickOutside);
-    return () => window.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('pointerdown', handleClickOutside, true);
+    window.addEventListener('mousedown', handleClickOutside, true);
+    return () => {
+      window.removeEventListener('pointerdown', handleClickOutside, true);
+      window.removeEventListener('mousedown', handleClickOutside, true);
+    };
   }, [isSpeedMenuOpen]);
 
-  // Time-based Playback Clock with Frame-Quantized Zustand Updates & Smooth 60fps DOM Playhead
+  // Time-based Playback Clock with Frame-Quantized Direct Render & Throttled Zustand Updates
   useEffect(() => {
     if (appMode !== 'animation' || !isPlaying) return;
     let lastTs = performance.now();
@@ -675,7 +701,7 @@ export const CenterViewport: React.FC = () => {
     let lastFrameIdx = Math.round(localTime * (useAppStore.getState().fps || 30));
     let animId: number;
 
-    const tick = (now: number) => {
+    const tick = async (now: number) => {
       const state = useAppStore.getState();
       if (!state.isPlaying || state.appMode !== 'animation') return;
 
@@ -703,6 +729,9 @@ export const CenterViewport: React.FC = () => {
           if (playheadDomRef.current) {
             playheadDomRef.current.style.left = `${(nextTime / dur) * 100}%`;
           }
+          if (timecodeCurrentRef.current) {
+            timecodeCurrentRef.current.textContent = formatTimecode(nextTime);
+          }
           state.setCurrentTime(lastStoreTime);
           animId = requestAnimationFrame(tick);
         } else {
@@ -710,6 +739,9 @@ export const CenterViewport: React.FC = () => {
           lastStoreTime = dur;
           if (playheadDomRef.current) {
             playheadDomRef.current.style.left = '100%';
+          }
+          if (timecodeCurrentRef.current) {
+            timecodeCurrentRef.current.textContent = formatTimecode(dur);
           }
           state.setCurrentTime(dur);
           state.setIsPlaying(false);
@@ -723,20 +755,41 @@ export const CenterViewport: React.FC = () => {
       if (playheadDomRef.current) {
         playheadDomRef.current.style.left = `${Math.max(0, Math.min(100, (nextTime / dur) * 100))}%`;
       }
+      if (timecodeCurrentRef.current) {
+        timecodeCurrentRef.current.textContent = formatTimecode(nextTime);
+      }
 
-      // Only commit Zustand state update when crossing a discrete timeline frame boundary
+      // Only execute frame dither if we crossed a discrete timeline frame boundary
       const nextFrameIdx = Math.round(nextTime * activeFps);
       if (nextFrameIdx !== lastFrameIdx) {
         lastFrameIdx = nextFrameIdx;
-        lastStoreTime = Number(nextTime.toFixed(4));
-        state.setCurrentTime(lastStoreTime);
+
+        // Guard against IPC pileup: if previous frame is still processing in Rust, skip frame tick
+        if (!isRenderingFrameRef.current) {
+          isRenderingFrameRef.current = true;
+          try {
+            await executeRenderPipelineRef.current(nextTime);
+          } finally {
+            isRenderingFrameRef.current = false;
+          }
+        }
+
+        // Throttle React state updates to every 4th frame (~7-8 fps instead of 30-60 fps)
+        if (nextFrameIdx % 4 === 0) {
+          lastStoreTime = Number(nextTime.toFixed(4));
+          state.setCurrentTime(lastStoreTime);
+        }
       }
 
       animId = requestAnimationFrame(tick);
     };
 
     animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
+    return () => {
+      cancelAnimationFrame(animId);
+      // Sync exact final time on pause
+      useAppStore.getState().setCurrentTime(Number(localTime.toFixed(4)));
+    };
   }, [appMode, isPlaying, videoPlaybackMode]);
 
   // Full Timeline Keyboard Controls (Space/K for Play/Pause, Arrows/J/L for Frames, Home/End, Up/Down for Tracks, T for Add Track)
@@ -926,42 +979,68 @@ export const CenterViewport: React.FC = () => {
     };
   }, [isDraggingSplitter, setSplitRatio]);
 
-  // Window-level Canvas Panning Handler with Instant UI Cancellation
-  useEffect(() => {
-    if (!isPanning) return;
+  // Unified Pointer-Event Viewport Panning with Pointer Capture & RAF Compositing
+  const handleViewportPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (
+      selectedTrackId &&
+      floatingEditorRef.current &&
+      !floatingEditorRef.current.contains(e.target as Node) &&
+      !timelineGroupRef.current?.contains(e.target as Node)
+    ) {
+      setSelectedTrackId(null);
+    }
+    if (e.button !== 0 && e.button !== 1) return;
+    if (isDraggingSplitter) return;
+    const targetEl = e.target instanceof Element ? e.target : (e.target as Node)?.parentElement;
+    if (isElementUI(targetEl)) return;
 
-    const handleWindowMouseMove = (e: MouseEvent) => {
-      // 1. If mouse button is no longer held (left button 1 or middle button 4), cancel pan!
-      const isButtonHeld = (e.buttons & 1) !== 0 || (e.buttons & 4) !== 0;
-      if (!isButtonHeld) {
-        setIsPanning(false);
-        return;
-      }
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragStartRef.current = { x: e.clientX - panRef.current.x, y: e.clientY - panRef.current.y };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
 
-      // 2. If cursor moves over any UI element, cancel drag immediately!
-      const targetEl = e.target instanceof Element ? e.target : (e.target as Node)?.parentElement;
-      const pointEl = document.elementFromPoint(e.clientX, e.clientY);
-      if (isElementUI(targetEl) || isElementUI(pointEl) || !pointEl) {
-        setIsPanning(false);
-        return;
-      }
+    if (containerRef.current) {
+      containerRef.current.style.cursor = 'grabbing';
+    }
+  }, [isDraggingSplitter, selectedTrackId, setSelectedTrackId]);
 
-      // 3. Pan canvas smoothly
-      const start = panStartRef.current;
-      setPan(start.startPanX + (e.clientX - start.x), start.startPanY + (e.clientY - start.y));
+  const handleViewportPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    panRef.current = {
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y,
     };
+    if (rafIdRef.current === null) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (stageRef.current) {
+          const currentZoom = useAppStore.getState().zoom;
+          stageRef.current.style.transform = 
+            `translate3d(${panRef.current.x}px, ${panRef.current.y}px, 0) scale(${currentZoom / 100})`;
+        }
+        rafIdRef.current = null;
+      });
+    }
+  }, []);
 
-    const handleWindowMouseUp = () => {
-      setIsPanning(false);
-    };
+  const handleViewportPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
 
-    window.addEventListener('mousemove', handleWindowMouseMove, { passive: true });
-    window.addEventListener('mouseup', handleWindowMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleWindowMouseMove);
-      window.removeEventListener('mouseup', handleWindowMouseUp);
-    };
-  }, [isPanning, isElementUI, setPan]);
+    if (containerRef.current) {
+      containerRef.current.style.cursor = '';
+    }
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    // Sync final position back to store once on release
+    setPan(panRef.current.x, panRef.current.y);
+  }, [setPan]);
 
   // Pointer-Centered Wheel Zoom on Main Canvas
   useEffect(() => {
@@ -1081,7 +1160,7 @@ export const CenterViewport: React.FC = () => {
   const isRenderingRef = useRef<boolean>(false);
   const pendingRenderRef = useRef<boolean>(false);
 
-  const executeRenderPipeline = useCallback(async () => {
+  const executeRenderPipeline = useCallback(async (overrideTime?: number) => {
     const canvas = canvasRef.current;
     if (!canvas || !sourceImageData) return;
     const ctx = canvas.getContext('2d');
@@ -1104,9 +1183,11 @@ export const CenterViewport: React.FC = () => {
       canvas.height = fullHeight;
     }
 
+    const activeTime = typeof overrideTime === 'number' ? overrideTime : useAppStore.getState().currentTime;
+
     // Video: "Rendered" vs "Quick" behavior
     // In "Rendered" mode, frames are pre-rendered at full resolution and cached by frame index with LRU byte eviction!
-    const frameIndex = appMode === 'animation' ? Math.round(currentTime * fps) : 0;
+    const frameIndex = appMode === 'animation' ? Math.round(activeTime * fps) : 0;
     if (appMode === 'animation' && videoRenderMode === 'rendered' && !showBeforeAfter && !isOriginalView && !sourceVideoUrl) {
       const cache = renderedFramesCacheRef.current;
       const cachedFrame = cache.get(frameIndex);
@@ -1114,18 +1195,15 @@ export const CenterViewport: React.FC = () => {
         // Refresh LRU order
         cache.delete(frameIndex);
         cache.set(frameIndex, cachedFrame);
-        ctx.clearRect(0, 0, fullWidth, fullHeight);
         ctx.putImageData(cachedFrame, 0, 0);
         lastRenderedFullImageRef.current = cachedFrame;
-        if (highQualityZoom && zoom < 100) {
-          renderHqPresentation(cachedFrame, fullWidth, fullHeight);
-        }
         return;
       }
     }
 
+    const isQuick = appMode === 'animation' && (videoRenderMode === 'quick' || previewMode === 'quick') && isPlaying;
     let effectiveQuality = previewQuality;
-    if (appMode === 'animation' && videoRenderMode === 'rendered') {
+    if (appMode === 'animation' && (videoRenderMode === 'rendered' || previewMode === 'rendered')) {
       effectiveQuality = 'full';
     }
 
@@ -1133,7 +1211,7 @@ export const CenterViewport: React.FC = () => {
     let activeBaseImage = sourceImageData;
     if (sourceVideoUrl && videoElRef.current && videoElRef.current.readyState >= 2) {
       const vid = videoElRef.current;
-      const targetVidTime = currentTime % (vid.duration || duration || 1);
+      const targetVidTime = activeTime % (vid.duration || duration || 1);
       if (!vid.seeking && Math.abs(vid.currentTime - targetVidTime) > 0.04) {
         vid.currentTime = targetVidTime;
       }
@@ -1165,7 +1243,12 @@ export const CenterViewport: React.FC = () => {
     }
 
     let renderSource = activeBaseImage;
-    if (!sourceVideoUrl) {
+    if (isQuick) {
+      const qW = Math.max(1, Math.round(activeBaseImage.width * 0.5));
+      const qH = Math.max(1, Math.round(activeBaseImage.height * 0.5));
+      const downBuf = downsampleBuffer(activeBaseImage.data, activeBaseImage.width, activeBaseImage.height, qW, qH);
+      renderSource = new ImageData(downBuf, qW, qH);
+    } else if (!sourceVideoUrl) {
       if (!proxyCacheRef.current || proxyCacheRef.current.source !== activeBaseImage) {
         const lowScale = Math.min(0.25, 640 / Math.max(fullWidth, fullHeight));
         const midScale = Math.min(0.50, 1280 / Math.max(fullWidth, fullHeight));
@@ -1196,15 +1279,15 @@ export const CenterViewport: React.FC = () => {
     let effPaletteCycle = 0;
 
     const effAlgoParams: Record<string, any> = { ...currentParams };
-    const effEffects = effects.map((e) => ({ ...e, params: { ...e.params } }));
+    const effEffects = isQuick ? [] : effects.map((e) => ({ ...e, params: { ...e.params } }));
     let animatedNoiseActive = false;
 
     if (appMode === 'animation') {
       for (const track of animationTracks) {
         if (!track.category || !track.property) continue;
-        if (currentTime >= track.startTime && currentTime <= track.endTime) {
+        if (activeTime >= track.startTime && activeTime <= track.endTime) {
           const span = Math.max(0.001, track.endTime - track.startTime);
-          const rawProgress = (currentTime - track.startTime) / span;
+          const rawProgress = (activeTime - track.startTime) / span;
           const eased = applyEasing(rawProgress, track.easing);
           const val = track.fromValue + (track.toValue - track.fromValue) * eased;
 
@@ -1278,7 +1361,7 @@ export const CenterViewport: React.FC = () => {
       isOriginalView,
       JSON.stringify(effAlgoParams),
       JSON.stringify(effEffects),
-      sourceVideoUrl ? Math.round(currentTime * 30) : '',
+      sourceVideoUrl ? Math.round(activeTime * 30) : '',
       appMode === 'animation' ? frameIndex : (animatedNoiseActive ? frameIndex : '')
     ].join('::');
 
@@ -1301,7 +1384,7 @@ export const CenterViewport: React.FC = () => {
       width,
       height,
       sourceVideoUrl
-        ? currentTime.toFixed(2)
+        ? activeTime.toFixed(2)
         : sourceImageData.data[0] + '_' + sourceImageData.data[Math.min(100, len - 1)],
       effBrightness.toFixed(3),
       effContrast.toFixed(3),
@@ -1409,7 +1492,7 @@ export const CenterViewport: React.FC = () => {
       strength: effAlgoParams.diffusionStrength ?? 1.0
     };
 
-    await EngineBridge.dither(ditherImageData, {
+    const bridgeResult = await EngineBridge.dither(ditherImageData, {
       algorithmId,
       palette,
       ...mappedControls,
@@ -1444,9 +1527,13 @@ export const CenterViewport: React.FC = () => {
     if (!isPlaying && !isScrubbingTimeline) {
       lastRenderMsUpdateWallRef.current = nowWall;
       setLastRenderMs(elapsedMs);
+      useAppStore.getState().setActiveBackend(bridgeResult.backend);
+      useAppStore.getState().setBackendError(EngineBridge.lastError);
     } else if (nowWall - lastRenderMsUpdateWallRef.current >= 200) {
       lastRenderMsUpdateWallRef.current = nowWall;
       setLastRenderMs(elapsedMs);
+      useAppStore.getState().setActiveBackend(bridgeResult.backend);
+      useAppStore.getState().setBackendError(EngineBridge.lastError);
     }
 
     // Store in Rendered frame cache when Video: Rendered mode is active (strictly bounded to 128 MB)
@@ -1490,7 +1577,6 @@ export const CenterViewport: React.FC = () => {
     const drawToCanvas = (imgData: ImageData) => {
       if (width === fullWidth && height === fullHeight) {
         lastRenderedFullImageRef.current = imgData;
-        ctx.clearRect(0, 0, fullWidth, fullHeight);
         ctx.putImageData(imgData, 0, 0);
       } else {
         if (!proxyCanvasRef.current) {
@@ -1503,16 +1589,11 @@ export const CenterViewport: React.FC = () => {
         }
         const offCtx = offscreen.getContext('2d');
         if (offCtx) {
-          offCtx.clearRect(0, 0, width, height);
           offCtx.putImageData(imgData, 0, 0);
-          ctx.clearRect(0, 0, fullWidth, fullHeight);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
           lastRenderedFullImageRef.current = ctx.getImageData(0, 0, fullWidth, fullHeight);
         }
-      }
-      if (highQualityZoom && zoom < 100 && lastRenderedFullImageRef.current) {
-        renderHqPresentation(lastRenderedFullImageRef.current, fullWidth, fullHeight);
       }
     };
 
@@ -1555,6 +1636,7 @@ export const CenterViewport: React.FC = () => {
     previewQuality,
     appMode,
     videoRenderMode,
+    previewMode,
     isPlaying,
     isScrubbingTimeline,
     currentTime,
@@ -1587,7 +1669,8 @@ export const CenterViewport: React.FC = () => {
 
   useEffect(() => {
     if (!sourceImageData) return;
-    if (viewportUpdateMode === 'debounce' && !isPlaying && !isScrubbingTimeline) {
+    if (isPlaying) return; // Dedicated animation loop drives playback ticks directly
+    if (viewportUpdateMode === 'debounce' && !isScrubbingTimeline) {
       if (isDraggingSlider) return;
       const timer = window.setTimeout(() => {
         executeRenderPipeline();
@@ -1831,51 +1914,53 @@ export const CenterViewport: React.FC = () => {
         ref={containerRef}
         className={`canvas-area ${appMode === 'animation' && hasConfiguredAnimation ? 'animation-active' : ''}`}
         style={{
-          cursor: isDraggingSplitter ? 'ew-resize' : isPanning ? 'grabbing' : 'default'
+          cursor: isDraggingSplitter ? 'ew-resize' : 'default'
         }}
-        onMouseDown={(e) => {
-          if (
-            selectedTrackId &&
-            floatingEditorRef.current &&
-            !floatingEditorRef.current.contains(e.target as Node) &&
-            !timelineGroupRef.current?.contains(e.target as Node)
-          ) {
-            setSelectedTrackId(null);
-          }
-          if (e.button === 1 || e.button === 0) {
-            if (isDraggingSplitter) return;
-            const targetEl = e.target instanceof Element ? e.target : (e.target as Node)?.parentElement;
-            if (isElementUI(targetEl)) return;
-            const startData = { x: e.clientX, y: e.clientY, startPanX: panX, startPanY: panY };
-            panStartRef.current = startData;
-            setPanStart(startData);
-            setIsPanning(true);
-          }
-        }}
+        onPointerDown={handleViewportPointerDown}
+        onPointerMove={handleViewportPointerMove}
+        onPointerUp={handleViewportPointerUp}
+        onPointerCancel={handleViewportPointerUp}
+        onDragStart={(e) => e.preventDefault()}
       >
         {!hasImage || !sourceImageData ? (
-          <div className={`viewport-dropzone ${isDragOver ? 'drag-active' : ''}`}>
-            <div className="dropzone-icon"><UploadCloud size={32} /></div>
-            <div className="dropzone-title">Drop an image or MP4 video here to dither</div>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-              <button className="action-btn primary" onClick={() => fileInputRef.current?.click()}>
-                <FolderOpen size={13} /> Open Media
+          <div className={`viewport-dropzone-card ${isDragOver ? 'drag-active' : ''}`}>
+            <div className="viewport-dropzone-icon-ring">
+              <UploadCloud size={28} strokeWidth={2.2} />
+            </div>
+            <div className="viewport-dropzone-heading">Drop Image or Video Here</div>
+            <div className="viewport-dropzone-sub">
+              Drag and drop any media to begin dithering, or select a source below
+            </div>
+            <div className="viewport-dropzone-actions">
+              <button className="viewport-dropzone-btn primary" onClick={() => fileInputRef.current?.click()}>
+                <FolderOpen size={14} /> Open Media
               </button>
-              <button className="action-btn" onClick={loadSampleImage}>
-                <Sparkles size={13} /> Calibration Pattern
+              <button className="viewport-dropzone-btn secondary" onClick={loadSampleImage}>
+                <Sparkles size={14} /> Calibration Pattern
               </button>
+            </div>
+            <div className="viewport-dropzone-formats">
+              <span className="format-tag">PNG</span>
+              <span className="format-tag">JPG</span>
+              <span className="format-tag">WebP</span>
+              <span className="format-tag">GIF</span>
+              <span className="format-tag">MP4</span>
+              <span className="format-tag">WebM</span>
             </div>
           </div>
         ) : (
           <div
             ref={stageRef}
             className={`canvas-unframed-stage ${isSmoothDownscale ? 'smooth-downscale' : ''}`}
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
             style={{
               position: 'relative',
               display: 'inline-block',
-              transform: `translate(${panX}px, ${panY}px) scale(${zoom / 100})`,
+              transform: `translate3d(${panX}px, ${panY}px, 0) scale(${zoom / 100})`,
               transformOrigin: 'center center',
-              transition: (isPanning || isWheelZooming) ? 'none' : 'transform 0.05s ease-out',
+              transition: isWheelZooming ? 'transform 0.05s ease-out' : 'none',
+              willChange: 'transform',
               userSelect: 'none'
             }}
           >
@@ -1883,26 +1968,11 @@ export const CenterViewport: React.FC = () => {
               ref={canvasRef}
               id="mainViewportCanvas"
               className="preview-canvas"
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
               style={{
                 display: 'block',
-                visibility: isSmoothDownscale ? 'hidden' : 'visible',
-                imageRendering: 'pixelated'
-              }}
-            />
-            <canvas
-              ref={presentationCanvasRef}
-              id="hqPresentationCanvas"
-              className="preview-canvas smooth-downscale"
-              style={{
-                display: 'block',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: `${sourceImageData?.width || 0}px`,
-                height: `${sourceImageData?.height || 0}px`,
-                visibility: isSmoothDownscale ? 'visible' : 'hidden',
-                pointerEvents: 'none',
-                imageRendering: 'pixelated'
+                imageRendering: isSmoothDownscale ? 'auto' : 'pixelated'
               }}
             />
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
@@ -1931,13 +2001,33 @@ export const CenterViewport: React.FC = () => {
                   } as React.CSSProperties}
                   onMouseDown={(e) => { e.stopPropagation(); setIsDraggingSplitter(true); }}
                 >
-                  <div className="split-handle">
-                    <img
-                      src={`${import.meta.env.BASE_URL}assets/compare-handle.webp`}
-                      alt="Compare Handle"
-                      className="split-handle-img"
-                      draggable={false}
-                    />
+                  <div className="split-handle" title="Drag to compare before and after">
+                    <svg
+                      width="20"
+                      height="48"
+                      viewBox="0 0 20 48"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="split-handle-svg"
+                    >
+                      <rect
+                        x="0.75"
+                        y="0.75"
+                        width="18.5"
+                        height="46.5"
+                        rx="9.25"
+                        className="split-handle-bg"
+                      />
+                      {/* Serpentine Error Diffusion Signature Curve */}
+                      <path
+                        d="M12 17 C 7 20, 7 22, 10 24 C 13 26, 13 28, 8 31"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="split-handle-curve"
+                      />
+                    </svg>
                   </div>
                 </div>
               </>
@@ -2162,7 +2252,7 @@ export const CenterViewport: React.FC = () => {
                     title="Click to configure FPS & Duration"
                     style={{ cursor: 'pointer' }}
                   >
-                    <span className="df-timecode-current">{formatTimecode(currentTime)}</span>
+                    <span ref={timecodeCurrentRef} className="df-timecode-current">{formatTimecode(currentTime)}</span>
                     <span className="df-timecode-max"> / {formatTimecode(duration)}</span>
                   </span>
                   <div className="df-transport-cluster">

@@ -4,7 +4,7 @@
 
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri as checkTauri } from '@tauri-apps/api/core';
 
 export interface DitherSettings {
   algorithmId: string;
@@ -295,7 +295,12 @@ class EngineBridgeService {
   public isTauri(): boolean {
     if (typeof window === 'undefined') return false;
     const w = window as any;
-    return Boolean(w.__TAURI_INTERNALS__ || w.__TAURI__);
+    try {
+      if (typeof checkTauri === 'function' && checkTauri()) return true;
+    } catch {
+      // ignore
+    }
+    return Boolean(w.isTauri || w.__TAURI_INTERNALS__ || w.__TAURI__);
   }
 
   /**
@@ -460,6 +465,7 @@ class EngineBridgeService {
       offset_x: settings.offsetX ?? userControls.offsetX ?? 0.0,
       offset_y: settings.offsetY ?? userControls.offsetY ?? 0.0,
       line_scale: userControls.lineScale !== undefined ? Number(userControls.lineScale) : undefined,
+      noisy_lines: userControls.noisyLines !== undefined ? Boolean(userControls.noisyLines) : undefined,
       smoothing: userControls.smoothingFactor !== undefined
         ? (typeof userControls.smoothingFactor === 'boolean' ? (userControls.smoothingFactor ? 6.0 : 0.0) : Number(userControls.smoothingFactor))
         : (userControls.smoothness !== undefined ? Number(userControls.smoothness) : (userControls.smoothing !== undefined ? Number(userControls.smoothing) : undefined)),
@@ -542,10 +548,19 @@ class EngineBridgeService {
       4 + headerLen
     );
 
-    const response = await invoke<ArrayBuffer>('process_image_binary', payload);
-    const responseBytes: Uint8Array = response instanceof Uint8Array
-      ? response
-      : new Uint8Array(response);
+    const response = await invoke<any>('process_image_binary', payload);
+    let responseBytes: Uint8Array;
+    if (response instanceof Uint8Array) {
+      responseBytes = response;
+    } else if (response instanceof ArrayBuffer) {
+      responseBytes = new Uint8Array(response);
+    } else if (Array.isArray(response)) {
+      responseBytes = new Uint8Array(response);
+    } else if (response && typeof response === 'object' && 'data' in response) {
+      responseBytes = new Uint8Array((response as any).data);
+    } else {
+      throw new Error(`Unexpected binary IPC response type: ${Object.prototype.toString.call(response)}`);
+    }
 
     if (responseBytes.byteLength !== rawData.byteLength) {
       throw new Error(
@@ -555,6 +570,8 @@ class EngineBridgeService {
 
     rawData.set(responseBytes);
   }
+
+  public lastError: string | null = null;
 
   /**
    * Main dithering entry point.
@@ -573,12 +590,14 @@ class EngineBridgeService {
       try {
         await this.dispatchRust(imageData, settings);
         this.lastBackend = 'rust';
+        this.lastError = null;
         return {
           backend: 'rust',
           elapsedMs: performance.now() - t0
         };
       } catch (err: any) {
-        console.warn(
+        this.lastError = err?.message || String(err);
+        console.error(
           `[EngineBridge] Rust dispatch failed for algorithm '${settings.algorithmId}'. Falling back to JavaScript engine:`,
           err
         );
@@ -595,6 +614,7 @@ class EngineBridgeService {
     // Default JavaScript execution
     applyDitherAlgorithm(imageData, settings);
     this.lastBackend = 'js';
+    this.lastError = null;
     return {
       backend: 'js',
       elapsedMs: performance.now() - t0
@@ -663,6 +683,7 @@ class EngineBridgeService {
       offset_x: baseSettings.offsetX ?? userControls.offsetX ?? 0.0,
       offset_y: baseSettings.offsetY ?? userControls.offsetY ?? 0.0,
       line_scale: userControls.lineScale !== undefined ? Number(userControls.lineScale) : undefined,
+      noisy_lines: userControls.noisyLines !== undefined ? Boolean(userControls.noisyLines) : undefined,
       smoothing: userControls.smoothingFactor !== undefined
         ? (typeof userControls.smoothingFactor === 'boolean' ? (userControls.smoothingFactor ? 6.0 : 0.0) : Number(userControls.smoothingFactor))
         : (userControls.smoothness !== undefined ? Number(userControls.smoothness) : (userControls.smoothing !== undefined ? Number(userControls.smoothing) : undefined)),
@@ -847,6 +868,44 @@ class EngineBridgeService {
     if (!this.isTauri()) return [];
     return await invoke('get_algorithms_list');
   }
+
+  /**
+   * Prompts user with native folder dialog to select export directory.
+   */
+  public async selectExportDirectory(): Promise<string | null> {
+    if (!this.isTauri()) return null;
+    return await invoke('select_export_directory');
+  }
+
+  /**
+   * Fetches the default OS download / export directory.
+   */
+  public async getDefaultExportDirectory(): Promise<string> {
+    if (!this.isTauri()) return 'Downloads';
+    try {
+      return await invoke('get_default_export_directory');
+    } catch {
+      return 'Downloads';
+    }
+  }
+}
+
+export async function processFrameBinary(
+  header: Record<string, unknown>,
+  rgbaBytes: Uint8ClampedArray | Uint8Array
+): Promise<Uint8ClampedArray> {
+  const headerBytes = new TextEncoder().encode(JSON.stringify(header));
+  const headerLen = headerBytes.byteLength;
+
+  // 4-byte LE length prefix + JSON header + raw RGBA bytes
+  const payload = new Uint8Array(4 + headerLen + rgbaBytes.byteLength);
+  new DataView(payload.buffer).setUint32(0, headerLen, true);
+  payload.set(headerBytes, 4);
+  payload.set(rgbaBytes, 4 + headerLen);
+
+  // Pass Uint8Array directly so Tauri uses InvokeBody::Raw
+  const resultBuffer = await invoke<ArrayBuffer>('process_image_binary', payload);
+  return new Uint8ClampedArray(resultBuffer);
 }
 
 export const EngineBridge = new EngineBridgeService();

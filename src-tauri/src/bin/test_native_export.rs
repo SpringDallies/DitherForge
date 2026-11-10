@@ -1,4 +1,5 @@
 // Native Animation & Export Verification Test
+#![allow(dead_code, unused_variables)]
 use image::{
     codecs::gif::{GifDecoder, GifEncoder, Repeat},
     AnimationDecoder, Delay, Frame, ImageFormat, RgbaImage,

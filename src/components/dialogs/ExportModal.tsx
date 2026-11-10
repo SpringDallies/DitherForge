@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Download, Copy, Check } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
+import { Dropdown } from '../common/Dropdown';
 // @ts-ignore
 import { exportRaster, copyCanvasToClipboard, exportCharacterGrid, exportSvgContours } from '../../dither-engine/exporters.js';
 import { downloadAnimatedGif, getExportCanvas } from '../../utils/animationExport';
@@ -330,17 +331,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               <div className="export-form-row">
                 <label className="export-form-label" htmlFor="export-image-format">Format</label>
                 <div className="export-form-control">
-                  <select 
+                  <Dropdown
                     id="export-image-format"
-                    className="export-select"
                     value={format}
-                    onChange={(e) => setFormat(e.target.value as ImageFormat)}
-                  >
-                    <option value="png">PNG (Lossless 24/32-bit)</option>
-                    <option value="jpg">JPG (Web Compressed)</option>
-                    <option value="webp">WebP (Modern Lightweight)</option>
-                    <option value="gif">GIF (Animated / Multi-Frame)</option>
-                  </select>
+                    onChange={(val) => setFormat(val as ImageFormat)}
+                    width="100%"
+                    items={[
+                      { id: 'png', label: 'PNG', hint: 'Lossless 24/32-bit' },
+                      { id: 'jpg', label: 'JPG', hint: 'Web Compressed' },
+                      { id: 'webp', label: 'WebP', hint: 'Modern Lightweight' },
+                      { id: 'gif', label: 'GIF', hint: 'Animated / Multi-Frame' }
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -351,7 +353,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                     fontSize: '11px',
                     color: 'var(--text-muted, #D8D8D8)',
                     marginBottom: '12px',
-                    padding: '6px 10px',
+                    padding: '8px 12px',
                     background: 'color-mix(in srgb, var(--status-warning) 12%, transparent)',
                     border: '1px solid var(--border-color)',
                     borderRadius: 'var(--radius-sm)'
@@ -368,19 +370,22 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                     <input 
                       id="export-image-quality"
                       type="range"
-                      className="slider"
+                      className="control-slider"
                       min="0.1"
                       max="1.0"
                       step="0.05"
                       value={quality}
                       onChange={(e) => setQuality(parseFloat(e.target.value))}
-                      style={{ flex: 1 }}
+                      style={{ 
+                        flex: 1,
+                        '--slider-fill': `${Math.round(((quality - 0.1) / (1.0 - 0.1)) * 100)}%`
+                      } as React.CSSProperties}
                     />
                     <div 
-                      className="slider-value-box"
-                      style={{ width: '48px', textAlign: 'center', height: '28px', lineHeight: '26px' }}
+                      className="control-num-input"
+                      style={{ width: '56px', textAlign: 'center', height: '28px', lineHeight: '26px', fontSize: '0.78rem' }}
                     >
-                      {Math.round(quality * 100)}
+                      {Math.round(quality * 100)}%
                     </div>
                   </div>
                 </div>
@@ -404,10 +409,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                 <div className="export-preview-label">Preview:</div>
                 <div className="export-preview-box">
                   {hasSourceCanvas ? (
-                    <canvas 
-                      ref={previewCanvasRef} 
-                      style={{ maxWidth: '100%', maxHeight: '180px', display: 'block', objectFit: 'contain' }}
-                    />
+                    <>
+                      <canvas 
+                        ref={previewCanvasRef} 
+                        style={{ maxWidth: '100%', maxHeight: '180px', display: 'block', objectFit: 'contain' }}
+                      />
+                      {getSourceCanvas() && (
+                        <div className="export-preview-badge">
+                          {getSourceCanvas()?.width} × {getSourceCanvas()?.height} px
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       No active image loaded in viewport
@@ -424,16 +436,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               <div className="export-form-row">
                 <label className="export-form-label" htmlFor="export-text-charset">Character Set</label>
                 <div className="export-form-control">
-                  <select 
+                  <Dropdown
                     id="export-text-charset"
-                    className="export-select"
                     value={charSet}
-                    onChange={(e) => setCharSet(e.target.value as CharSetType)}
-                  >
-                    <option value="ascii">ASCII Ramp ( .:-=+*#%@)</option>
-                    <option value="blocks">Unicode Blocks ( ░▒▓█)</option>
-                    <option value="braille">Unicode Braille Matrix 2×4</option>
-                  </select>
+                    onChange={(val) => setCharSet(val as CharSetType)}
+                    width="100%"
+                    items={[
+                      { id: 'ascii', label: 'ASCII Ramp', hint: ' .:-=+*#%@' },
+                      { id: 'blocks', label: 'Unicode Blocks', hint: ' ░▒▓█' },
+                      { id: 'braille', label: 'Unicode Braille', hint: '2×4 Matrix' }
+                    ]}
+                  />
                 </div>
               </div>
 

@@ -49,49 +49,49 @@
    ═══════════════════════════════════════════════════════════════ */
 :root,
 [data-theme="light_pro"] {
-  --bg-primary: #DDDDE3;
-  --bg-secondary: #E6E6ED;
-  --bg-tertiary: #CFCFD0;
-  --bg-panel: #E1E1E7;
-  --bg-control: #E6E6ED;
-  --bg-raised: #F2F2F7;
-  --bg-hover: #D8D8E0;
-  --bg-active: #CFD4DD;
+  --bg-primary: #ECEEF2;
+  --bg-secondary: #F3F4F7;
+  --bg-tertiary: #E1E4EB;
+  --bg-panel: #F8F9FA;
+  --bg-control: #FFFFFF;
+  --bg-raised: #FFFFFF;
+  --bg-hover: #E9ECF2;
+  --bg-active: #DFE2EA;
 
-  --border-color: #CFD4DD;
-  --border-secondary: #CFD4DD;
-  --border-soft: #C2C7D0;
-  --border-raised: #DCE0E6;
-  --border-hover: #9DA0A5;
-  --border-focus: #9DA0A5;
+  --border-color: #CBD0DC;
+  --border-secondary: #D7DBE4;
+  --border-soft: #E5E8F0;
+  --border-raised: #BFC4D2;
+  --border-hover: #7E8596;
+  --border-focus: #1E2330;
 
-  --text-main: #2D3139;
-  --text-secondary: #727783;
-  --text-muted: #8A8F99;
-  --text-dim: #9DA0A5;
-  --text-disabled: #CFCFD0;
+  --text-main: #181B22;
+  --text-secondary: #242833;
+  --text-muted: #4A5160;
+  --text-dim: #242833;
+  --text-disabled: #A2A8B8;
   --text-on-accent: #FFFFFF;
 
-  --accent-primary: #9DA0A5;
-  --accent-hover: #8A8D93;
-  --accent-secondary: #CFCFD0;
-  --accent-cyan: #9DA0A5;
-  --accent-amber: #9DA0A5;
-  --accent-pink: #9DA0A5;
-  --accent-blue: #9DA0A5;
-  --accent-glow: transparent;
+  --accent-primary: #242833;
+  --accent-hover: #11141A;
+  --accent-secondary: #4A5160;
+  --accent-cyan: #0284C7;
+  --accent-amber: #D97706;
+  --accent-pink: #DB2777;
+  --accent-blue: #2563EB;
+  --accent-glow: rgba(0, 0, 0, 0.08);
 
-  --canvas-bg: #DDDDE3;
-  --canvas-checker-1: #E6E6ED;
-  --canvas-checker-2: #E1E1E7;
+  --canvas-bg: #E4E7EE;
+  --canvas-checker-1: #EFF1F6;
+  --canvas-checker-2: #E4E7EE;
 
-  --status-info: #9DA0A5;
-  --status-warning: #D0A060;
-  --status-error: #C86464;
-  --status-ok: #78A878;
+  --status-info: #2563EB;
+  --status-warning: #D97706;
+  --status-error: #DC2626;
+  --status-ok: #16A34A;
 
-  --scrollbar-thumb: #CFD4DD;
-  --scrollbar-thumb-hover: #9DA0A5;
+  --scrollbar-thumb: #BFC4D2;
+  --scrollbar-thumb-hover: #8F95A5;
   color-scheme: light;
 }
 

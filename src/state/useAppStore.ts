@@ -386,6 +386,9 @@ interface AppState {
   videoRenderMode: VideoRenderMode;
   setVideoRenderMode: (m: VideoRenderMode) => void;
   toggleVideoRenderMode: () => void;
+  previewMode: VideoRenderMode;
+  setPreviewMode: (m: VideoRenderMode) => void;
+  togglePreviewMode: () => void;
 
   hasConfiguredAnimation: boolean;
   setHasConfiguredAnimation: (val: boolean) => void;
@@ -421,6 +424,10 @@ interface AppState {
   setIsDraggingSlider: (dragging: boolean) => void;
   lastRenderMs: number;
   setLastRenderMs: (ms: number) => void;
+  activeBackend: 'rust' | 'js' | 'js-fallback';
+  setActiveBackend: (b: 'rust' | 'js' | 'js-fallback') => void;
+  backendError: string | null;
+  setBackendError: (err: string | null) => void;
 
   zoom: number;
   panX: number;
@@ -893,10 +900,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   videoRenderMode: 'quick',
-  setVideoRenderMode: (videoRenderMode) => set({ videoRenderMode }),
-  toggleVideoRenderMode: () => set((state) => ({
-    videoRenderMode: state.videoRenderMode === 'quick' ? 'rendered' : 'quick'
-  })),
+  setVideoRenderMode: (videoRenderMode) => set({ videoRenderMode, previewMode: videoRenderMode }),
+  toggleVideoRenderMode: () => set((state) => {
+    const next = state.videoRenderMode === 'quick' ? 'rendered' : 'quick';
+    return { videoRenderMode: next, previewMode: next };
+  }),
+  previewMode: 'quick',
+  setPreviewMode: (previewMode) => set({ previewMode, videoRenderMode: previewMode }),
+  togglePreviewMode: () => set((state) => {
+    const next = state.previewMode === 'quick' ? 'rendered' : 'quick';
+    return { previewMode: next, videoRenderMode: next };
+  }),
 
   hasConfiguredAnimation: false,
   setHasConfiguredAnimation: (hasConfiguredAnimation) => set({ hasConfiguredAnimation }),
@@ -1000,6 +1014,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setIsDraggingSlider: (isDraggingSlider) => set({ isDraggingSlider }),
   lastRenderMs: 0,
   setLastRenderMs: (lastRenderMs) => set({ lastRenderMs }),
+  activeBackend: 'rust',
+  setActiveBackend: (activeBackend) => set({ activeBackend }),
+  backendError: null,
+  setBackendError: (backendError) => set({ backendError }),
 
   zoom: 100,
   panX: 0,

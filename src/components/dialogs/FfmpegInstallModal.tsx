@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, CheckCircle, Terminal, Download, Copy, Check, RefreshCw } from 'lucide-react';
+import { X, CheckCircle, Video, Terminal, Download, Copy, Check, RefreshCw } from 'lucide-react';
 import { ffmpegService, FfmpegStatus } from '../../services/ffmpegService';
 
 interface FfmpegInstallModalProps {
@@ -21,6 +21,24 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
   const [installError, setInstallError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+
+  // Proactively fetch/refresh status whenever the modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    setIsChecking(true);
+    onRefresh().finally(() => {
+      setIsChecking(false);
+    });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -63,84 +81,117 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
   const isWindows = status?.os === 'windows';
   const installCmd =
     status?.install_command ||
-    (isWindows ? 'winget install -e --id Gyan.FFmpeg' : 'sudo apt install ffmpeg');
+    (isWindows ? 'winget install -e --id Gyan.FFmpeg' : 'sudo dnf install -y ffmpeg');
+
+  const pkgLabel = status?.package_manager
+    ? status.package_manager.toUpperCase()
+    : isWindows
+    ? 'WINGET'
+    : 'LINUX';
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal-container"
-        style={{ maxWidth: '540px', width: '92%' }}
+        className="modal-dialog ffmpeg-modal"
+        style={{ maxWidth: '520px', width: '92%' }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ffmpeg-modal-title"
       >
         {/* Header */}
-        <div
-          className="modal-header"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--border-color)',
-            background: 'var(--bg-tertiary)'
-          }}
-        >
+        <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Terminal size={18} style={{ color: 'var(--accent-primary)' }} />
-            <h2 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>
+            <Video size={16} style={{ color: 'var(--text-dim)' }} />
+            <span id="ffmpeg-modal-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
               Native Video Engine (FFmpeg)
-            </h2>
+            </span>
           </div>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={onClose}
-            aria-label="Close"
-            style={{ padding: '4px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
-          >
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
         </div>
 
         {/* Content Body */}
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {isInstalled ? (
+        <div className="modal-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {status === null && isChecking ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 20px', gap: '12px' }}>
+              <RefreshCw size={22} className="spin" style={{ color: 'var(--text-muted)' }} />
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Detecting FFmpeg installation...
+              </div>
+            </div>
+          ) : isInstalled ? (
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                textAlign: 'center',
+                gap: '14px',
                 padding: '16px',
-                background: 'color-mix(in srgb, var(--status-success, #22c55e) 10%, transparent)',
+                background: 'var(--bg-secondary)',
                 borderRadius: 'var(--radius-sm, 6px)',
-                border: '1px solid color-mix(in srgb, var(--status-success, #22c55e) 30%, transparent)'
+                border: '1px solid var(--border-color)'
               }}
             >
-              <CheckCircle size={36} style={{ color: 'var(--status-success, #22c55e)', marginBottom: '10px' }} />
-              <div style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--text-main)' }}>
-                FFmpeg &amp; ffprobe are Active
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <CheckCircle size={22} style={{ color: '#4ade80', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                    FFmpeg &amp; ffprobe are Active
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {status?.version ? status.version.split('\n')[0] : 'Installed and operational'}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: '6px' }}>
-                {status?.version || 'FFmpeg version installed'}
-              </div>
+
               <div
                 style={{
-                  fontSize: '0.72rem',
-                  color: 'var(--text-muted)',
-                  marginTop: '8px',
-                  fontFamily: 'var(--font-mono)'
+                  background: 'var(--bg-primary)',
+                  borderRadius: 'var(--radius-xs, 4px)',
+                  border: '1px solid var(--border-color)',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '0.74rem'
                 }}
               >
-                {status?.ffmpeg_path}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>ffmpeg binary:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>
+                    {status?.ffmpeg_path || '/usr/bin/ffmpeg'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>ffprobe binary:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>
+                    {status?.ffprobe_path || '/usr/bin/ffprobe'}
+                  </span>
+                </div>
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: '12px', lineHeight: 1.4 }}>
-                Native video streaming, H.264 / VP9 encoding, and pristine audio synchronization are active.
+
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', lineHeight: 1.45 }}>
+                Native video streaming, H.264 / VP9 encoding, and audio synchronization are active and hardware-accelerated.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '4px' }}>
+                <button
+                  type="button"
+                  className="btn-default"
+                  disabled={isChecking}
+                  onClick={handleCheckAgain}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', padding: '4px 10px' }}
+                >
+                  <RefreshCw size={12} className={isChecking ? 'spin' : ''} />
+                  Re-check Status
+                </button>
               </div>
             </div>
           ) : (
             <>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.45 }}>
-                FFmpeg is recommended for optimal performance in Animation Mode, providing high-speed video decoding, H.264/VP9 encoding, and audio synchronization.
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', lineHeight: 1.45 }}>
+                FFmpeg is recommended for optimal video decoding and encoding in Animation Mode, providing high-speed frame extraction and audio synchronization.
               </div>
 
               {/* Install Instructions Card */}
@@ -155,8 +206,8 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
                   gap: '10px'
                 }}
               >
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-dim)' }}>
-                  {isWindows ? 'Recommended Installation (WinGet)' : `Package Manager (${status?.package_manager || 'Linux'})`}
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-dim)' }}>
+                  PACKAGE MANAGER ({pkgLabel})
                 </div>
 
                 <div
@@ -194,44 +245,59 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
                   </button>
                 </div>
 
-                {/* Primary Action Button */}
-                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                  <button
-                    type="button"
-                    className="unified-pill-btn"
-                    disabled={isInstalling}
-                    onClick={handleRunInstaller}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '8px 14px'
-                    }}
-                  >
-                    <Download size={14} />
-                    {isInstalling
-                      ? 'Installing...'
-                      : isWindows
-                      ? 'Install with WinGet'
-                      : status?.terminal_available
-                      ? `Install via Terminal (${status.terminal_available})`
-                      : 'Launch Installer'}
-                  </button>
+                {/* Primary Action Buttons */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                  {status?.terminal_available ? (
+                    <button
+                      type="button"
+                      className="btn-default"
+                      disabled={isInstalling}
+                      onClick={handleRunInstaller}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        fontSize: '0.78rem'
+                      }}
+                    >
+                      <Terminal size={14} />
+                      {isInstalling ? 'Launching...' : `Run in ${status.terminal_available}`}
+                    </button>
+                  ) : isWindows ? (
+                    <button
+                      type="button"
+                      className="btn-default"
+                      disabled={isInstalling}
+                      onClick={handleRunInstaller}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        fontSize: '0.78rem'
+                      }}
+                    >
+                      <Download size={14} />
+                      {isInstalling ? 'Installing...' : 'Install via WinGet'}
+                    </button>
+                  ) : null}
 
                   <button
                     type="button"
                     className="btn-default"
                     disabled={isChecking}
                     onClick={handleCheckAgain}
-                    title="Check if FFmpeg was installed"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
-                      padding: '8px 12px',
-                      cursor: 'pointer'
+                      padding: '6px 12px',
+                      fontSize: '0.78rem'
                     }}
                   >
                     <RefreshCw size={13} className={isChecking ? 'spin' : ''} />
@@ -241,14 +307,14 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
 
                 {isWindows && (
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    WinGet unavailable?{' '}
+                    Manual download:{' '}
                     <a
                       href="https://www.gyan.dev/ffmpeg/builds/"
                       target="_blank"
                       rel="noreferrer"
                       style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}
                     >
-                      Download Gyan FFmpeg manually
+                      gyan.dev/ffmpeg/builds
                     </a>
                   </div>
                 )}
@@ -258,7 +324,7 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
               {installMessage && (
                 <div
                   style={{
-                    fontSize: '0.78rem',
+                    fontSize: '0.76rem',
                     color: 'var(--status-success, #22c55e)',
                     padding: '8px 12px',
                     borderRadius: 'var(--radius-xs, 4px)',
@@ -272,7 +338,7 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
               {installError && (
                 <div
                   style={{
-                    fontSize: '0.78rem',
+                    fontSize: '0.76rem',
                     color: 'var(--status-danger, #ef4444)',
                     padding: '8px 12px',
                     borderRadius: 'var(--radius-xs, 4px)',
@@ -286,14 +352,14 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
               {/* Fallback Notice */}
               <div
                 style={{
-                  fontSize: '0.74rem',
+                  fontSize: '0.72rem',
                   color: 'var(--text-muted)',
                   borderTop: '1px solid var(--border-color)',
-                  paddingTop: '12px',
+                  paddingTop: '10px',
                   lineHeight: 1.4
                 }}
               >
-                <strong>Browser Fallback:</strong> If FFmpeg is not installed, DitherForge will automatically use the built-in browser video engine (Canvas + MediaRecorder). FFmpeg is not required for normal image editing.
+                <strong>Browser Fallback:</strong> If FFmpeg is not installed, DitherForge will automatically use the built-in browser engine (Canvas + MediaRecorder). FFmpeg is not required for normal image editing.
               </div>
             </>
           )}
@@ -311,14 +377,14 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
             background: 'var(--bg-tertiary)'
           }}
         >
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-            {isInstalled ? 'Backend: Native FFmpeg' : 'Backend: Browser Fallback'}
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Backend: {isInstalled ? 'Native FFmpeg' : 'Browser Fallback'}
           </span>
           <button
             type="button"
             className="btn-default"
             onClick={onClose}
-            style={{ padding: '6px 14px', cursor: 'pointer' }}
+            style={{ padding: '4px 14px', fontSize: '0.8rem' }}
           >
             {isInstalled ? 'Done' : 'Continue with Browser Fallback'}
           </button>

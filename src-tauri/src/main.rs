@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(dead_code, unused_variables)]
 
 mod algorithms;
 mod effects;
@@ -19,6 +20,7 @@ use image::{
     Delay, Frame, ImageFormat, ImageReader, RgbaImage,
 };
 use palette::{extract_palette_median_cut, get_builtin_palettes, PalettePreset};
+use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufWriter, Cursor};
 use tauri::ipc::{InvokeBody, Request, Response};
@@ -206,6 +208,18 @@ pub struct BinaryProcessHeader {
     pub bleed: Option<f32>,
     #[serde(default, alias = "smoothingFactor")]
     pub smoothing: Option<f32>,
+    #[serde(default, alias = "noisyLines")]
+    pub noisy_lines: Option<bool>,
+    #[serde(default, alias = "offsetX")]
+    pub offset_x: Option<f32>,
+    #[serde(default, alias = "offsetY")]
+    pub offset_y: Option<f32>,
+    #[serde(default)]
+    pub bands: Option<f32>,
+    #[serde(default, alias = "stripeSpacing")]
+    pub stripe_spacing: Option<f32>,
+    #[serde(default, alias = "cellRadius")]
+    pub cell_radius: Option<f32>,
     #[serde(default, alias = "lineSpacing")]
     pub line_spacing: Option<f32>,
     #[serde(default, alias = "lineDensity")]
@@ -421,21 +435,39 @@ fn apply_raw_temporal_noise(
     let h = height as usize;
     let t = (frame_idx as f32 * speed.max(0.1)).round() as u32;
     let amp = intensity.clamp(0.0, 1.0) * 64.0;
+    const INV_U32_MAX: f32 = 1.0 / (u32::MAX as f32);
+
+    let is_flicker = pat == "flicker";
+    let is_scanline = matches!(
+        pat.as_str(),
+        "scanline" | "scanlines" | "scanline_drift" | "rolling"
+    );
+    let flicker_term = if is_flicker {
+        (frame_idx as f32 * speed * 0.8).sin() * 0.5
+    } else {
+        0.0
+    };
 
     for y in 0..h {
-        let row_phase = ((y as f32 * 0.15 + frame_idx as f32 * speed * 0.4).sin()) * amp;
+        let row_phase = if is_scanline {
+            ((y as f32 * 0.15 + frame_idx as f32 * speed * 0.4).sin()) * amp
+        } else {
+            0.0
+        };
         for x in 0..w {
             let idx = (y * w + x) * 4;
             let mut h_val = (x as u32).wrapping_mul(374761393)
                 ^ (y as u32).wrapping_mul(668265263)
                 ^ t.wrapping_mul(1274126177);
             h_val = (h_val ^ (h_val >> 13)).wrapping_mul(1274126177);
-            let rand_norm = ((h_val ^ (h_val >> 16)) as f32 / u32::MAX as f32) * 2.0 - 1.0;
+            let rand_norm = ((h_val ^ (h_val >> 16)) as f32 * INV_U32_MAX) * 2.0 - 1.0;
 
-            let delta = match pat.as_str() {
-                "flicker" => ((frame_idx as f32 * speed * 0.8).sin() * 0.5 + rand_norm * 0.5) * amp,
-                "scanline" | "scanlines" | "scanline_drift" | "rolling" => row_phase + rand_norm * (amp * 0.35),
-                _ => rand_norm * amp,
+            let delta = if is_flicker {
+                (flicker_term + rand_norm * 0.5) * amp
+            } else if is_scanline {
+                row_phase + rand_norm * (amp * 0.35)
+            } else {
+                rand_norm * amp
             };
             data[idx] = (data[idx] as f32 + delta).round().clamp(0.0, 255.0) as u8;
             data[idx + 1] = (data[idx + 1] as f32 + delta).round().clamp(0.0, 255.0) as u8;
@@ -492,6 +524,7 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
         line_scale: header.line_scale,
         bleed: header.bleed,
         smoothing: header.smoothing,
+        noisy_lines: header.noisy_lines,
         line_spacing: header.line_spacing,
         line_density: header.line_density,
         line_angle: header.line_angle,
@@ -535,6 +568,12 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
         orb_random: header.orb_random,
         orb_offset: header.orb_offset,
         orb_vertical: header.orb_vertical,
+        offset_x: header.offset_x,
+        offset_y: header.offset_y,
+        bands: header.bands,
+        stripe_spacing: header.stripe_spacing,
+        cell_radius: header.cell_radius,
+        ..Default::default()
     };
 
     let mut b = header.brightness.unwrap_or(0.0);
@@ -561,6 +600,29 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
     let has_pre_noise = header.algorithm != "none"
         && header.algorithm != "static_snow"
         && noise_amt > 0.001;
+
+    let algo_norm = header.algorithm.to_lowercase().replace('-', "_");
+    if algo_norm == "none" {
+        let mut out_bytes = pixel_data.to_vec();
+        if has_tweaks {
+            apply_raw_pre_adjustments(&mut out_bytes, b, c, s, g, hue);
+        }
+        if has_temporal {
+            apply_raw_temporal_noise(
+                &mut out_bytes,
+                header.width,
+                header.height,
+                temp_pat,
+                header.temporal_seed.unwrap_or(0),
+                temp_int,
+                temp_spd,
+            );
+        }
+        if !header.effect_stack.is_empty() {
+            apply_effect_stack_raw(header.width, header.height, &mut out_bytes, &header.effect_stack);
+        }
+        return Ok(out_bytes);
+    }
 
     let working_input: Vec<u8>;
     let input_slice: &[u8] = if has_tweaks || has_temporal || has_lum_shift || has_pre_noise {
@@ -622,6 +684,15 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
 }
 
 #[tauri::command]
+fn ping_rust_engine() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "status": "ok",
+        "backend": "rust",
+        "version": "1.0.0"
+    }))
+}
+
+#[tauri::command]
 async fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
     let raw_bytes: Vec<u8> = match request.body() {
         InvokeBody::Raw(bytes) => bytes.clone(),
@@ -640,17 +711,14 @@ async fn process_image_binary(request: Request<'_>) -> Result<Response, String> 
         }
         let header_len = u32::from_le_bytes(raw_bytes[0..4].try_into().unwrap()) as usize;
         if raw_bytes.len() < 4 + header_len {
-            return Err(format!(
-                "Payload too short for metadata: expected {} bytes header, got {}",
-                header_len,
-                raw_bytes.len() - 4
-            ));
+            return Err("Payload too short for metadata".to_string());
         }
 
         let header: BinaryProcessHeader = serde_json::from_slice(&raw_bytes[4..4 + header_len])
             .map_err(|e| format!("Failed to parse metadata header: {}", e))?;
         let pixel_data = &raw_bytes[4 + header_len..];
         let out_bytes = execute_binary_frame(&header, pixel_data)?;
+
         Ok(Response::new(out_bytes))
     })
     .await
@@ -700,21 +768,25 @@ async fn process_animation_batch(request: Request<'_>) -> Result<Response, Strin
             ));
         }
 
-        let mut all_out = Vec::with_capacity(payload.len());
         let base_seed = batch.base_header.temporal_seed.unwrap_or(0);
-        for f_idx in 0..batch.frame_count {
-            let mut frame_header = batch.base_header.clone();
-            let frame_seed = base_seed.wrapping_add(f_idx as u32);
-            frame_header.temporal_seed = Some(frame_seed);
+        let mut all_out = vec![0u8; payload.len()];
+        all_out
+            .par_chunks_exact_mut(frame_bytes)
+            .enumerate()
+            .try_for_each(|(f_idx, out_chunk)| -> Result<(), String> {
+                let mut frame_header = batch.base_header.clone();
+                let frame_seed = base_seed.wrapping_add(f_idx as u32);
+                frame_header.temporal_seed = Some(frame_seed);
 
-            for eff in &mut frame_header.effect_stack {
-                eff.offset_seed(f_idx as u32);
-            }
+                for eff in &mut frame_header.effect_stack {
+                    eff.offset_seed(f_idx as u32);
+                }
 
-            let slice = &payload[f_idx * frame_bytes..(f_idx + 1) * frame_bytes];
-            let rendered = execute_binary_frame(&frame_header, slice)?;
-            all_out.extend_from_slice(&rendered);
-        }
+                let slice = &payload[f_idx * frame_bytes..(f_idx + 1) * frame_bytes];
+                let processed = execute_binary_frame(&frame_header, slice)?;
+                out_chunk.copy_from_slice(&processed);
+                Ok(())
+            })?;
 
         Ok(Response::new(all_out))
     })
@@ -841,6 +913,39 @@ async fn export_media_native(req: NativeExportRequest) -> Result<NativeExportRes
 }
 
 #[tauri::command]
+fn select_export_directory() -> Result<Option<String>, String> {
+    let folder = rfd::FileDialog::new()
+        .set_title("Select DitherForge Export Folder")
+        .pick_folder();
+    Ok(folder.map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn get_default_export_directory() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(profile) = std::env::var("USERPROFILE") {
+            let p = std::path::Path::new(&profile).join("Downloads");
+            if p.exists() {
+                return Ok(p.to_string_lossy().to_string());
+            }
+            return Ok(profile);
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let p = std::path::Path::new(&home).join("Downloads");
+            if p.exists() {
+                return Ok(p.to_string_lossy().to_string());
+            }
+            return Ok(home);
+        }
+    }
+    Ok("Downloads".to_string())
+}
+
+#[tauri::command]
 fn purge_temp_cache() -> Result<String, String> {
     // Drop cached memory buffers
     Ok("Cache purged successfully".to_string())
@@ -945,6 +1050,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            ping_rust_engine,
             get_algorithms_list,
             get_effects_list,
             get_palettes,
@@ -953,6 +1059,8 @@ fn main() {
             process_image_binary,
             process_animation_batch,
             export_media_native,
+            select_export_directory,
+            get_default_export_directory,
             purge_temp_cache,
             read_binary_file,
             show_main_window,

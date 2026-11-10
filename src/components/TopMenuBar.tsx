@@ -116,15 +116,19 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
 
   useEffect(() => {
     if (!activeMenu) return;
-    const handleOutsideMouseDown = (e: MouseEvent) => {
+    const handleOutsideInteraction = (e: MouseEvent | PointerEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target?.closest?.('.menu-dropdowns')) {
         setActiveMenu(null);
         setIsThemesSubmenuOpen(false);
       }
     };
-    window.addEventListener('mousedown', handleOutsideMouseDown);
-    return () => window.removeEventListener('mousedown', handleOutsideMouseDown);
+    window.addEventListener('pointerdown', handleOutsideInteraction, true);
+    window.addEventListener('mousedown', handleOutsideInteraction, true);
+    return () => {
+      window.removeEventListener('pointerdown', handleOutsideInteraction, true);
+      window.removeEventListener('mousedown', handleOutsideInteraction, true);
+    };
   }, [activeMenu]);
 
   useEffect(() => {

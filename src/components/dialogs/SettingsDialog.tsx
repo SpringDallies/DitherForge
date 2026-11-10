@@ -4,6 +4,7 @@ import { X, Settings } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 import { Dropdown } from '../common/Dropdown';
 import { useAppStore } from '../../state/useAppStore';
+import { EngineBridge } from '../../services/EngineBridge';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 
@@ -12,6 +13,7 @@ export interface DitherForgeSettings {
   liveProxyEnabled: boolean;
   language: string;
   defaultExportFormat: 'png' | 'jpg' | 'webp' | 'svg';
+  exportFolder?: string;
   recentFilesLimit: number;
   smoothScroll: boolean;
   scrollTightness: number;
@@ -99,11 +101,21 @@ interface SettingsDialogProps {
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<DitherForgeSettings>(getStoredSettings);
   const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
+  const [defaultExportDir, setDefaultExportDir] = useState<string>('Downloads');
+
+  const activeBackend = useAppStore((state) => state.activeBackend);
+  const backendError = useAppStore((state) => state.backendError);
+  const lastRenderMs = useAppStore((state) => state.lastRenderMs);
 
   useEffect(() => {
     if (isOpen) {
       setSettings(getStoredSettings());
       setPurgeMsg(null);
+      if (EngineBridge.isTauri()) {
+        EngineBridge.getDefaultExportDirectory().then((dir) => {
+          if (dir) setDefaultExportDir(dir);
+        }).catch(() => {});
+      }
     }
   }, [isOpen]);
 
@@ -550,9 +562,43 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               />
             </div>
 
-            <div className="settings-row">
-              <span className="settings-label">Export folder</span>
-              <span className="settings-readonly-text">(n/a — browser)</span>
+            <div className="settings-row" style={{ alignItems: 'flex-start' }}>
+              <div>
+                <span className="settings-label">Export folder</span>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px', maxWidth: '280px', wordBreak: 'break-all' }}>
+                  {EngineBridge.isTauri()
+                    ? (settings.exportFolder || `${defaultExportDir} (Default)`)
+                    : '(n/a — browser downloads)'}
+                </div>
+              </div>
+              {EngineBridge.isTauri() && (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    className="action-btn"
+                    style={{ fontSize: '0.75rem', padding: '4px 10px', height: '28px' }}
+                    onClick={async () => {
+                      const folder = await EngineBridge.selectExportDirectory();
+                      if (folder) {
+                        updateSetting('exportFolder', folder);
+                      }
+                    }}
+                  >
+                    Browse...
+                  </button>
+                  {settings.exportFolder && (
+                    <button
+                      type="button"
+                      className="action-btn"
+                      style={{ fontSize: '0.75rem', padding: '4px 8px', height: '28px', color: 'var(--text-muted)' }}
+                      title="Reset to default Downloads folder"
+                      onClick={() => updateSetting('exportFolder', undefined as any)}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="settings-row">
@@ -622,7 +668,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
           {/* Section: ABOUT */}
           <div className="settings-section">
-            <div className="settings-section-title">ABOUT</div>
+            <div className="settings-section-title">ENGINE & ABOUT</div>
+
+            <div className="settings-row">
+              <span className="settings-label">Active backend</span>
+              <span className="settings-readonly-text">
+                {activeBackend === 'rust' ? 'Rust' : activeBackend === 'js-fallback' ? 'JavaScript (Fallback)' : 'JavaScript'}
+              </span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Last render time</span>
+              <span className="settings-readonly-text">
+                {lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)} ms` : '< 1 ms'}
+              </span>
+            </div>
 
             <div className="settings-row">
               <span className="settings-label">Version</span>
@@ -636,7 +696,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <span className="settings-label">Built with</span>
-              <span className="settings-readonly-text">React + Vite</span>
+              <span className="settings-readonly-text">React + Vite + Rust</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 use image::{Rgba, RgbaImage};
+use rayon::prelude::*;
 use crate::engine::{
     find_nearest_palette_color, AlgorithmCategory, DitherSettings,
 };
@@ -29,6 +30,7 @@ pub struct RawAlgorithmParams {
     pub twist_strength: Option<f32>,
     pub spiral_frequency: Option<f32>,
     pub line_scale: Option<f32>,
+    pub noisy_lines: Option<bool>,
     pub bleed: Option<f32>,
     pub smoothing: Option<f32>,
     pub line_spacing: Option<f32>,
@@ -74,6 +76,11 @@ pub struct RawAlgorithmParams {
     pub orb_random: Option<f32>,
     pub orb_offset: Option<f32>,
     pub orb_vertical: Option<bool>,
+    pub offset_x: Option<f32>,
+    pub offset_y: Option<f32>,
+    pub bands: Option<f32>,
+    pub stripe_spacing: Option<f32>,
+    pub cell_radius: Option<f32>,
 }
 
 pub const ALGORITHM_REGISTRY: &[AlgorithmDescriptor] = &[
@@ -208,6 +215,9 @@ fn is_grid_scaled_algorithm(id: &str) -> bool {
             | "vortex_diffusion"
             | "pigeon_diffusion"
             | "pigeon"
+            | "orb_diffuse"
+            | "orb_diffuse_x"
+            | "orb_diffuse_y"
     )
 }
 
@@ -225,75 +235,129 @@ fn run_1d_horizontal_diffusion<F>(
 {
     let w = width as usize;
     let h = height as usize;
-    let line_scale = params.line_scale.unwrap_or(1.0).max(1.0);
+    let scale = params.scale.max(0.05);
+    let line_scale = (params.line_scale.unwrap_or(1.0) * scale).max(1.0);
     let bleed = params.bleed.unwrap_or(0.0).clamp(0.0, 1.0);
     let smoothing = params.smoothing.unwrap_or(0.0).max(0.0);
     let alpha = if smoothing == 0.0 { 1.0 } else { 1.0 / (1.0 + smoothing * 1.2) };
-    let base_weight = 0.45;
-    let max_err = 128.0;
+    let noise = params.noisy_lines.unwrap_or(false);
+    let base_weight = if noise { 0.95 } else { 0.45 };
+    let max_err = 128.0f32;
 
-    let mut next_scanline_err = vec![[0.0f32; 3]; w];
+    if lut.is_tonal_ramp {
+        let n = lut.palette_size;
+        let mut next_scanline_err = vec![0.0f32; w];
+        for y in 0..h {
+            let mut scan_err = 0.0f32;
+            let mut ema_mod = 0.0f32;
+            let mut ema_lum = 0.0f32;
+            let sy = (y as f32 / line_scale).floor() as usize;
 
-    for y in 0..h {
-        let mut scan_err = [0.0f32; 3];
-        let mut ema_rgb = [0.0f32; 3];
-        let mut ema_mod = 0.0f32;
-        let sy = (y as f32 / line_scale).floor() as usize;
+            for x in 0..w {
+                let idx = (y * w + x) * 4;
+                let raw_lum = crate::palette::get_luminance(input[idx] as f32, input[idx + 1] as f32, input[idx + 2] as f32);
+                ema_lum = if x == 0 || smoothing == 0.0 { raw_lum } else { ema_lum * (1.0 - alpha) + raw_lum * alpha };
+                let in_err = scan_err + next_scanline_err[x];
+                next_scanline_err[x] = 0.0;
+                let cur_lum = (ema_lum + in_err).clamp(0.0, 255.0);
 
-        for x in 0..w {
-            let idx = (y * w + x) * 4;
-            let in_r = input[idx] as f32;
-            let in_g = input[idx + 1] as f32;
-            let in_b = input[idx + 2] as f32;
+                let noise_offset = if noise {
+                    let pseudo = (x as f32 * 12.9898 + y as f32 * 78.233).sin() * 43758.5453;
+                    (pseudo - pseudo.floor() - 0.5) * 32.0
+                } else {
+                    0.0
+                };
 
-            if x == 0 || smoothing == 0.0 {
-                ema_rgb = [in_r, in_g, in_b];
-            } else {
-                ema_rgb[0] = ema_rgb[0] * (1.0 - alpha) + in_r * alpha;
-                ema_rgb[1] = ema_rgb[1] * (1.0 - alpha) + in_g * alpha;
-                ema_rgb[2] = ema_rgb[2] * (1.0 - alpha) + in_b * alpha;
+                let mod_val = get_modulation(x, sy, cur_lum);
+                ema_mod = if x == 0 && smoothing > 0.0 { mod_val } else { ema_mod * (1.0 - alpha) + mod_val * alpha };
+
+                let eff_lum = (cur_lum + ema_mod * 32.0 + noise_offset).clamp(0.0, 255.0);
+                let t = (eff_lum / 255.0) * (n - 1) as f32;
+                let chosen_idx = (t.round() as usize).min(n - 1);
+
+                let col = lut.raw_palette[chosen_idx];
+                out[idx] = col[0];
+                out[idx + 1] = col[1];
+                out[idx + 2] = col[2];
+                out[idx + 3] = input[idx + 3];
+
+                let diff = eff_lum - lut.luminances[chosen_idx];
+                let err = (diff * diff_mult * base_weight).clamp(-max_err, max_err);
+                scan_err = err * (1.0 - bleed);
+                next_scanline_err[x] = err * bleed;
             }
+        }
+    } else {
+        let mut next_scanline_err = vec![[0.0f32; 3]; w];
 
-            let prelim_r = (ema_rgb[0] + scan_err[0] + next_scanline_err[x][0]).clamp(0.0, 255.0);
-            let prelim_g = (ema_rgb[1] + scan_err[1] + next_scanline_err[x][1]).clamp(0.0, 255.0);
-            let prelim_b = (ema_rgb[2] + scan_err[2] + next_scanline_err[x][2]).clamp(0.0, 255.0);
-            next_scanline_err[x] = [0.0, 0.0, 0.0];
+        for y in 0..h {
+            let mut scan_err = [0.0f32; 3];
+            let mut ema_rgb = [0.0f32; 3];
+            let mut ema_mod = 0.0f32;
+            let sy = (y as f32 / line_scale).floor() as usize;
 
-            let cur_lum = 0.299 * prelim_r + 0.587 * prelim_g + 0.114 * prelim_b;
-            let mod_val = get_modulation(x, sy, cur_lum);
+            for x in 0..w {
+                let idx = (y * w + x) * 4;
+                let in_r = input[idx] as f32;
+                let in_g = input[idx + 1] as f32;
+                let in_b = input[idx + 2] as f32;
 
-            if x == 0 && smoothing > 0.0 {
-                ema_mod = mod_val;
-            } else {
-                ema_mod = ema_mod * (1.0 - alpha) + mod_val * alpha;
+                if x == 0 || smoothing == 0.0 {
+                    ema_rgb = [in_r, in_g, in_b];
+                } else {
+                    ema_rgb[0] = ema_rgb[0] * (1.0 - alpha) + in_r * alpha;
+                    ema_rgb[1] = ema_rgb[1] * (1.0 - alpha) + in_g * alpha;
+                    ema_rgb[2] = ema_rgb[2] * (1.0 - alpha) + in_b * alpha;
+                }
+
+                let prelim_r = (ema_rgb[0] + scan_err[0] + next_scanline_err[x][0]).clamp(0.0, 255.0);
+                let prelim_g = (ema_rgb[1] + scan_err[1] + next_scanline_err[x][1]).clamp(0.0, 255.0);
+                let prelim_b = (ema_rgb[2] + scan_err[2] + next_scanline_err[x][2]).clamp(0.0, 255.0);
+                next_scanline_err[x] = [0.0, 0.0, 0.0];
+
+                let cur_lum = crate::palette::get_luminance(prelim_r, prelim_g, prelim_b);
+                let mod_val = get_modulation(x, sy, cur_lum);
+
+                if x == 0 && smoothing > 0.0 {
+                    ema_mod = mod_val;
+                } else {
+                    ema_mod = ema_mod * (1.0 - alpha) + mod_val * alpha;
+                }
+
+                let noise_offset = if noise {
+                    let pseudo = (x as f32 * 12.9898 + y as f32 * 78.233).sin() * 43758.5453;
+                    (pseudo - pseudo.floor() - 0.5) * 32.0
+                } else {
+                    0.0
+                };
+
+                let bias = ema_mod * 32.0 + noise_offset;
+                let cur_r = (prelim_r + bias).clamp(0.0, 255.0);
+                let cur_g = (prelim_g + bias).clamp(0.0, 255.0);
+                let cur_b = (prelim_b + bias).clamp(0.0, 255.0);
+
+                let chosen = lut.inline_match(cur_r, cur_g, cur_b);
+                out[idx] = chosen[0];
+                out[idx + 1] = chosen[1];
+                out[idx + 2] = chosen[2];
+                out[idx + 3] = input[idx + 3];
+
+                let diff_r = cur_r - chosen[0] as f32;
+                let diff_g = cur_g - chosen[1] as f32;
+                let diff_b = cur_b - chosen[2] as f32;
+
+                let err_r = (diff_r * diff_mult * base_weight).clamp(-max_err, max_err);
+                let err_g = (diff_g * diff_mult * base_weight).clamp(-max_err, max_err);
+                let err_b = (diff_b * diff_mult * base_weight).clamp(-max_err, max_err);
+
+                scan_err[0] = err_r * (1.0 - bleed);
+                scan_err[1] = err_g * (1.0 - bleed);
+                scan_err[2] = err_b * (1.0 - bleed);
+
+                next_scanline_err[x][0] = err_r * bleed;
+                next_scanline_err[x][1] = err_g * bleed;
+                next_scanline_err[x][2] = err_b * bleed;
             }
-
-            let bias = ema_mod * 32.0;
-            let cur_r = (prelim_r + bias).clamp(0.0, 255.0);
-            let cur_g = (prelim_g + bias).clamp(0.0, 255.0);
-            let cur_b = (prelim_b + bias).clamp(0.0, 255.0);
-
-            let chosen = lut.inline_match(cur_r, cur_g, cur_b);
-            out[idx] = chosen[0];
-            out[idx + 1] = chosen[1];
-            out[idx + 2] = chosen[2];
-            out[idx + 3] = input[idx + 3];
-
-            let diff_r = cur_r - chosen[0] as f32;
-            let diff_g = cur_g - chosen[1] as f32;
-            let diff_b = cur_b - chosen[2] as f32;
-
-            let err_r = (diff_r * diff_mult * base_weight).clamp(-max_err, max_err);
-            let err_g = (diff_g * diff_mult * base_weight).clamp(-max_err, max_err);
-            let err_b = (diff_b * diff_mult * base_weight).clamp(-max_err, max_err);
-
-            scan_err[0] = err_r * (1.0 - bleed);
-            scan_err[1] = err_g * (1.0 - bleed);
-            scan_err[2] = err_b * (1.0 - bleed);
-
-            next_scanline_err[x][0] = err_r * bleed;
-            next_scanline_err[x][1] = err_g * bleed;
-            next_scanline_err[x][2] = err_b * bleed;
         }
     }
 }
@@ -312,75 +376,129 @@ fn run_1d_vertical_diffusion<F>(
 {
     let w = width as usize;
     let h = height as usize;
-    let line_scale = params.line_scale.unwrap_or(1.0).max(1.0);
+    let scale = params.scale.max(0.05);
+    let line_scale = (params.line_scale.unwrap_or(1.0) * scale).max(1.0);
     let bleed = params.bleed.unwrap_or(0.0).clamp(0.0, 1.0);
     let smoothing = params.smoothing.unwrap_or(0.0).max(0.0);
     let alpha = if smoothing == 0.0 { 1.0 } else { 1.0 / (1.0 + smoothing * 1.2) };
-    let base_weight = 0.45;
-    let max_err = 128.0;
+    let noise = params.noisy_lines.unwrap_or(false);
+    let base_weight = if noise { 0.95 } else { 0.45 };
+    let max_err = 128.0f32;
 
-    let mut next_scanline_err = vec![[0.0f32; 3]; h];
+    if lut.is_tonal_ramp {
+        let n = lut.palette_size;
+        let mut next_scanline_err = vec![0.0f32; h];
+        for x in 0..w {
+            let mut scan_err = 0.0f32;
+            let mut ema_mod = 0.0f32;
+            let mut ema_lum = 0.0f32;
+            let sx = (x as f32 / line_scale).floor() as usize;
 
-    for x in 0..w {
-        let mut scan_err = [0.0f32; 3];
-        let mut ema_rgb = [0.0f32; 3];
-        let mut ema_mod = 0.0f32;
-        let sx = (x as f32 / line_scale).floor() as usize;
+            for y in 0..h {
+                let idx = (y * w + x) * 4;
+                let raw_lum = crate::palette::get_luminance(input[idx] as f32, input[idx + 1] as f32, input[idx + 2] as f32);
+                ema_lum = if y == 0 || smoothing == 0.0 { raw_lum } else { ema_lum * (1.0 - alpha) + raw_lum * alpha };
+                let in_err = scan_err + next_scanline_err[y];
+                next_scanline_err[y] = 0.0;
+                let cur_lum = (ema_lum + in_err).clamp(0.0, 255.0);
 
-        for y in 0..h {
-            let idx = (y * w + x) * 4;
-            let in_r = input[idx] as f32;
-            let in_g = input[idx + 1] as f32;
-            let in_b = input[idx + 2] as f32;
+                let noise_offset = if noise {
+                    let pseudo = (x as f32 * 12.9898 + y as f32 * 78.233).sin() * 43758.5453;
+                    (pseudo - pseudo.floor() - 0.5) * 32.0
+                } else {
+                    0.0
+                };
 
-            if y == 0 || smoothing == 0.0 {
-                ema_rgb = [in_r, in_g, in_b];
-            } else {
-                ema_rgb[0] = ema_rgb[0] * (1.0 - alpha) + in_r * alpha;
-                ema_rgb[1] = ema_rgb[1] * (1.0 - alpha) + in_g * alpha;
-                ema_rgb[2] = ema_rgb[2] * (1.0 - alpha) + in_b * alpha;
+                let mod_val = get_modulation(sx, y, cur_lum);
+                ema_mod = if y == 0 && smoothing > 0.0 { mod_val } else { ema_mod * (1.0 - alpha) + mod_val * alpha };
+
+                let eff_lum = (cur_lum + ema_mod * 32.0 + noise_offset).clamp(0.0, 255.0);
+                let t = (eff_lum / 255.0) * (n - 1) as f32;
+                let chosen_idx = (t.round() as usize).min(n - 1);
+
+                let col = lut.raw_palette[chosen_idx];
+                out[idx] = col[0];
+                out[idx + 1] = col[1];
+                out[idx + 2] = col[2];
+                out[idx + 3] = input[idx + 3];
+
+                let diff = eff_lum - lut.luminances[chosen_idx];
+                let err = (diff * diff_mult * base_weight).clamp(-max_err, max_err);
+                scan_err = err * (1.0 - bleed);
+                next_scanline_err[y] = err * bleed;
             }
+        }
+    } else {
+        let mut next_scanline_err = vec![[0.0f32; 3]; h];
 
-            let prelim_r = (ema_rgb[0] + scan_err[0] + next_scanline_err[y][0]).clamp(0.0, 255.0);
-            let prelim_g = (ema_rgb[1] + scan_err[1] + next_scanline_err[y][1]).clamp(0.0, 255.0);
-            let prelim_b = (ema_rgb[2] + scan_err[2] + next_scanline_err[y][2]).clamp(0.0, 255.0);
-            next_scanline_err[y] = [0.0, 0.0, 0.0];
+        for x in 0..w {
+            let mut scan_err = [0.0f32; 3];
+            let mut ema_rgb = [0.0f32; 3];
+            let mut ema_mod = 0.0f32;
+            let sx = (x as f32 / line_scale).floor() as usize;
 
-            let cur_lum = 0.299 * prelim_r + 0.587 * prelim_g + 0.114 * prelim_b;
-            let mod_val = get_modulation(sx, y, cur_lum);
+            for y in 0..h {
+                let idx = (y * w + x) * 4;
+                let in_r = input[idx] as f32;
+                let in_g = input[idx + 1] as f32;
+                let in_b = input[idx + 2] as f32;
 
-            if y == 0 && smoothing > 0.0 {
-                ema_mod = mod_val;
-            } else {
-                ema_mod = ema_mod * (1.0 - alpha) + mod_val * alpha;
+                if y == 0 || smoothing == 0.0 {
+                    ema_rgb = [in_r, in_g, in_b];
+                } else {
+                    ema_rgb[0] = ema_rgb[0] * (1.0 - alpha) + in_r * alpha;
+                    ema_rgb[1] = ema_rgb[1] * (1.0 - alpha) + in_g * alpha;
+                    ema_rgb[2] = ema_rgb[2] * (1.0 - alpha) + in_b * alpha;
+                }
+
+                let prelim_r = (ema_rgb[0] + scan_err[0] + next_scanline_err[y][0]).clamp(0.0, 255.0);
+                let prelim_g = (ema_rgb[1] + scan_err[1] + next_scanline_err[y][1]).clamp(0.0, 255.0);
+                let prelim_b = (ema_rgb[2] + scan_err[2] + next_scanline_err[y][2]).clamp(0.0, 255.0);
+                next_scanline_err[y] = [0.0, 0.0, 0.0];
+
+                let cur_lum = crate::palette::get_luminance(prelim_r, prelim_g, prelim_b);
+                let mod_val = get_modulation(sx, y, cur_lum);
+
+                if y == 0 && smoothing > 0.0 {
+                    ema_mod = mod_val;
+                } else {
+                    ema_mod = ema_mod * (1.0 - alpha) + mod_val * alpha;
+                }
+
+                let noise_offset = if noise {
+                    let pseudo = (x as f32 * 12.9898 + y as f32 * 78.233).sin() * 43758.5453;
+                    (pseudo - pseudo.floor() - 0.5) * 32.0
+                } else {
+                    0.0
+                };
+
+                let bias = ema_mod * 32.0 + noise_offset;
+                let cur_r = (prelim_r + bias).clamp(0.0, 255.0);
+                let cur_g = (prelim_g + bias).clamp(0.0, 255.0);
+                let cur_b = (prelim_b + bias).clamp(0.0, 255.0);
+
+                let chosen = lut.inline_match(cur_r, cur_g, cur_b);
+                out[idx] = chosen[0];
+                out[idx + 1] = chosen[1];
+                out[idx + 2] = chosen[2];
+                out[idx + 3] = input[idx + 3];
+
+                let diff_r = cur_r - chosen[0] as f32;
+                let diff_g = cur_g - chosen[1] as f32;
+                let diff_b = cur_b - chosen[2] as f32;
+
+                let err_r = (diff_r * diff_mult * base_weight).clamp(-max_err, max_err);
+                let err_g = (diff_g * diff_mult * base_weight).clamp(-max_err, max_err);
+                let err_b = (diff_b * diff_mult * base_weight).clamp(-max_err, max_err);
+
+                scan_err[0] = err_r * (1.0 - bleed);
+                scan_err[1] = err_g * (1.0 - bleed);
+                scan_err[2] = err_b * (1.0 - bleed);
+
+                next_scanline_err[y][0] = err_r * bleed;
+                next_scanline_err[y][1] = err_g * bleed;
+                next_scanline_err[y][2] = err_b * bleed;
             }
-
-            let bias = ema_mod * 32.0;
-            let cur_r = (prelim_r + bias).clamp(0.0, 255.0);
-            let cur_g = (prelim_g + bias).clamp(0.0, 255.0);
-            let cur_b = (prelim_b + bias).clamp(0.0, 255.0);
-
-            let chosen = lut.inline_match(cur_r, cur_g, cur_b);
-            out[idx] = chosen[0];
-            out[idx + 1] = chosen[1];
-            out[idx + 2] = chosen[2];
-            out[idx + 3] = input[idx + 3];
-
-            let diff_r = cur_r - chosen[0] as f32;
-            let diff_g = cur_g - chosen[1] as f32;
-            let diff_b = cur_b - chosen[2] as f32;
-
-            let err_r = (diff_r * diff_mult * base_weight).clamp(-max_err, max_err);
-            let err_g = (diff_g * diff_mult * base_weight).clamp(-max_err, max_err);
-            let err_b = (diff_b * diff_mult * base_weight).clamp(-max_err, max_err);
-
-            scan_err[0] = err_r * (1.0 - bleed);
-            scan_err[1] = err_g * (1.0 - bleed);
-            scan_err[2] = err_b * (1.0 - bleed);
-
-            next_scanline_err[y][0] = err_r * bleed;
-            next_scanline_err[y][1] = err_g * bleed;
-            next_scanline_err[y][2] = err_b * bleed;
         }
     }
 }
@@ -428,7 +546,7 @@ fn dither_artifact_modulation_glitch(
                 input[s_idx] as f32,
                 input[s_idx + 1] as f32,
                 input[s_idx + 2] as f32,
-                threshold,
+                threshold as f32,
             );
             out[idx] = chosen[0];
             out[idx + 1] = chosen[1];
@@ -504,18 +622,22 @@ pub fn dither_raw_pattern(
     params: &RawAlgorithmParams,
 ) {
     let w = width as usize;
-    let h = height as usize;
+    let _h = height as usize;
     let sc = scale.max(0.25);
     let cx = w as f32 * 0.5;
-    let cy = h as f32 * 0.5;
+    let cy = height as f32 * 0.5;
+    let row_len = w * 4;
 
-    for y in 0..h {
-        let sy = (y as f32 / sc).floor() as i32;
-        for x in 0..w {
-            let sx = (x as f32 / sc).floor() as i32;
-            let idx = (y * w + x) * 4;
+    out.par_chunks_exact_mut(row_len)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let sy = (y as f32 / sc).floor() as i32;
+            let in_row = &input[y * row_len..(y + 1) * row_len];
+            for x in 0..w {
+                let sx = (x as f32 / sc).floor() as i32;
+                let idx = x * 4;
 
-            let pat_val: f32 = match pattern_id {
+                let pat_val: f32 = match pattern_id {
                 "checkered" | "checkers" => {
                     let c_size = params.checkers_size.unwrap_or(8.0).max(1.0);
                     let csx = (sx as f32 / c_size).floor() as i32;
@@ -564,7 +686,7 @@ pub fn dither_raw_pattern(
                         0.25
                     }
                 }
-                "hex_stipple" | "spatial_lattice" | "beehive" | "hexa_poly" => {
+                "hex_stipple" | "spatial_lattice" | "beehive" => {
                     let cell = params.cell_size.unwrap_or(6.0).max(2.0) as i32;
                     let half = (cell / 2).max(1);
                     let row = sy.div_euclid(half);
@@ -582,7 +704,7 @@ pub fn dither_raw_pattern(
                     let v = (sx + if (sx.div_euclid(4) & 1) == 0 { sy } else { -sy }).rem_euclid(4);
                     (v as f32 + 0.5) / 4.0
                 }
-                "radial_concentric" | "orb_matrix" => {
+                "radial_concentric" => {
                     let l_scale = params.line_scale.unwrap_or(1.0).max(0.5);
                     let dist = ((x as f32 - cx).hypot(y as f32 - cy)) / (sc * l_scale);
                     ((dist * 0.5).sin() * 0.5 + 0.5).clamp(0.05, 0.95)
@@ -603,7 +725,7 @@ pub fn dither_raw_pattern(
                     let a = dy.atan2(dx);
                     (((r * 0.07 * swirl + a * (swirl * 0.4)).sin()) * 0.5 + 0.5).clamp(0.05, 0.95)
                 }
-                "circle_grid" | "pop_tone" | "print_pattern" | "orb_diffuse" | "orb_diffuse_x" | "orb_diffuse_y" => {
+                "circle_grid" | "pop_tone" | "print_pattern" => {
                     let dens = params.density.or(params.dot_scale).unwrap_or(8.0).max(2.0);
                     let half = dens * 0.5;
                     let l_scale = params.line_scale.unwrap_or(1.0).max(0.5);
@@ -645,17 +767,10 @@ pub fn dither_raw_pattern(
                     let wv = ((sx as f32 * wfreq) + (sy as f32 * wthresh).sin() * 2.0).sin();
                     (wv * 0.5 + 0.5).clamp(0.05, 0.95)
                 }
-                "wave" | "waveform" | "waveform_alt" => {
+                "wave" => {
                     let freq = params.frequency.or(params.wave_density).unwrap_or(5.0) * 0.06;
                     let wv = ((sx as f32 * freq) + (sy as f32 * 0.2).sin() * 3.0).sin();
                     (wv * 0.5 + 0.5).clamp(0.05, 0.95)
-                }
-                "tri_poly" | "low_poly" | "penta_poly" => {
-                    let cell = 8;
-                    let gx = sx.rem_euclid(cell);
-                    let gy = sy.rem_euclid(cell);
-                    let diag = if gx + gy < cell { (gx + gy) as f32 / cell as f32 } else { ((2 * cell - gx - gy) as f32) / cell as f32 };
-                    diag.clamp(0.1, 0.9)
                 }
                 "stippling" | "noise" | "interleaved_gradient_noise" => {
                     let dens = params.dot_density.unwrap_or(5.0).max(1.0);
@@ -673,22 +788,2127 @@ pub fn dither_raw_pattern(
                     let drop = (sy as f32 * 0.15 + col_hash * 6.28).sin() * 0.5 + 0.5;
                     if sx.rem_euclid(3) == 0 { drop } else { 0.92 }
                 }
-                "color_separation" => {
-                    let ch = (sx + sy).rem_euclid(3);
-                    match ch {
-                        0 => 0.25,
-                        1 => 0.5,
-                        _ => 0.75,
-                    }
-                }
                 _ => 0.5,
             };
+
+            let chosen = lut.inline_pair_match(
+                in_row[idx] as f32,
+                in_row[idx + 1] as f32,
+                in_row[idx + 2] as f32,
+                pat_val,
+            );
+            out_row[idx] = chosen[0];
+            out_row[idx + 1] = chosen[1];
+            out_row[idx + 2] = chosen[2];
+            out_row[idx + 3] = in_row[idx + 3];
+        }
+    });
+}
+
+// -------------------------------------------------------------
+// BASIC: COLOR SEPARATION
+// -------------------------------------------------------------
+pub fn dither_color_separation(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    palette: &[[u8; 4]],
+    params: &RawAlgorithmParams,
+) {
+    let lut = FastPaletteLUT::new(palette, None);
+    let w = width as usize;
+    let h = height as usize;
+    let scale = params.scale;
+    let offset = ((scale * 3.0).floor() as isize).max(1);
+
+    let mut shifted = vec![0u8; input.len()];
+    for y in 0..h {
+        let row_offset = y * w * 4;
+        for x in 0..w {
+            let rx = (x as isize + offset).min(w as isize - 1).max(0) as usize;
+            let bx = (x as isize - offset).max(0) as usize;
+            let idx = row_offset + x * 4;
+            shifted[idx] = input[row_offset + rx * 4];
+            shifted[idx + 1] = input[idx + 1];
+            shifted[idx + 2] = input[row_offset + bx * 4 + 2];
+            shifted[idx + 3] = input[idx + 3];
+        }
+    }
+
+    let mut err_ring = vec![0.0f32; 2 * w * 3];
+    let max_err = 128.0f32;
+
+    for y in 0..h {
+        let cur_row = (y & 1) * w * 3;
+        let next_row = ((y + 1) & 1) * w * 3;
+        for x in 0..w {
+            let idx = (y * w + x) * 4;
+            let e_idx = cur_row + x * 3;
+
+            let tr = (shifted[idx] as f32 + err_ring[e_idx]).clamp(0.0, 255.0);
+            let tg = (shifted[idx + 1] as f32 + err_ring[e_idx + 1]).clamp(0.0, 255.0);
+            let tb = (shifted[idx + 2] as f32 + err_ring[e_idx + 2]).clamp(0.0, 255.0);
+
+            let chosen = lut.inline_match(tr.round(), tg.round(), tb.round());
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+
+            let err_r = (tr - chosen[0] as f32).clamp(-max_err, max_err);
+            let err_g = (tg - chosen[1] as f32).clamp(-max_err, max_err);
+            let err_b = (tb - chosen[2] as f32).clamp(-max_err, max_err);
+
+            if x + 1 < w {
+                err_ring[cur_row + (x + 1) * 3] += err_r * (7.0 / 16.0);
+                err_ring[cur_row + (x + 1) * 3 + 1] += err_g * (7.0 / 16.0);
+                err_ring[cur_row + (x + 1) * 3 + 2] += err_b * (7.0 / 16.0);
+            }
+            if y + 1 < h {
+                if x > 0 {
+                    err_ring[next_row + (x - 1) * 3] += err_r * (3.0 / 16.0);
+                    err_ring[next_row + (x - 1) * 3 + 1] += err_g * (3.0 / 16.0);
+                    err_ring[next_row + (x - 1) * 3 + 2] += err_b * (3.0 / 16.0);
+                }
+                err_ring[next_row + x * 3] += err_r * (5.0 / 16.0);
+                err_ring[next_row + x * 3 + 1] += err_g * (5.0 / 16.0);
+                err_ring[next_row + x * 3 + 2] += err_b * (5.0 / 16.0);
+                if x + 1 < w {
+                    err_ring[next_row + (x + 1) * 3] += err_r * (1.0 / 16.0);
+                    err_ring[next_row + (x + 1) * 3 + 1] += err_g * (1.0 / 16.0);
+                    err_ring[next_row + (x + 1) * 3 + 2] += err_b * (1.0 / 16.0);
+                }
+            }
+        }
+        for i in 0..(w * 3) {
+            err_ring[cur_row + i] = 0.0;
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// SPECIAL: ORB ALGORITHMS (detectOrbs, orb-diffuse, orb-diffuse-x, orb-diffuse-y, orb-matrix)
+// -------------------------------------------------------------
+#[inline(always)]
+fn hash_2d(seed_x: f64, seed_y: f64, salt: f64) -> f64 {
+    let val = (seed_x * 12.9898 + seed_y * 78.233 + salt * 43.123).sin() * 43758.5453;
+    val - val.floor()
+}
+
+#[inline(always)]
+fn hash_coord(x: usize, y: usize, seed: u32) -> u32 {
+    let mut h = (x as u32).wrapping_mul(374761393)
+        .wrapping_add((y as u32).wrapping_mul(668265263))
+        .wrapping_add(seed.wrapping_mul(362827313));
+    h = (h ^ (h >> 13)).wrapping_mul(1274126177);
+    h ^ (h >> 16)
+}
+
+#[derive(Clone, Debug)]
+pub struct DetectedOrb {
+    pub x: f64,
+    pub y: f64,
+    pub size: f64,
+    pub size2: f64,
+    pub intensity: f64,
+}
+
+pub fn detect_orbs(
+    w: u32,
+    h: u32,
+    _data: &[u8],
+    params: &RawAlgorithmParams,
+) -> Vec<DetectedOrb> {
+    let max_orbs = params.orb_count.map(|c| (c.round() as usize).clamp(1, 50)).unwrap_or(8);
+    let raw_size = params.orb_size.unwrap_or(80.0) as f64;
+    let scale = (params.scale as f64).max(0.05);
+    let base_size = (raw_size * scale).round().max(5.0);
+    let base_size2 = base_size * base_size;
+    let intensity = params.orb_intensity.map(|i| (i as f64) / 100.0).unwrap_or(0.6);
+    let random_amt = params.orb_random.map(|r| (r as f64) / 100.0).unwrap_or(0.0);
+    let legacy_offset = params.orb_offset.unwrap_or(0.0) as f64;
+    let is_vertical = params.orb_vertical.unwrap_or(false);
+    let offset_x = (params.offset_x.unwrap_or(0.0) as f64) + if is_vertical { 0.0 } else { legacy_offset };
+    let offset_y = (params.offset_y.unwrap_or(0.0) as f64) + if is_vertical { legacy_offset } else { 0.0 };
+    let seed = params.temporal_seed;
+
+    let wf = w as f64;
+    let hf = h as f64;
+    let max_fit_spacing = ((wf * hf) / (max_orbs as f64 * 1.3)).sqrt();
+    let min_spacing = 8.0f64.max(max_fit_spacing * 0.75);
+
+    let min_dim = (w.min(h)) as f64;
+    let step_denom = 12.0f64.max(((max_orbs as f64).sqrt() * 3.0).round());
+    let step = 8usize.max(32usize.min((min_dim / step_denom).floor() as usize));
+
+    struct Candidate {
+        x: usize,
+        y: usize,
+        rank: u32,
+    }
+
+    let mut candidates = Vec::new();
+    let start_y = step / 2;
+    let start_x = step / 2;
+    let mut y = start_y;
+    while y < h as usize {
+        let mut x = start_x;
+        while x < w as usize {
+            let rank = hash_coord(x, y, seed);
+            candidates.push(Candidate { x, y, rank });
+            x += step;
+        }
+        y += step;
+    }
+
+    candidates.sort_by(|a, b| {
+        if a.rank != b.rank {
+            a.rank.cmp(&b.rank)
+        } else {
+            (a.y * w as usize + a.x).cmp(&(b.y * w as usize + b.x))
+        }
+    });
+
+    let mut orbs: Vec<DetectedOrb> = Vec::with_capacity(max_orbs);
+    let span_x = wf + base_size * 2.0;
+    let span_y = hf + base_size * 2.0;
+
+    let add_orb = |cx: f64, cy: f64, orbs: &mut Vec<DetectedOrb>| {
+        let mut px = cx;
+        let mut py = cy;
+        if random_amt > 0.0 {
+            let rx = (hash_2d(cx, cy, 1.0) - 0.5) * 2.0;
+            let ry = (hash_2d(cx, cy, 2.0) - 0.5) * 2.0;
+            let jitter_scale = (base_size * 1.5).max(max_fit_spacing * 1.8);
+            px += rx * random_amt * jitter_scale;
+            py += ry * random_amt * jitter_scale;
+        }
+        px += offset_x;
+        py += offset_y;
+
+        px = (px + base_size).rem_euclid(span_x) - base_size;
+        py = (py + base_size).rem_euclid(span_y) - base_size;
+
+        orbs.push(DetectedOrb {
+            x: px,
+            y: py,
+            size: base_size,
+            size2: base_size2,
+            intensity,
+        });
+    };
+
+    let mut spacing = min_spacing;
+    for _pass in 0..3 {
+        if orbs.len() >= max_orbs {
+            break;
+        }
+        let spacing2 = spacing * spacing;
+        for c in &candidates {
+            if orbs.len() >= max_orbs {
+                break;
+            }
+            let mut valid = true;
+            for o in &orbs {
+                let dx = c.x as f64 + offset_x - o.x;
+                let dy = c.y as f64 + offset_y - o.y;
+                if dx * dx + dy * dy < spacing2 {
+                    valid = false;
+                    break;
+                }
+            }
+            if valid {
+                add_orb(c.x as f64, c.y as f64, &mut orbs);
+            }
+        }
+        spacing *= 0.65;
+    }
+
+    let mut spiral_idx = 0usize;
+    let phi = 0.5 * (1.0 + 5.0f64.sqrt());
+    while orbs.len() < max_orbs {
+        let r = (((spiral_idx + 1) as f64 / max_orbs as f64).sqrt()) * min_dim * 0.45;
+        let theta = 2.0 * std::f64::consts::PI * spiral_idx as f64 * phi;
+        let cx = (wf * 0.5 + r * theta.cos()).clamp(0.0, wf);
+        let cy = (hf * 0.5 + r * theta.sin()).clamp(0.0, hf);
+        add_orb(cx, cy, &mut orbs);
+        spiral_idx += 1;
+    }
+
+    orbs
+}
+
+pub fn dither_orb_diffuse(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let orbs = detect_orbs(width, height, input, params);
+    let serpentine = params.serpentine.unwrap_or(true);
+    let strength = params.diffusion_strength;
+
+    if lut.is_tonal_ramp {
+        let mut err_ring = vec![0.0f32; 2 * w];
+        for y in 0..h {
+            let is_reverse = serpentine && (y & 1) == 1;
+            let cur_row = (y & 1) * w;
+            let next_row = ((y + 1) & 1) * w;
+            let (start_x, end_x, step_x): (isize, isize, isize) = if is_reverse {
+                (w as isize - 1, -1, -1)
+            } else {
+                (0, w as isize, 1)
+            };
+
+            let mut x = start_x;
+            while x != end_x {
+                let ux = x as usize;
+                let idx = (y * w + ux) * 4;
+                let mut lum = crate::palette::get_luminance(
+                    input[idx] as f32,
+                    input[idx + 1] as f32,
+                    input[idx + 2] as f32,
+                );
+                for o in &orbs {
+                    let dx = ux as f64 - o.x;
+                    let dy = y as f64 - o.y;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 < o.size2 {
+                        let d = d2.sqrt();
+                        lum = (lum as f64 + (1.0 - d / o.size) * (180.0 * o.intensity)).min(255.0) as f32;
+                    }
+                }
+                let cur_lum = (lum + err_ring[cur_row + ux]).clamp(0.0, 255.0);
+                let chosen_idx = lut.quantize_lum(cur_lum);
+                let col = lut.raw_palette[chosen_idx];
+
+                out[idx] = col[0];
+                out[idx + 1] = col[1];
+                out[idx + 2] = col[2];
+                out[idx + 3] = input[idx + 3];
+
+                let err = (cur_lum - lut.luminances[chosen_idx]) * strength;
+                if is_reverse {
+                    if ux > 0 {
+                        err_ring[cur_row + ux - 1] += err * (7.0 / 16.0);
+                    }
+                    if y + 1 < h {
+                        if ux + 1 < w {
+                            err_ring[next_row + ux + 1] += err * (3.0 / 16.0);
+                        }
+                        err_ring[next_row + ux] += err * (5.0 / 16.0);
+                        if ux > 0 {
+                            err_ring[next_row + ux - 1] += err * (1.0 / 16.0);
+                        }
+                    }
+                } else {
+                    if ux + 1 < w {
+                        err_ring[cur_row + ux + 1] += err * (7.0 / 16.0);
+                    }
+                    if y + 1 < h {
+                        if ux > 0 {
+                            err_ring[next_row + ux - 1] += err * (3.0 / 16.0);
+                        }
+                        err_ring[next_row + ux] += err * (5.0 / 16.0);
+                        if ux + 1 < w {
+                            err_ring[next_row + ux + 1] += err * (1.0 / 16.0);
+                        }
+                    }
+                }
+                x += step_x;
+            }
+            for i in 0..w {
+                err_ring[cur_row + i] = 0.0;
+            }
+        }
+    } else {
+        let mut err_ring = vec![0.0f32; 2 * w * 3];
+        let max_err = 128.0f32;
+
+        for y in 0..h {
+            let is_reverse = serpentine && (y & 1) == 1;
+            let cur_row = (y & 1) * w * 3;
+            let next_row = ((y + 1) & 1) * w * 3;
+            let (start_x, end_x, step_x): (isize, isize, isize) = if is_reverse {
+                (w as isize - 1, -1, -1)
+            } else {
+                (0, w as isize, 1)
+            };
+
+            let mut x = start_x;
+            while x != end_x {
+                let ux = x as usize;
+                let idx = (y * w + ux) * 4;
+                let mut r = input[idx] as f32 + err_ring[cur_row + ux * 3];
+                let mut g = input[idx + 1] as f32 + err_ring[cur_row + ux * 3 + 1];
+                let mut b = input[idx + 2] as f32 + err_ring[cur_row + ux * 3 + 2];
+                for o in &orbs {
+                    let dx = ux as f64 - o.x;
+                    let dy = y as f64 - o.y;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 < o.size2 {
+                        let d = d2.sqrt();
+                        let boost = ((1.0 - d / o.size) * (180.0 * o.intensity)) as f32;
+                        r += boost;
+                        g += boost;
+                        b += boost;
+                    }
+                }
+                let cl_r = r.clamp(0.0, 255.0);
+                let cl_g = g.clamp(0.0, 255.0);
+                let cl_b = b.clamp(0.0, 255.0);
+
+                let chosen = lut.inline_match(cl_r, cl_g, cl_b);
+                out[idx] = chosen[0];
+                out[idx + 1] = chosen[1];
+                out[idx + 2] = chosen[2];
+                out[idx + 3] = input[idx + 3];
+
+                let err_r = ((cl_r - chosen[0] as f32) * strength).clamp(-max_err, max_err);
+                let err_g = ((cl_g - chosen[1] as f32) * strength).clamp(-max_err, max_err);
+                let err_b = ((cl_b - chosen[2] as f32) * strength).clamp(-max_err, max_err);
+
+                if is_reverse {
+                    if ux > 0 {
+                        err_ring[cur_row + (ux - 1) * 3] += err_r * (7.0 / 16.0);
+                        err_ring[cur_row + (ux - 1) * 3 + 1] += err_g * (7.0 / 16.0);
+                        err_ring[cur_row + (ux - 1) * 3 + 2] += err_b * (7.0 / 16.0);
+                    }
+                    if y + 1 < h {
+                        if ux + 1 < w {
+                            err_ring[next_row + (ux + 1) * 3] += err_r * (3.0 / 16.0);
+                            err_ring[next_row + (ux + 1) * 3 + 1] += err_g * (3.0 / 16.0);
+                            err_ring[next_row + (ux + 1) * 3 + 2] += err_b * (3.0 / 16.0);
+                        }
+                        err_ring[next_row + ux * 3] += err_r * (5.0 / 16.0);
+                        err_ring[next_row + ux * 3 + 1] += err_g * (5.0 / 16.0);
+                        err_ring[next_row + ux * 3 + 2] += err_b * (5.0 / 16.0);
+                        if ux > 0 {
+                            err_ring[next_row + (ux - 1) * 3] += err_r * (1.0 / 16.0);
+                            err_ring[next_row + (ux - 1) * 3 + 1] += err_g * (1.0 / 16.0);
+                            err_ring[next_row + (ux - 1) * 3 + 2] += err_b * (1.0 / 16.0);
+                        }
+                    }
+                } else {
+                    if ux + 1 < w {
+                        err_ring[cur_row + (ux + 1) * 3] += err_r * (7.0 / 16.0);
+                        err_ring[cur_row + (ux + 1) * 3 + 1] += err_g * (7.0 / 16.0);
+                        err_ring[cur_row + (ux + 1) * 3 + 2] += err_b * (7.0 / 16.0);
+                    }
+                    if y + 1 < h {
+                        if ux > 0 {
+                            err_ring[next_row + (ux - 1) * 3] += err_r * (3.0 / 16.0);
+                            err_ring[next_row + (ux - 1) * 3 + 1] += err_g * (3.0 / 16.0);
+                            err_ring[next_row + (ux - 1) * 3 + 2] += err_b * (3.0 / 16.0);
+                        }
+                        err_ring[next_row + ux * 3] += err_r * (5.0 / 16.0);
+                        err_ring[next_row + ux * 3 + 1] += err_g * (5.0 / 16.0);
+                        err_ring[next_row + ux * 3 + 2] += err_b * (5.0 / 16.0);
+                        if ux + 1 < w {
+                            err_ring[next_row + (ux + 1) * 3] += err_r * (1.0 / 16.0);
+                            err_ring[next_row + (ux + 1) * 3 + 1] += err_g * (1.0 / 16.0);
+                            err_ring[next_row + (ux + 1) * 3 + 2] += err_b * (1.0 / 16.0);
+                        }
+                    }
+                }
+                x += step_x;
+            }
+            for i in 0..(w * 3) {
+                err_ring[cur_row + i] = 0.0;
+            }
+        }
+    }
+}
+
+pub fn dither_orb_diffuse_x(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let orbs = detect_orbs(width, height, input, params);
+    let max_err = 128.0f32;
+    let strength = params.diffusion_strength;
+    let line_scale = params.line_scale.unwrap_or(1.0);
+    let eff_strength = strength * (1.0 + (line_scale - 1.0) * 0.1);
+
+    if lut.is_tonal_ramp {
+        let mut err_buf = vec![0.0f32; w];
+        for y in 0..h {
+            for x in 0..w {
+                let idx = (y * w + x) * 4;
+                let mut lum = crate::palette::get_luminance(
+                    input[idx] as f32,
+                    input[idx + 1] as f32,
+                    input[idx + 2] as f32,
+                );
+                for o in &orbs {
+                    let dx = x as f64 - o.x;
+                    let dy = y as f64 - o.y;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 < o.size2 {
+                        let d = d2.sqrt();
+                        lum = (lum as f64 + (1.0 - d / o.size) * (180.0 * o.intensity)).min(255.0) as f32;
+                    }
+                }
+                let cur_lum = (lum + err_buf[x]).clamp(0.0, 255.0);
+                let chosen_idx = lut.quantize_lum(cur_lum);
+                let col = lut.raw_palette[chosen_idx];
+
+                out[idx] = col[0];
+                out[idx + 1] = col[1];
+                out[idx + 2] = col[2];
+                out[idx + 3] = input[idx + 3];
+
+                err_buf[x] = ((cur_lum - lut.luminances[chosen_idx]) * eff_strength).clamp(-max_err, max_err);
+            }
+        }
+    } else {
+        let mut err_buf = vec![0.0f32; w * 3];
+        for y in 0..h {
+            for x in 0..w {
+                let idx = (y * w + x) * 4;
+                let e_idx = x * 3;
+                let mut r = input[idx] as f32 + err_buf[e_idx];
+                let mut g = input[idx + 1] as f32 + err_buf[e_idx + 1];
+                let mut b = input[idx + 2] as f32 + err_buf[e_idx + 2];
+                for o in &orbs {
+                    let dx = x as f64 - o.x;
+                    let dy = y as f64 - o.y;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 < o.size2 {
+                        let d = d2.sqrt();
+                        let boost = ((1.0 - d / o.size) * (180.0 * o.intensity)) as f32;
+                        r += boost;
+                        g += boost;
+                        b += boost;
+                    }
+                }
+                let cl_r = r.clamp(0.0, 255.0);
+                let cl_g = g.clamp(0.0, 255.0);
+                let cl_b = b.clamp(0.0, 255.0);
+
+                let chosen = lut.inline_match(cl_r, cl_g, cl_b);
+                out[idx] = chosen[0];
+                out[idx + 1] = chosen[1];
+                out[idx + 2] = chosen[2];
+                out[idx + 3] = input[idx + 3];
+
+                err_buf[e_idx] = ((cl_r - chosen[0] as f32) * eff_strength).clamp(-max_err, max_err);
+                err_buf[e_idx + 1] = ((cl_g - chosen[1] as f32) * eff_strength).clamp(-max_err, max_err);
+                err_buf[e_idx + 2] = ((cl_b - chosen[2] as f32) * eff_strength).clamp(-max_err, max_err);
+            }
+        }
+    }
+}
+
+pub fn dither_orb_diffuse_y(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let orbs = detect_orbs(width, height, input, params);
+    let max_err = 128.0f64;
+    let strength = params.diffusion_strength as f64;
+    let line_scale = params.line_scale.unwrap_or(1.0) as f64;
+    let eff_strength = strength * (1.0 + (line_scale - 1.0) * 0.1);
+
+    if lut.is_tonal_ramp {
+        for y in 0..h {
+            let mut err = 0.0f64;
+            for x in 0..w {
+                let idx = (y * w + x) * 4;
+                let mut lum = 0.2126 * (input[idx] as f64)
+                    + 0.7152 * (input[idx + 1] as f64)
+                    + 0.0722 * (input[idx + 2] as f64);
+                for o in &orbs {
+                    let dx = x as f64 - o.x;
+                    let dy = y as f64 - o.y;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 < o.size2 {
+                        let d = d2.sqrt();
+                        lum = (lum + (1.0 - d / o.size) * (180.0 * o.intensity)).min(255.0);
+                    }
+                }
+                let cur_lum = (lum + err).clamp(0.0, 255.0);
+                let chosen_idx = lut.quantize_lum_f64(cur_lum);
+                let col = lut.raw_palette[chosen_idx];
+
+                out[idx] = col[0];
+                out[idx + 1] = col[1];
+                out[idx + 2] = col[2];
+                out[idx + 3] = input[idx + 3];
+
+                err = ((cur_lum - lut.luminances_f64[chosen_idx]) * eff_strength).clamp(-max_err, max_err);
+            }
+        }
+    } else {
+        for y in 0..h {
+            let mut err_r = 0.0f64;
+            let mut err_g = 0.0f64;
+            let mut err_b = 0.0f64;
+            for x in 0..w {
+                let idx = (y * w + x) * 4;
+                let mut r = input[idx] as f64 + err_r;
+                let mut g = input[idx + 1] as f64 + err_g;
+                let mut b = input[idx + 2] as f64 + err_b;
+                for o in &orbs {
+                    let dx = x as f64 - o.x;
+                    let dy = y as f64 - o.y;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 < o.size2 {
+                        let d = d2.sqrt();
+                        let boost = (1.0 - d / o.size) * (180.0 * o.intensity);
+                        r += boost;
+                        g += boost;
+                        b += boost;
+                    }
+                }
+                let cl_r = r.clamp(0.0, 255.0);
+                let cl_g = g.clamp(0.0, 255.0);
+                let cl_b = b.clamp(0.0, 255.0);
+
+                let chosen = lut.inline_match_f64(cl_r, cl_g, cl_b);
+                out[idx] = chosen[0];
+                out[idx + 1] = chosen[1];
+                out[idx + 2] = chosen[2];
+                out[idx + 3] = input[idx + 3];
+
+                err_r = ((cl_r - chosen[0] as f64) * eff_strength).clamp(-max_err, max_err);
+                err_g = ((cl_g - chosen[1] as f64) * eff_strength).clamp(-max_err, max_err);
+                err_b = ((cl_b - chosen[2] as f64) * eff_strength).clamp(-max_err, max_err);
+            }
+        }
+    }
+}
+
+pub fn dither_orb_matrix(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = params.scale.max(0.05);
+    let orbs = detect_orbs(width, height, input, params);
+    let size = match params.matrix_size {
+        Some(2) => 2,
+        Some(8) => 8,
+        Some(16) => 16,
+        _ => 4,
+    };
+    let mask = (size - 1) as isize;
+    let size_isize = size as isize;
+
+    let bayer_buf = match size {
+        8 => Some(generate_bayer(8)),
+        16 => Some(generate_bayer(16)),
+        _ => None,
+    };
+    let matrix: &[f32] = match size {
+        2 => &BAYER_2,
+        8 => bayer_buf.as_deref().unwrap(),
+        16 => bayer_buf.as_deref().unwrap(),
+        _ => &BAYER_4,
+    };
+
+    let ox = params.offset_x.unwrap_or(0.0);
+    let oy = params.offset_y.unwrap_or(0.0);
+
+    for y in 0..h {
+        let py = y as f32 + oy;
+        let sy = if (scale - 1.0).abs() > 0.0001 { (py / scale).floor() as isize } else { py.floor() as isize };
+        let row_offset = ((((sy & mask) + size_isize) & mask) as usize) * size;
+
+        for x in 0..w {
+            let px = x as f32 + ox;
+            let sx = if (scale - 1.0).abs() > 0.0001 { (px / scale).floor() as isize } else { px.floor() as isize };
+            let idx = (y * w + x) * 4;
+
+            let mut boost = 0.0f32;
+            for o in &orbs {
+                let dx = x as f64 - o.x;
+                let dy = y as f64 - o.y;
+                let d2 = dx * dx + dy * dy;
+                if d2 < o.size2 {
+                    let d = d2.sqrt();
+                    boost += ((1.0 - d / o.size) * (0.8 * o.intensity)) as f32;
+                }
+            }
+
+            let col_offset = (((sx & mask) + size_isize) & mask) as usize;
+            let bayer_val = matrix[row_offset + col_offset];
+            let threshold = (bayer_val - boost).clamp(0.05, 0.95);
 
             let chosen = lut.inline_pair_match(
                 input[idx] as f32,
                 input[idx + 1] as f32,
                 input[idx + 2] as f32,
-                pat_val,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// POLYGON TESSELLATION ALGORITHMS
+// -------------------------------------------------------------
+
+pub fn dither_hexa_poly(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let r = (12.0 * scale).max(1.0);
+    let w_hex = 3.0_f64.sqrt() * r;
+    let h_hex = 1.5 * r;
+
+    for y in 0..h {
+        let row = (y as f64 / h_hex).floor() as i64;
+        let is_offset = (row & 1) == 1;
+        let offset = if is_offset { w_hex * 0.5 } else { 0.0 };
+        let cy = (row as f64 * h_hex + r).round() as isize;
+        let scy = cy.clamp(0, (h - 1) as isize) as usize;
+        let scy_w = scy * w;
+        let y_w = y * w;
+
+        for x in 0..w {
+            let col = ((x as f64 - offset) / w_hex).floor() as i64;
+            let cx = (col as f64 * w_hex + offset + w_hex * 0.5).round() as isize;
+            let scx = cx.clamp(0, (w - 1) as isize) as usize;
+            let s_idx = (scy_w + scx) * 4;
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_match_u8(input[s_idx], input[s_idx + 1], input[s_idx + 2]);
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_low_poly(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let t_type = params.triangle_type.as_deref().unwrap_or("isosceles");
+    let aspect = match t_type {
+        "equilateral" | "pyramid" => 3.0_f64.sqrt() / 2.0,
+        "sawtooth" => 0.707,
+        "half-equilateral" | "half_equilateral" => 3.0_f64.sqrt(),
+        "golden-triangle" | "golden_triangle" => 1.618,
+        "arrowhead" => 0.588,
+        _ => 1.0,
+    };
+
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let s = ((16.0 * scale).round() as usize).max(1);
+    let sy = (((s as f64) * aspect).round() as usize).max(1);
+    let s_f64 = s as f64;
+    let sy_f64 = sy as f64;
+
+    let mut by = 0;
+    while by < h {
+        let max_by = (by + sy).min(h);
+        let mut bx = 0;
+        while bx < w {
+            let max_bx = (bx + s).min(w);
+            let cx1 = (bx + (s_f64 * 0.25).floor() as usize).clamp(0, w - 1);
+            let cy1 = (by + (sy_f64 * 0.25).floor() as usize).clamp(0, h - 1);
+            let cx2 = (bx + (s_f64 * 0.75).floor() as usize).clamp(0, w - 1);
+            let cy2 = (by + (sy_f64 * 0.75).floor() as usize).clamp(0, h - 1);
+
+            let idx1 = (cy1 * w + cx1) * 4;
+            let idx2 = (cy2 * w + cx2) * 4;
+
+            let chosen1 = lut.inline_match_u8(input[idx1], input[idx1 + 1], input[idx1 + 2]);
+            let chosen2 = lut.inline_match_u8(input[idx2], input[idx2 + 1], input[idx2 + 2]);
+
+            for y in by..max_by {
+                let y_diff_ratio = (y - by) as f64 / sy_f64;
+                let y_w = y * w;
+                for x in bx..max_bx {
+                    let is_upper = ((x - bx) as f64 / s_f64) < y_diff_ratio;
+                    let chosen = if is_upper { &chosen1 } else { &chosen2 };
+                    let idx = (y_w + x) * 4;
+                    out[idx] = chosen[0];
+                    out[idx + 1] = chosen[1];
+                    out[idx + 2] = chosen[2];
+                    out[idx + 3] = input[idx + 3];
+                }
+            }
+            bx += s;
+        }
+        by += sy;
+    }
+}
+
+pub fn dither_penta_poly(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let is_vert = params.vertical.unwrap_or(false);
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let r = (12.0 * scale).max(1.0);
+    let w_hex = 3.0_f64.sqrt() * r;
+    let h_hex = 1.5 * r;
+
+    for y in 0..h {
+        let row = (y as f64 / h_hex).floor() as i64;
+        let is_offset = (row & 1) == 1;
+        let offset = if is_offset { w_hex * 0.5 } else { 0.0 };
+        let cy = (row as f64 * h_hex + r).round() as isize;
+        let y_w = y * w;
+
+        for x in 0..w {
+            let col = ((x as f64 - offset) / w_hex).floor() as i64;
+            let cx = (col as f64 * w_hex + offset + w_hex * 0.5).round() as isize;
+
+            let is_split = if is_vert { (x as isize) < cx } else { (y as isize) < cy };
+
+            let sx_offset = if is_vert {
+                if is_split { -w_hex * 0.25 } else { w_hex * 0.25 }
+            } else {
+                0.0
+            };
+            let sy_offset = if !is_vert {
+                if is_split { -h_hex * 0.25 } else { h_hex * 0.25 }
+            } else {
+                0.0
+            };
+
+            let scx = ((cx as f64 + sx_offset).round() as isize).clamp(0, (w - 1) as isize) as usize;
+            let scy = ((cy as f64 + sy_offset).round() as isize).clamp(0, (h - 1) as isize) as usize;
+            let s_idx = (scy * w + scx) * 4;
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_match_u8(input[s_idx], input[s_idx + 1], input[s_idx + 2]);
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_tri_poly(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let s = ((16.0 * scale).round() as usize).max(1);
+    let s_f64 = s as f64;
+
+    let mut by = 0;
+    while by < h {
+        let max_by = (by + s).min(h);
+        let mut bx = 0;
+        while bx < w {
+            let max_bx = (bx + s).min(w);
+            let cx1 = (bx + (s_f64 * 0.5).floor() as usize).clamp(0, w - 1);
+            let cy1 = (by + (s_f64 * 0.25).floor() as usize).clamp(0, h - 1);
+            let cx2 = (bx + (s_f64 * 0.5).floor() as usize).clamp(0, w - 1);
+            let cy2 = (by + (s_f64 * 0.75).floor() as usize).clamp(0, h - 1);
+
+            let idx1 = (cy1 * w + cx1) * 4;
+            let idx2 = (cy2 * w + cx2) * 4;
+
+            let chosen1 = lut.inline_match_u8(input[idx1], input[idx1 + 1], input[idx1 + 2]);
+            let chosen2 = lut.inline_match_u8(input[idx2], input[idx2 + 1], input[idx2 + 2]);
+
+            for y in by..max_by {
+                let y_diff = y - by;
+                let y_w = y * w;
+                for x in bx..max_bx {
+                    let is_up = ((x - bx) + y_diff) < s;
+                    let chosen = if is_up { &chosen1 } else { &chosen2 };
+                    let idx = (y_w + x) * 4;
+                    out[idx] = chosen[0];
+                    out[idx + 1] = chosen[1];
+                    out[idx + 2] = chosen[2];
+                    out[idx + 3] = input[idx + 3];
+                }
+            }
+            bx += s;
+        }
+        by += s;
+    }
+}
+
+// -------------------------------------------------------------
+// PATTERNED & HALFTONE ALGORITHMS
+// -------------------------------------------------------------
+
+#[inline(always)]
+fn js_hypot(x: f64, y: f64) -> f64 {
+    let ax = x.abs();
+    let ay = y.abs();
+    let max = ax.max(ay);
+    let min = ax.min(ay);
+    if min == 0.0 {
+        return max;
+    }
+    let ratio = min / max;
+    max * (1.0 + ratio * ratio).sqrt()
+}
+
+pub fn dither_block_tone(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base_dot = params.dot_size.unwrap_or(4.0) as f64;
+    let s = ((base_dot * scale).round() as usize).max(1);
+    let half_s = s as f64 / 2.0;
+    let max_r = half_s * 0.95;
+
+    let mut by = 0;
+    while by < h {
+        let max_by = (by + s).min(h);
+        let mut bx = 0;
+        while bx < w {
+            let max_bx = (bx + s).min(w);
+            let cx = bx as f64 + half_s;
+            let cy = by as f64 + half_s;
+            let c_x = (cx.floor() as usize).min(w - 1);
+            let c_y = (cy.floor() as usize).min(h - 1);
+            let c_idx = (c_y * w + c_x) * 4;
+            let lum = 0.2126 * input[c_idx] as f64 + 0.7152 * input[c_idx + 1] as f64 + 0.0722 * input[c_idx + 2] as f64;
+            let radius = max_r * (0.0_f64.max(1.0 - lum / 255.0)).sqrt();
+
+            for y in by..max_by {
+                let y_diff = y as f64 - cy;
+                let y_w = y * w;
+                for x in bx..max_bx {
+                    let x_diff = x as f64 - cx;
+                    let dist = js_hypot(x_diff, y_diff);
+                    let threshold = if dist <= radius { 0.75 } else { 0.25 };
+                    let idx = (y_w + x) * 4;
+                    let chosen = lut.inline_pair_match(
+                        input[idx] as f32,
+                        input[idx + 1] as f32,
+                        input[idx + 2] as f32,
+                        threshold as f32,
+                    );
+                    out[idx] = chosen[0];
+                    out[idx + 1] = chosen[1];
+                    out[idx + 2] = chosen[2];
+                    out[idx + 3] = input[idx + 3];
+                }
+            }
+            bx += s;
+        }
+        by += s;
+    }
+}
+
+pub fn dither_pop_tone(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let _h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let density = (params.density.unwrap_or(20.0) as f64) / 100.0;
+    let angle = (params.variation.unwrap_or(45.0) as f64) * (std::f64::consts::PI / 180.0);
+    let s = (12.0 * scale).max(0.6);
+    let cos_a = angle.cos();
+    let sin_a = angle.sin();
+    let max_r = (s / 2.0) * (1.0 + density);
+    let row_len = w * 4;
+
+    out.par_chunks_exact_mut(row_len)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let y_f = y as f64;
+            let in_row = &input[y * row_len..(y + 1) * row_len];
+            for x in 0..w {
+                let x_f = x as f64;
+                let rx = x_f * cos_a - y_f * sin_a;
+                let ry = x_f * sin_a + y_f * cos_a;
+                let cx = ((rx / s).floor() + 0.5) * s;
+                let cy = ((ry / s).floor() + 0.5) * s;
+
+                let idx = x * 4;
+                let lum = 0.2126 * in_row[idx] as f64 + 0.7152 * in_row[idx + 1] as f64 + 0.0722 * in_row[idx + 2] as f64;
+                let radius = max_r * (0.0_f64.max(1.0 - lum / 255.0)).sqrt();
+
+                let dist = js_hypot(rx - cx, ry - cy);
+                let threshold = if dist <= radius { 0.75 } else { 0.25 };
+
+                let chosen = lut.inline_pair_match(
+                    in_row[idx] as f32,
+                    in_row[idx + 1] as f32,
+                    in_row[idx + 2] as f32,
+                    threshold as f32,
+                );
+                out_row[idx] = chosen[0];
+                out_row[idx + 1] = chosen[1];
+                out_row[idx + 2] = chosen[2];
+                out_row[idx + 3] = in_row[idx + 3];
+            }
+        });
+}
+
+pub fn dither_camo(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let density = (params.density.unwrap_or(30.0) as f64).max(3.0);
+    let s = ((200.0 / density) * scale).max(0.8);
+    let row_len = w * 4;
+
+    out.par_chunks_exact_mut(row_len)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let y_f = y as f64;
+            let cell_y = (y_f / s).floor() as isize;
+            for x in 0..w {
+                let x_f = x as f64;
+                let cell_x = (x_f / s).floor() as isize;
+                let mut closest_dist = f64::INFINITY;
+                let mut closest_seed_idx = (y * w + x) * 4;
+
+                for dy in -1..=1 {
+                    for dx in -1..=1 {
+                        let cx = cell_x + dx;
+                        let cy = cell_y + dy;
+                        let pseudo_x = (cx as f64 * 127.1 + cy as f64 * 311.7).sin() * 43758.5453;
+                        let hash_x = ((pseudo_x % 1.0) + 1.0) % 1.0;
+                        let pseudo_y = (cx as f64 * 269.5 + cy as f64 * 183.3).sin() * 43758.5453;
+                        let hash_y = ((pseudo_y % 1.0) + 1.0) % 1.0;
+
+                        let sx = (((cx as f64 + hash_x) * s).round() as isize).clamp(0, (w - 1) as isize) as usize;
+                        let sy = (((cy as f64 + hash_y) * s).round() as isize).clamp(0, (h - 1) as isize) as usize;
+                        let d = js_hypot(x_f - sx as f64, y_f - sy as f64);
+                        if d < closest_dist {
+                            closest_dist = d;
+                            closest_seed_idx = (sy * w + sx) * 4;
+                        }
+                    }
+                }
+
+                let idx = x * 4;
+                let chosen = lut.inline_match_u8(
+                    input[closest_seed_idx],
+                    input[closest_seed_idx + 1],
+                    input[closest_seed_idx + 2],
+                );
+                out_row[idx] = chosen[0];
+                out_row[idx + 1] = chosen[1];
+                out_row[idx + 2] = chosen[2];
+                out_row[idx + 3] = input[(y * w + x) * 4 + 3];
+            }
+        });
+}
+
+pub fn dither_checkers(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base = params.checkers_size.unwrap_or(8.0) as f64;
+    let s = ((base * scale).round() as usize).max(1);
+
+    for y in 0..h {
+        let cy = y / s;
+        let y_w = y * w;
+        for x in 0..w {
+            let cx = x / s;
+            let is_alt = ((cx + cy) & 1) == 1;
+            let threshold = if is_alt { 0.35 } else { 0.65 };
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_circle_grid(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let s = (10.0 * scale).max(0.8);
+    let r = (4.0 * scale).max(0.2);
+
+    for y in 0..h {
+        let cy = ((y as f64 / s).floor() + 0.5) * s;
+        let y_w = y * w;
+        for x in 0..w {
+            let cx = ((x as f64 / s).floor() + 0.5) * s;
+            let is_circle = js_hypot(x as f64 - cx, y as f64 - cy) <= r;
+            let threshold = if is_circle { 0.35 } else { 0.65 };
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_crosshatch(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base_spacing = params.line_spacing.unwrap_or(1.0) as f64;
+    let spacing = ((base_spacing * scale * 3.0).round() as isize).max(1);
+
+    for y in 0..h {
+        let y_isize = y as isize;
+        let y_w = y * w;
+        let y_mod = y_isize % spacing == 0;
+        for x in 0..w {
+            let x_isize = x as isize;
+            let idx = (y_w + x) * 4;
+            let lum = 0.2126 * input[idx] as f64 + 0.7152 * input[idx + 1] as f64 + 0.0722 * input[idx + 2] as f64;
+            let mut is_line = false;
+
+            if lum < 192.0 && y_mod {
+                is_line = true;
+            }
+            if lum < 128.0 && (x_isize % spacing == 0) {
+                is_line = true;
+            }
+            if lum < 64.0 && ((x_isize + y_isize) % spacing == 0) {
+                is_line = true;
+            }
+            if lum < 32.0 && ((x_isize - y_isize) % spacing == 0) {
+                is_line = true;
+            }
+
+            let threshold = if is_line { 0.75 } else { 0.25 };
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_diamond_grid(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let s = (12.0 * scale).max(0.6);
+    let half_s = s / 2.0;
+    let limit = s / 2.5;
+
+    for y in 0..h {
+        let my = ((y as f64 % s) - half_s).abs();
+        let y_w = y * w;
+        for x in 0..w {
+            let mx = ((x as f64 % s) - half_s).abs();
+            let is_diamond = (mx + my) <= limit;
+            let threshold = if is_diamond { 0.35 } else { 0.65 };
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_diamond(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base_period = params.period.unwrap_or(8.0) as f64;
+    let s = (base_period * scale).max(0.6);
+    let half_s = s / 2.0;
+
+    for y in 0..h {
+        let my = ((y as f64 % s) - half_s).abs();
+        let y_w = y * w;
+        for x in 0..w {
+            let mx = ((x as f64 % s) - half_s).abs();
+            let d = (mx + my) / s;
+            let idx = (y_w + x) * 4;
+            let lum = 0.2126 * input[idx] as f64 + 0.7152 * input[idx + 1] as f64 + 0.0722 * input[idx + 2] as f64;
+            let target = 1.0 - lum / 255.0;
+            let threshold = if d <= target { 0.75 } else { 0.25 };
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_gridlock_traffic(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let step = ((8.0 * scale).round() as isize).max(1);
+
+    for y in 0..h {
+        let y_isize = y as isize;
+        let y_w = y * w;
+        for x in 0..w {
+            let x_isize = x as isize;
+            let is_line = ((x_isize + y_isize) % step == 0) || ((x_isize - y_isize) % step == 0);
+            let threshold = if is_line { 0.75 } else { 0.25 };
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_heart_grid(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let s = (16.0 * scale).max(0.8);
+    let half_s = s / 2.0;
+    let denom = s * 0.35;
+
+    for y in 0..h {
+        let cy = (y as f64 / s).floor() * s + half_s;
+        let v = -(y as f64 - cy) / denom;
+        let v2 = v * v;
+        let v3 = v2 * v;
+        let y_w = y * w;
+        for x in 0..w {
+            let cx = (x as f64 / s).floor() * s + half_s;
+            let u = (x as f64 - cx) / denom;
+            let u2 = u * u;
+            let is_heart = (u2 + v2 - 1.0).powi(3) - u2 * v3 <= 0.0;
+            let threshold = if is_heart { 0.75 } else { 0.25 };
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_print_pattern(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let _h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base_scale = params.dot_scale.unwrap_or(8.0) as f64;
+    let s = (base_scale * scale).max(0.4);
+    let ang45 = std::f64::consts::FRAC_PI_4;
+    let cos45 = ang45.cos();
+    let sin45 = ang45.sin();
+    let pi = std::f64::consts::PI;
+    let row_len = w * 4;
+
+    out.par_chunks_exact_mut(row_len)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let y_f = y as f64;
+            let in_row = &input[y * row_len..(y + 1) * row_len];
+            for x in 0..w {
+                let x_f = x as f64;
+                let rx = x_f * cos45 - y_f * sin45;
+                let ry = x_f * sin45 + y_f * cos45;
+                let wave = (rx / s * pi).sin() * (ry / s * pi).cos();
+                let threshold = (0.5 + wave * 0.4) as f32;
+                let idx = x * 4;
+
+                let chosen = lut.inline_pair_match(
+                    in_row[idx] as f32,
+                    in_row[idx + 1] as f32,
+                    in_row[idx + 2] as f32,
+                    threshold,
+                );
+                out_row[idx] = chosen[0];
+                out_row[idx + 1] = chosen[1];
+                out_row[idx + 2] = chosen[2];
+                out_row[idx + 3] = in_row[idx + 3];
+            }
+        });
+}
+
+pub fn dither_square_mosaic(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base_block = params.block_size.unwrap_or(8.0) as f64;
+    let s = ((base_block * scale).round() as usize).max(1);
+    let gap = s.min(((scale).round() as usize).max(1));
+
+    for y in 0..h {
+        let is_gap_y = (y % s) < gap;
+        let y_w = y * w;
+        for x in 0..w {
+            let is_gap = is_gap_y || ((x % s) < gap);
+            let threshold = if is_gap { 0.75 } else { 0.25 };
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_stippling(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let density = params.dot_density.unwrap_or(1.0) as f64;
+
+    for y in 0..h {
+        let sy = (y as f64 / scale).floor();
+        let y_w = y * w;
+        for x in 0..w {
+            let sx = (x as f64 / scale).floor();
+            let idx = (y_w + x) * 4;
+            let lum = 0.2126 * input[idx] as f64 + 0.7152 * input[idx + 1] as f64 + 0.0722 * input[idx + 2] as f64;
+            let pseudo = (sx * 12.9898 + sy * 78.233).sin() * 43758.5453;
+            let rand = ((pseudo % 1.0) + 1.0) % 1.0;
+            let threshold_val = (1.0 - lum / 255.0) * (0.3 + density * 0.07);
+            let threshold = if rand < threshold_val { 0.8 } else { 0.2 };
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// SPECIAL EFFECTS & PROCEDURAL CONTOUR ALGORITHMS (PHASE 4)
+// -------------------------------------------------------------
+
+pub fn dither_beehive(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base_size = params.cell_size.or(params.cell_radius).unwrap_or(8.0) as f64;
+    let size = ((base_size * scale).round() as isize).max(2) as f64;
+    let hx = size * 3.0_f64.sqrt();
+    let hy = size * 1.5;
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    for y in 0..h {
+        let sy = y as f64 + oy;
+        let qy = (((sy % hy) + hy) % hy - hy / 2.0).abs();
+        let y_w = y * w;
+        for x in 0..w {
+            let sx = x as f64 + ox;
+            let qx = (((sx % hx) + hx) % hx - hx / 2.0).abs();
+            let is_edge = (qx * 3.0_f64.sqrt() + qy) > (size * 1.4);
+            let threshold = if is_edge { 0.75 } else { 0.25 };
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_diagonal(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let sensitivity = params.edge_sensitivity.unwrap_or(1.0) as f64;
+    let base_spacing = params.stripe_spacing.or(params.line_spacing).unwrap_or(4.0) as f64;
+    let spacing = ((base_spacing * scale).round() as isize).max(1) as f64;
+    let angle = (params.angle.unwrap_or(45.0) as f64) * (std::f64::consts::PI / 180.0);
+    let cos_a = angle.cos();
+    let sin_a = angle.sin();
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    #[inline(always)]
+    fn lum_at(data: &[u8], w: usize, y: usize, x: usize) -> f64 {
+        let idx = (y * w + x) * 4;
+        0.2126 * data[idx] as f64 + 0.7152 * data[idx + 1] as f64 + 0.0722 * data[idx + 2] as f64
+    }
+
+    for y in 0..h {
+        let y_prev = y.saturating_sub(1);
+        let y_next = (y + 1).min(h - 1);
+        let y_cur = y * w;
+        for x in 0..w {
+            let idx = (y_cur + x) * 4;
+            let x_prev = x.saturating_sub(1);
+            let x_next = (x + 1).min(w - 1);
+
+            let l00 = lum_at(input, w, y_prev, x_prev);
+            let l02 = lum_at(input, w, y_prev, x_next);
+            let l10 = lum_at(input, w, y, x_prev);
+            let l12 = lum_at(input, w, y, x_next);
+            let l20 = lum_at(input, w, y_next, x_prev);
+            let l22 = lum_at(input, w, y_next, x_next);
+
+            let gx = (l02 + 2.0 * l12 + l22) - (l00 + 2.0 * l10 + l20);
+            let gy = (l20 + 2.0 * lum_at(input, w, y_next, x) + l22)
+                - (l00 + 2.0 * lum_at(input, w, y_prev, x) + l02);
+            let edge = js_hypot(gx, gy) / 255.0;
+            let is_edge = (edge * sensitivity * 0.4) > 0.3;
+
+            let sx = x as f64 + ox;
+            let sy = y as f64 + oy;
+            let proj = ((sx * cos_a + sy * sin_a) / spacing).floor() as i64;
+            let is_stripe = (proj & 1) == 0;
+            let threshold = if is_edge { 0.2 } else if is_stripe { 0.4 } else { 0.7 };
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_displace_contour(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let contour_thresh = (params.contour_threshold.unwrap_or(50.0) as f64) / 100.0;
+    let line_mode = params.line_mode.as_deref().and_then(|s| s.parse::<f64>().ok()).unwrap_or(1.0);
+    let base_spacing = params.line_spacing.map(|v| v as f64 * 4.0).unwrap_or(4.0);
+    let spacing = ((base_spacing * scale).round() as isize).max(2) as f64;
+    let smoothing = params.smoothing.unwrap_or(0.0) as usize;
+    let bands = (params.bands.unwrap_or(6.0) as f64).max(1.0);
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    #[inline(always)]
+    fn lum_at(data: &[u8], idx: usize) -> f64 {
+        0.2126 * data[idx] as f64 + 0.7152 * data[idx + 1] as f64 + 0.0722 * data[idx + 2] as f64
+    }
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let idx = (y_w + x) * 4;
+            let mut lum = lum_at(input, idx);
+            if smoothing > 0 {
+                let r_sm = smoothing.min(3);
+                let mut s_sum = lum;
+                let mut s_cnt = 1.0;
+                for d in 1..=r_sm {
+                    if x >= d {
+                        s_sum += lum_at(input, (y_w + x - d) * 4);
+                        s_cnt += 1.0;
+                    }
+                    if x + d < w {
+                        s_sum += lum_at(input, (y_w + x + d) * 4);
+                        s_cnt += 1.0;
+                    }
+                }
+                lum = s_sum / s_cnt;
+            }
+
+            let _sx = x as f64 + ox;
+            let sy = y as f64 + oy;
+            let displace = (lum / 255.0) * contour_thresh * 20.0 * scale;
+            let y_eff = (sy + displace).round() as isize;
+            let rem = ((y_eff % spacing as isize) + spacing as isize) % spacing as isize;
+            let is_line = (rem as f64) < (line_mode * scale).max(1.0);
+            let band_val = ((lum / 255.0) * bands * std::f64::consts::PI).sin();
+            let threshold = if is_line { 0.3 } else { 0.5 + band_val * 0.35 };
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_dotted_lines(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let density = params.line_density.map(|d| d as f64).unwrap_or_else(|| {
+        let spacing = params.line_spacing.unwrap_or(1.0) as f64;
+        (20.0 / spacing).round()
+    });
+
+    let dotting = (params.dotting.unwrap_or(40.0) as f64) / 100.0;
+    let angle_deg = params.line_angle.unwrap_or(45.0) as f64;
+    let rad = angle_deg * (std::f64::consts::PI / 180.0);
+    let cos_a = rad.cos();
+    let sin_a = rad.sin();
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    let min_dim = (w.min(h)) as f64;
+    let base_spacing = min_dim / density.max(1.0);
+    let spacing = ((base_spacing * scale).round() as isize).max(2) as f64;
+    let dot_freq = ((spacing * 0.75).round() as isize).max(2) as f64;
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let idx = (y_w + x) * 4;
+            let lum = 0.2126 * input[idx] as f64 + 0.7152 * input[idx + 1] as f64 + 0.0722 * input[idx + 2] as f64;
+            let sx = x as f64 + ox;
+            let sy = y as f64 + oy;
+            let rot_x = sx * cos_a + sy * sin_a;
+            let rot_y = -sx * sin_a + sy * cos_a;
+
+            let bend = ((rot_x / dot_freq) * std::f64::consts::PI).sin() * dotting * spacing * 0.5;
+            let eff_y = rot_y + bend + (lum / 255.0) * spacing;
+            let rem_y = ((eff_y % spacing) + spacing) % spacing;
+            let is_line = rem_y < (scale * 1.5).max(1.0);
+            let is_dot = is_line && (((rot_x / dot_freq).floor() as i64) & 1) == 0;
+            let threshold = if is_dot { 0.25 } else if is_line { 0.45 } else { 0.75 };
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_noise(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let noise_amount = params.noise_amount.unwrap_or(0.3) as f64;
+
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    for y in 0..h {
+        let py = y as f64 + oy;
+        let sy = if (scale - 1.0).abs() > 0.0001 { (py / scale).floor() } else { py };
+        let y_w = y * w;
+        for x in 0..w {
+            let px = x as f64 + ox;
+            let sx = if (scale - 1.0).abs() > 0.0001 { (px / scale).floor() } else { px };
+            let idx = (y_w + x) * 4;
+            let pseudo = (sx * 12.9898 + sy * 78.233).sin() * 43758.5453;
+            let rand = ((pseudo % 1.0) + 1.0) % 1.0;
+            let threshold = 0.5 + (rand - 0.5) * noise_amount;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_radial_burst(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let divisor = (params.divisor.unwrap_or(5.0) as f64).max(0.5);
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+    let cx = (w as f64) / 2.0 + ox;
+    let cy = (h as f64) / 2.0 + oy;
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let idx = (y_w + x) * 4;
+            let d = js_hypot(x as f64 - cx, y as f64 - cy);
+            let wave = (d / (divisor * scale)).sin();
+            let threshold = 0.5 + wave * 0.4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_radial_peaks(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let divisor = (params.divisor.unwrap_or(5.0) as f64).max(0.5);
+    let max_peaks = (params.max_peaks.unwrap_or(20.0) as usize).max(1);
+    let base_min_dist = params.min_peak_distance.unwrap_or(60.0) as f64;
+    let min_distance = (base_min_dist * scale).max(5.0);
+    let min_distance_sq = min_distance * min_distance;
+    let raw_thresh = params.peak_threshold.unwrap_or(50.0) as f64;
+    let min_lum = (255.0 - raw_thresh * 3.5).max(50.0);
+    let is_interference = params.interference.unwrap_or(false);
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    struct Peak {
+        x: f64,
+        y: f64,
+    }
+
+    let mut peaks: Vec<Peak> = Vec::new();
+    let step = (8usize).max((min_distance * 0.5).floor() as usize);
+    let y_end = h.saturating_sub(10);
+    let x_end = w.saturating_sub(10);
+
+    let mut y = 10usize;
+    while y < y_end {
+        if peaks.len() >= max_peaks {
+            break;
+        }
+        let mut x = 10usize;
+        while x < x_end {
+            if peaks.len() >= max_peaks {
+                break;
+            }
+            let idx = (y * w + x) * 4;
+            let lum = 0.2126 * input[idx] as f64 + 0.7152 * input[idx + 1] as f64 + 0.0722 * input[idx + 2] as f64;
+            if lum >= min_lum {
+                let mut valid = true;
+                let x_f = x as f64;
+                let y_f = y as f64;
+                for pk in &peaks {
+                    let dx = x_f - pk.x;
+                    let dy = y_f - pk.y;
+                    if dx * dx + dy * dy < min_distance_sq - 0.01 {
+                        valid = false;
+                        break;
+                    }
+                }
+                if valid {
+                    peaks.push(Peak { x: x_f, y: y_f });
+                }
+            }
+            x += step;
+        }
+        y += step;
+    }
+
+    if peaks.is_empty() {
+        peaks.push(Peak {
+            x: (w as f64) / 2.0,
+            y: (h as f64) / 2.0,
+        });
+    }
+
+    let eff_divisor = divisor * scale;
+
+
+
+    for y in 0..h {
+        let sy = y as f64 - oy;
+        let y_w = y * w;
+        for x in 0..w {
+            let sx = x as f64 - ox;
+            let idx = (y_w + x) * 4;
+            let wave = if is_interference {
+                let mut sum = 0.0;
+                for pk in &peaks {
+                    let d = js_hypot(sx - pk.x, sy - pk.y);
+                    sum += (d / eff_divisor).sin();
+                }
+                sum / (peaks.len() as f64)
+            } else {
+                let mut closest = f64::INFINITY;
+                for pk in &peaks {
+                    let d = js_hypot(sx - pk.x, sy - pk.y);
+                    if d < closest {
+                        closest = d;
+                    }
+                }
+                (closest / eff_divisor).sin()
+            };
+
+            let threshold = 0.5 + wave * 0.4;
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_sine_distort(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let freq_a = params.freq_a.unwrap_or(8.0) as f64;
+    let freq_b = params.freq_b.unwrap_or(12.0) as f64;
+    let angle = (params.angle.unwrap_or(45.0) as f64) * (std::f64::consts::PI / 180.0);
+    let cos_a = angle.cos();
+    let sin_a = angle.sin();
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let sx = (x as f64 + ox) / scale;
+            let sy = (y as f64 + oy) / scale;
+            let rx = sx * cos_a + sy * sin_a;
+            let wave = 0.5 * (((sx * freq_a) / 100.0).sin() + ((rx * freq_b) / 100.0).sin());
+            let threshold = 0.5 + wave * 0.4;
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_sine_wave_modulation(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let freq = params.wave_frequency.unwrap_or(5.0) as f64;
+    let amp = (params.wave_threshold.unwrap_or(10.0) as f64) / 25.0;
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let sx = (x as f64 + ox) / scale;
+            let sy = (y as f64 + oy) / scale;
+            let wave = ((sx * freq) / 50.0 + (sy * freq) / 50.0).sin();
+            let threshold = 0.5 + wave * amp;
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_topography(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let warp = params.warp_intensity.unwrap_or(1.0) as f64;
+    let period = ((10.0 * scale).round() as isize).max(2) as f64;
+    let contour_mod = ((32.0 * scale).round() as isize).max(4) as f64;
+    let contour_width = ((4.0 * scale).round() as isize).max(1) as f64;
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let idx = (y_w + x) * 4;
+            let lum = 0.2126 * input[idx] as f64 + 0.7152 * input[idx + 1] as f64 + 0.0722 * input[idx + 2] as f64;
+            let sx = x as f64 + ox;
+            let sy = y as f64 + oy;
+            let warped_lum = lum + (sx / period).sin() * (sy / period).cos() * warp * 15.0;
+            let rem = ((warped_lum.round() as i64).abs().rem_euclid(contour_mod as i64)) as f64;
+            let is_contour = rem < contour_width;
+            let threshold = if is_contour { 0.75 } else { 0.25 };
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_vortex(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let base_swirl = params.swirl.or(params.twist_strength).unwrap_or(5.0) as f64;
+    let swirl = base_swirl.max(0.5);
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let oy = params.offset_y.unwrap_or(0.0) as f64;
+    let cx = (w as f64) / 2.0 + ox;
+    let cy = (h as f64) / 2.0 + oy;
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let dx = x as f64 - cx;
+            let dy = y as f64 - cy;
+            let d = js_hypot(dx, dy) / scale;
+            let theta = dy.atan2(dx);
+            let wave = (theta * 4.0 + d / swirl).sin();
+            let threshold = 0.5 + wave * 0.4;
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
+            );
+            out[idx] = chosen[0];
+            out[idx + 1] = chosen[1];
+            out[idx + 2] = chosen[2];
+            out[idx + 3] = input[idx + 3];
+        }
+    }
+}
+
+pub fn dither_wave(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    params: &RawAlgorithmParams,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let scale = if params.scale > 0.0 { params.scale as f64 } else { 1.0 }.max(0.05);
+    let freq = params.frequency.unwrap_or(5.0) as f64;
+    let ox = params.offset_x.unwrap_or(0.0) as f64;
+    let _oy = params.offset_y.unwrap_or(0.0) as f64;
+
+    for y in 0..h {
+        let y_w = y * w;
+        for x in 0..w {
+            let sx = (x as f64 + ox) / scale;
+            let wave = ((sx * freq) / 20.0).sin();
+            let threshold = 0.5 + wave * 0.4;
+            let idx = (y_w + x) * 4;
+
+            let chosen = lut.inline_pair_match(
+                input[idx] as f32,
+                input[idx + 1] as f32,
+                input[idx + 2] as f32,
+                threshold as f32,
             );
             out[idx] = chosen[0];
             out[idx + 1] = chosen[1];
@@ -766,7 +2986,7 @@ pub fn apply_algorithm_raw_params(
         }
         "floyd_steinberg" | "floyd" => {
             let serp = params.serpentine.unwrap_or(false);
-            run_kernel_diffusion(width, height, input, out, &lut, &FS_KERNEL, 16.0, serp, params.diffusion_strength);
+            run_floyd_steinberg(width, height, input, out, &lut, serp, params.diffusion_strength);
             Ok(())
         }
         "atkinson" => {
@@ -835,7 +3055,7 @@ pub fn apply_algorithm_raw_params(
             Ok(())
         }
         "dynamic_serpentine" => {
-            run_kernel_diffusion(width, height, input, out, &lut, &FS_KERNEL, 16.0, true, params.diffusion_strength);
+            run_floyd_steinberg(width, height, input, out, &lut, true, params.diffusion_strength);
             Ok(())
         }
         "artifact_modulation" => {
@@ -907,7 +3127,7 @@ pub fn apply_algorithm_raw_params(
         }
         "thresholder" => {
             let freq = params.modulation_frequency.unwrap_or(1.0);
-            dither_thresholder(width, height, input, out, &lut, params.scale, freq, 0.0, 0.0);
+            dither_thresholder(width, height, input, out, &lut, params.scale, freq, params.offset_x.unwrap_or(0.0), params.offset_y.unwrap_or(0.0));
             Ok(())
         }
         "fixed_threshold" | "threshold" => {
@@ -975,10 +3195,11 @@ pub fn apply_algorithm_raw_params(
             Ok(())
         }
         "uniform_modulation_x" => {
-            let line_scale = params.line_scale.unwrap_or(5.0);
+            let scale = params.scale.max(0.05);
+            let effective_line_scale = (params.line_scale.unwrap_or(1.0) * scale).max(1.0);
             run_1d_horizontal_diffusion(width, height, input, out, &lut, params, |_x, sy, _lum| {
-                if line_scale > 1.0 {
-                    (if (sy & 1) == 0 { 1.0 } else { -1.0 }) * ((line_scale - 1.0) * 0.08).min(1.0)
+                if effective_line_scale > 1.0 {
+                    (if (sy & 1) == 0 { 1.0 } else { -1.0 }) * ((effective_line_scale - 1.0) * 0.08).min(1.0)
                 } else {
                     0.0
                 }
@@ -1010,10 +3231,11 @@ pub fn apply_algorithm_raw_params(
             Ok(())
         }
         "uniform_modulation_y" => {
-            let line_scale = params.line_scale.unwrap_or(5.0);
+            let scale = params.scale.max(0.05);
+            let effective_line_scale = (params.line_scale.unwrap_or(1.0) * scale).max(1.0);
             run_1d_vertical_diffusion(width, height, input, out, &lut, params, |sx, _y, _lum| {
-                if line_scale > 1.0 {
-                    (if (sx & 1) == 0 { 1.0 } else { -1.0 }) * ((line_scale - 1.0) * 0.08).min(1.0)
+                if effective_line_scale > 1.0 {
+                    (if (sx & 1) == 0 { 1.0 } else { -1.0 }) * ((effective_line_scale - 1.0) * 0.08).min(1.0)
                 } else {
                     0.0
                 }
@@ -1067,12 +3289,43 @@ pub fn apply_algorithm_raw_params(
             }, params.diffusion_strength);
             Ok(())
         }
-        "waveform" | "waveform_alt" => {
-            let density = params.wave_density.or(params.density).unwrap_or(5.0).max(0.1);
+        "waveform" => {
+            let density = params.wave_density.or(params.density).unwrap_or(1.0).max(0.1);
             let s = params.scale.max(0.05);
             run_1d_horizontal_diffusion(width, height, input, out, &lut, params, |x, _sy, lum| {
                 0.35 * (((x as f32 / s) * density) / 10.0 + (lum / 255.0) * std::f32::consts::PI * 2.0).sin()
             }, params.diffusion_strength);
+            Ok(())
+        }
+        "waveform_alt" => {
+            let blend = params.modulation_blend.unwrap_or(5.0) / 10.0;
+            let s = params.scale.max(0.05);
+            run_1d_horizontal_diffusion(width, height, input, out, &lut, params, |x, _sy, lum| {
+                let sx = x as f32 / s;
+                let freq_wave = ((sx * lum * 0.05) / 10.0).sin();
+                let amp_wave = (sx * 0.2).cos() * (lum / 255.0);
+                0.35 * (freq_wave * blend + amp_wave * (1.0 - blend))
+            }, params.diffusion_strength);
+            Ok(())
+        }
+        "color_separation" => {
+            dither_color_separation(width, height, input, out, palette, params);
+            Ok(())
+        }
+        "orb_diffuse" => {
+            dither_orb_diffuse(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "orb_diffuse_x" => {
+            dither_orb_diffuse_x(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "orb_diffuse_y" => {
+            dither_orb_diffuse_y(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "orb_matrix" => {
+            dither_orb_matrix(width, height, input, out, &lut, params);
             Ok(())
         }
         "ordered_modulation" => {
@@ -1103,56 +3356,136 @@ pub fn apply_algorithm_raw_params(
             }
             Ok(())
         }
-        "checkered"
-        | "checkers"
-        | "horizontal_lines"
+        "horizontal_lines"
         | "vertical_lines"
-        | "dotted_lines"
-        | "crosshatch"
         | "diagonal_hatch"
-        | "diagonal"
-        | "concentric_diamond"
-        | "diamond"
-        | "diamond_grid"
         | "woven_basket"
         | "hex_stipple"
         | "spatial_lattice"
-        | "beehive"
-        | "hexa_poly"
         | "brick_wall"
-        | "gridlock_traffic"
         | "herringbone"
         | "radial_concentric"
-        | "orb_matrix"
-        | "radial_burst"
-        | "radial_peaks"
         | "spiral_screen"
-        | "vortex"
-        | "circle_grid"
-        | "pop_tone"
-        | "print_pattern"
-        | "orb_diffuse"
-        | "orb_diffuse_x"
-        | "orb_diffuse_y"
-        | "heart_grid"
-        | "block_tone"
-        | "square_mosaic"
-        | "camo"
-        | "topography"
-        | "displace_contour"
-        | "sine_distort"
-        | "sine_wave_modulation"
-        | "wave"
-        | "tri_poly"
-        | "low_poly"
-        | "penta_poly"
-        | "stippling"
-        | "noise"
         | "interleaved_gradient_noise"
         | "roberts_quasirandom"
-        | "cyber_matrix"
-        | "color_separation" => {
+        | "cyber_matrix" => {
             dither_raw_pattern(width, height, input, out, &lut, &norm_id, params.scale.max(0.05), params);
+            Ok(())
+        }
+        "beehive" => {
+            dither_beehive(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "diagonal" => {
+            dither_diagonal(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "displace_contour" | "displace-contour" => {
+            dither_displace_contour(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "dotted_lines" | "dotted-lines" => {
+            dither_dotted_lines(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "noise" => {
+            dither_noise(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "radial_burst" | "radial-burst" => {
+            dither_radial_burst(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "radial_peaks" | "radial-peaks" => {
+            dither_radial_peaks(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "sine_distort" | "sine-distort" => {
+            dither_sine_distort(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "sine_wave_modulation" | "sine-wave-modulation" => {
+            dither_sine_wave_modulation(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "topography" => {
+            dither_topography(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "vortex" => {
+            dither_vortex(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "wave" => {
+            dither_wave(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "block_tone" => {
+            dither_block_tone(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "pop_tone" => {
+            dither_pop_tone(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "camo" => {
+            dither_camo(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "checkers" | "checkered" => {
+            dither_checkers(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "circle_grid" => {
+            dither_circle_grid(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "crosshatch" => {
+            dither_crosshatch(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "diamond_grid" => {
+            dither_diamond_grid(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "diamond" | "concentric_diamond" => {
+            dither_diamond(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "gridlock_traffic" => {
+            dither_gridlock_traffic(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "heart_grid" => {
+            dither_heart_grid(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "print_pattern" => {
+            dither_print_pattern(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "square_mosaic" => {
+            dither_square_mosaic(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "stippling" => {
+            dither_stippling(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "hexa_poly" => {
+            dither_hexa_poly(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "low_poly" => {
+            dither_low_poly(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "penta_poly" => {
+            dither_penta_poly(width, height, input, out, &lut, params);
+            Ok(())
+        }
+        "tri_poly" => {
+            dither_tri_poly(width, height, input, out, &lut, params);
             Ok(())
         }
         other => {
@@ -1438,6 +3771,197 @@ const PIGEON_KERNEL: [KernelEntry; 6] = [
 // HIGH-PERFORMANCE 1:1 PARITY DIFFUSION & DITHER KERNELS
 // -------------------------------------------------------------
 
+pub fn run_floyd_steinberg(
+    width: u32,
+    height: u32,
+    input: &[u8],
+    out: &mut [u8],
+    lut: &FastPaletteLUT,
+    serpentine: bool,
+    error_mult: f32,
+) {
+    let w = width as usize;
+    let h = height as usize;
+    let factor = (error_mult / 16.0) as f64;
+
+    if lut.is_tonal_ramp {
+        let mut row0 = vec![0.0f32; w];
+        let mut row1 = vec![0.0f32; w];
+        let mut curr_err = &mut row0[..];
+        let mut next_err = &mut row1[..];
+
+        for y in 0..h {
+            let is_odd = (y & 1) == 1;
+            let reverse = serpentine && is_odd;
+            let row_idx = y * w * 4;
+
+            if !reverse {
+                for x in 0..w {
+                    let idx = row_idx + x * 4;
+                    let lum = 0.2126f64 * (input[idx] as f64)
+                        + 0.7152f64 * (input[idx + 1] as f64)
+                        + 0.0722f64 * (input[idx + 2] as f64);
+                    let cur_lum = (lum + curr_err[x] as f64).clamp(0.0, 255.0);
+
+                    let chosen_idx = lut.quantize_lum_f64(cur_lum);
+                    let col = lut.raw_palette[chosen_idx];
+                    out[idx] = col[0];
+                    out[idx + 1] = col[1];
+                    out[idx + 2] = col[2];
+                    out[idx + 3] = input[idx + 3];
+
+                    let chosen_lum = lut.luminances_f64[chosen_idx];
+                    let err = ((cur_lum - chosen_lum) * factor) as f32;
+
+                    if x + 1 < w {
+                        curr_err[x + 1] += err * 7.0;
+                    }
+                    if y + 1 < h {
+                        if x > 0 {
+                            next_err[x - 1] += err * 3.0;
+                        }
+                        next_err[x] += err * 5.0;
+                        if x + 1 < w {
+                            next_err[x + 1] += err * 1.0;
+                        }
+                    }
+                }
+            } else {
+                for x in (0..w).rev() {
+                    let idx = row_idx + x * 4;
+                    let lum = 0.2126f64 * (input[idx] as f64)
+                        + 0.7152f64 * (input[idx + 1] as f64)
+                        + 0.0722f64 * (input[idx + 2] as f64);
+                    let cur_lum = (lum + curr_err[x] as f64).clamp(0.0, 255.0);
+
+                    let chosen_idx = lut.quantize_lum_f64(cur_lum);
+                    let col = lut.raw_palette[chosen_idx];
+                    out[idx] = col[0];
+                    out[idx + 1] = col[1];
+                    out[idx + 2] = col[2];
+                    out[idx + 3] = input[idx + 3];
+
+                    let chosen_lum = lut.luminances_f64[chosen_idx];
+                    let err = ((cur_lum - chosen_lum) * factor) as f32;
+
+                    if x > 0 {
+                        curr_err[x - 1] += err * 7.0;
+                    }
+                    if y + 1 < h {
+                        if x + 1 < w {
+                            next_err[x + 1] += err * 3.0;
+                        }
+                        next_err[x] += err * 5.0;
+                        if x > 0 {
+                            next_err[x - 1] += err * 1.0;
+                        }
+                    }
+                }
+            }
+
+            curr_err.fill(0.0);
+            std::mem::swap(&mut curr_err, &mut next_err);
+        }
+    } else {
+        let mut row0 = vec![0.0f32; w * 3];
+        let mut row1 = vec![0.0f32; w * 3];
+        let mut curr_err = &mut row0[..];
+        let mut next_err = &mut row1[..];
+        let max_err = 128.0f64;
+
+        for y in 0..h {
+            let is_odd = (y & 1) == 1;
+            let reverse = serpentine && is_odd;
+            let row_idx = y * w * 4;
+
+            if !reverse {
+                for x in 0..w {
+                    let idx = row_idx + x * 4;
+                    let x3 = x * 3;
+
+                    let r = (input[idx] as f64 + curr_err[x3] as f64).clamp(0.0, 255.0);
+                    let g = (input[idx + 1] as f64 + curr_err[x3 + 1] as f64).clamp(0.0, 255.0);
+                    let b = (input[idx + 2] as f64 + curr_err[x3 + 2] as f64).clamp(0.0, 255.0);
+
+                    let matched = lut.inline_match_f64(r, g, b);
+                    out[idx] = matched[0];
+                    out[idx + 1] = matched[1];
+                    out[idx + 2] = matched[2];
+                    out[idx + 3] = input[idx + 3];
+
+                    let err_r = ((r - matched[0] as f64).clamp(-max_err, max_err) * factor) as f32;
+                    let err_g = ((g - matched[1] as f64).clamp(-max_err, max_err) * factor) as f32;
+                    let err_b = ((b - matched[2] as f64).clamp(-max_err, max_err) * factor) as f32;
+
+                    if x + 1 < w {
+                        curr_err[x3 + 3] += err_r * 7.0;
+                        curr_err[x3 + 4] += err_g * 7.0;
+                        curr_err[x3 + 5] += err_b * 7.0;
+                    }
+                    if y + 1 < h {
+                        if x > 0 {
+                            next_err[x3 - 3] += err_r * 3.0;
+                            next_err[x3 - 2] += err_g * 3.0;
+                            next_err[x3 - 1] += err_b * 3.0;
+                        }
+                        next_err[x3] += err_r * 5.0;
+                        next_err[x3 + 1] += err_g * 5.0;
+                        next_err[x3 + 2] += err_b * 5.0;
+                        if x + 1 < w {
+                            next_err[x3 + 3] += err_r * 1.0;
+                            next_err[x3 + 4] += err_g * 1.0;
+                            next_err[x3 + 5] += err_b * 1.0;
+                        }
+                    }
+                }
+            } else {
+                for x in (0..w).rev() {
+                    let idx = row_idx + x * 4;
+                    let x3 = x * 3;
+
+                    let r = (input[idx] as f64 + curr_err[x3] as f64).clamp(0.0, 255.0);
+                    let g = (input[idx + 1] as f64 + curr_err[x3 + 1] as f64).clamp(0.0, 255.0);
+                    let b = (input[idx + 2] as f64 + curr_err[x3 + 2] as f64).clamp(0.0, 255.0);
+
+                    let matched = lut.inline_match_f64(r, g, b);
+                    out[idx] = matched[0];
+                    out[idx + 1] = matched[1];
+                    out[idx + 2] = matched[2];
+                    out[idx + 3] = input[idx + 3];
+
+                    let err_r = ((r - matched[0] as f64).clamp(-max_err, max_err) * factor) as f32;
+                    let err_g = ((g - matched[1] as f64).clamp(-max_err, max_err) * factor) as f32;
+                    let err_b = ((b - matched[2] as f64).clamp(-max_err, max_err) * factor) as f32;
+
+                    if x > 0 {
+                        curr_err[x3 - 3] += err_r * 7.0;
+                        curr_err[x3 - 2] += err_g * 7.0;
+                        curr_err[x3 - 1] += err_b * 7.0;
+                    }
+                    if y + 1 < h {
+                        if x + 1 < w {
+                            next_err[x3 + 3] += err_r * 3.0;
+                            next_err[x3 + 4] += err_g * 3.0;
+                            next_err[x3 + 5] += err_b * 3.0;
+                        }
+                        next_err[x3] += err_r * 5.0;
+                        next_err[x3 + 1] += err_g * 5.0;
+                        next_err[x3 + 2] += err_b * 5.0;
+                        if x > 0 {
+                            next_err[x3 - 3] += err_r * 1.0;
+                            next_err[x3 - 2] += err_g * 1.0;
+                            next_err[x3 - 1] += err_b * 1.0;
+                        }
+                    }
+                }
+            }
+
+            curr_err.fill(0.0);
+            std::mem::swap(&mut curr_err, &mut next_err);
+        }
+    }
+}
+
 pub fn run_kernel_diffusion(
     width: u32,
     height: u32,
@@ -1631,7 +4155,7 @@ pub fn dither_bayer_matrix(
     scale: f32,
 ) {
     let w = width as usize;
-    let h = height as usize;
+    let _h = height as usize;
     let effective_size = match size {
         2 | 8 | 16 => size,
         _ => 4,
@@ -1646,31 +4170,36 @@ pub fn dither_bayer_matrix(
     };
 
     let safe_scale = if scale > 0.01 { scale } else { 1.0 };
-    for y in 0..h {
-        let sy = (y as f32 / safe_scale).floor() as usize;
-        let row_offset = (sy & mask) * effective_size;
-        for x in 0..w {
-            let sx = (x as f32 / safe_scale).floor() as usize;
-            let idx = (y * w + x) * 4;
+    let row_len = w * 4;
 
-            let bayer_val = match effective_size {
-                2 => BAYER_2[row_offset + (sx & mask)],
-                4 => BAYER_4[row_offset + (sx & mask)],
-                _ => bayer_buf.as_ref().unwrap()[row_offset + (sx & mask)],
-            };
+    out.par_chunks_exact_mut(row_len)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let sy = (y as f32 / safe_scale).floor() as usize;
+            let row_offset = (sy & mask) * effective_size;
+            let in_row = &input[y * row_len..(y + 1) * row_len];
+            for x in 0..w {
+                let sx = (x as f32 / safe_scale).floor() as usize;
+                let idx = x * 4;
 
-            let chosen = lut.inline_pair_match(
-                input[idx] as f32,
-                input[idx + 1] as f32,
-                input[idx + 2] as f32,
-                bayer_val,
-            );
-            out[idx] = chosen[0];
-            out[idx + 1] = chosen[1];
-            out[idx + 2] = chosen[2];
-            out[idx + 3] = input[idx + 3];
-        }
-    }
+                let bayer_val = match effective_size {
+                    2 => BAYER_2[row_offset + (sx & mask)],
+                    4 => BAYER_4[row_offset + (sx & mask)],
+                    _ => bayer_buf.as_ref().unwrap()[row_offset + (sx & mask)],
+                };
+
+                let chosen = lut.inline_pair_match(
+                    in_row[idx] as f32,
+                    in_row[idx + 1] as f32,
+                    in_row[idx + 2] as f32,
+                    bayer_val,
+                );
+                out_row[idx] = chosen[0];
+                out_row[idx + 1] = chosen[1];
+                out_row[idx + 2] = chosen[2];
+                out_row[idx + 3] = in_row[idx + 3];
+            }
+        });
 }
 
 pub fn dither_bayer_void(
@@ -1995,7 +4524,7 @@ pub fn dither_thresholder(
                 input[idx] as f32,
                 input[idx + 1] as f32,
                 input[idx + 2] as f32,
-                threshold,
+                threshold as f32,
             );
             out[idx] = chosen[0];
             out[idx + 1] = chosen[1];
@@ -2664,6 +5193,7 @@ fn apply_fast_bayer(
     *image = RgbaImage::from_raw(width, height, out).unwrap();
 }
 
+#[allow(dead_code)]
 fn apply_fast_threshold(
     image: &mut RgbaImage,
     settings: &DitherSettings,
@@ -2716,6 +5246,7 @@ fn apply_error_diffusion(
     apply_fast_diffusion(image, settings, kernel, divisor as f64, None);
 }
 
+#[allow(dead_code)]
 fn apply_dynamic_serpentine(image: &mut RgbaImage, settings: &DitherSettings) {
     let mut custom_settings = settings.clone();
     custom_settings.serpentine = true;
@@ -2725,6 +5256,7 @@ fn apply_dynamic_serpentine(image: &mut RgbaImage, settings: &DitherSettings) {
 // -------------------------------------------------------------
 // ORDERED DITHERING (BAYER + CLUSTERED DOT)
 // -------------------------------------------------------------
+#[allow(dead_code)]
 fn get_bayer_matrix_value(size: usize, x: usize, y: usize) -> f32 {
     match size {
         2 => {
@@ -2767,6 +5299,7 @@ fn get_bayer_matrix_value(size: usize, x: usize, y: usize) -> f32 {
     }
 }
 
+#[allow(dead_code)]
 fn apply_bayer(image: &mut RgbaImage, settings: &DitherSettings, matrix_size: usize) {
     let (width, height) = image.dimensions();
     let spread = 48.0 * settings.diffusion_strength;
@@ -2789,6 +5322,7 @@ fn apply_bayer(image: &mut RgbaImage, settings: &DitherSettings, matrix_size: us
     }
 }
 
+#[allow(dead_code)]
 fn apply_clustered_dot(image: &mut RgbaImage, settings: &DitherSettings) {
     let (width, height) = image.dimensions();
     const CLUSTER: [[f32; 6]; 6] = [
@@ -2821,6 +5355,7 @@ fn apply_clustered_dot(image: &mut RgbaImage, settings: &DitherSettings) {
 // -------------------------------------------------------------
 // PATTERN DITHERS (8 PATTERNS)
 // -------------------------------------------------------------
+#[allow(dead_code)]
 pub enum PatternType {
     Checkered,
     HorizontalLines,

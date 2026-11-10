@@ -1,5 +1,6 @@
 // DitherForge Phase 1 Audit: Rust Native Engine Benchmark
 // Physical Hardware Target: Intel Core i3-3240T (2 cores / 4 threads, 2.9 GHz, 8 GB DDR3)
+#![allow(dead_code, unused_variables)]
 
 #[path = "../algorithms/mod.rs"]
 mod algorithms;

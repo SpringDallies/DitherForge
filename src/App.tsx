@@ -26,6 +26,15 @@ export const App: React.FC = () => {
   const ffmpegStatus = useAppStore((state) => state.ffmpegStatus);
   const setFfmpegStatus = useAppStore((state) => state.setFfmpegStatus);
 
+  // Proactively query FFmpeg status on startup in Tauri desktop mode
+  useEffect(() => {
+    if (ffmpegService.isTauri()) {
+      ffmpegService.getStatus().then((status) => {
+        setFfmpegStatus(status);
+      });
+    }
+  }, []);
+
   // When switching to Animation Mode:
   // 1. Check whether FFmpeg is installed and executable via `check_ffmpeg_status`.
   // 2. If available, initialize native video pipeline.

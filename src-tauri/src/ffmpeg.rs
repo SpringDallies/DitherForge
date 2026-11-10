@@ -9,6 +9,25 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::Emitter;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+pub fn create_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
+static CACHED_FFMPEG: Mutex<Option<Option<PathBuf>>> = Mutex::new(None);
+static CACHED_FFPROBE: Mutex<Option<Option<PathBuf>>> = Mutex::new(None);
+
 /// Information about the host system's FFmpeg/ffprobe installation.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FfmpegStatus {
@@ -82,6 +101,7 @@ pub struct VideoExportProgress {
 pub struct StreamSession {
     child: Child,
     stdin: ChildStdin,
+    stderr_drain: Option<std::thread::JoinHandle<Vec<u8>>>,
     width: u32,
     height: u32,
     fps: f64,
@@ -101,13 +121,26 @@ fn get_sessions() -> &'static Mutex<Option<HashMap<String, StreamSession>>> {
 
 /// Searches the system for the FFmpeg executable across PATH and known directories.
 pub fn find_ffmpeg_path() -> Option<PathBuf> {
+    if let Ok(guard) = CACHED_FFMPEG.lock() {
+        if let Some(cached) = &*guard {
+            return cached.clone();
+        }
+    }
+    let res = find_ffmpeg_path_uncached();
+    if let Ok(mut guard) = CACHED_FFMPEG.lock() {
+        *guard = Some(res.clone());
+    }
+    res
+}
+
+pub fn find_ffmpeg_path_uncached() -> Option<PathBuf> {
     // 1. Direct PATH check via Command
-    if let Ok(output) = Command::new("ffmpeg").arg("-version").output() {
+    if let Ok(output) = create_command("ffmpeg").arg("-version").output() {
         if output.status.success() {
             // Retrieve actual path via `which` or `where`
             #[cfg(target_os = "windows")]
             {
-                if let Ok(which_out) = Command::new("where").arg("ffmpeg").output() {
+                if let Ok(which_out) = create_command("where").arg("ffmpeg").output() {
                     if let Ok(s) = String::from_utf8(which_out.stdout) {
                         if let Some(first_line) = s.lines().next() {
                             let p = PathBuf::from(first_line.trim());
@@ -120,7 +153,7 @@ pub fn find_ffmpeg_path() -> Option<PathBuf> {
             }
             #[cfg(not(target_os = "windows"))]
             {
-                if let Ok(which_out) = Command::new("which").arg("ffmpeg").output() {
+                if let Ok(which_out) = create_command("which").arg("ffmpeg").output() {
                     if let Ok(s) = String::from_utf8(which_out.stdout) {
                         let p = PathBuf::from(s.trim());
                         if p.is_file() {
@@ -194,7 +227,7 @@ pub fn find_ffmpeg_path() -> Option<PathBuf> {
 
         for cand in candidates {
             if cand.is_file() {
-                if let Ok(out) = Command::new(&cand).arg("-version").output() {
+                if let Ok(out) = create_command(&cand).arg("-version").output() {
                     if out.status.success() {
                         return Some(cand);
                     }
@@ -215,7 +248,7 @@ pub fn find_ffmpeg_path() -> Option<PathBuf> {
         for cand in &unix_candidates {
             let p = PathBuf::from(cand);
             if p.is_file() {
-                if let Ok(out) = Command::new(&p).arg("-version").output() {
+                if let Ok(out) = create_command(&p).arg("-version").output() {
                     if out.status.success() {
                         return Some(p);
                     }
@@ -227,7 +260,7 @@ pub fn find_ffmpeg_path() -> Option<PathBuf> {
         if let Ok(home) = std::env::var("HOME") {
             let home_p = PathBuf::from(home).join(".local/bin/ffmpeg");
             if home_p.is_file() {
-                if let Ok(out) = Command::new(&home_p).arg("-version").output() {
+                if let Ok(out) = create_command(&home_p).arg("-version").output() {
                     if out.status.success() {
                         return Some(home_p);
                     }
@@ -241,12 +274,25 @@ pub fn find_ffmpeg_path() -> Option<PathBuf> {
 
 /// Searches the system for the ffprobe executable across PATH and known directories.
 pub fn find_ffprobe_path() -> Option<PathBuf> {
+    if let Ok(guard) = CACHED_FFPROBE.lock() {
+        if let Some(cached) = &*guard {
+            return cached.clone();
+        }
+    }
+    let res = find_ffprobe_path_uncached();
+    if let Ok(mut guard) = CACHED_FFPROBE.lock() {
+        *guard = Some(res.clone());
+    }
+    res
+}
+
+pub fn find_ffprobe_path_uncached() -> Option<PathBuf> {
     // 1. Direct PATH check
-    if let Ok(output) = Command::new("ffprobe").arg("-version").output() {
+    if let Ok(output) = create_command("ffprobe").arg("-version").output() {
         if output.status.success() {
             #[cfg(target_os = "windows")]
             {
-                if let Ok(which_out) = Command::new("where").arg("ffprobe").output() {
+                if let Ok(which_out) = create_command("where").arg("ffprobe").output() {
                     if let Ok(s) = String::from_utf8(which_out.stdout) {
                         if let Some(first_line) = s.lines().next() {
                             let p = PathBuf::from(first_line.trim());
@@ -259,7 +305,7 @@ pub fn find_ffprobe_path() -> Option<PathBuf> {
             }
             #[cfg(not(target_os = "windows"))]
             {
-                if let Ok(which_out) = Command::new("which").arg("ffprobe").output() {
+                if let Ok(which_out) = create_command("which").arg("ffprobe").output() {
                     if let Ok(s) = String::from_utf8(which_out.stdout) {
                         let p = PathBuf::from(s.trim());
                         if p.is_file() {
@@ -282,7 +328,7 @@ pub fn find_ffprobe_path() -> Option<PathBuf> {
 
             let probe_candidate = parent.join(probe_name);
             if probe_candidate.is_file() {
-                if let Ok(out) = Command::new(&probe_candidate).arg("-version").output() {
+                if let Ok(out) = create_command(&probe_candidate).arg("-version").output() {
                     if out.status.success() {
                         return Some(probe_candidate);
                     }
@@ -303,6 +349,19 @@ pub fn find_ffprobe_path() -> Option<PathBuf> {
     }
 
     None
+}
+
+/// Forces a refresh of the cached FFmpeg and ffprobe binary paths.
+pub fn refresh_ffmpeg_cache() -> (Option<PathBuf>, Option<PathBuf>) {
+    let ffmpeg = find_ffmpeg_path_uncached();
+    if let Ok(mut guard) = CACHED_FFMPEG.lock() {
+        *guard = Some(ffmpeg.clone());
+    }
+    let ffprobe = find_ffprobe_path_uncached();
+    if let Ok(mut guard) = CACHED_FFPROBE.lock() {
+        *guard = Some(ffprobe.clone());
+    }
+    (ffmpeg, ffprobe)
 }
 
 /// Detects the Linux distribution and corresponding package manager command.
@@ -340,7 +399,7 @@ fn detect_linux_distro_pm() -> (Option<String>, Option<String>) {
             ("zypper", "sudo zypper install -y ffmpeg"),
             ("apk", "sudo apk add ffmpeg"),
         ] {
-            if Command::new("which").arg(bin).output().map(|o| o.status.success()).unwrap_or(false) {
+            if create_command("which").arg(bin).output().map(|o| o.status.success()).unwrap_or(false) {
                 return (Some((*bin).to_string()), Some((*cmd).to_string()));
             }
         }
@@ -363,7 +422,7 @@ fn find_linux_terminal() -> Option<String> {
         "xterm",
     ];
     for t in &terminals {
-        if let Ok(out) = Command::new("which").arg(t).output() {
+        if let Ok(out) = create_command("which").arg(t).output() {
             if out.status.success() {
                 return Some((*t).to_string());
             }
@@ -377,7 +436,7 @@ fn find_linux_terminal() -> Option<String> {
 fn check_windows_winget() -> bool {
     #[cfg(target_os = "windows")]
     {
-        if let Ok(out) = Command::new("winget").arg("--version").output() {
+        if let Ok(out) = create_command("winget").arg("--version").output() {
             return out.status.success();
         }
     }
@@ -393,7 +452,7 @@ pub fn get_ffmpeg_status() -> FfmpegStatus {
 
     let mut version = None;
     if let Some(ref path) = ffmpeg_path {
-        if let Ok(out) = Command::new(path).arg("-version").output() {
+        if let Ok(out) = create_command(path).arg("-version").output() {
             if let Ok(s) = String::from_utf8(out.stdout) {
                 if let Some(first_line) = s.lines().next() {
                     version = Some(first_line.trim().to_string());
@@ -467,7 +526,7 @@ pub fn install_ffmpeg() -> Result<InstallResult, String> {
             return Err("WinGet is not available on this system. Please install FFmpeg manually from https://www.gyan.dev/ffmpeg/builds/".to_string());
         }
 
-        let child = Command::new("winget")
+        let child = create_command("winget")
             .args([
                 "install",
                 "-e",
@@ -492,7 +551,7 @@ pub fn install_ffmpeg() -> Result<InstallResult, String> {
         }
 
         // Re-check for FFmpeg path (including newly populated WinGet directories)
-        let newly_found = find_ffmpeg_path();
+        let newly_found = refresh_ffmpeg_cache().0;
         Ok(InstallResult {
             success: newly_found.is_some(),
             message: if newly_found.is_some() {
@@ -525,7 +584,7 @@ pub fn install_ffmpeg() -> Result<InstallResult, String> {
             install_cmd, install_cmd
         );
 
-        let mut term_cmd = Command::new(&terminal);
+        let mut term_cmd = create_command(&terminal);
         match terminal.as_str() {
             "konsole" => {
                 term_cmd.args(["-e", "bash", "-c", &full_script]);
@@ -560,7 +619,7 @@ pub fn probe_video(video_path: &str) -> Result<VideoInfo, String> {
         .ok_or_else(|| "ffprobe is not available on this system".to_string())?;
 
     // Probe video stream
-    let v_out = Command::new(&probe_bin)
+    let v_out = create_command(&probe_bin)
         .args([
             "-v",
             "error",
@@ -612,7 +671,7 @@ pub fn probe_video(video_path: &str) -> Result<VideoInfo, String> {
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| {
             // Check container format duration if stream duration is absent
-            if let Ok(f_out) = Command::new(&probe_bin)
+            if let Ok(f_out) = create_command(&probe_bin)
                 .args([
                     "-v",
                     "error",
@@ -639,7 +698,7 @@ pub fn probe_video(video_path: &str) -> Result<VideoInfo, String> {
         .unwrap_or_else(|| (duration * fps).round().max(1.0) as u64);
 
     // Probe audio stream
-    let a_out = Command::new(&probe_bin)
+    let a_out = create_command(&probe_bin)
         .args([
             "-v",
             "error",
@@ -689,12 +748,17 @@ pub fn extract_single_frame(
     let ffmpeg_bin = find_ffmpeg_path()
         .ok_or_else(|| "FFmpeg is not available on this system".to_string())?;
 
-    let info = probe_video(video_path)?;
-    let w = target_width.unwrap_or(info.width);
-    let h = target_height.unwrap_or(info.height);
+    let (w, h) = match (target_width, target_height) {
+        (Some(tw), Some(th)) => (tw, th),
+        _ => {
+            let info = probe_video(video_path)?;
+            (target_width.unwrap_or(info.width), target_height.unwrap_or(info.height))
+        }
+    };
 
-    let mut cmd = Command::new(&ffmpeg_bin);
+    let mut cmd = create_command(&ffmpeg_bin);
     cmd.args([
+        "-nostdin",
         "-ss",
         &format!("{:.3}", timestamp_sec),
         "-i",
@@ -754,7 +818,7 @@ pub fn export_video_native_ffmpeg(
     }
 
     // 1. Configure and spawn the FFmpeg encoder child process
-    let mut enc_cmd = Command::new(&ffmpeg_bin);
+    let mut enc_cmd = create_command(&ffmpeg_bin);
     enc_cmd.args([
         "-y",
         "-v",
@@ -787,7 +851,7 @@ pub fn export_video_native_ffmpeg(
                 "-pix_fmt",
                 "yuv420p",
                 "-preset",
-                "medium",
+                "veryfast",
                 "-crf",
                 "20",
             ]);
@@ -805,6 +869,10 @@ pub fn export_video_native_ffmpeg(
                 "30",
                 "-b:v",
                 "0",
+                "-cpu-used",
+                "4",
+                "-row-mt",
+                "1",
             ]);
             if has_audio {
                 enc_cmd.args(["-c:a", "libopus", "-b:a", "128k"]);
@@ -817,7 +885,7 @@ pub fn export_video_native_ffmpeg(
                 "-pix_fmt",
                 "yuv420p",
                 "-preset",
-                "medium",
+                "veryfast",
                 "-crf",
                 "18",
             ]);
@@ -826,7 +894,7 @@ pub fn export_video_native_ffmpeg(
             }
         }
         _ => {
-            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p"]);
+            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast"]);
         }
     }
 
@@ -842,11 +910,21 @@ pub fn export_video_native_ffmpeg(
         .take()
         .ok_or_else(|| "Failed to open FFmpeg encoder stdin".to_string())?;
 
+    let enc_stderr = encoder_child.stderr.take();
+    let stderr_drain = std::thread::spawn(move || {
+        let mut err_buf = Vec::new();
+        if let Some(mut r) = enc_stderr {
+            let _ = r.read_to_end(&mut err_buf);
+        }
+        err_buf
+    });
+
     // 2. If input video exists, spawn FFmpeg decoder piping raw RGBA to Rust
     let mut decoder_child = if let Some(ref in_path) = request.input_video_path {
         if Path::new(in_path).is_file() {
-            let mut dec_cmd = Command::new(&ffmpeg_bin);
+            let mut dec_cmd = create_command(&ffmpeg_bin);
             dec_cmd.args([
+                "-nostdin",
                 "-v",
                 "error",
                 "-i",
@@ -926,13 +1004,15 @@ pub fn export_video_native_ffmpeg(
 
     // Wait for encoder to finish muxing
     let enc_status = encoder_child
-        .wait_with_output()
+        .wait()
         .map_err(|e| format!("Error waiting for FFmpeg encoder: {}", e))?;
 
-    if !enc_status.status.success() {
+    let stderr_output = stderr_drain.join().unwrap_or_default();
+
+    if !enc_status.success() {
         return Err(format!(
             "FFmpeg encoding failed: {}",
-            String::from_utf8_lossy(&enc_status.stderr)
+            String::from_utf8_lossy(&stderr_output)
         ));
     }
 
@@ -968,7 +1048,7 @@ pub fn start_ffmpeg_stream(
     input_audio_path: Option<String>,
 ) -> Result<String, String> {
     let ffmpeg_bin = find_ffmpeg_path().ok_or_else(|| "FFmpeg is not available on this system".to_string())?;
-    let mut enc_cmd = Command::new(&ffmpeg_bin);
+    let mut enc_cmd = create_command(&ffmpeg_bin);
     enc_cmd.args([
         "-y",
         "-v",
@@ -996,25 +1076,25 @@ pub fn start_ffmpeg_stream(
     let fmt = format.to_lowercase();
     match fmt.as_str() {
         "mp4" => {
-            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "medium", "-crf", "20"]);
+            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20"]);
             if has_audio {
                 enc_cmd.args(["-c:a", "aac", "-b:a", "192k"]);
             }
         }
         "webm" => {
-            enc_cmd.args(["-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p", "-crf", "30", "-b:v", "0"]);
+            enc_cmd.args(["-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p", "-crf", "30", "-b:v", "0", "-cpu-used", "4", "-row-mt", "1"]);
             if has_audio {
                 enc_cmd.args(["-c:a", "libopus", "-b:a", "128k"]);
             }
         }
         "mov" => {
-            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "medium", "-crf", "18"]);
+            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "18"]);
             if has_audio {
                 enc_cmd.args(["-c:a", "aac", "-b:a", "256k"]);
             }
         }
         _ => {
-            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p"]);
+            enc_cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast"]);
         }
     }
 
@@ -1023,6 +1103,15 @@ pub fn start_ffmpeg_stream(
 
     let mut child = enc_cmd.spawn().map_err(|e| format!("Failed to start FFmpeg stream encoder: {}", e))?;
     let stdin = child.stdin.take().ok_or_else(|| "Failed to take stdin of FFmpeg stream".to_string())?;
+
+    let child_stderr = child.stderr.take();
+    let stderr_drain = Some(std::thread::spawn(move || {
+        let mut err_buf = Vec::new();
+        if let Some(mut r) = child_stderr {
+            let _ = r.read_to_end(&mut err_buf);
+        }
+        err_buf
+    }));
 
     let session_id = format!(
         "ff_stream_{}",
@@ -1035,6 +1124,7 @@ pub fn start_ffmpeg_stream(
     let session = StreamSession {
         child,
         stdin,
+        stderr_drain,
         width,
         height,
         fps,
@@ -1092,8 +1182,9 @@ pub fn finish_ffmpeg_stream(session_id: &str) -> Result<VideoExportResult, Strin
     };
 
     let StreamSession {
-        child,
+        mut child,
         stdin,
+        stderr_drain,
         width: _,
         height: _,
         fps,
@@ -1105,14 +1196,20 @@ pub fn finish_ffmpeg_stream(session_id: &str) -> Result<VideoExportResult, Strin
     } = session;
     drop(stdin);
 
-    let output = child
-        .wait_with_output()
+    let status = child
+        .wait()
         .map_err(|e| format!("Error waiting for FFmpeg stream child: {}", e))?;
 
-    if !output.status.success() {
+    let stderr_bytes = if let Some(h) = stderr_drain {
+        h.join().unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    if !status.success() {
         return Err(format!(
             "FFmpeg stream encoding failed: {}",
-            String::from_utf8_lossy(&output.stderr)
+            String::from_utf8_lossy(&stderr_bytes)
         ));
     }
 
@@ -1144,6 +1241,11 @@ pub fn cancel_ffmpeg_stream(session_id: &str) -> Result<(), String> {
     if let Some(mut s) = session {
         s.cancelled.store(true, Ordering::SeqCst);
         let _ = s.child.kill();
+        let _ = s.child.wait();
+        drop(s.stdin);
+        if let Some(drain) = s.stderr_drain {
+            let _ = drain.join();
+        }
         let _ = std::fs::remove_file(&s.output_path);
     }
     Ok(())

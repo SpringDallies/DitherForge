@@ -1,4 +1,5 @@
 use image::{Rgba, RgbaImage};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -506,13 +507,14 @@ pub const EFFECT_REGISTRY: &[EffectDescriptor] = &[
     EffectDescriptor { id: "bloom_threshold", name: "High-Pass Highlight Bloom", category: "Light & Optics" },
 ];
 
-pub fn apply_effect_stack_raw(width: u32, height: u32, buf: &mut [u8], stack: &[PostEffect]) {
+pub fn apply_effect_stack_raw(width: u32, height: u32, buf: &mut Vec<u8>, stack: &[PostEffect]) {
     if stack.is_empty() || !stack.iter().any(|e| e.enabled) {
         return;
     }
-    if let Some(mut img) = RgbaImage::from_raw(width, height, buf.to_vec()) {
+    let raw = std::mem::take(buf);
+    if let Some(mut img) = RgbaImage::from_raw(width, height, raw) {
         apply_effect_stack(&mut img, stack);
-        buf.copy_from_slice(img.as_raw());
+        *buf = img.into_raw();
     }
 }
 
@@ -687,34 +689,24 @@ fn apply_glow(image: &mut RgbaImage, radius: f32, intensity: f32) {
     if intensity <= 0.001 {
         return;
     }
-    let (width, height) = image.dimensions();
-    let r = radius.clamp(1.0, 16.0) as i32;
-    let temp = image.clone();
+    let (w, h) = image.dimensions();
+    let (wf, hf) = (w as usize, h as usize);
+    let r = radius.clamp(1.0, 16.0) as usize;
+    let n = wf * hf;
 
-    for y in 0..height {
-        for x in 0..width {
-            let mut accum = [0.0f32; 3];
-            let mut w_sum = 0.0f32;
-            for dy in -r..=r {
-                for dx in -r..=r {
-                    let nx = x as i32 + dx;
-                    let ny = y as i32 + dy;
-                    if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
-                        let p = temp.get_pixel(nx as u32, ny as u32);
-                        let w = 1.0 / (1.0 + (dx * dx + dy * dy) as f32);
-                        accum[0] += p[0] as f32 * w;
-                        accum[1] += p[1] as f32 * w;
-                        accum[2] += p[2] as f32 * w;
-                        w_sum += w;
-                    }
-                }
-            }
-            let orig = temp.get_pixel(x, y);
-            let glow = [accum[0] / w_sum, accum[1] / w_sum, accum[2] / w_sum];
-            let r = (orig[0] as f32 + glow[0] * intensity).clamp(0.0, 255.0) as u8;
-            let g = (orig[1] as f32 + glow[1] * intensity).clamp(0.0, 255.0) as u8;
-            let b = (orig[2] as f32 + glow[2] * intensity).clamp(0.0, 255.0) as u8;
-            image.put_pixel(x, y, Rgba([r, g, b, orig[3]]));
+    let mut src_ch = vec![0.0f32; n];
+    let mut dst_ch = vec![0.0f32; n];
+    let mut tmp = vec![0.0f32; n];
+
+    for c in 0..3 {
+        for (i, p) in image.pixels().enumerate() {
+            src_ch[i] = p[c] as f32;
+        }
+
+        fast_box_blur_f32(&src_ch, &mut dst_ch, &mut tmp, wf, hf, r);
+
+        for (i, p) in image.pixels_mut().enumerate() {
+            p[c] = (p[c] as f32 + dst_ch[i] * intensity).clamp(0.0, 255.0) as u8;
         }
     }
 }
@@ -816,36 +808,49 @@ fn apply_jpeg_artifacts(image: &mut RgbaImage, quality: f32) {
 }
 
 fn apply_halftone(image: &mut RgbaImage, dot_size: f32, angle: f32, shape: &str) {
-    let (width, height) = image.dimensions();
     let rad = angle.to_radians();
     let cos_a = rad.cos();
     let sin_a = rad.sin();
     let size = dot_size.max(2.0);
+    let half_size = size * 0.5;
     let s = shape.to_ascii_lowercase();
+    enum Shape {
+        Square,
+        Diamond,
+        Line,
+        Circle,
+    }
+    let shape_type = match s.as_str() {
+        "square" => Shape::Square,
+        "diamond" => Shape::Diamond,
+        "line" => Shape::Line,
+        _ => Shape::Circle,
+    };
 
-    for y in 0..height {
-        for x in 0..width {
-            let rot_x = (x as f32 * cos_a - y as f32 * sin_a).abs();
-            let rot_y = (x as f32 * sin_a + y as f32 * cos_a).abs();
+    for (x, y, p) in image.enumerate_pixels_mut() {
+        let rot_x = (x as f32 * cos_a - y as f32 * sin_a).abs();
+        let rot_y = (x as f32 * sin_a + y as f32 * cos_a).abs();
 
-            let mod_x = (rot_x % size) - (size * 0.5);
-            let mod_y = (rot_y % size) - (size * 0.5);
-            let dist = match s.as_str() {
-                "square" => mod_x.abs().max(mod_y.abs()),
-                "diamond" => (mod_x.abs() + mod_y.abs()) * 0.7071,
-                "line" => mod_y.abs(),
-                _ => (mod_x * mod_x + mod_y * mod_y).sqrt(),
-            };
+        let mod_x = (rot_x % size) - half_size;
+        let mod_y = (rot_y % size) - half_size;
+        let dist = match shape_type {
+            Shape::Square => mod_x.abs().max(mod_y.abs()),
+            Shape::Diamond => (mod_x.abs() + mod_y.abs()) * 0.7071,
+            Shape::Line => mod_y.abs(),
+            Shape::Circle => (mod_x * mod_x + mod_y * mod_y).sqrt(),
+        };
 
-            let p = image.get_pixel(x, y);
-            let luma = 0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32;
-            let radius = (1.0 - (luma / 255.0)) * (size * 0.5);
+        let luma = 0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32;
+        let radius = (1.0 - (luma / 255.0)) * half_size;
 
-            if dist > radius {
-                image.put_pixel(x, y, Rgba([255, 255, 255, p[3]]));
-            } else {
-                image.put_pixel(x, y, Rgba([0, 0, 0, p[3]]));
-            }
+        if dist > radius {
+            p[0] = 255;
+            p[1] = 255;
+            p[2] = 255;
+        } else {
+            p[0] = 0;
+            p[1] = 0;
+            p[2] = 0;
         }
     }
 }
@@ -915,27 +920,17 @@ fn apply_vignette(image: &mut RgbaImage, radius: f32, softness: f32) {
     let cx = width as f32 * 0.5;
     let cy = height as f32 * 0.5;
     let max_dist = (cx * cx + cy * cy).sqrt() * radius.max(0.1);
+    let inv_soft_dist = 1.0 / (max_dist * softness.max(0.05));
 
-    for y in 0..height {
-        for x in 0..width {
-            let dx = x as f32 - cx;
-            let dy = y as f32 - cy;
-            let dist = (dx * dx + dy * dy).sqrt();
+    for (x, y, p) in image.enumerate_pixels_mut() {
+        let dx = x as f32 - cx;
+        let dy = y as f32 - cy;
+        let dist = (dx * dx + dy * dy).sqrt();
 
-            let factor = ((max_dist - dist) / (max_dist * softness.max(0.05))).clamp(0.0, 1.0);
-            let p = image.get_pixel(x, y);
-
-            image.put_pixel(
-                x,
-                y,
-                Rgba([
-                    (p[0] as f32 * factor) as u8,
-                    (p[1] as f32 * factor) as u8,
-                    (p[2] as f32 * factor) as u8,
-                    p[3],
-                ]),
-            );
-        }
+        let factor = ((max_dist - dist) * inv_soft_dist).clamp(0.0, 1.0);
+        p[0] = (p[0] as f32 * factor) as u8;
+        p[1] = (p[1] as f32 * factor) as u8;
+        p[2] = (p[2] as f32 * factor) as u8;
     }
 }
 
@@ -1115,19 +1110,23 @@ fn apply_hue_shift(image: &mut RgbaImage, degrees: f32) {
     let rad = degrees.to_radians();
     let cos_a = rad.cos();
     let sin_a = rad.sin();
+    let m00 = 0.299 + 0.701 * cos_a + 0.168 * sin_a;
+    let m01 = 0.587 - 0.587 * cos_a + 0.330 * sin_a;
+    let m02 = 0.114 - 0.114 * cos_a - 0.497 * sin_a;
+    let m10 = 0.299 - 0.299 * cos_a - 0.328 * sin_a;
+    let m11 = 0.587 + 0.413 * cos_a + 0.035 * sin_a;
+    let m12 = 0.114 - 0.114 * cos_a + 0.288 * sin_a;
+    let m20 = 0.299 - 0.300 * cos_a + 1.250 * sin_a;
+    let m21 = 0.587 - 0.588 * cos_a - 1.050 * sin_a;
+    let m22 = 0.114 + 0.886 * cos_a - 0.203 * sin_a;
+
     for pixel in image.pixels_mut() {
         let r = pixel[0] as f32;
         let g = pixel[1] as f32;
         let b = pixel[2] as f32;
-        let nr = (0.299 + 0.701 * cos_a + 0.168 * sin_a) * r
-            + (0.587 - 0.587 * cos_a + 0.330 * sin_a) * g
-            + (0.114 - 0.114 * cos_a - 0.497 * sin_a) * b;
-        let ng = (0.299 - 0.299 * cos_a - 0.328 * sin_a) * r
-            + (0.587 + 0.413 * cos_a + 0.035 * sin_a) * g
-            + (0.114 - 0.114 * cos_a + 0.288 * sin_a) * b;
-        let nb = (0.299 - 0.300 * cos_a + 1.250 * sin_a) * r
-            + (0.587 - 0.588 * cos_a - 1.050 * sin_a) * g
-            + (0.114 + 0.886 * cos_a - 0.203 * sin_a) * b;
+        let nr = m00 * r + m01 * g + m02 * b;
+        let ng = m10 * r + m11 * g + m12 * b;
+        let nb = m20 * r + m21 * g + m22 * b;
         pixel[0] = nr.clamp(0.0, 255.0).round() as u8;
         pixel[1] = ng.clamp(0.0, 255.0).round() as u8;
         pixel[2] = nb.clamp(0.0, 255.0).round() as u8;
@@ -1226,15 +1225,16 @@ fn apply_emboss(image: &mut RgbaImage, strength: f32, angle: f32) {
 fn apply_oil_paint(image: &mut RgbaImage, radius: u32, levels: u8) {
     let (width, height) = image.dimensions();
     let temp = image.clone();
-    let r = radius as i32;
-    let lvl = levels.max(2) as usize;
+    let r = (radius as i32).clamp(1, 16);
+    let lvl = (levels.max(2) as usize).min(64);
+    let w = width as usize;
 
-    for y in 0..height {
+    image.as_mut().par_chunks_exact_mut(w * 4).enumerate().for_each(|(y, row)| {
         for x in 0..width {
-            let mut intensity_count = vec![0u32; lvl];
-            let mut avg_r = vec![0u32; lvl];
-            let mut avg_g = vec![0u32; lvl];
-            let mut avg_b = vec![0u32; lvl];
+            let mut intensity_count = [0u32; 64];
+            let mut avg_r = [0u32; 64];
+            let mut avg_g = [0u32; 64];
+            let mut avg_b = [0u32; 64];
 
             for dy in -r..=r {
                 for dx in -r..=r {
@@ -1259,40 +1259,42 @@ fn apply_oil_paint(image: &mut RgbaImage, radius: u32, levels: u8) {
                 }
             }
 
+            let idx = (x as usize) * 4;
             if max_cnt > 0 {
-                image.put_pixel(
-                    x,
-                    y,
-                    Rgba([
-                        (avg_r[max_idx] / max_cnt) as u8,
-                        (avg_g[max_idx] / max_cnt) as u8,
-                        (avg_b[max_idx] / max_cnt) as u8,
-                        temp.get_pixel(x, y)[3],
-                    ]),
-                );
+                row[idx] = (avg_r[max_idx] / max_cnt) as u8;
+                row[idx + 1] = (avg_g[max_idx] / max_cnt) as u8;
+                row[idx + 2] = (avg_b[max_idx] / max_cnt) as u8;
+                row[idx + 3] = temp.get_pixel(x, y as u32)[3];
+            } else {
+                let orig = temp.get_pixel(x, y as u32);
+                row[idx] = orig[0];
+                row[idx + 1] = orig[1];
+                row[idx + 2] = orig[2];
+                row[idx + 3] = orig[3];
             }
         }
-    }
+    });
 }
 
 fn apply_kuwahara(image: &mut RgbaImage, radius: u32) {
     let (width, height) = image.dimensions();
     let temp = image.clone();
     let r = radius as i32;
+    let w = width as usize;
 
-    for y in 0..height {
+    image.as_mut().par_chunks_exact_mut(w * 4).enumerate().for_each(|(y, row)| {
+        let quadrants = [
+            (-r..=0, -r..=0),
+            (0..=r, -r..=0),
+            (-r..=0, 0..=r),
+            (0..=r, 0..=r),
+        ];
+
         for x in 0..width {
-            let quadrants = [
-                (-r..=0, -r..=0),
-                (0..=r, -r..=0),
-                (-r..=0, 0..=r),
-                (0..=r, 0..=r),
-            ];
-
             let mut min_variance = f32::INFINITY;
             let mut best_mean = [0u8; 3];
 
-            for (qx, qy) in quadrants {
+            for (qx, qy) in &quadrants {
                 let mut sum = [0.0f32; 3];
                 let mut sq_sum = [0.0f32; 3];
                 let mut count = 0.0f32;
@@ -1322,41 +1324,50 @@ fn apply_kuwahara(image: &mut RgbaImage, radius: u32) {
                 }
             }
 
-            image.put_pixel(x, y, Rgba([best_mean[0], best_mean[1], best_mean[2], temp.get_pixel(x, y)[3]]));
+            let idx = (x as usize) * 4;
+            row[idx] = best_mean[0];
+            row[idx + 1] = best_mean[1];
+            row[idx + 2] = best_mean[2];
+            row[idx + 3] = temp.get_pixel(x, y as u32)[3];
         }
-    }
+    });
 }
 
 fn apply_median_filter(image: &mut RgbaImage, radius: u32) {
     let (width, height) = image.dimensions();
     let temp = image.clone();
-    let r = radius as i32;
+    let r = radius.clamp(1, 8) as i32;
+    let w = width as usize;
 
-    for y in 0..height {
+    image.as_mut().par_chunks_exact_mut(w * 4).enumerate().for_each(|(y, row)| {
+        let mut r_vals = [0u8; 289]; // max (2*8+1)^2 = 289
+        let mut g_vals = [0u8; 289];
+        let mut b_vals = [0u8; 289];
+
         for x in 0..width {
-            let mut r_vals = Vec::new();
-            let mut g_vals = Vec::new();
-            let mut b_vals = Vec::new();
-
+            let mut count = 0usize;
             for dy in -r..=r {
+                let ny = (y as i32 + dy).clamp(0, height as i32 - 1) as u32;
                 for dx in -r..=r {
                     let nx = (x as i32 + dx).clamp(0, width as i32 - 1) as u32;
-                    let ny = (y as i32 + dy).clamp(0, height as i32 - 1) as u32;
                     let p = temp.get_pixel(nx, ny);
-                    r_vals.push(p[0]);
-                    g_vals.push(p[1]);
-                    b_vals.push(p[2]);
+                    r_vals[count] = p[0];
+                    g_vals[count] = p[1];
+                    b_vals[count] = p[2];
+                    count += 1;
                 }
             }
+            let mid = count / 2;
+            r_vals[..count].select_nth_unstable(mid);
+            g_vals[..count].select_nth_unstable(mid);
+            b_vals[..count].select_nth_unstable(mid);
 
-            r_vals.sort_unstable();
-            g_vals.sort_unstable();
-            b_vals.sort_unstable();
-            let mid = r_vals.len() / 2;
-
-            image.put_pixel(x, y, Rgba([r_vals[mid], g_vals[mid], b_vals[mid], temp.get_pixel(x, y)[3]]));
+            let idx = (x as usize) * 4;
+            row[idx] = r_vals[mid];
+            row[idx + 1] = g_vals[mid];
+            row[idx + 2] = b_vals[mid];
         }
-    }
+    });
 }
 
 fn morphology_pass(image: &mut RgbaImage, radius: u32, is_dilate: bool) {
@@ -1791,36 +1802,33 @@ fn apply_phosphor_persistence(image: &mut RgbaImage, decay: f32, streak_dir: &st
 }
 
 fn apply_bloom_threshold(image: &mut RgbaImage, threshold: f32, radius: f32, intensity: f32) {
-    let (width, height) = image.dimensions();
-    let temp = image.clone();
-    let r = radius.clamp(1.0, 8.0) as i32;
+    if intensity <= 0.001 {
+        return;
+    }
+    let (w, h) = image.dimensions();
+    let (wf, hf) = (w as usize, h as usize);
+    let r = radius.clamp(1.0, 16.0) as usize;
     let t_luma = threshold.clamp(0.0, 1.0) * 255.0;
-    for y in 0..height {
-        for x in 0..width {
-            let mut accum = [0.0f32; 3];
-            let mut w_sum = 0.0f32;
-            for dy in -r..=r {
-                for dx in -r..=r {
-                    let nx = (x as i32 + dx).clamp(0, width as i32 - 1) as u32;
-                    let ny = (y as i32 + dy).clamp(0, height as i32 - 1) as u32;
-                    let p = temp.get_pixel(nx, ny);
-                    let luma = 0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32;
-                    let w = 1.0 / (1.0 + (dx * dx + dy * dy) as f32);
-                    if luma >= t_luma {
-                        accum[0] += p[0] as f32 * w;
-                        accum[1] += p[1] as f32 * w;
-                        accum[2] += p[2] as f32 * w;
-                    }
-                    w_sum += w;
-                }
-            }
-            let mut p = *temp.get_pixel(x, y);
-            if w_sum > 0.0 {
-                p[0] = (p[0] as f32 + (accum[0] / w_sum) * intensity).clamp(0.0, 255.0) as u8;
-                p[1] = (p[1] as f32 + (accum[1] / w_sum) * intensity).clamp(0.0, 255.0) as u8;
-                p[2] = (p[2] as f32 + (accum[2] / w_sum) * intensity).clamp(0.0, 255.0) as u8;
-            }
-            image.put_pixel(x, y, p);
+    let n = wf * hf;
+
+    let mask: Vec<bool> = image
+        .pixels()
+        .map(|p| (0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32) >= t_luma)
+        .collect();
+
+    let mut src_ch = vec![0.0f32; n];
+    let mut dst_ch = vec![0.0f32; n];
+    let mut tmp = vec![0.0f32; n];
+
+    for c in 0..3 {
+        for (i, p) in image.pixels().enumerate() {
+            src_ch[i] = if mask[i] { p[c] as f32 } else { 0.0 };
+        }
+
+        fast_box_blur_f32(&src_ch, &mut dst_ch, &mut tmp, wf, hf, r);
+
+        for (i, p) in image.pixels_mut().enumerate() {
+            p[c] = (p[c] as f32 + dst_ch[i] * intensity).clamp(0.0, 255.0) as u8;
         }
     }
 }
@@ -2623,15 +2631,23 @@ fn apply_frontend_effect(image: &mut RgbaImage, eff: &PostEffect) -> bool {
             let bits = eff.f32_any(&["bits", "depth"], 3.0).round().clamp(1.0, 8.0) as u32;
             let sample_rate = eff.u32_param("sampleRate", 2).clamp(1, 16);
             let step = 255.0 / ((1u32 << bits) - 1) as f32;
-            let src = image.clone();
-            for y in 0..h {
-                let sy = (y / sample_rate) * sample_rate;
-                for x in 0..w {
-                    let sx = (x / sample_rate) * sample_rate;
-                    let sp = src.get_pixel(sx.min(w - 1), sy.min(h - 1));
-                    let dp = image.get_pixel_mut(x, y);
+            if sample_rate == 1 {
+                for p in image.pixels_mut() {
                     for c in 0..3 {
-                        dp[c] = ((sp[c] as f32 / step).round() * step).clamp(0.0, 255.0) as u8;
+                        p[c] = ((p[c] as f32 / step).round() * step).clamp(0.0, 255.0) as u8;
+                    }
+                }
+            } else {
+                let src = image.clone();
+                for y in 0..h {
+                    let sy = (y / sample_rate) * sample_rate;
+                    for x in 0..w {
+                        let sx = (x / sample_rate) * sample_rate;
+                        let sp = src.get_pixel(sx.min(w - 1), sy.min(h - 1));
+                        let dp = image.get_pixel_mut(x, y);
+                        for c in 0..3 {
+                            dp[c] = ((sp[c] as f32 / step).round() * step).clamp(0.0, 255.0) as u8;
+                        }
                     }
                 }
             }

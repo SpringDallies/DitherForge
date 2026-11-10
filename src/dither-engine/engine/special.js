@@ -222,6 +222,12 @@ function hash2D(seedX, seedY, salt) {
   return val - Math.floor(val);
 }
 
+function hashCoord(x, y, seed = 0) {
+  let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 362827313)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
 function detectOrbs(w, h, data, controls = {}) {
   const maxOrbs = controls.orbCount !== undefined ? Math.max(1, Math.min(50, Math.round(Number(controls.orbCount)))) : 8;
   const rawSize = controls.orbSize !== undefined ? Number(controls.orbSize) : 80;
@@ -234,24 +240,30 @@ function detectOrbs(w, h, data, controls = {}) {
   const isVertical = !!controls.orbVertical;
   const offsetX = (controls.offsetX !== undefined ? Number(controls.offsetX) : 0) + (isVertical ? 0 : legacyOffset);
   const offsetY = (controls.offsetY !== undefined ? Number(controls.offsetY) : 0) + (isVertical ? legacyOffset : 0);
+  const seed = controls.temporalSeed !== undefined ? (Number(controls.temporalSeed) >>> 0) : (controls.seed !== undefined ? (Number(controls.seed) >>> 0) : 0);
 
-  // Dynamic spacing based on requested orb count and image dimensions so orbCount never caps prematurely
+  // Dynamic spacing based on requested orb count and image dimensions so orbCount never caps prematurely,
+  // decoupled from baseSize so adjusting orb size changes orb radius without clumping orbs together.
   const maxFitSpacing = Math.sqrt((w * h) / (maxOrbs * 1.3));
-  let minSpacing = Math.max(8, Math.min(baseSize * 0.75, maxFitSpacing));
+  let minSpacing = Math.max(8, maxFitSpacing * 0.75);
 
   // Sample grid of candidates across the image
   const step = Math.max(8, Math.min(32, Math.floor(Math.min(w, h) / Math.max(12, Math.round(Math.sqrt(maxOrbs) * 3)))));
   const candidates = [];
   for (let y = Math.floor(step / 2); y < h; y += step) {
     for (let x = Math.floor(step / 2); x < w; x += step) {
-      const idx = (y * w + x) * 4;
-      const lum = getLuminance(data[idx], data[idx + 1], data[idx + 2]);
-      candidates.push({ x, y, lum });
+      const rank = hashCoord(x, y, seed);
+      candidates.push({ x, y, rank });
     }
   }
 
-  // Sort candidates by brightness descending to place orbs at highlights first
-  candidates.sort((a, b) => b.lum - a.lum);
+  // Sort candidates by pseudo-random rank to place orbs randomly across the image
+  candidates.sort((a, b) => {
+    if (a.rank !== b.rank) {
+      return a.rank - b.rank;
+    }
+    return (a.y * w + a.x) - (b.y * w + b.x);
+  });
 
   const orbs = [];
   const spanX = w + baseSize * 2;
@@ -263,8 +275,9 @@ function detectOrbs(w, h, data, controls = {}) {
     if (randomAmt > 0) {
       const rx = (hash2D(cx, cy, 1) - 0.5) * 2;
       const ry = (hash2D(cx, cy, 2) - 0.5) * 2;
-      px += rx * randomAmt * baseSize * 0.75;
-      py += ry * randomAmt * baseSize * 0.75;
+      const jitterScale = Math.max(baseSize * 1.5, maxFitSpacing * 1.8);
+      px += rx * randomAmt * jitterScale;
+      py += ry * randomAmt * jitterScale;
     }
     px += offsetX;
     py += offsetY;

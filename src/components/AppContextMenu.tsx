@@ -94,6 +94,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
         target.isContentEditable ||
         target.closest('input, textarea, [contenteditable="true"]')
       ) {
+        closeMenu();
         return;
       }
 
@@ -101,6 +102,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
       if (
         target.closest('.df-floating-property-editor')
       ) {
+        closeMenu();
         return;
       }
 
@@ -134,7 +136,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 
     window.addEventListener('contextmenu', handleContextMenu);
     return () => window.removeEventListener('contextmenu', handleContextMenu);
-  }, []);
+  }, [closeMenu]);
 
   // Listen to close requests from timeline track context menu
   useEffect(() => {
@@ -143,15 +145,25 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
     return () => window.removeEventListener('close_app_context_menu', handleCloseAppMenu);
   }, []);
 
-  // Close on outside mousedown or Escape
+  // Close on outside interaction or Escape
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleMouseDown = (e: MouseEvent) => {
+    const handleOutsideInteraction = (e: MouseEvent | PointerEvent) => {
       // Don't close on right-click; handleContextMenu will reposition the menu seamlessly
       if (e.button === 2) return;
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+
+      const isInside = Boolean(
+        menuRef.current &&
+        e.target instanceof Node &&
+        menuRef.current.contains(e.target)
+      );
+
+      if (!isInside) {
         closeMenu();
+        // Stop propagation during capture phase so dismissing the context menu
+        // does not inadvertently trigger canvas dragging or accidental clicks underneath.
+        e.stopPropagation();
       }
     };
 
@@ -161,12 +173,18 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
       }
     };
 
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('keydown', handleKeyDown);
+    // Use capture phase (true) so listeners fire before any child component's
+    // preventDefault() or stopPropagation() can suppress event delivery.
+    window.addEventListener('pointerdown', handleOutsideInteraction, true);
+    window.addEventListener('mousedown', handleOutsideInteraction, true);
+    window.addEventListener('click', handleOutsideInteraction, true);
+    window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('resize', closeMenu);
     return () => {
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('pointerdown', handleOutsideInteraction, true);
+      window.removeEventListener('mousedown', handleOutsideInteraction, true);
+      window.removeEventListener('click', handleOutsideInteraction, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('resize', closeMenu);
     };
   }, [isOpen, closeMenu]);

@@ -52,6 +52,7 @@ impl Default for DitherSettings {
     }
 }
 
+#[allow(dead_code)]
 pub trait DitherAlgorithm: Send + Sync {
     fn apply(&self, image: &mut RgbaImage, settings: &DitherSettings);
     fn name(&self) -> &str;
@@ -59,6 +60,7 @@ pub trait DitherAlgorithm: Send + Sync {
     fn default_settings(&self) -> DitherSettings;
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 pub fn color_dist_sq(c1: &[f32; 3], c2: &[u8; 4]) -> f32 {
     let r1 = c1[0];
@@ -75,6 +77,7 @@ pub fn color_dist_sq(c1: &[f32; 3], c2: &[u8; 4]) -> f32 {
     (2.0 + r_bar / 256.0) * dr * dr + 4.0 * dg * dg + (2.0 + (255.0 - r_bar) / 256.0) * db * db
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 pub fn find_nearest_palette_color(color: &[f32; 3], palette: &[[u8; 4]]) -> [u8; 4] {
     if palette.is_empty() {
@@ -96,6 +99,7 @@ pub fn find_nearest_palette_color(color: &[f32; 3], palette: &[[u8; 4]]) -> [u8;
 /// Native color-integrated pixel dither:
 /// Computes color distance in RGB space, finds nearest palette swatch,
 /// and stores residual 3D error into `error_out`.
+#[allow(dead_code)]
 #[inline(always)]
 pub fn dither_pixel_with_color(
     pixel: &[f32; 3],

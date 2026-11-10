@@ -1,4 +1,5 @@
 // Test runner for pixel-level parity verification between Rust and JS engines
+#![allow(dead_code, unused_variables)]
 use std::io::{self, Read, Write};
 
 #[path = "../algorithms/mod.rs"]
@@ -35,6 +36,7 @@ struct ParityHeader {
     scale: Option<f32>,
     diffusion_strength: Option<f32>,
     serpentine: Option<bool>,
+    #[serde(default, alias = "temporalSeed", alias = "seed")]
     temporal_seed: Option<u32>,
     matrix_size: Option<serde_json::Value>,
     warp_intensity: Option<f32>,
@@ -88,10 +90,12 @@ struct ParityHeader {
     pub freq_b: Option<f32>,
     #[serde(default)]
     pub angle: Option<f32>,
-    #[serde(default)]
+    #[serde(default, alias = "twistStrength")]
     pub swirl: Option<f32>,
     #[serde(default, alias = "cellSize")]
     pub cell_size: Option<f32>,
+    #[serde(default, alias = "cellRadius")]
+    pub cell_radius: Option<f32>,
     #[serde(default, alias = "edgeSensitivity")]
     pub edge_sensitivity: Option<f32>,
     #[serde(default, alias = "checkersSize")]
@@ -136,6 +140,14 @@ struct ParityHeader {
     pub orb_offset: Option<f32>,
     #[serde(default, alias = "orbVertical")]
     pub orb_vertical: Option<bool>,
+    #[serde(default, alias = "offsetX")]
+    pub offset_x: Option<f32>,
+    #[serde(default, alias = "offsetY")]
+    pub offset_y: Option<f32>,
+    #[serde(default)]
+    pub bands: Option<f32>,
+    #[serde(default, alias = "stripeSpacing")]
+    pub stripe_spacing: Option<f32>,
     #[serde(default, alias = "effectStack")]
     effect_stack: Option<Vec<effects::PostEffect>>,
 }
@@ -312,6 +324,11 @@ fn main() {
         orb_random: header.orb_random,
         orb_offset: header.orb_offset,
         orb_vertical: header.orb_vertical,
+        offset_x: header.offset_x,
+        offset_y: header.offset_y,
+        bands: header.bands,
+        stripe_spacing: header.stripe_spacing,
+        cell_radius: header.cell_radius,
         ..Default::default()
     };
 

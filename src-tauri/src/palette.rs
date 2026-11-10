@@ -33,12 +33,13 @@ pub struct FastPaletteLUT {
     pub table: Vec<u8>, // 32 * 32 * 32 * 3 bytes (96 KB)
 }
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
-static LUT_CACHE: OnceLock<Mutex<Option<(Vec<[u8; 4]>, u32, FastPaletteLUT)>>> = OnceLock::new();
+const MAX_LUT_CACHE: usize = 8;
+static LUT_CACHE: OnceLock<Mutex<Vec<(Vec<[u8; 4]>, u32, Arc<FastPaletteLUT>)>>> = OnceLock::new();
 
 impl FastPaletteLUT {
-    pub fn new(palette: &[[u8; 4]], threshold_bias_opt: Option<f32>) -> Self {
+    pub fn new(palette: &[[u8; 4]], threshold_bias_opt: Option<f32>) -> Arc<Self> {
         let mut bias = threshold_bias_opt.unwrap_or(0.5);
         if bias > 1.0 {
             bias /= 100.0;
@@ -46,12 +47,10 @@ impl FastPaletteLUT {
         let threshold_bias = if bias.is_nan() { 0.5 } else { bias.clamp(0.0, 1.0) };
         let bias_bits = threshold_bias.to_bits();
 
-        let cache_mutex = LUT_CACHE.get_or_init(|| Mutex::new(None));
+        let cache_mutex = LUT_CACHE.get_or_init(|| Mutex::new(Vec::with_capacity(MAX_LUT_CACHE)));
         if let Ok(guard) = cache_mutex.lock() {
-            if let Some((ref cached_pal, cached_bias, ref cached_lut)) = *guard {
-                if cached_pal.as_slice() == palette && cached_bias == bias_bits {
-                    return cached_lut.clone();
-                }
+            if let Some((_, _, cached_lut)) = guard.iter().find(|(pal, bias, _)| pal.as_slice() == palette && *bias == bias_bits) {
+                return cached_lut.clone();
             }
         }
 
@@ -116,7 +115,7 @@ impl FastPaletteLUT {
             }
         }
 
-        let built = Self {
+        let built = Arc::new(Self {
             raw_palette,
             palette_size,
             luminances,
@@ -128,10 +127,13 @@ impl FastPaletteLUT {
             sorted_to_orig,
             is_tonal_ramp,
             table,
-        };
+        });
 
         if let Ok(mut guard) = cache_mutex.lock() {
-            *guard = Some((palette.to_vec(), bias_bits, built.clone()));
+            if guard.len() >= MAX_LUT_CACHE {
+                guard.remove(0);
+            }
+            guard.push((palette.to_vec(), bias_bits, built.clone()));
         }
 
         built
@@ -143,6 +145,15 @@ impl FastPaletteLUT {
         let ir = (((r + shift).round() as i32) >> 3).clamp(0, 31) as usize;
         let ig = (((g + shift).round() as i32) >> 3).clamp(0, 31) as usize;
         let ib = (((b + shift).round() as i32) >> 3).clamp(0, 31) as usize;
+        let idx = (ir * 1024 + ig * 32 + ib) * 3;
+        [self.table[idx], self.table[idx + 1], self.table[idx + 2]]
+    }
+
+    #[inline(always)]
+    pub fn inline_match_u8(&self, r: u8, g: u8, b: u8) -> [u8; 3] {
+        let ir = (r as usize) >> 3;
+        let ig = (g as usize) >> 3;
+        let ib = (b as usize) >> 3;
         let idx = (ir * 1024 + ig * 32 + ib) * 3;
         [self.table[idx], self.table[idx + 1], self.table[idx + 2]]
     }
@@ -273,7 +284,9 @@ impl FastPaletteLUT {
         let (c1, c2, frac) = self.find_pair(r, g, b);
         let eff_threshold = (threshold + (self.threshold_bias - 0.5) * 0.5).clamp(0.05, 0.95);
         if frac > eff_threshold { c2 } else { c1 }
+
     }
+
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -45,9 +45,10 @@ function run1DHorizontalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
   }
 
   const controls = controlsOrFn || {};
+  const scale = controls.scale !== undefined ? Number(controls.scale) : 1.0;
   const lineScale = Math.max(
     1,
-    Math.round(controls.lineScale !== undefined ? Number(controls.lineScale) : 1)
+    Math.round((controls.lineScale !== undefined ? Number(controls.lineScale) : 1) * scale)
   );
   const rawBleed =
     controls.bleed !== undefined
@@ -231,9 +232,10 @@ function run1DVerticalDiffusion(w, h, data, lut, controlsOrFn, arg6 = 1.0) {
   }
 
   const controls = controlsOrFn || {};
+  const scale = controls.scale !== undefined ? Number(controls.scale) : 1.0;
   const lineScale = Math.max(
     1,
-    Math.round(controls.lineScale !== undefined ? Number(controls.lineScale) : 1)
+    Math.round((controls.lineScale !== undefined ? Number(controls.lineScale) : 1) * scale)
   );
   const rawBleed =
     controls.bleed !== undefined

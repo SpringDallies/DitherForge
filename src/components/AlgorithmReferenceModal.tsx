@@ -40,7 +40,9 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BookOpen size={16} style={{ color: 'var(--text-dim)' }} />
-            <span>Algorithm Reference Manual (63 Models)</span>
+            <span style={{ fontWeight: 600 }}>
+              Algorithm Reference Manual ({ALGORITHM_REGISTRY.length} Models{searchTerm.trim() ? ` · ${filtered.length} matching` : ''})
+            </span>
           </div>
           <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
             <X size={16} />
@@ -71,37 +73,46 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
         </div>
 
         <div className="modal-body">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {filtered.map((algo: any, index: number) => (
-              <div 
-                key={algo.id} 
-                style={{ 
-                  background: 'var(--bg-tertiary)', 
-                  border: '1px solid var(--border-color)', 
-                  padding: '10px 12px', 
-                  borderRadius: 'var(--radius-md)' 
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)', fontSize: '0.75rem' }}>
-                      #{index + 1}
-                    </span>
-                    <strong style={{ color: 'var(--text-main)' }}>{algo.name}</strong>
-                    <code style={{ fontSize: '0.72rem', background: 'var(--bg-primary)', padding: '2px 5px', borderRadius: 'var(--radius-xs)', color: 'var(--text-dim)' }}>
-                      {algo.id}
-                    </code>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              No algorithms match "{searchTerm}"
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {filtered.map((algo: any) => {
+                const canonicalIndex = ALGORITHM_REGISTRY.findIndex((a: any) => a.id === algo.id) + 1;
+                return (
+                  <div 
+                    key={algo.id} 
+                    style={{ 
+                      background: 'var(--bg-tertiary)', 
+                      border: '1px solid var(--border-color)', 
+                      padding: '10px 12px', 
+                      borderRadius: 'var(--radius-md)' 
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)', fontSize: '0.75rem', fontWeight: 600 }}>
+                          #{canonicalIndex || 1}
+                        </span>
+                        <strong style={{ color: 'var(--text-main)' }}>{algo.name}</strong>
+                        <code style={{ fontSize: '0.72rem', background: 'var(--bg-primary)', padding: '2px 5px', borderRadius: 'var(--radius-xs)', color: 'var(--text-dim)' }}>
+                          {algo.id}
+                        </code>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                        {algo.category}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                      {algo.description}
+                    </p>
                   </div>
-                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    {algo.category}
-                  </span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                  {algo.description}
-                </p>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>,

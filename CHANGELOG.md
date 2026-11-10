@@ -75,3 +75,10 @@ Rust engine parked: see docs/ENGINE_PARITY.md (to be written). Not called at run
 ## Housekeeping (2026-10-16)
 - Added docs/ENGINE_PARITY.md scaffold tracking JS vs Rust algorithm coverage.
 - No source changes. No test changes. No build changes.
+
+## Low-End Hardware Optimizations & Full Rust Parity (2026-11-10)
+- `perf(ffmpeg)`: cached resolved FFmpeg/ffprobe paths in thread-safe mutex, skip `probe_video` when target dimensions are provided, suppress Windows console flash with `CREATE_NO_WINDOW`, drain encoder stderr on background threads to prevent pipe deadlocks, and apply low-end hardware presets (`-preset veryfast`, `-cpu-used 4 -row-mt 1`).
+- `perf(engine)`: parallelized Kuwahara, Oil Paint, and pattern dithering (`dither_raw_pattern`, `dither_pop_tone`, `dither_camo`, `dither_print_pattern`, `dither_bayer_matrix`) using Rayon scanline iterators.
+- `perf(lut)`: Arc-wrapped `FastPaletteLUT` cache eliminating 96 KB table copies on every cache hit.
+- `perf(memory)`: bounded batch animation processing writing directly to output slices, zero-copy effect stack execution via `std::mem::take` and `into_raw`, and 3-channel buffer reuse for glow and bloom.
+- `feat(parity)`: complete polygon algorithm suite (`hexa-poly`, `low-poly`, `penta-poly`, `tri-poly`) and comprehensive multi-phase parity test suites ensuring 100% bit-identical determinism.

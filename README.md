@@ -3,7 +3,7 @@
   &nbsp;&nbsp;
 </p>
 
-<h3 align="center">FOSS Dithering Suite</h3>
+<h3 align="center">Dithering Suite</h3>
 
 DitherForge is a standalone, cross-platform app for dithering images, video, and animation. It includes 84 original and public-domain dithering algorithms, native color-space processing, a stackable post-effects pipeline, CRT-style temporal noise, vector contour export, and Unicode character-grid export. Inspired by ditherboy.
 

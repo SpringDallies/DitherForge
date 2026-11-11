@@ -4927,7 +4927,14 @@ body {
   outline: none;
 }
 
+.topbar-menu-pill .switch-btn:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
 .topbar-menu-pill .switch-btn:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
   border-right: none;
 }
 

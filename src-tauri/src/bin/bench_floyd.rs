@@ -2,17 +2,10 @@
 #![allow(dead_code, unused_variables)]
 use std::time::Instant;
 
-#[path = "../algorithms/mod.rs"]
-mod algorithms;
-#[path = "../effects.rs"]
-mod effects;
-#[path = "../engine.rs"]
-mod engine;
-#[path = "../palette.rs"]
-mod palette;
-
-use algorithms::{apply_algorithm_raw_params, RawAlgorithmParams};
-use palette::FastPaletteLUT;
+use ditherforge::{
+    algorithms::{apply_algorithm_raw_params, RawAlgorithmParams},
+    palette::FastPaletteLUT,
+};
 
 fn create_gradient_image(w: u32, h: u32) -> Vec<u8> {
     let mut buf = vec![0u8; (w * h * 4) as usize];

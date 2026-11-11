@@ -17,6 +17,46 @@ use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+/// Global cancellation flag for native video exports.
+static NATIVE_EXPORT_CANCELLED: AtomicBool = AtomicBool::new(false);
+
+/// Request cancellation of any in-progress native video export.
+pub fn cancel_native_video_export() {
+    NATIVE_EXPORT_CANCELLED.store(true, Ordering::SeqCst);
+}
+
+/// Cancel all active FFmpeg streaming sessions and mark exports as cancelled.
+pub fn cancel_all_ffmpeg_sessions() {
+    cancel_native_video_export();
+    let ids: Vec<String> = if let Ok(guard) = SESSIONS.lock() {
+        guard.as_ref().map(|m| m.keys().cloned().collect()).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    for id in ids {
+        let _ = cancel_ffmpeg_stream(&id);
+    }
+}
+
+/// RAII guard for a child process: ensures both `.kill()` and `.wait()` are called on drop,
+/// preventing orphaned/zombie FFmpeg processes on early returns or loop breaks.
+struct ChildGuard(Option<Child>);
+
+impl ChildGuard {
+    fn take(&mut self) -> Option<Child> {
+        self.0.take()
+    }
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.0.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 pub fn create_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
     #[allow(unused_mut)]
     let mut cmd = Command::new(program);
@@ -619,20 +659,17 @@ pub fn install_ffmpeg() -> Result<InstallResult, String> {
     }
 }
 
-/// Probes a video file using ffprobe and extracts comprehensive media metadata.
+/// Probes a video file using a single ffprobe invocation.
 pub fn probe_video(video_path: &str) -> Result<VideoInfo, String> {
     let probe_bin = find_ffprobe_path()
         .ok_or_else(|| "ffprobe is not available on this system".to_string())?;
 
-    // Probe video stream
-    let v_out = create_command(&probe_bin)
+    let out = create_command(&probe_bin)
         .args([
             "-v",
             "error",
-            "-select_streams",
-            "v:0",
             "-show_entries",
-            "stream=width,height,r_frame_rate,duration,nb_frames,codec_name",
+            "stream=codec_type,width,height,r_frame_rate,duration,nb_frames,codec_name:format=duration",
             "-of",
             "json",
             video_path,
@@ -640,97 +677,56 @@ pub fn probe_video(video_path: &str) -> Result<VideoInfo, String> {
         .output()
         .map_err(|e| format!("Failed to execute ffprobe: {}", e))?;
 
-    if !v_out.status.success() {
+    if !out.status.success() {
         return Err(format!(
             "ffprobe failed: {}",
-            String::from_utf8_lossy(&v_out.stderr)
+            String::from_utf8_lossy(&out.stderr)
         ));
     }
 
-    let json_val: serde_json::Value = serde_json::from_slice(&v_out.stdout)
+    let json_val: serde_json::Value = serde_json::from_slice(&out.stdout)
         .map_err(|e| format!("Failed to parse ffprobe JSON output: {}", e))?;
 
-    let stream = json_val["streams"]
+    let streams = json_val["streams"]
         .as_array()
-        .and_then(|arr| arr.get(0))
+        .ok_or_else(|| "No streams array in ffprobe output".to_string())?;
+
+    let v_stream = streams
+        .iter()
+        .find(|s| s["codec_type"].as_str() == Some("video"))
         .ok_or_else(|| "No video stream found in file".to_string())?;
 
-    let width = stream["width"].as_u64().unwrap_or(0) as u32;
-    let height = stream["height"].as_u64().unwrap_or(0) as u32;
-    let codec_name = stream["codec_name"].as_str().unwrap_or("unknown").to_string();
+    let width = v_stream["width"].as_u64().unwrap_or(0) as u32;
+    let height = v_stream["height"].as_u64().unwrap_or(0) as u32;
+    let video_codec = v_stream["codec_name"].as_str().unwrap_or("unknown").to_string();
 
-    let fps_str = stream["r_frame_rate"].as_str().unwrap_or("30/1");
+    let fps_str = v_stream["r_frame_rate"].as_str().unwrap_or("30/1");
     let fps = if let Some((num, den)) = fps_str.split_once('/') {
         let n: f64 = num.parse().unwrap_or(30.0);
         let d: f64 = den.parse().unwrap_or(1.0);
-        if d > 0.0 {
-            n / d
-        } else {
-            30.0
-        }
+        if d > 0.0 { n / d } else { 30.0 }
     } else {
         fps_str.parse().unwrap_or(30.0)
     };
 
-    let duration: f64 = stream["duration"]
+    let duration: f64 = v_stream["duration"]
         .as_str()
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| {
-            // Check container format duration if stream duration is absent
-            if let Ok(f_out) = create_command(&probe_bin)
-                .args([
-                    "-v",
-                    "error",
-                    "-show_entries",
-                    "format=duration",
-                    "-of",
-                    "json",
-                    video_path,
-                ])
-                .output()
-            {
-                if let Ok(fj) = serde_json::from_slice::<serde_json::Value>(&f_out.stdout) {
-                    if let Some(d_str) = fj["format"]["duration"].as_str() {
-                        return d_str.parse().unwrap_or(0.0);
-                    }
-                }
-            }
-            0.0
-        });
+        .or_else(|| {
+            json_val["format"]["duration"]
+                .as_str()
+                .and_then(|s| s.parse().ok())
+        })
+        .unwrap_or(0.0);
 
-    let total_frames: u64 = stream["nb_frames"]
+    let total_frames: u64 = v_stream["nb_frames"]
         .as_str()
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| (duration * fps).round().max(1.0) as u64);
 
-    // Probe audio stream
-    let a_out = create_command(&probe_bin)
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-show_entries",
-            "stream=codec_name",
-            "-of",
-            "json",
-            video_path,
-        ])
-        .output();
-
-    let mut has_audio = false;
-    let mut audio_codec = None;
-
-    if let Ok(ao) = a_out {
-        if ao.status.success() {
-            if let Ok(aj) = serde_json::from_slice::<serde_json::Value>(&ao.stdout) {
-                if let Some(astream) = aj["streams"].as_array().and_then(|a| a.get(0)) {
-                    has_audio = true;
-                    audio_codec = astream["codec_name"].as_str().map(|s| s.to_string());
-                }
-            }
-        }
-    }
+    let a_stream = streams.iter().find(|s| s["codec_type"].as_str() == Some("audio"));
+    let has_audio = a_stream.is_some();
+    let audio_codec = a_stream.and_then(|s| s["codec_name"].as_str().map(|c| c.to_string()));
 
     Ok(VideoInfo {
         width,
@@ -739,7 +735,7 @@ pub fn probe_video(video_path: &str) -> Result<VideoInfo, String> {
         duration,
         total_frames,
         has_audio,
-        video_codec: codec_name,
+        video_codec,
         audio_codec,
     })
 }
@@ -822,6 +818,8 @@ pub fn export_video_native_ffmpeg(
             }
         }
     }
+
+    NATIVE_EXPORT_CANCELLED.store(false, Ordering::SeqCst);
 
     // 1. Configure and spawn the FFmpeg encoder child process
     let mut enc_cmd = create_command(&ffmpeg_bin);
@@ -949,7 +947,7 @@ pub fn export_video_native_ffmpeg(
             Some(
                 dec_cmd
                     .spawn()
-                    .map_err(|e| format!("Failed to spawn FFmpeg decoder: {}", e))?,
+                    .map_err(|e| format!("Failed to spawn FFmpeg decoder: {e}",))?,
             )
         } else {
             None
@@ -958,7 +956,11 @@ pub fn export_video_native_ffmpeg(
         None
     };
 
-    let mut decoder_reader = decoder_child
+    // Wrap decoder in ChildGuard so it's always killed and reaped on exit
+    let mut decoder_guard = ChildGuard(decoder_child.take());
+
+    let mut decoder_reader = decoder_guard
+        .0
         .as_mut()
         .and_then(|c| c.stdout.take())
         .map(BufReader::new);
@@ -992,6 +994,14 @@ pub fn export_video_native_ffmpeg(
     };
 
     for frame_idx in 0..total_frames {
+        if NATIVE_EXPORT_CANCELLED.load(Ordering::SeqCst) {
+            drop(encoder_stdin);
+            let _ = encoder_child.kill();
+            let _ = encoder_child.wait();
+            let _ = std::fs::remove_file(&request.output_path);
+            return Err("Video export cancelled by user".to_string());
+        }
+
         // Read decoded frame from FFmpeg decoder stdout
         if let Some(ref mut reader) = decoder_reader {
             if let Err(e) = reader.read_exact(&mut frame_buf) {
@@ -1054,10 +1064,6 @@ pub fn export_video_native_ffmpeg(
             "FFmpeg encoding failed: {}",
             String::from_utf8_lossy(&stderr_output)
         ));
-    }
-
-    if let Some(mut dec) = decoder_child {
-        let _ = dec.kill();
     }
 
     let file_size_bytes = std::fs::metadata(&request.output_path)

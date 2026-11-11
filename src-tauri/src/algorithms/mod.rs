@@ -1,5 +1,6 @@
 use image::{Rgba, RgbaImage};
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use crate::engine::{
     find_nearest_palette_color, AlgorithmCategory, DitherSettings,
 };
@@ -12,74 +13,141 @@ pub struct AlgorithmDescriptor {
     pub description: &'static str,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RawAlgorithmParams {
+    #[serde(default, alias = "threshold")]
     pub threshold: f32,
+    #[serde(default, alias = "scale")]
     pub scale: f32,
+    #[serde(default, alias = "diffusionStrength")]
     pub diffusion_strength: f32,
+    #[serde(default, alias = "serpentine")]
     pub serpentine: Option<bool>,
+    #[serde(default, alias = "temporalSeed")]
     pub temporal_seed: u32,
+    #[serde(default, alias = "depth")]
     pub depth: Option<u8>,
+    #[serde(default, alias = "noiseAmount")]
     pub noise_amount: Option<f32>,
+    #[serde(default, alias = "matrixSize")]
     pub matrix_size: Option<usize>,
+    #[serde(default, alias = "warpIntensity")]
     pub warp_intensity: Option<f32>,
+    #[serde(default, alias = "dotSize")]
     pub dot_size: Option<f32>,
+    #[serde(default, alias = "blockSize")]
     pub block_size: Option<f32>,
+    #[serde(default, alias = "cracked")]
     pub cracked: Option<f32>,
+    #[serde(default, alias = "distributionSpread")]
     pub distribution_spread: Option<f32>,
+    #[serde(default, alias = "twistStrength")]
     pub twist_strength: Option<f32>,
+    #[serde(default, alias = "spiralFrequency")]
     pub spiral_frequency: Option<f32>,
+    #[serde(default, alias = "lineScale")]
     pub line_scale: Option<f32>,
+    #[serde(default, alias = "noisyLines")]
     pub noisy_lines: Option<bool>,
+    #[serde(default, alias = "bleed")]
     pub bleed: Option<f32>,
+    #[serde(default, alias = "smoothing")]
     pub smoothing: Option<f32>,
+    #[serde(default, alias = "lineSpacing")]
     pub line_spacing: Option<f32>,
+    #[serde(default, alias = "lineDensity")]
     pub line_density: Option<f32>,
+    #[serde(default, alias = "lineAngle")]
     pub line_angle: Option<f32>,
+    #[serde(default, alias = "dotting")]
     pub dotting: Option<f32>,
+    #[serde(default, alias = "lineEmphasis")]
     pub line_emphasis: Option<f32>,
+    #[serde(default, alias = "lineCount")]
     pub line_count: Option<f32>,
+    #[serde(default, alias = "modulationStrength")]
     pub modulation_strength: Option<f32>,
+    #[serde(default, alias = "horizontalBias")]
     pub horizontal_bias: Option<f32>,
+    #[serde(default, alias = "glitchIntensity")]
     pub glitch_intensity: Option<f32>,
+    #[serde(default, alias = "frequency")]
     pub frequency: Option<f32>,
+    #[serde(default, alias = "amplitude")]
     pub amplitude: Option<f32>,
+    #[serde(default, alias = "waveFrequency")]
     pub wave_frequency: Option<f32>,
+    #[serde(default, alias = "waveDensity")]
     pub wave_density: Option<f32>,
+    #[serde(default, alias = "waveThreshold")]
     pub wave_threshold: Option<f32>,
+    #[serde(default, alias = "modulationFrequency")]
     pub modulation_frequency: Option<f32>,
+    #[serde(default, alias = "modulationBlend")]
     pub modulation_blend: Option<f32>,
+    #[serde(default, alias = "freqA")]
     pub freq_a: Option<f32>,
+    #[serde(default, alias = "freqB")]
     pub freq_b: Option<f32>,
+    #[serde(default, alias = "angle")]
     pub angle: Option<f32>,
+    #[serde(default, alias = "swirl")]
     pub swirl: Option<f32>,
+    #[serde(default, alias = "cellSize")]
     pub cell_size: Option<f32>,
+    #[serde(default, alias = "edgeSensitivity")]
     pub edge_sensitivity: Option<f32>,
+    #[serde(default, alias = "checkersSize")]
     pub checkers_size: Option<f32>,
+    #[serde(default, alias = "period")]
     pub period: Option<f32>,
+    #[serde(default, alias = "dotScale")]
     pub dot_scale: Option<f32>,
+    #[serde(default, alias = "dotDensity")]
     pub dot_density: Option<f32>,
+    #[serde(default, alias = "density")]
     pub density: Option<f32>,
+    #[serde(default, alias = "variation")]
     pub variation: Option<f32>,
+    #[serde(default, alias = "divisor")]
     pub divisor: Option<f32>,
+    #[serde(default, alias = "peakThreshold")]
     pub peak_threshold: Option<f32>,
+    #[serde(default, alias = "minPeakDistance")]
     pub min_peak_distance: Option<f32>,
+    #[serde(default, alias = "maxPeaks")]
     pub max_peaks: Option<f32>,
+    #[serde(default, alias = "interference")]
     pub interference: Option<bool>,
+    #[serde(default, alias = "contourThreshold")]
     pub contour_threshold: Option<f32>,
+    #[serde(default, alias = "lineMode")]
     pub line_mode: Option<String>,
+    #[serde(default, alias = "triangleType")]
     pub triangle_type: Option<String>,
+    #[serde(default, alias = "vertical")]
     pub vertical: Option<bool>,
+    #[serde(default, alias = "orbCount")]
     pub orb_count: Option<f32>,
+    #[serde(default, alias = "orbSize")]
     pub orb_size: Option<f32>,
+    #[serde(default, alias = "orbIntensity")]
     pub orb_intensity: Option<f32>,
+    #[serde(default, alias = "orbRandom")]
     pub orb_random: Option<f32>,
+    #[serde(default, alias = "orbOffset")]
     pub orb_offset: Option<f32>,
+    #[serde(default, alias = "orbVertical")]
     pub orb_vertical: Option<bool>,
+    #[serde(default, alias = "offsetX")]
     pub offset_x: Option<f32>,
+    #[serde(default, alias = "offsetY")]
     pub offset_y: Option<f32>,
+    #[serde(default, alias = "bands")]
     pub bands: Option<f32>,
+    #[serde(default, alias = "stripeSpacing")]
     pub stripe_spacing: Option<f32>,
+    #[serde(default, alias = "cellRadius")]
     pub cell_radius: Option<f32>,
 }
 

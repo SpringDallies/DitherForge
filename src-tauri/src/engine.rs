@@ -122,48 +122,12 @@ pub fn dither_pixel_with_color(
 
 /// Applies common image adjustments (brightness, contrast, saturation, gamma)
 pub fn apply_pre_adjustments(image: &mut RgbaImage, settings: &DitherSettings) {
-    if settings.brightness == 0.0
-        && settings.contrast == 0.0
-        && settings.saturation == 0.0
-        && settings.gamma == 1.0
-    {
-        return;
-    }
-
-    let b_offset = settings.brightness * 128.0;
-    let c_factor = if settings.contrast >= 0.0 {
-        1.0 + settings.contrast * 2.0
-    } else {
-        1.0 + settings.contrast * 0.8
-    };
-    let s_factor = 1.0 + settings.saturation;
-    let inv_gamma = 1.0 / settings.gamma.max(0.01);
-
-    for pixel in image.pixels_mut() {
-        let mut r = pixel[0] as f32;
-        let mut g = pixel[1] as f32;
-        let mut b = pixel[2] as f32;
-
-        // Brightness & Contrast
-        r = ((r - 128.0) * c_factor + 128.0) + b_offset;
-        g = ((g - 128.0) * c_factor + 128.0) + b_offset;
-        b = ((b - 128.0) * c_factor + 128.0) + b_offset;
-
-        // Saturation
-        let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        r = luma + (r - luma) * s_factor;
-        g = luma + (g - luma) * s_factor;
-        b = luma + (b - luma) * s_factor;
-
-        // Gamma correction
-        if settings.gamma != 1.0 {
-            r = 255.0 * (r.clamp(0.0, 255.0) / 255.0).powf(inv_gamma);
-            g = 255.0 * (g.clamp(0.0, 255.0) / 255.0).powf(inv_gamma);
-            b = 255.0 * (b.clamp(0.0, 255.0) / 255.0).powf(inv_gamma);
-        }
-
-        pixel[0] = r.clamp(0.0, 255.0) as u8;
-        pixel[1] = g.clamp(0.0, 255.0) as u8;
-        pixel[2] = b.clamp(0.0, 255.0) as u8;
-    }
+    crate::apply_raw_pre_adjustments(
+        image.as_mut(),
+        settings.brightness,
+        settings.contrast,
+        settings.saturation,
+        settings.gamma,
+        0.0,
+    );
 }

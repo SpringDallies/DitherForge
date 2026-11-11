@@ -2,18 +2,11 @@
 // Physical Hardware Target: Intel Core i3-3240T (2 cores / 4 threads, 2.9 GHz, 8 GB DDR3)
 #![allow(dead_code, unused_variables)]
 
-#[path = "../algorithms/mod.rs"]
-mod algorithms;
-#[path = "../effects.rs"]
-mod effects;
-#[path = "../engine.rs"]
-mod engine;
-#[path = "../palette.rs"]
-mod palette;
-
-use algorithms::apply_algorithm_by_id;
-use effects::{apply_effect_stack, PostEffect, PostEffectType};
-use engine::DitherSettings;
+use ditherforge::{
+    algorithms::apply_algorithm_by_id,
+    effects::{apply_effect_stack, PostEffect, PostEffectType},
+    engine::DitherSettings,
+};
 use image::{ImageFormat, Rgba, RgbaImage};
 use std::io::Cursor;
 use std::time::Instant;

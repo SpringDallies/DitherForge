@@ -2,14 +2,10 @@
 #![allow(dead_code, unused_variables)]
 use std::io::{self, Read, Write};
 
-#[path = "../algorithms/mod.rs"]
-mod algorithms;
-#[path = "../effects.rs"]
-mod effects;
-#[path = "../engine.rs"]
-mod engine;
-#[path = "../palette.rs"]
-mod palette;
+use ditherforge::{
+    algorithms, effects, engine,
+    execute_binary_frame, BinaryProcessHeader,
+};
 
 #[derive(serde::Deserialize, Debug)]
 struct ParityHeader {
@@ -152,69 +148,6 @@ struct ParityHeader {
     effect_stack: Option<Vec<effects::PostEffect>>,
 }
 
-fn apply_raw_pre_adjustments(
-    data: &mut [u8],
-    brightness: f32,
-    contrast: f32,
-    saturation: f32,
-    gamma: f32,
-) {
-    if brightness == 0.0 && contrast == 0.0 && saturation == 0.0 && (gamma - 1.0).abs() < 0.001 {
-        return;
-    }
-    let b_offset = brightness * 128.0;
-    let c_factor = if contrast >= 0.0 { 1.0 + contrast * 2.0 } else { 1.0 + contrast * 0.8 };
-    let s_factor = 1.0 + saturation;
-    let inv_gamma = 1.0 / gamma.max(0.01);
-
-    if saturation == 0.0 {
-        let mut tone_lut = [0u8; 256];
-        for v in 0..256 {
-            let mut val = (v as f32 - 128.0) * c_factor + 128.0 + b_offset;
-            val = val.clamp(0.0, 255.0);
-            if (inv_gamma - 1.0).abs() > 0.001 {
-                val = 255.0 * (val / 255.0).powf(inv_gamma);
-            }
-            tone_lut[v] = val.round().clamp(0.0, 255.0) as u8;
-        }
-
-        for chunk in data.chunks_exact_mut(4) {
-            chunk[0] = tone_lut[chunk[0] as usize];
-            chunk[1] = tone_lut[chunk[1] as usize];
-            chunk[2] = tone_lut[chunk[2] as usize];
-        }
-    } else {
-        let mut cb_lut = [0.0f32; 256];
-        for v in 0..256 {
-            cb_lut[v] = (v as f32 - 128.0) * c_factor + 128.0 + b_offset;
-        }
-
-        let mut gamma_lut = [0u8; 256];
-        for v in 0..256 {
-            let mut val = v as f32;
-            if (inv_gamma - 1.0).abs() > 0.001 {
-                val = 255.0 * (v as f32 / 255.0).powf(inv_gamma);
-            }
-            gamma_lut[v] = val.round().clamp(0.0, 255.0) as u8;
-        }
-
-        for chunk in data.chunks_exact_mut(4) {
-            let r = cb_lut[chunk[0] as usize];
-            let g = cb_lut[chunk[1] as usize];
-            let b = cb_lut[chunk[2] as usize];
-
-            let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            let nr = (luma + (r - luma) * s_factor).clamp(0.0, 255.0).round() as usize;
-            let ng = (luma + (g - luma) * s_factor).clamp(0.0, 255.0).round() as usize;
-            let nb = (luma + (b - luma) * s_factor).clamp(0.0, 255.0).round() as usize;
-
-            chunk[0] = gamma_lut[nr];
-            chunk[1] = gamma_lut[ng];
-            chunk[2] = gamma_lut[nb];
-        }
-    }
-}
-
 fn main() {
     let mut stdin = io::stdin().lock();
     let mut header_len_bytes = [0u8; 4];
@@ -243,32 +176,29 @@ fn main() {
         return;
     }
 
-    let mut out_data = vec![0u8; total_pixels];
-    let parsed_matrix_size = header.matrix_size.as_ref().and_then(|v| {
-        if let Some(n) = v.as_i64() {
-            Some(n as usize)
-        } else if let Some(s) = v.as_str() {
-            if s == "2" || s == "2x2" {
-                Some(2)
-            } else if s == "8" || s == "8x8" {
-                Some(8)
-            } else if s == "16" || s == "16x16" {
-                Some(16)
-            } else {
-                Some(4)
-            }
-        } else {
-            None
-        }
-    });
-
-    let raw_params = algorithms::RawAlgorithmParams {
-        threshold: header.threshold.unwrap_or(0.5),
-        scale: header.scale.unwrap_or(1.0),
-        diffusion_strength: header.diffusion_strength.unwrap_or(1.0),
+    // Convert ParityHeader to BinaryProcessHeader for execute_binary_frame
+    let bph = BinaryProcessHeader {
+        width: header.width,
+        height: header.height,
+        algorithm: header.algorithm,
+        palette: header.palette,
+        threshold: header.threshold,
+        scale: header.scale,
+        diffusion_strength: header.diffusion_strength,
         serpentine: header.serpentine,
-        temporal_seed: header.temporal_seed.unwrap_or(0),
-        matrix_size: parsed_matrix_size,
+        temporal_seed: header.temporal_seed,
+        luminance_threshold: header.luminance_threshold,
+        brightness: header.brightness,
+        contrast: header.contrast,
+        saturation: header.saturation,
+        gamma: header.gamma,
+        hue: None,
+        temporal_pattern: None,
+        temporal_intensity: None,
+        temporal_speed: None,
+        depth: header.depth,
+        noise_amount: header.noise_amount,
+        matrix_size: header.matrix_size,
         warp_intensity: header.warp_intensity,
         dot_size: header.dot_size,
         block_size: header.block_size,
@@ -276,8 +206,6 @@ fn main() {
         distribution_spread: header.distribution_spread,
         twist_strength: header.twist_strength,
         spiral_frequency: header.spiral_frequency,
-        depth: header.depth,
-        noise_amount: header.noise_amount,
         line_scale: header.line_scale,
         bleed: header.bleed,
         smoothing: header.smoothing,
@@ -315,8 +243,8 @@ fn main() {
         max_peaks: header.max_peaks,
         interference: header.interference,
         contour_threshold: header.contour_threshold,
-        line_mode: header.line_mode.clone(),
-        triangle_type: header.triangle_type.clone(),
+        line_mode: header.line_mode,
+        triangle_type: header.triangle_type,
         vertical: header.vertical,
         orb_count: header.orb_count,
         orb_size: header.orb_size,
@@ -329,63 +257,14 @@ fn main() {
         bands: header.bands,
         stripe_spacing: header.stripe_spacing,
         cell_radius: header.cell_radius,
-        ..Default::default()
+        noisy_lines: None,
+        effect_stack: header.effect_stack.unwrap_or_default(),
     };
 
-    let lum_threshold = header.luminance_threshold.unwrap_or_else(|| {
-        header.threshold.map(|t| if t <= 1.0 { (t * 100.0).round() } else { t }).unwrap_or(50.0)
-    });
-    let has_lum_shift = header.algorithm != "none"
-        && header.algorithm != "threshold"
-        && header.algorithm != "fixed_threshold"
-        && (lum_threshold - 50.0).abs() > 0.001;
-
-    let mut b = header.brightness.unwrap_or(0.0);
-    if b.abs() > 1.0 { b /= 100.0; }
-    let mut c = header.contrast.unwrap_or(0.0);
-    if c.abs() > 1.0 { c /= 100.0; }
-    let mut s = header.saturation.unwrap_or(0.0);
-    if s.abs() > 1.0 { s /= 100.0; }
-    let g = header.gamma.unwrap_or(1.0);
-    let has_tweaks = b != 0.0 || c != 0.0 || s != 0.0 || (g - 1.0).abs() > 0.001;
-
-    let working_input: Vec<u8>;
-    let input_slice: &[u8] = if has_tweaks || has_lum_shift {
-        let mut modified = pixel_data.to_vec();
-        if has_tweaks {
-            apply_raw_pre_adjustments(&mut modified, b, c, s, g);
-        }
-        if has_lum_shift {
-            let shift = (50.0 - lum_threshold) * 4.0;
-            for i in (0..modified.len()).step_by(4) {
-                modified[i] = ((modified[i] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
-                modified[i + 1] = ((modified[i + 1] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
-                modified[i + 2] = ((modified[i + 2] as f32 + shift).round().clamp(0.0, 255.0)) as u8;
-            }
-        }
-        working_input = modified;
-        &working_input
-    } else {
-        &pixel_data
-    };
-
-    if let Err(e) = algorithms::apply_algorithm_raw_params(
-        header.width,
-        header.height,
-        input_slice,
-        &mut out_data,
-        &header.algorithm,
-        &header.palette,
-        &raw_params,
-    ) {
-        eprintln!("Error in apply_algorithm_raw_params: {e}");
+    let mut out_data = vec![0u8; total_pixels];
+    if let Err(e) = execute_binary_frame(&bph, &pixel_data) {
+        eprintln!("Error in execute_binary_frame: {e}");
         return;
-    }
-
-    if let Some(ref stack) = header.effect_stack {
-        if !stack.is_empty() {
-            effects::apply_effect_stack_raw(header.width, header.height, &mut out_data, stack);
-        }
     }
 
     let mut stdout = io::stdout().lock();

@@ -631,16 +631,21 @@ fn composite_effect_layer(base: &mut RgbaImage, layer: &RgbaImage, opacity: f32,
     }
     let inv_op = 1.0 - op;
     let mode = blend_mode.to_ascii_lowercase();
-    for (b_px, l_px) in base.pixels_mut().zip(layer.pixels()) {
-        for c in 0..3 {
-            let blended = blend_channel(b_px[c], l_px[c], &mode);
-            if op >= 0.999 {
-                b_px[c] = blended;
-            } else {
-                b_px[c] = (b_px[c] as f32 * inv_op + blended as f32 * op).round().clamp(0.0, 255.0) as u8;
+    base.as_mut()
+        .par_chunks_exact_mut(4)
+        .zip(layer.as_raw().par_chunks_exact(4))
+        .for_each(|(b_px, l_px)| {
+            for c in 0..3 {
+                let blended = blend_channel(b_px[c], l_px[c], &mode);
+                if op >= 0.999 {
+                    b_px[c] = blended;
+                } else {
+                    b_px[c] = (b_px[c] as f32 * inv_op + blended as f32 * op)
+                        .round()
+                        .clamp(0.0, 255.0) as u8;
+                }
             }
-        }
-    }
+        });
 }
 
 pub fn apply_effect_stack(image: &mut RgbaImage, stack: &[PostEffect]) {
@@ -1356,59 +1361,90 @@ fn apply_oil_paint(image: &mut RgbaImage, radius: u32, levels: u8) {
 
 fn apply_kuwahara(image: &mut RgbaImage, radius: u32) {
     let (width, height) = image.dimensions();
-    let temp = image.clone();
-    let r = radius as i32;
-    let w = width as usize;
+    if width == 0 || height == 0 {
+        return;
+    }
+    let (w, h) = (width as usize, height as usize);
+    let r = radius.clamp(1, 16) as usize;
+    let stride = w + 1;
+    let sat_len = (w + 1) * (h + 1);
 
-    image.as_mut().par_chunks_exact_mut(w * 4).enumerate().for_each(|(y, row)| {
-        let quadrants = [
-            (-r..=0, -r..=0),
-            (0..=r, -r..=0),
-            (-r..=0, 0..=r),
-            (0..=r, 0..=r),
-        ];
+    // Precompute Summed-Area Tables (Integral Images) for O(1) quadrant queries
+    let mut sat_sum = vec![[0u64; 3]; sat_len];
+    let mut sat_sq = vec![[0u64; 3]; sat_len];
+    let raw = image.as_raw();
 
-        for x in 0..width {
-            let mut min_variance = f32::INFINITY;
-            let mut best_mean = [0u8; 3];
+    for y in 0..h {
+        let mut row_s = [0u64; 3];
+        let mut row_sq = [0u64; 3];
+        for x in 0..w {
+            let p_idx = (y * w + x) * 4;
+            let cur_idx = (y + 1) * stride + (x + 1);
+            let above_idx = y * stride + (x + 1);
+            for c in 0..3 {
+                let v = raw[p_idx + c] as u64;
+                row_s[c] += v;
+                row_sq[c] += v * v;
+                sat_sum[cur_idx][c] = sat_sum[above_idx][c] + row_s[c];
+                sat_sq[cur_idx][c] = sat_sq[above_idx][c] + row_sq[c];
+            }
+        }
+    }
 
-            for (qx, qy) in &quadrants {
-                let mut sum = [0.0f32; 3];
-                let mut sq_sum = [0.0f32; 3];
-                let mut count = 0.0f32;
+    image
+        .as_mut()
+        .par_chunks_exact_mut(w * 4)
+        .enumerate()
+        .for_each(|(y, row)| {
+            let y0_tl = y.saturating_sub(r);
+            let y1_tl = y;
+            let y0_br = y;
+            let y1_br = (y + r).min(h - 1);
 
-                for dy in qy.clone() {
-                    for dx in qx.clone() {
-                        let nx = (x as i32 + dx).clamp(0, width as i32 - 1) as u32;
-                        let ny = (y as i32 + dy).clamp(0, height as i32 - 1) as u32;
-                        let p = temp.get_pixel(nx, ny);
-                        for c in 0..3 {
-                            let v = p[c] as f32;
-                            sum[c] += v;
-                            sq_sum[c] += v * v;
-                        }
-                        count += 1.0;
+            for x in 0..w {
+                let x0_tl = x.saturating_sub(r);
+                let x1_tl = x;
+                let x0_br = x;
+                let x1_br = (x + r).min(w - 1);
+
+                let rects = [
+                    (x0_tl, y0_tl, x1_tl, y1_tl),
+                    (x0_br, y0_tl, x1_br, y1_tl),
+                    (x0_tl, y0_br, x1_tl, y1_br),
+                    (x0_br, y0_br, x1_br, y1_br),
+                ];
+
+                let mut min_variance = f32::INFINITY;
+                let mut best_mean = [0u8; 3];
+
+                for &(rx0, ry0, rx1, ry1) in &rects {
+                    let count = ((rx1 - rx0 + 1) * (ry1 - ry0 + 1)) as f32;
+                    let a = ry0 * stride + rx0;
+                    let b = ry0 * stride + (rx1 + 1);
+                    let c = (ry1 + 1) * stride + rx0;
+                    let d = (ry1 + 1) * stride + (rx1 + 1);
+
+                    let mut variance = 0.0f32;
+                    let mut mean_rgb = [0u8; 3];
+                    for ch in 0..3 {
+                        let sum = (sat_sum[d][ch] + sat_sum[a][ch] - sat_sum[b][ch] - sat_sum[c][ch]) as f32;
+                        let sq = (sat_sq[d][ch] + sat_sq[a][ch] - sat_sq[b][ch] - sat_sq[c][ch]) as f32;
+                        let mean = sum / count;
+                        variance += (sq / count) - (mean * mean);
+                        mean_rgb[ch] = mean.round().clamp(0.0, 255.0) as u8;
+                    }
+                    if variance < min_variance {
+                        min_variance = variance;
+                        best_mean = mean_rgb;
                     }
                 }
 
-                let mean = [sum[0] / count, sum[1] / count, sum[2] / count];
-                let variance = (sq_sum[0] / count - mean[0] * mean[0])
-                    + (sq_sum[1] / count - mean[1] * mean[1])
-                    + (sq_sum[2] / count - mean[2] * mean[2]);
-
-                if variance < min_variance {
-                    min_variance = variance;
-                    best_mean = [mean[0].round() as u8, mean[1].round() as u8, mean[2].round() as u8];
-                }
+                let idx = x * 4;
+                row[idx] = best_mean[0];
+                row[idx + 1] = best_mean[1];
+                row[idx + 2] = best_mean[2];
             }
-
-            let idx = (x as usize) * 4;
-            row[idx] = best_mean[0];
-            row[idx + 1] = best_mean[1];
-            row[idx + 2] = best_mean[2];
-            row[idx + 3] = temp.get_pixel(x, y as u32)[3];
-        }
-    });
+        });
 }
 
 fn apply_median_filter(image: &mut RgbaImage, radius: u32) {
@@ -1450,31 +1486,73 @@ fn apply_median_filter(image: &mut RgbaImage, radius: u32) {
 
 fn morphology_pass(image: &mut RgbaImage, radius: u32, is_dilate: bool) {
     let (width, height) = image.dimensions();
-    let temp = image.clone();
-    let r = radius as i32;
+    if width == 0 || height == 0 {
+        return;
+    }
+    let (w, h) = (width as usize, height as usize);
+    let r = radius.clamp(1, 16) as isize;
+    let init_val = if is_dilate { 0u8 } else { 255u8 };
 
-    for y in 0..height {
-        for x in 0..width {
-            let mut target = if is_dilate { [0u8; 3] } else { [255u8; 3] };
-
-            for dy in -r..=r {
-                for dx in -r..=r {
-                    let nx = (x as i32 + dx).clamp(0, width as i32 - 1) as u32;
-                    let ny = (y as i32 + dy).clamp(0, height as i32 - 1) as u32;
-                    let p = temp.get_pixel(nx, ny);
-                    for c in 0..3 {
-                        if is_dilate {
-                            target[c] = target[c].max(p[c]);
-                        } else {
-                            target[c] = target[c].min(p[c]);
-                        }
+    // 1. Horizontal 1D pass into intermediate buffer
+    let src_raw = image.as_raw();
+    let mut horiz = vec![0u8; src_raw.len()];
+    horiz
+        .par_chunks_exact_mut(w * 4)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let in_row = &src_raw[y * w * 4..(y + 1) * w * 4];
+            for x in 0..w {
+                let mut target = [init_val; 3];
+                let x0 = (x as isize - r).max(0) as usize;
+                let x1 = (x as isize + r).min(w as isize - 1) as usize;
+                for nx in x0..=x1 {
+                    let p = &in_row[nx * 4..nx * 4 + 3];
+                    if is_dilate {
+                        target[0] = target[0].max(p[0]);
+                        target[1] = target[1].max(p[1]);
+                        target[2] = target[2].max(p[2]);
+                    } else {
+                        target[0] = target[0].min(p[0]);
+                        target[1] = target[1].min(p[1]);
+                        target[2] = target[2].min(p[2]);
                     }
                 }
+                let idx = x * 4;
+                out_row[idx] = target[0];
+                out_row[idx + 1] = target[1];
+                out_row[idx + 2] = target[2];
+                out_row[idx + 3] = in_row[idx + 3];
             }
+        });
 
-            image.put_pixel(x, y, Rgba([target[0], target[1], target[2], temp.get_pixel(x, y)[3]]));
-        }
-    }
+    // 2. Vertical 1D pass back into image
+    image
+        .as_mut()
+        .par_chunks_exact_mut(w * 4)
+        .enumerate()
+        .for_each(|(y, out_row)| {
+            let y0 = (y as isize - r).max(0) as usize;
+            let y1 = (y as isize + r).min(h as isize - 1) as usize;
+            for x in 0..w {
+                let mut target = [init_val; 3];
+                let idx = x * 4;
+                for ny in y0..=y1 {
+                    let p_idx = ny * w * 4 + idx;
+                    if is_dilate {
+                        target[0] = target[0].max(horiz[p_idx]);
+                        target[1] = target[1].max(horiz[p_idx + 1]);
+                        target[2] = target[2].max(horiz[p_idx + 2]);
+                    } else {
+                        target[0] = target[0].min(horiz[p_idx]);
+                        target[1] = target[1].min(horiz[p_idx + 1]);
+                        target[2] = target[2].min(horiz[p_idx + 2]);
+                    }
+                }
+                out_row[idx] = target[0];
+                out_row[idx + 1] = target[1];
+                out_row[idx + 2] = target[2];
+            }
+        });
 }
 
 fn apply_morphology(image: &mut RgbaImage, mode: &str, radius: u32) {

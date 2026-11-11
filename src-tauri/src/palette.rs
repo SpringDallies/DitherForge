@@ -38,6 +38,14 @@ use std::sync::{Arc, Mutex, OnceLock};
 const MAX_LUT_CACHE: usize = 8;
 static LUT_CACHE: OnceLock<Mutex<Vec<(Vec<[u8; 4]>, u32, Arc<FastPaletteLUT>)>>> = OnceLock::new();
 
+pub fn clear_lut_cache() {
+    if let Some(mutex) = LUT_CACHE.get() {
+        if let Ok(mut guard) = mutex.lock() {
+            guard.clear();
+        }
+    }
+}
+
 impl FastPaletteLUT {
     pub fn new(palette: &[[u8; 4]], threshold_bias_opt: Option<f32>) -> Arc<Self> {
         let mut bias = threshold_bias_opt.unwrap_or(0.5);
@@ -178,15 +186,10 @@ impl FastPaletteLUT {
         } else if cur_lum >= lums[n - 1] {
             n - 1
         } else {
-            let mut found = n - 1;
-            for i in 0..n - 1 {
-                if cur_lum <= lums[i + 1] {
-                    let mid = lums[i] + (lums[i + 1] - lums[i]) * bias;
-                    found = if cur_lum < mid { i } else { i + 1 };
-                    break;
-                }
-            }
-            found
+            let hi = lums.partition_point(|&l| l < cur_lum).clamp(1, n - 1);
+            let i = hi - 1;
+            let mid = lums[i] + (lums[i + 1] - lums[i]) * bias;
+            if cur_lum < mid { i } else { i + 1 }
         };
         self.sorted_to_orig[sorted_idx]
     }
@@ -201,15 +204,10 @@ impl FastPaletteLUT {
         } else if cur_lum >= lums[n - 1] {
             n - 1
         } else {
-            let mut found = n - 1;
-            for i in 0..n - 1 {
-                if cur_lum <= lums[i + 1] {
-                    let mid = lums[i] + (lums[i + 1] - lums[i]) * bias;
-                    found = if cur_lum < mid { i } else { i + 1 };
-                    break;
-                }
-            }
-            found
+            let hi = lums.partition_point(|&l| l < cur_lum).clamp(1, n - 1);
+            let i = hi - 1;
+            let mid = lums[i] + (lums[i + 1] - lums[i]) * bias;
+            if cur_lum < mid { i } else { i + 1 }
         };
         self.sorted_to_orig[sorted_idx]
     }
@@ -227,14 +225,11 @@ impl FastPaletteLUT {
             if lum >= lums[n - 1] {
                 return (pal[(n.saturating_sub(2)).max(0)], pal[n - 1], 1.0);
             }
-            for i in 0..n - 1 {
-                if lum >= lums[i] && lum <= lums[i + 1] {
-                    let span = lums[i + 1] - lums[i];
-                    let frac = if span > 0.0 { (lum - lums[i]) / span } else { 0.5 };
-                    return (pal[i], pal[i + 1], frac);
-                }
-            }
-            (pal[n - 1], pal[n - 1], 1.0)
+            let hi = lums.partition_point(|&l| l < lum).clamp(1, n - 1);
+            let i = hi - 1;
+            let span = lums[i + 1] - lums[i];
+            let frac = if span > 0.0 { (lum - lums[i]) / span } else { 0.5 };
+            (pal[i], pal[i + 1], frac)
         } else {
             let mut best_idx = 0;
             let mut best_dist = f32::INFINITY;
@@ -435,11 +430,26 @@ pub fn get_builtin_palettes() -> Vec<PalettePreset> {
     ]
 }
 
+#[inline(always)]
+fn compute_rgb_bounds(pixels: &[[u8; 3]]) -> (u8, u8, u8) {
+    let mut min = [255u8; 3];
+    let mut max = [0u8; 3];
+    for p in pixels {
+        min[0] = min[0].min(p[0]);
+        max[0] = max[0].max(p[0]);
+        min[1] = min[1].min(p[1]);
+        max[1] = max[1].max(p[1]);
+        min[2] = min[2].min(p[2]);
+        max[2] = max[2].max(p[2]);
+    }
+    (max[0] - min[0], max[1] - min[1], max[2] - min[2])
+}
+
 /// Median Cut Algorithm to extract K colors from an image
 pub fn extract_palette_median_cut(image: &RgbaImage, target_count: usize) -> Vec<[u8; 4]> {
     let pixels: Vec<[u8; 3]> = image
         .pixels()
-        .step_by(4) // Subsample for fast processing
+        .step_by(4)
         .map(|p| [p[0], p[1], p[2]])
         .collect();
 
@@ -451,36 +461,28 @@ pub fn extract_palette_median_cut(image: &RgbaImage, target_count: usize) -> Vec
 
     while boxes.len() < target_count {
         let mut best_box_idx = 0;
-        let mut max_range = -1i32;
+        let mut max_range = 0u8;
+        let mut best_ranges = (0u8, 0u8, 0u8);
 
         for (i, b) in boxes.iter().enumerate() {
             if b.len() <= 1 {
                 continue;
             }
-            let (min_r, max_r) = b.iter().fold((255, 0), |(mn, mx), p| (mn.min(p[0]), mx.max(p[0])));
-            let (min_g, max_g) = b.iter().fold((255, 0), |(mn, mx), p| (mn.min(p[1]), mx.max(p[1])));
-            let (min_b, max_b) = b.iter().fold((255, 0), |(mn, mx), p| (mn.min(p[2]), mx.max(p[2])));
-
-            let range = ((max_r - min_r) as i32).max((max_g - min_g) as i32).max((max_b - min_b) as i32);
+            let (rr, gr, br) = compute_rgb_bounds(b);
+            let range = rr.max(gr).max(br);
             if range > max_range {
                 max_range = range;
                 best_box_idx = i;
+                best_ranges = (rr, gr, br);
             }
         }
 
-        if max_range <= 0 {
+        if max_range == 0 {
             break;
         }
 
         let mut b = boxes.swap_remove(best_box_idx);
-        let (min_r, max_r) = b.iter().fold((255, 0), |(mn, mx), p| (mn.min(p[0]), mx.max(p[0])));
-        let (min_g, max_g) = b.iter().fold((255, 0), |(mn, mx), p| (mn.min(p[1]), mx.max(p[1])));
-        let (min_b, max_b) = b.iter().fold((255, 0), |(mn, mx), p| (mn.min(p[2]), mx.max(p[2])));
-
-        let r_range = max_r - min_r;
-        let g_range = max_g - min_g;
-        let b_range = max_b - min_b;
-
+        let (r_range, g_range, b_range) = best_ranges;
         let channel = if r_range >= g_range && r_range >= b_range {
             0
         } else if g_range >= r_range && g_range >= b_range {
@@ -489,10 +491,9 @@ pub fn extract_palette_median_cut(image: &RgbaImage, target_count: usize) -> Vec
             2
         };
 
-        b.sort_by_key(|p| p[channel]);
         let median = b.len() / 2;
+        b.select_nth_unstable_by_key(median, |p| p[channel]);
         let b2 = b.split_off(median);
-
         boxes.push(b);
         boxes.push(b2);
     }

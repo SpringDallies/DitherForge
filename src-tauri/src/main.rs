@@ -816,11 +816,17 @@ async fn process_animation_batch(request: Request<'_>) -> Result<Response, Strin
             .base_header
             .effect_stack
             .iter()
-            .any(|eff| eff.id == "frame_echo")
+            .any(|eff| eff.enabled && eff.canonical_id() == "frame_echo")
             || batch
                 .frames_headers
                 .as_ref()
-                .map(|fh| fh.iter().any(|h| h.effect_stack.iter().any(|eff| eff.id == "frame_echo")))
+                .map(|fh| {
+                    fh.iter().any(|h| {
+                        h.effect_stack
+                            .iter()
+                            .any(|eff| eff.enabled && eff.canonical_id() == "frame_echo")
+                    })
+                })
                 .unwrap_or(false);
 
         if needs_sequential {

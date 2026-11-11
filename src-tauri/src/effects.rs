@@ -12,6 +12,7 @@ static FRAME_HISTORY: OnceLock<Mutex<FrameHistory>> = OnceLock::new();
 pub struct FrameHistory {
     frames: Vec<Vec<u8>>,
     write_idx: usize,
+    populated: usize,
     width: u32,
     height: u32,
 }
@@ -22,6 +23,7 @@ impl FrameHistory {
         Self {
             frames: vec![vec![0u8; frame_bytes]; max_frames],
             write_idx: 0,
+            populated: 0,
             width,
             height,
         }
@@ -35,6 +37,7 @@ impl FrameHistory {
             let max_frames = self.frames.len();
             self.frames = vec![vec![0u8; frame_bytes]; max_frames];
             self.write_idx = 0;
+            self.populated = 0;
         }
     }
 
@@ -42,12 +45,13 @@ impl FrameHistory {
         (self.width * self.height * 4) as usize
     }
 
-    /// Get the previous frame at `age` frames back (0 = current write position = previous frame)
+    /// Get the previous frame at `age` frames back (0 = most recent previous frame)
     fn get_previous(&self, age: usize) -> Option<&[u8]> {
-        if self.frames.is_empty() {
+        if age >= self.populated || self.frames.is_empty() {
             return None;
         }
-        let idx = self.write_idx.wrapping_sub(age + 1).wrapping_rem(self.frames.len());
+        let len = self.frames.len();
+        let idx = (self.write_idx + len - ((age + 1) % len)) % len;
         Some(&self.frames[idx])
     }
 
@@ -55,6 +59,9 @@ impl FrameHistory {
     fn store_current(&mut self, frame: &[u8]) {
         self.frames[self.write_idx] = frame.to_vec();
         self.write_idx = (self.write_idx + 1) % self.frames.len();
+        if self.populated < self.frames.len() {
+            self.populated += 1;
+        }
     }
 
     /// Clear all frame history (called at animation start)
@@ -63,6 +70,7 @@ impl FrameHistory {
             frame.fill(0);
         }
         self.write_idx = 0;
+        self.populated = 0;
     }
 }
 
@@ -2779,16 +2787,17 @@ fn apply_frontend_effect(image: &mut RgbaImage, eff: &PostEffect) -> bool {
                 }
             }
 
-            // Normalize: result = (original * (1 - total_weight) + weighted_sum) / (1 + total_weight)
-            // The division keeps overall brightness stable when decay is high
-            let divisor = 1.0 + total_weight;
-            for i in 0..frame_bytes {
-                if i % 4 == 3 {
-                    // Preserve alpha channel
-                    continue;
+            // weighted_sum already starts with 1.0 * current[i], so dividing by
+            // (1.0 + total_weight) produces the exact normalized exponential average.
+            if total_weight > 0.0 {
+                let inv_divisor = 1.0 / (1.0 + total_weight);
+                let out_slice = image.as_mut();
+                for i in (0..frame_bytes).step_by(4) {
+                    out_slice[i] = (weighted_sum[i] * inv_divisor).round().clamp(0.0, 255.0) as u8;
+                    out_slice[i + 1] = (weighted_sum[i + 1] * inv_divisor).round().clamp(0.0, 255.0) as u8;
+                    out_slice[i + 2] = (weighted_sum[i + 2] * inv_divisor).round().clamp(0.0, 255.0) as u8;
+                    // out_slice[i + 3] (alpha) preserved untouched
                 }
-                let result = (current[i] as f32 * (1.0 - total_weight) + weighted_sum[i]) / divisor;
-                image.as_mut()[i] = result.clamp(0.0, 255.0) as u8;
             }
 
             // Store current (pre-blend) frame for future temporal blending

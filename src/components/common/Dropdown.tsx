@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useId } from 'react';
 import { X } from 'lucide-react';
-import { Tooltip } from './Tooltip';
 import { useAppStore } from '../../state/useAppStore';
 import { areAnimationsEnabled } from '../dialogs/SettingsDialog';
 
@@ -265,13 +264,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
         zIndex: (isOpen || isClosing) ? 1000 : undefined
       }}
     >
-      {tooltip && !isOpen ? (
-        <Tooltip text={tooltip} style={{ width: '100%', display: 'flex' }}>
-          {triggerButton}
-        </Tooltip>
-      ) : (
-        triggerButton
-      )}
+      {triggerButton}
 
       {(isOpen || isClosing) && (
         <div

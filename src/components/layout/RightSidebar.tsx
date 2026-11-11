@@ -402,41 +402,35 @@ const SwatchColorPickerPopover: React.FC<SwatchColorPickerPopoverProps> = ({
 
       {/* Segmented 3-Button Toolbar Pill: Sun | Moon | Clear */}
       <div className="replica-popover-toolbar">
-        <Tooltip text="Add 35% lighter swatch" style={{ flex: 1, height: '100%' }}>
-          <button
-            type="button"
-            className="replica-popover-tool-btn"
-            disabled={workingPalette.length >= 32}
-            onClick={onAddLighter}
-            aria-label="Add lighter swatch"
-          >
-            <Sun size={15} strokeWidth={2.2} />
-          </button>
-        </Tooltip>
+        <button
+          type="button"
+          className="replica-popover-tool-btn"
+          disabled={workingPalette.length >= 32}
+          onClick={onAddLighter}
+          aria-label="Add lighter swatch"
+        >
+          <Sun size={15} strokeWidth={2.2} />
+        </button>
         <div className="replica-popover-tool-divider" />
-        <Tooltip text="Add 35% darker swatch" style={{ flex: 1, height: '100%' }}>
-          <button
-            type="button"
-            className="replica-popover-tool-btn"
-            disabled={workingPalette.length >= 32}
-            onClick={onAddDarker}
-            aria-label="Add darker swatch"
-          >
-            <Moon size={15} strokeWidth={2.2} />
-          </button>
-        </Tooltip>
+        <button
+          type="button"
+          className="replica-popover-tool-btn"
+          disabled={workingPalette.length >= 32}
+          onClick={onAddDarker}
+          aria-label="Add darker swatch"
+        >
+          <Moon size={15} strokeWidth={2.2} />
+        </button>
         <div className="replica-popover-tool-divider" />
-        <Tooltip text="Delete swatch" style={{ flex: 1, height: '100%' }}>
-          <button
-            type="button"
-            className="replica-popover-tool-btn"
-            disabled={workingPalette.length <= 2}
-            onClick={onDelete}
-            aria-label="Delete swatch"
-          >
-            <X size={16} strokeWidth={2.2} />
-          </button>
-        </Tooltip>
+        <button
+          type="button"
+          className="replica-popover-tool-btn"
+          disabled={workingPalette.length <= 2}
+          onClick={onDelete}
+          aria-label="Delete swatch"
+        >
+          <X size={16} strokeWidth={2.2} />
+        </button>
       </div>
     </div>
   );
@@ -2113,17 +2107,15 @@ export const RightSidebar: React.FC = () => {
                       const isChecked = !!(currentParams[ctrl.id] !== undefined ? currentParams[ctrl.id] : ctrl.defaultValue);
                       return (
                         <div key={ctrl.id} className="serpentine-row param-toggle-row">
-                          <Tooltip text={ctrl.description || ctrl.label}>
-                            <button
-                              type="button"
-                              id={`toggle-${ctrl.id}`}
-                              className={`toggle-square-btn ${isChecked ? 'enabled' : ''}`}
-                              onClick={() => updateCurrentAlgoParam(ctrl.id, !isChecked)}
-                              aria-label={`Toggle ${ctrl.label}`}
-                            >
-                              <span className={`toggle-square ${isChecked ? 'enabled' : ''}`} />
-                            </button>
-                          </Tooltip>
+                          <button
+                            type="button"
+                            id={`toggle-${ctrl.id}`}
+                            className={`toggle-square-btn ${isChecked ? 'enabled' : ''}`}
+                            onClick={() => updateCurrentAlgoParam(ctrl.id, !isChecked)}
+                            aria-label={`Toggle ${ctrl.label}`}
+                          >
+                            <span className={`toggle-square ${isChecked ? 'enabled' : ''}`} />
+                          </button>
                           <label
                             htmlFor={`toggle-${ctrl.id}`}
                             className="serpentine-label"
@@ -2608,21 +2600,19 @@ export const RightSidebar: React.FC = () => {
                       );
                     })}
                   </div>
-                  <Tooltip text="Add color swatch (up to 32)">
-                    <button
-                      type="button"
-                      className="replica-swatch-add-btn"
-                      disabled={workingPalette.length >= 32}
-                      onClick={() => {
-                        const newIdx = workingPalette.length;
-                        addSwatch();
-                        openColorPicker(newIdx);
-                      }}
-                      aria-label="Add swatch"
-                    >
-                      <Plus size={18} strokeWidth={2.2} />
-                    </button>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    className="replica-swatch-add-btn"
+                    disabled={workingPalette.length >= 32}
+                    onClick={() => {
+                      const newIdx = workingPalette.length;
+                      addSwatch();
+                      openColorPicker(newIdx);
+                    }}
+                    aria-label="Add swatch"
+                  >
+                    <Plus size={18} strokeWidth={2.2} />
+                  </button>
 
                   {/* Swatch Callout Popover (ditherforgeadvancedcolorpalette2.webp) */}
                   {(activeSwatchIndex !== null || isClosingPopover) && (
@@ -2651,26 +2641,22 @@ export const RightSidebar: React.FC = () => {
                 <div className="replica-subheading-block">
                   <span className="replica-subheading-title">From Image</span>
                   <div className="replica-btn-grid-2">
-                    <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using Median Cut"} style={{ flex: 1 }}>
-                      <button
-                        type="button"
-                        className="replica-btn-2"
-                        disabled={!hasImage || !sourceImageData}
-                        onClick={handleExtractMedianCut}
-                      >
-                        Median Cut
-                      </button>
-                    </Tooltip>
-                    <Tooltip text={!hasImage || !sourceImageData ? "Load an image first" : "Extract 8 colors using K-Means clustering"} style={{ flex: 1 }}>
-                      <button
-                        type="button"
-                        className="replica-btn-2"
-                        disabled={!hasImage || !sourceImageData}
-                        onClick={handleExtractKMeans}
-                      >
-                        K-Means
-                      </button>
-                    </Tooltip>
+                    <button
+                      type="button"
+                      className="replica-btn-2"
+                      disabled={!hasImage || !sourceImageData}
+                      onClick={handleExtractMedianCut}
+                    >
+                      Median Cut
+                    </button>
+                    <button
+                      type="button"
+                      className="replica-btn-2"
+                      disabled={!hasImage || !sourceImageData}
+                      onClick={handleExtractKMeans}
+                    >
+                      K-Means
+                    </button>
                   </div>
                 </div>
 

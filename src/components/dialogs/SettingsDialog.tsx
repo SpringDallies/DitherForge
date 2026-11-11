@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Settings } from 'lucide-react';
-import { Tooltip } from '../common/Tooltip';
 import { Dropdown } from '../common/Dropdown';
 import { useAppStore } from '../../state/useAppStore';
 import { EngineBridge } from '../../services/EngineBridge';
@@ -230,19 +229,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <span className="settings-label">Language</span>
-              <Tooltip text="Coming soon" side="left">
-                <div style={{ width: 130 }}>
-                  <Dropdown
-                    disabled
-                    width={130}
-                    value={settings.language}
-                    onChange={() => {}}
-                    items={[
-                      { id: 'en', label: 'English' }
-                    ]}
-                  />
-                </div>
-              </Tooltip>
+              <div style={{ width: 130 }}>
+                <Dropdown
+                  disabled
+                  width={130}
+                  value={settings.language}
+                  onChange={() => {}}
+                  items={[
+                    { id: 'en', label: 'English' }
+                  ]}
+                />
+              </div>
             </div>
           </div>
 

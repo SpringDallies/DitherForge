@@ -4917,14 +4917,21 @@ body {
 .topbar-menu-pill .switch-btn {
   height: 100%;
   padding: 0 11px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--border-color);
+  color: var(--text-dim);
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-dim);
-  border-radius: 0;
-  border: none;
-  border-right: 1px solid var(--border-color);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
   box-shadow: none;
   outline: none;
+  transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
 
 .topbar-menu-pill .switch-btn:first-child {
@@ -4938,15 +4945,16 @@ body {
   border-right: none;
 }
 
-.topbar-menu-pill .switch-btn:hover,
-.topbar-menu-pill .switch-btn.active {
-  background-color: var(--bg-hover);
+.topbar-menu-pill .switch-btn:hover:not(:disabled) {
   color: var(--text-main);
-  border: none;
-  box-shadow: none;
-  outline: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background-color: var(--bg-hover);
+}
+
+.topbar-menu-pill .switch-btn.active {
+  background-color: var(--bg-raised);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  color: var(--text-main);
+  font-weight: 600;
 }
 
 .topbar-center-controls {

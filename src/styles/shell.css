@@ -9,7 +9,6 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  corner-shape: squircle;
 }
 body {
   font-family: var(--font-sans);
@@ -369,7 +368,6 @@ body {
   color: var(--text-main);
   border: 1.5px solid var(--border-color);
   border-radius: 12px;
-  corner-shape: squircle;
   padding: 0 16px;
   font-size: 0.88rem;
   font-weight: 600;
@@ -607,7 +605,6 @@ body {
   background-color: var(--bg-secondary);
   border: 1.5px solid var(--border-color);
   border-radius: 12px;
-  corner-shape: squircle;
   padding-left: 16px;
   padding-right: 16px;
   font-size: 0.88rem;
@@ -1035,7 +1032,8 @@ body {
   flex: 1;
   overflow-y: scroll;
   overflow-x: hidden;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
+  touch-action: none;
   scrollbar-width: none;
   -ms-overflow-style: none;
   min-height: 0;
@@ -1054,7 +1052,6 @@ body {
   background-color: var(--bg-panel);
   border: 1.5px solid var(--border-color);
   border-radius: 999px !important;
-  corner-shape: round !important;
   padding: 4px 5px 4px 10px;
   gap: 4px;
   width: 100%;
@@ -1074,7 +1071,6 @@ body {
   white-space: nowrap;
   padding: 0 6px;
   border-radius: 999px !important;
-  corner-shape: round !important;
   transition: color 140ms ease, background-color 140ms ease, transform 120ms ease;
 }
 .unified-pill-btn:hover {
@@ -2694,7 +2690,6 @@ button .btn-icon:hover,
   background-color: var(--bg-control);
   border: 1.5px solid var(--border-color);
   border-radius: 999px !important;
-  corner-shape: round !important;
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-dim);
@@ -3243,7 +3238,6 @@ body {
 }
 .export-footer-actions .action-btn {
   border-radius: 999px !important;
-  corner-shape: round !important;
 }
 [data-lenis-prevent] { overscroll-behavior: contain; }
 /* Ensure expanded effect param boxes never trap wheel scroll (Note 10) */
@@ -4866,7 +4860,6 @@ body {
    ------------------------------------------------------------------ */
 .export-format-toggle {
   height: 36px;
-  corner-shape: round;
   flex: 0 0 74px;
   width: 74px;
   padding: 0 10px;
@@ -5477,7 +5470,6 @@ canvas#hqPresentationCanvas {
   pointer-events: none;
   z-index: 30;
   border-radius: 999px !important;
-  corner-shape: round !important;
   will-change: left;
 }
 
@@ -5489,7 +5481,6 @@ canvas#hqPresentationCanvas {
   width: 16px;
   height: 16px;
   border-radius: 50% !important;
-  corner-shape: round !important;
   background-color: var(--accent-primary);
 }
 
@@ -6046,27 +6037,4 @@ canvas#hqPresentationCanvas {
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--text-main, #ffffff) 14%, transparent) !important;
 }
-
-/* Force opaque, zero-blur UI for fast software rasterization on Linux */
-*, *::before, *::after {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-.glass-panel,
-.popover,
-.dropdown-menu,
-.modal-backdrop,
-.modal-content,
-.top-menubar,
-.right-sidebar,
-.floating-toolbar,
-.speed-popover {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  background-color: var(--bg-panel, #18181b) !important;
-  opacity: 1 !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6) !important;
-}
-
 

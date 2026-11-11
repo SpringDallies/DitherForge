@@ -132,6 +132,18 @@ export const App: React.FC = () => {
     document.body.setAttribute('data-theme', activeTheme);
   }, [activeTheme]);
 
+  // Detect platform for CSS targeting (Linux disables glass blur)
+  useEffect(() => {
+    const platform = typeof navigator !== 'undefined' ? navigator.platform : '';
+    if (/linux/i.test(platform)) {
+      document.documentElement.setAttribute('data-platform', 'linux');
+    } else if (/win/i.test(platform)) {
+      document.documentElement.setAttribute('data-platform', 'windows');
+    } else if (/mac/i.test(platform)) {
+      document.documentElement.setAttribute('data-platform', 'macos');
+    }
+  }, []);
+
   // Sync performance settings (glass blur & shadows) with document root
   useEffect(() => {
     applyPerformanceSettings(getStoredSettings());

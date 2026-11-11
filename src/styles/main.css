@@ -8,7 +8,6 @@
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
-  corner-shape: squircle;
 }
 
 body {
@@ -768,7 +767,7 @@ canvas#hqPresentationCanvas {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.4);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -776,9 +775,7 @@ canvas#hqPresentationCanvas {
 }
 
 .modal-dialog {
-  background: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 90%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 16px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px));
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   max-width: 900px;
@@ -831,21 +828,21 @@ canvas#hqPresentationCanvas {
   }
 }
 
-/* Force opaque, zero-blur UI for fast software rasterization on Linux */
-*, *::before, *::after {
+/* Linux: disable glass blur entirely (backdrop-filter broken on WebKitGTK) */
+[data-platform="linux"] *,
+[data-platform="linux"] *::before,
+[data-platform="linux"] *::after {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-
-.glass-panel,
-.popover,
-.dropdown-menu,
-.modal-backdrop,
-.modal-content,
-.top-menubar,
-.right-sidebar,
-.floating-toolbar,
-.speed-popover {
+[data-platform="linux"] .glass-panel,
+[data-platform="linux"] .popover,
+[data-platform="linux"] .dropdown-menu,
+[data-platform="linux"] .modal-content,
+[data-platform="linux"] .top-menubar,
+[data-platform="linux"] .right-sidebar,
+[data-platform="linux"] .floating-toolbar,
+[data-platform="linux"] .speed-popover {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background-color: var(--bg-panel, #18181b) !important;

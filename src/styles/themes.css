@@ -494,6 +494,5 @@
 *,
 *::before,
 *::after {
-  corner-shape: squircle;
   font-family: var(--font-sans);
 }

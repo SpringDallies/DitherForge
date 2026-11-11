@@ -250,6 +250,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           <div className="settings-section">
             <div className="settings-section-title">PERFORMANCE</div>
 
+            {typeof navigator === 'undefined' || !/linux/i.test(navigator.platform) && (
+              <>
             <div className="settings-row">
               <div>
                 <div className="settings-label">Glass blur effect</div>
@@ -268,7 +270,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               />
             </div>
 
-            <div 
+            <div
               className="settings-row"
               style={{
                 opacity: settings.glassBlur !== false ? 1 : 0.45,
@@ -304,7 +306,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               </div>
             </div>
 
-            <div 
+            <div
               className="settings-row"
               style={{
                 opacity: settings.glassBlur !== false ? 1 : 0.45,
@@ -340,7 +342,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               </div>
             </div>
 
-            <div 
+            <div
               className="settings-row"
               style={{
                 opacity: settings.glassBlur !== false ? 1 : 0.45,
@@ -364,6 +366,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 ]}
               />
             </div>
+              </>
+            )}
 
             <div className="settings-row">
               <div>

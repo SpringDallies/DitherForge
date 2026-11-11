@@ -548,7 +548,9 @@ class EngineBridgeService {
       4 + headerLen
     );
 
-    const response = await invoke<any>('process_image_binary', payload);
+    // Pass ArrayBuffer.buffer (not Uint8Array) so Tauri uses zero-copy InvokeBody::Raw
+    // instead of JSON-serializing a multi-million-element array
+    const response = await invoke<any>('process_image_binary', payload.buffer as ArrayBuffer);
     let responseBytes: Uint8Array;
     if (response instanceof Uint8Array) {
       responseBytes = response;

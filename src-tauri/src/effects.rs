@@ -3,6 +3,64 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
+/// Temporal frame history for real frame_echo blending.
+/// Stores the last N frames as raw RGBA bytes for temporal decay blending.
+static FRAME_HISTORY: OnceLock<Mutex<FrameHistory>> = OnceLock::new();
+
+struct FrameHistory {
+    frames: Vec<Vec<u8>>,
+    write_idx: usize,
+    width: u32,
+    height: u32,
+}
+
+impl FrameHistory {
+    fn new(width: u32, height: u32, max_frames: usize) -> Self {
+        let frame_bytes = (width * height * 4) as usize;
+        Self {
+            frames: vec![vec![0u8; frame_bytes]; max_frames],
+            write_idx: 0,
+            width,
+            height,
+        }
+    }
+
+    fn ensure_size(&mut self, width: u32, height: u32) {
+        if self.width != width || self.height != height {
+            self.width = width;
+            self.height = height;
+            let frame_bytes = (width * height * 4) as usize;
+            let max_frames = self.frames.len();
+            self.frames = vec![vec![0u8; frame_bytes]; max_frames];
+            self.write_idx = 0;
+        }
+    }
+
+    fn frame_bytes(&self) -> usize {
+        (self.width * self.height * 4) as usize
+    }
+
+    /// Get the previous frame at `age` frames back (0 = current write position = previous frame)
+    fn get_previous(&self, age: usize) -> Option<&[u8]> {
+        if self.frames.is_empty() {
+            return None;
+        }
+        let idx = self.write_idx.wrapping_sub(age + 1).wrapping_rem(self.frames.len());
+        Some(&self.frames[idx])
+    }
+
+    /// Store the current frame for future temporal blending
+    fn store_current(&mut self, frame: &[u8]) {
+        self.frames[self.write_idx] = frame.to_vec();
+        self.write_idx = (self.write_idx + 1) % self.frames.len();
+    }
+}
+
+fn get_frame_history() -> &'static Mutex<FrameHistory> {
+    FRAME_HISTORY.get_or_init(|| Mutex::new(FrameHistory::new(0, 0, 8)))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -2680,7 +2738,40 @@ fn apply_frontend_effect(image: &mut RgbaImage, eff: &PostEffect) -> bool {
         }
         "frame_echo" => {
             let decay = eff.f32_param("decay", 0.65).clamp(0.05, 0.95);
-            apply_phosphor_persistence(image, decay, "right");
+            let mut history = get_frame_history().lock().unwrap();
+            history.ensure_size(image.width(), image.height());
+            let frame_bytes = history.frame_bytes();
+
+            // Clone current frame data before mutating image
+            let current: Vec<u8> = image.as_raw().to_vec();
+            let mut blended = current.clone();
+
+            // Blend current frame with previous frames using exponential decay
+            for age in 0..history.frames.len() {
+                if let Some(prev) = history.get_previous(age) {
+                    let weight = decay.powf(age as f32 + 1.0);
+                    if weight < 0.01 {
+                        break;
+                    }
+                    for i in 0..frame_bytes {
+                        blended[i] = ((blended[i] as f32) * (1.0 - weight)
+                            + (prev[i] as f32) * weight)
+                            .clamp(0.0, 255.0) as u8;
+                    }
+                }
+            }
+
+            // Copy blended result back into image
+            for (i, p) in image.pixels_mut().enumerate() {
+                p[0] = blended[i * 4];
+                p[1] = blended[i * 4 + 1];
+                p[2] = blended[i * 4 + 2];
+                p[3] = blended[i * 4 + 3];
+            }
+
+            // Store current (pre-blend) frame for future temporal blending
+            history.store_current(&current);
+
             true
         }
         _ => false,

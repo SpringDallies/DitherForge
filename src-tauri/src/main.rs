@@ -666,10 +666,45 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
         pixel_data
     };
 
+    // Subtle temporal jitter for deterministic algorithms that ignore temporal_seed.
+    // Adds a tiny per-pixel offset based on (x, y, seed) so each frame differs slightly,
+    // creating a living animation even with Floyd-Steinberg, Bayer, etc.
+    let temporal_seed = header.temporal_seed.unwrap_or(0);
+    let needs_jitter = temporal_seed > 0
+        && header.temporal_pattern.as_deref().unwrap_or("none") == "none"
+        && header.noise_amount.unwrap_or(0.0) <= 0.001;
+
+    let jittered_input: Vec<u8>;
+    let final_input: &[u8] = if needs_jitter {
+        let mut jittered = input_slice.to_vec();
+        let w = header.width as usize;
+        let h = header.height as usize;
+        for y in 0..h {
+            for x in 0..w {
+                let idx = (y * w + x) * 4;
+                // Fast hash: x*37 + y*97 + seed*13, then sine
+                let hash_val = (((x as u32).wrapping_mul(37)
+                    .wrapping_add((y as u32).wrapping_mul(97))
+                    .wrapping_add(temporal_seed.wrapping_mul(13))
+                    .wrapping_mul(2654435761))
+                    >> 16) as f32
+                    / 65536.0;
+                let jitter: i8 = ((hash_val * 2.0 - 1.0) * 3.0) as i8; // ±3 units
+                jittered[idx] = jittered[idx].saturating_add_signed(jitter);
+                jittered[idx + 1] = jittered[idx + 1].saturating_add_signed(jitter);
+                jittered[idx + 2] = jittered[idx + 2].saturating_add_signed(jitter);
+            }
+        }
+        jittered_input = jittered;
+        &jittered_input
+    } else {
+        input_slice
+    };
+
     apply_algorithm_raw_params(
         header.width,
         header.height,
-        input_slice,
+        final_input,
         &mut out_bytes,
         &header.algorithm,
         &header.palette,
@@ -729,6 +764,10 @@ async fn process_image_binary(request: Request<'_>) -> Result<Response, String> 
 pub struct AnimationBatchHeader {
     pub frame_count: usize,
     pub base_header: BinaryProcessHeader,
+    /// Optional per-frame headers for keyframed animation. If provided, must have frame_count entries.
+    /// When present, each frame uses its own header instead of cloning base_header.
+    #[serde(default)]
+    pub frames_headers: Option<Vec<BinaryProcessHeader>>,
 }
 
 /// Step 5: Native multi-frame animation processor.
@@ -774,7 +813,15 @@ async fn process_animation_batch(request: Request<'_>) -> Result<Response, Strin
             .par_chunks_exact_mut(frame_bytes)
             .enumerate()
             .try_for_each(|(f_idx, out_chunk)| -> Result<(), String> {
-                let mut frame_header = batch.base_header.clone();
+                let mut frame_header = if let Some(ref fh) = batch.frames_headers {
+                    if f_idx < fh.len() {
+                        fh[f_idx].clone()
+                    } else {
+                        batch.base_header.clone()
+                    }
+                } else {
+                    batch.base_header.clone()
+                };
                 let frame_seed = base_seed.wrapping_add(f_idx as u32);
                 frame_header.temporal_seed = Some(frame_seed);
 
@@ -841,7 +888,10 @@ async fn export_media_native(req: NativeExportRequest) -> Result<NativeExportRes
             let fps = req.fps.unwrap_or(15).clamp(1, 60);
             let delay_ms = (1000 / fps).max(10);
             {
-                let mut encoder = GifEncoder::new_with_speed(&mut encoded_bytes, 10);
+                // Use speed=1 (best quality) for dithered images that already have
+                // a limited palette (<=256 colors). Speed 10 re-quantizes poorly
+                // and can destroy dithered patterns.
+                let mut encoder = GifEncoder::new_with_speed(&mut encoded_bytes, 1);
                 encoder
                     .set_repeat(Repeat::Infinite)
                     .map_err(|e| e.to_string())?;

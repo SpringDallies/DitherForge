@@ -1,4 +1,5 @@
 use crate::BinaryProcessHeader;
+use image::RgbaImage;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{BufReader, Read, Write};
@@ -8,6 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::Emitter;
+use base64::engine::{general_purpose::STANDARD, Engine as _};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -73,6 +75,10 @@ pub struct NativeVideoExportRequest {
     pub fps: Option<f64>,
     pub duration: f64,
     pub header: BinaryProcessHeader,
+    /// Source image base64 (RGBA raw or PNG) for still-to-video export.
+    /// Required when input_video_path is None.
+    #[serde(default)]
+    pub source_image_base64: Option<String>,
     pub audio_sync: Option<bool>,
 }
 
@@ -960,6 +966,21 @@ pub fn export_video_native_ffmpeg(
     // Reusable single-frame buffer for bounded memory usage (low-end hardware compliant)
     let mut frame_buf = vec![0u8; byte_len];
 
+    // Pre-decode source image for still-to-video (no input video file)
+    let source_image: Option<RgbaImage> = if request.input_video_path.is_none() {
+        if let Some(ref b64) = request.source_image_base64 {
+            let bytes = STANDARD.decode(b64).map_err(|e| format!("Failed to decode source image base64: {e}"))?;
+            let img = image::load_from_memory(&bytes)
+                .map_err(|e| format!("Failed to load source image: {e}"))?
+                .to_rgba8();
+            Some(img)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     for frame_idx in 0..total_frames {
         // Read decoded frame from FFmpeg decoder stdout
         if let Some(ref mut reader) = decoder_reader {
@@ -968,9 +989,19 @@ pub fn export_video_native_ffmpeg(
                     // Reached EOF of source video before target duration
                     break;
                 }
-                return Err(format!("Failed to read frame {} from decoder: {}", frame_idx, e));
+                return Err(format!("Failed to read frame {} from decoder: {e}", frame_idx));
+            }
+        } else if let Some(ref src_img) = source_image {
+            // Still-to-video: copy source image pixels into frame buffer
+            if src_img.width() == width && src_img.height() == height {
+                frame_buf.copy_from_slice(src_img.as_raw());
+            } else {
+                // Thumbnail to target size
+                let thumb = image::imageops::thumbnail(src_img, width, height);
+                frame_buf.copy_from_slice(thumb.as_raw());
             }
         }
+        // else: frame_buf stays zeros (shouldn't happen if source_image is set)
 
         let mut frame_header = request.header.clone();
         frame_header.temporal_seed = Some(frame_idx as u32);

@@ -384,6 +384,7 @@ fn main() {
         fps: Some(30.0),
         duration: 1.0,
         audio_sync: Some(true),
+        source_image_base64: None,
         header: BinaryProcessHeader {
             width: 320,
             height: 240,
@@ -486,6 +487,7 @@ fn main() {
         fps: Some(30.0),
         duration: 1.0,
         audio_sync: Some(true),
+        source_image_base64: None,
         header: BinaryProcessHeader {
             width: 320,
             height: 240,

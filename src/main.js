@@ -26,6 +26,7 @@ const state = {
   showBeforeAfter: false,
   splitScreen: false,
   splitRatio: 0.5,
+  renderInFlight: false,
 
   // Dither Settings
   algorithmId: "floyd_steinberg",
@@ -697,6 +698,7 @@ function renderEffectStackUI() {
 // 6. PIPELINE RENDERING ENGINE
 // -------------------------------------------------------------
 function triggerRender() {
+  if (state.renderInFlight) return; // Frame-in-flight lock: skip if previous render pending
   if (state.perfMode === "still") {
     clearTimeout(state.stillDebounceTimer);
     state.stillDebounceTimer = setTimeout(() => {
@@ -714,7 +716,9 @@ function triggerRender() {
 }
 
 function executeRenderPipeline() {
+  if (state.renderInFlight) return; // Additional guard
   if (!state.originalCanvas || state.originalCanvas.width === 0) return;
+  state.renderInFlight = true;
 
   const w = state.originalCanvas.width;
   const h = state.originalCanvas.height;
@@ -790,6 +794,7 @@ function executeRenderPipeline() {
   } else {
     ctx.putImageData(workImageData, 0, 0);
   }
+  state.renderInFlight = false;
 }
 
 // -------------------------------------------------------------

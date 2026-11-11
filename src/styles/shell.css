@@ -4913,7 +4913,7 @@ body {
   padding: 0 2px;
 }
 
-.topbar-menu-pill .menu-btn {
+.topbar-menu-pill .switch-btn {
   height: 22px;
   padding: 0 10px;
   font-size: 0.78rem;
@@ -4925,9 +4925,9 @@ body {
   outline: none;
 }
 
-.topbar-menu-pill .menu-btn:hover,
-.topbar-menu-pill .menu-btn.active {
-  background-color: color-mix(in srgb, var(--bg-hover) 55%, transparent);
+.topbar-menu-pill .switch-btn:hover,
+.topbar-menu-pill .switch-btn.active {
+  background-color: var(--bg-hover);
   color: var(--text-main);
   border: none;
   box-shadow: none;

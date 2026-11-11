@@ -240,11 +240,11 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
 
       {/* Left: File | Edit | View pill */}
       <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
-        <div className="topbar-menu-pill">
+        <div className="segmented-switch topbar-menu-pill" role="group" aria-label="Main Menu">
           <div style={{ position: 'relative' }}>
             <button
               type="button"
-              className={`menu-btn ${activeMenu === 'file' ? 'active' : ''}`}
+              className={`switch-btn ${activeMenu === 'file' ? 'active' : ''}`}
               onClick={() => toggleMenu('file')}
               onMouseEnter={() => activeMenu && activeMenu !== 'file' && setActiveMenu('file')}
             >
@@ -276,7 +276,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
           <div style={{ position: 'relative' }}>
             <button
               type="button"
-              className={`menu-btn ${activeMenu === 'edit' ? 'active' : ''}`}
+              className={`switch-btn ${activeMenu === 'edit' ? 'active' : ''}`}
               onClick={() => toggleMenu('edit')}
               onMouseEnter={() => activeMenu && activeMenu !== 'edit' && setActiveMenu('edit')}
             >
@@ -318,7 +318,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
           <div style={{ position: 'relative' }}>
             <button
               type="button"
-              className={`menu-btn ${activeMenu === 'view' ? 'active' : ''}`}
+              className={`switch-btn ${activeMenu === 'view' ? 'active' : ''}`}
               onClick={() => toggleMenu('view')}
               onMouseEnter={() => activeMenu && activeMenu !== 'view' && setActiveMenu('view')}
             >
@@ -433,7 +433,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         )}
       </div>
 
-      {/* Right: Dimensions & Render Time + Compare | Grid pill + Settings pill */}
+      {/* Right: Dimensions & Render Time + Compare pill + Settings pill */}
       <div className="top-right-controls">
         <div className="topbar-status-text">
           <span>{imageWidth > 0 ? `${imageWidth}×${imageHeight}` : 'Ready'}</span>
@@ -450,20 +450,12 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
           </button>
           <button
             type="button"
-            className="switch-btn"
-            disabled
+            className={`switch-btn`}
+            onClick={onOpenSettings}
           >
-            Grid
+            Settings
           </button>
         </div>
-
-        <button
-          type="button"
-          className="topbar-settings-pill"
-          onClick={onOpenSettings}
-        >
-          Settings
-        </button>
       </div>
 
       <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />

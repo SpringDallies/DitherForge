@@ -240,7 +240,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
 
       {/* Left: File | Edit | View pill */}
       <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
-        <div className="segmented-switch topbar-menu-pill" role="group" aria-label="Main Menu">
+        <div className="topbar-menu-pill">
           <div style={{ position: 'relative' }}>
             <button
               type="button"

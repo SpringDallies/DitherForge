@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
+import { Tooltip } from './common/Tooltip';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
 import { getExportCanvas } from '../utils/animationExport';
@@ -378,30 +379,33 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         <div className="topbar-control-group">
           <span className="strip-viewport-label">VIEWPORT:</span>
           <div className="segmented-switch topbar-viewport-switch" role="group" aria-label="Viewport Configuration">
-            <button
-              type="button"
-              className="switch-btn"
-              onClick={toggleViewportUpdateMode}
-              title="Click to toggle Live / Debounce update mode"
-            >
-              {updateLabel}
-            </button>
-            <button
-              type="button"
-              className="switch-btn"
-              onClick={cyclePreviewQuality}
-              title="Click to cycle Full / Low / Mid preview quality"
-            >
-              {qualityLabel}
-            </button>
-            <button
-              type="button"
-              className="switch-btn"
-              onClick={toggleAppMode}
-              title="Click to toggle Still / Animated mode"
-            >
-              {modeLabel}
-            </button>
+            <Tooltip text="Live / Debounce update mode">
+              <button
+                type="button"
+                className="switch-btn"
+                onClick={toggleViewportUpdateMode}
+              >
+                {updateLabel}
+              </button>
+            </Tooltip>
+            <Tooltip text="Full / Low / Mid preview quality">
+              <button
+                type="button"
+                className="switch-btn"
+                onClick={cyclePreviewQuality}
+              >
+                {qualityLabel}
+              </button>
+            </Tooltip>
+            <Tooltip text="Still / Animated mode">
+              <button
+                type="button"
+                className="switch-btn"
+                onClick={toggleAppMode}
+              >
+                {modeLabel}
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -409,22 +413,24 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
           <div className="topbar-control-group" style={{ marginLeft: '18px' }}>
             <span className="strip-viewport-label" style={{ textTransform: 'none' }}>Video:</span>
             <div className="segmented-switch topbar-viewport-switch" role="group" aria-label="Video Configuration">
-              <button
-                type="button"
-                className="switch-btn"
-                onClick={toggleVideoPlaybackMode}
-                title="Click to toggle Standard / Looped playback"
-              >
-                {playbackLabel}
-              </button>
-              <button
-                type="button"
-                className="switch-btn"
-                onClick={toggleVideoRenderMode}
-                title="Click to toggle Quick / Rendered mode"
-              >
-                {renderLabel}
-              </button>
+              <Tooltip text="Standard / Looped playback">
+                <button
+                  type="button"
+                  className="switch-btn"
+                  onClick={toggleVideoPlaybackMode}
+                >
+                  {playbackLabel}
+                </button>
+              </Tooltip>
+              <Tooltip text="Quick / Rendered mode">
+                <button
+                  type="button"
+                  className="switch-btn"
+                  onClick={toggleVideoRenderMode}
+                >
+                  {renderLabel}
+                </button>
+              </Tooltip>
             </div>
           </div>
         )}
@@ -438,20 +444,24 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         </div>
 
         <div className="segmented-switch topbar-compare-grid-switch" role="group" aria-label="Viewport Overlays">
-          <button
-            type="button"
-            className={`switch-btn ${showBeforeAfter ? 'active' : ''}`}
-            onClick={toggleBeforeAfter}
-          >
-            Compare
-          </button>
-          <button
-            type="button"
-            className={`switch-btn`}
-            onClick={onOpenSettings}
-          >
-            Settings
-          </button>
+          <Tooltip text="Toggle Before / After">
+            <button
+              type="button"
+              className={`switch-btn ${showBeforeAfter ? 'active' : ''}`}
+              onClick={toggleBeforeAfter}
+            >
+              Compare
+            </button>
+          </Tooltip>
+          <Tooltip text="Open Settings">
+            <button
+              type="button"
+              className={`switch-btn`}
+              onClick={onOpenSettings}
+            >
+              Settings
+            </button>
+          </Tooltip>
         </div>
       </div>
 

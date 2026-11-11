@@ -303,7 +303,7 @@ fn execute_native_export(
         let target_fps = fps.unwrap_or(15).clamp(1, 60);
         let delay_ms = (1000 / target_fps).max(10);
         {
-            let mut encoder = GifEncoder::new_with_speed(&mut encoded_bytes, 10);
+            let mut encoder = GifEncoder::new_with_speed(&mut encoded_bytes, 1);
             encoder
                 .set_repeat(Repeat::Infinite)
                 .map_err(|e| e.to_string())?;

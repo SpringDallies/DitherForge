@@ -973,7 +973,17 @@ pub fn export_video_native_ffmpeg(
             let img = image::load_from_memory(&bytes)
                 .map_err(|e| format!("Failed to load source image: {e}"))?
                 .to_rgba8();
-            Some(img)
+            if img.width() == width && img.height() == height {
+                Some(img)
+            } else {
+                // Exact-resize (not thumbnail, which preserves aspect ratio)
+                Some(image::imageops::resize(
+                    &img,
+                    width,
+                    height,
+                    image::imageops::FilterType::Triangle,
+                ))
+            }
         } else {
             None
         }
@@ -992,19 +1002,18 @@ pub fn export_video_native_ffmpeg(
                 return Err(format!("Failed to read frame {} from decoder: {e}", frame_idx));
             }
         } else if let Some(ref src_img) = source_image {
-            // Still-to-video: copy source image pixels into frame buffer
-            if src_img.width() == width && src_img.height() == height {
-                frame_buf.copy_from_slice(src_img.as_raw());
-            } else {
-                // Thumbnail to target size
-                let thumb = image::imageops::thumbnail(src_img, width, height);
-                frame_buf.copy_from_slice(thumb.as_raw());
-            }
+            // Still-to-video: source image already resized to exact dimensions above
+            frame_buf.copy_from_slice(src_img.as_raw());
         }
         // else: frame_buf stays zeros (shouldn't happen if source_image is set)
 
         let mut frame_header = request.header.clone();
         frame_header.temporal_seed = Some(frame_idx as u32);
+        // Offset post-effect seeds per frame so film_grain, scanlines, vhs_tracking,
+        // gate_weave, exposure_flicker, glitch_slices etc. animate during export
+        for eff in &mut frame_header.effect_stack {
+            eff.offset_seed(frame_idx as u32);
+        }
 
         // Execute unified Rust image processing pipeline
         let processed_frame = crate::execute_binary_frame(&frame_header, &frame_buf)?;

@@ -9,7 +9,7 @@ use std::sync::{Mutex, OnceLock};
 /// Stores the last N frames as raw RGBA bytes for temporal decay blending.
 static FRAME_HISTORY: OnceLock<Mutex<FrameHistory>> = OnceLock::new();
 
-struct FrameHistory {
+pub struct FrameHistory {
     frames: Vec<Vec<u8>>,
     write_idx: usize,
     width: u32,
@@ -56,10 +56,22 @@ impl FrameHistory {
         self.frames[self.write_idx] = frame.to_vec();
         self.write_idx = (self.write_idx + 1) % self.frames.len();
     }
+
+    /// Clear all frame history (called at animation start)
+    pub fn clear_history(&mut self) {
+        for frame in &mut self.frames {
+            frame.fill(0);
+        }
+        self.write_idx = 0;
+    }
 }
 
 fn get_frame_history() -> &'static Mutex<FrameHistory> {
     FRAME_HISTORY.get_or_init(|| Mutex::new(FrameHistory::new(0, 0, 8)))
+}
+
+pub fn get_frame_history_lock() -> Option<&'static Mutex<FrameHistory>> {
+    Some(get_frame_history())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2744,29 +2756,39 @@ fn apply_frontend_effect(image: &mut RgbaImage, eff: &PostEffect) -> bool {
 
             // Clone current frame data before mutating image
             let current: Vec<u8> = image.as_raw().to_vec();
-            let mut blended = current.clone();
 
-            // Blend current frame with previous frames using exponential decay
+            // Blend current frame with previous frames using exponential decay.
+            // Accumulate against the ORIGINAL current frame (not in-place) so
+            // attenuation doesn't compound, and skip alpha channel (i % 4 == 3).
+            let mut total_weight = 0.0f32;
+            let mut weighted_sum: Vec<f32> = current.iter().map(|&b| b as f32).collect();
+
             for age in 0..history.frames.len() {
                 if let Some(prev) = history.get_previous(age) {
                     let weight = decay.powf(age as f32 + 1.0);
                     if weight < 0.01 {
                         break;
                     }
-                    for i in 0..frame_bytes {
-                        blended[i] = ((blended[i] as f32) * (1.0 - weight)
-                            + (prev[i] as f32) * weight)
-                            .clamp(0.0, 255.0) as u8;
+                    total_weight += weight;
+                    // Only blend RGB channels (skip alpha at i % 4 == 3)
+                    for c in 0..3 {
+                        for i in (c..frame_bytes).step_by(4) {
+                            weighted_sum[i] += prev[i] as f32 * weight;
+                        }
                     }
                 }
             }
 
-            // Copy blended result back into image
-            for (i, p) in image.pixels_mut().enumerate() {
-                p[0] = blended[i * 4];
-                p[1] = blended[i * 4 + 1];
-                p[2] = blended[i * 4 + 2];
-                p[3] = blended[i * 4 + 3];
+            // Normalize: result = (original * (1 - total_weight) + weighted_sum) / (1 + total_weight)
+            // The division keeps overall brightness stable when decay is high
+            let divisor = 1.0 + total_weight;
+            for i in 0..frame_bytes {
+                if i % 4 == 3 {
+                    // Preserve alpha channel
+                    continue;
+                }
+                let result = (current[i] as f32 * (1.0 - total_weight) + weighted_sum[i]) / divisor;
+                image.as_mut()[i] = result.clamp(0.0, 255.0) as u8;
             }
 
             // Store current (pre-blend) frame for future temporal blending

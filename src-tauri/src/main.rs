@@ -809,10 +809,29 @@ async fn process_animation_batch(request: Request<'_>) -> Result<Response, Strin
 
         let base_seed = batch.base_header.temporal_seed.unwrap_or(0);
         let mut all_out = vec![0u8; payload.len()];
-        all_out
-            .par_chunks_exact_mut(frame_bytes)
-            .enumerate()
-            .try_for_each(|(f_idx, out_chunk)| -> Result<(), String> {
+
+        // Detect if frame_echo effect is active — it requires sequential frame-ordered
+        // processing because it blends with previous frames via a shared history buffer.
+        let needs_sequential = batch
+            .base_header
+            .effect_stack
+            .iter()
+            .any(|eff| eff.id == "frame_echo")
+            || batch
+                .frames_headers
+                .as_ref()
+                .map(|fh| fh.iter().any(|h| h.effect_stack.iter().any(|eff| eff.id == "frame_echo")))
+                .unwrap_or(false);
+
+        if needs_sequential {
+            // Clear history at frame 0 so the animation starts clean
+            if let Some(h) = crate::effects::get_frame_history_lock() {
+                if base_seed == 0 {
+                    h.lock().unwrap().clear_history();
+                }
+            }
+            // Sequential processing: frames must blend in chronological order
+            for f_idx in 0..batch.frame_count {
                 let mut frame_header = if let Some(ref fh) = batch.frames_headers {
                     if f_idx < fh.len() {
                         fh[f_idx].clone()
@@ -831,9 +850,36 @@ async fn process_animation_batch(request: Request<'_>) -> Result<Response, Strin
 
                 let slice = &payload[f_idx * frame_bytes..(f_idx + 1) * frame_bytes];
                 let processed = execute_binary_frame(&frame_header, slice)?;
-                out_chunk.copy_from_slice(&processed);
-                Ok(())
-            })?;
+                all_out[f_idx * frame_bytes..(f_idx + 1) * frame_bytes].copy_from_slice(&processed);
+            }
+        } else {
+            // Parallel processing for all other effect stacks
+            all_out
+                .par_chunks_exact_mut(frame_bytes)
+                .enumerate()
+                .try_for_each(|(f_idx, out_chunk)| -> Result<(), String> {
+                    let mut frame_header = if let Some(ref fh) = batch.frames_headers {
+                        if f_idx < fh.len() {
+                            fh[f_idx].clone()
+                        } else {
+                            batch.base_header.clone()
+                        }
+                    } else {
+                        batch.base_header.clone()
+                    };
+                    let frame_seed = base_seed.wrapping_add(f_idx as u32);
+                    frame_header.temporal_seed = Some(frame_seed);
+
+                    for eff in &mut frame_header.effect_stack {
+                        eff.offset_seed(f_idx as u32);
+                    }
+
+                    let slice = &payload[f_idx * frame_bytes..(f_idx + 1) * frame_bytes];
+                    let processed = execute_binary_frame(&frame_header, slice)?;
+                    out_chunk.copy_from_slice(&processed);
+                    Ok(())
+                })?;
+        }
 
         Ok(Response::new(all_out))
     })

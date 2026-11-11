@@ -395,6 +395,7 @@ input[type="number"] {
   background: var(--bg-tertiary);
   border-radius: 3px;
   outline: none;
+  touch-action: none;
 }
 .slider-input::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -403,11 +404,14 @@ input[type="number"] {
   border-radius: 50%;
   background: var(--accent-cyan);
   cursor: pointer;
-  /* box-shadow removed for perf */
-  /* transition removed for perf */
+  transition: transform 60ms ease, background-color 60ms ease;
+}
+.slider-input::-webkit-slider-thumb:active {
+  transition: none;
+  transform: scale(1.1);
 }
 .slider-input::-webkit-slider-thumb:hover {
-  /* scale removed for perf */
+  transform: scale(1.08);
 }
 
 /* Checkbox Toggle Row */

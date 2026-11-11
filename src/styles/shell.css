@@ -4950,6 +4950,13 @@ body {
   background-color: var(--bg-hover);
 }
 
+.topbar-menu-pill .switch-btn.active {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--text-dim) !important;
+  font-weight: 600 !important;
+}
+
 
 
 .topbar-center-controls {

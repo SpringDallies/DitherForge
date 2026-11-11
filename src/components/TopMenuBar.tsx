@@ -241,15 +241,15 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       {/* Left: File | Edit | View pill */}
       <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
         <div className="segmented-switch topbar-menu-pill" role="group" aria-label="Main Menu" style={{ overflow: 'visible' }}>
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className={`switch-btn ${activeMenu === 'file' ? 'active' : ''}`}
-              onClick={() => toggleMenu('file')}
-              onMouseEnter={() => activeMenu && activeMenu !== 'file' && setActiveMenu('file')}
-            >
-              File
-            </button>
+          <button
+            type="button"
+            className={`switch-btn ${activeMenu === 'file' ? 'active' : ''}`}
+            style={{ position: 'relative' }}
+            onClick={() => toggleMenu('file')}
+            onMouseEnter={() => activeMenu && activeMenu !== 'file' && setActiveMenu('file')}
+          >
+            File
+          </button>
             {activeMenu === 'file' && (
               <div className="dropdown-menu-popover" role="menu">
                 <button className="dropdown-menu-item" onClick={() => { handleOpenFileDialog(); setActiveMenu(null); }}>
@@ -271,17 +271,16 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 </button>
               </div>
             )}
-          </div>
 
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className={`switch-btn ${activeMenu === 'edit' ? 'active' : ''}`}
-              onClick={() => toggleMenu('edit')}
-              onMouseEnter={() => activeMenu && activeMenu !== 'edit' && setActiveMenu('edit')}
-            >
-              Edit
-            </button>
+          <button
+            type="button"
+            className={`switch-btn ${activeMenu === 'edit' ? 'active' : ''}`}
+            style={{ position: 'relative' }}
+            onClick={() => toggleMenu('edit')}
+            onMouseEnter={() => activeMenu && activeMenu !== 'edit' && setActiveMenu('edit')}
+          >
+            Edit
+          </button>
             {activeMenu === 'edit' && (
               <div className="dropdown-menu-popover" role="menu">
                 <button
@@ -313,17 +312,16 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 </button>
               </div>
             )}
-          </div>
 
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className={`switch-btn ${activeMenu === 'view' ? 'active' : ''}`}
-              onClick={() => toggleMenu('view')}
-              onMouseEnter={() => activeMenu && activeMenu !== 'view' && setActiveMenu('view')}
-            >
-              View
-            </button>
+          <button
+            type="button"
+            className={`switch-btn ${activeMenu === 'view' ? 'active' : ''}`}
+            style={{ position: 'relative' }}
+            onClick={() => toggleMenu('view')}
+            onMouseEnter={() => activeMenu && activeMenu !== 'view' && setActiveMenu('view')}
+          >
+            View
+          </button>
             {activeMenu === 'view' && (
               <div className="dropdown-menu-popover" role="menu">
                 <button className="dropdown-menu-item" onClick={() => { handleZoomIn(); setActiveMenu(null); }}>
@@ -372,7 +370,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 </div>
               </div>
             )}
-          </div>
         </div>
       </nav>
 

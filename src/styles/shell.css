@@ -4905,7 +4905,7 @@ body {
 /* --- Topbar Pill & Centered 3-Part Viewport Control --- */
 .topbar-menu-pill {
   display: inline-flex;
-  align-items: center;
+  align-items: stretch;
   height: 26px;
   background-color: var(--bg-control);
   border: 1.5px solid var(--border-color);

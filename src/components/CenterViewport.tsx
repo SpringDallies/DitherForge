@@ -1162,7 +1162,7 @@ export const CenterViewport: React.FC = () => {
   const isRenderingRef = useRef<boolean>(false);
   const pendingRenderRef = useRef<boolean>(false);
 
-  const executeRenderPipeline = useCallback(async (overrideTime?: number) => {
+  const executeRenderPipeline = useCallback(async (overrideTime?: number, preRender = false) => {
     const canvas = canvasRef.current;
     if (!canvas || !sourceImageData) return;
     const ctx = canvas.getContext('2d');
@@ -1203,7 +1203,6 @@ export const CenterViewport: React.FC = () => {
       }
     }
 
-    const isQuick = appMode === 'animation' && (videoRenderMode === 'quick' || previewMode === 'quick') && isPlaying;
     let effectiveQuality = previewQuality;
     if (appMode === 'animation' && (videoRenderMode === 'rendered' || previewMode === 'rendered')) {
       effectiveQuality = 'full';
@@ -1245,12 +1244,11 @@ export const CenterViewport: React.FC = () => {
     }
 
     let renderSource = activeBaseImage;
-    if (isQuick) {
-      const qW = Math.max(1, Math.round(activeBaseImage.width * 0.5));
-      const qH = Math.max(1, Math.round(activeBaseImage.height * 0.5));
-      const downBuf = downsampleBuffer(activeBaseImage.data, activeBaseImage.width, activeBaseImage.height, qW, qH);
-      renderSource = new ImageData(downBuf, qW, qH);
-    } else if (!sourceVideoUrl) {
+    // Quick mode renders at full resolution, just-in-time — no downsampling, no quality loss
+    // Rendered mode uses full resolution (effectiveQuality = 'full')
+    // Proxy quality reduction only applies to still-image preview (low/mid), not animation playback
+    const isQuickPlayback = appMode === 'animation' && isPlaying && videoRenderMode === 'quick';
+    if (!sourceVideoUrl && !isQuickPlayback) {
       if (!proxyCacheRef.current || proxyCacheRef.current.source !== activeBaseImage) {
         const lowScale = Math.min(0.25, 640 / Math.max(fullWidth, fullHeight));
         const midScale = Math.min(0.50, 1280 / Math.max(fullWidth, fullHeight));
@@ -1281,7 +1279,7 @@ export const CenterViewport: React.FC = () => {
     let effPaletteCycle = 0;
 
     const effAlgoParams: Record<string, any> = { ...currentParams };
-    const effEffects = isQuick ? [] : effects.map((e) => ({ ...e, params: { ...e.params } }));
+    const effEffects = effects.map((e) => ({ ...e, params: { ...e.params } }));
     let animatedNoiseActive = false;
 
     if (appMode === 'animation') {
@@ -1603,29 +1601,31 @@ export const CenterViewport: React.FC = () => {
       }
     };
 
-    if (isOriginalView) {
-      drawToCanvas(new ImageData(new Uint8ClampedArray(renderSource.data), width, height));
-    } else if (showBeforeAfter) {
-      if (!compositeBufferRef.current || compositeBufferRef.current.length !== len) {
-        compositeBufferRef.current = new Uint8ClampedArray(len);
-      }
-      compositeBufferRef.current.set(workingData);
-      const comp = compositeBufferRef.current;
-      const splitX = Math.round(width * splitRatio);
-      const originalData = renderSource.data;
-      for (let y = 0; y < height; y++) {
-        const rowOffset = y * width;
-        for (let x = splitX; x < width; x++) {
-          const idx = (rowOffset + x) * 4;
-          comp[idx] = originalData[idx];
-          comp[idx + 1] = originalData[idx + 1];
-          comp[idx + 2] = originalData[idx + 2];
-          comp[idx + 3] = originalData[idx + 3];
+    if (!preRender) {
+      if (isOriginalView) {
+        drawToCanvas(new ImageData(new Uint8ClampedArray(renderSource.data), width, height));
+      } else if (showBeforeAfter) {
+        if (!compositeBufferRef.current || compositeBufferRef.current.length !== len) {
+          compositeBufferRef.current = new Uint8ClampedArray(len);
         }
+        compositeBufferRef.current.set(workingData);
+        const comp = compositeBufferRef.current;
+        const splitX = Math.round(width * splitRatio);
+        const originalData = renderSource.data;
+        for (let y = 0; y < height; y++) {
+          const rowOffset = y * width;
+          for (let x = splitX; x < width; x++) {
+            const idx = (rowOffset + x) * 4;
+            comp[idx] = originalData[idx];
+            comp[idx + 1] = originalData[idx + 1];
+            comp[idx + 2] = originalData[idx + 2];
+            comp[idx + 3] = originalData[idx + 3];
+          }
+        }
+        drawToCanvas(new ImageData(comp as any, width, height));
+      } else {
+        drawToCanvas(ditherImageData);
       }
-      drawToCanvas(new ImageData(comp as any, width, height));
-    } else {
-      drawToCanvas(ditherImageData);
     }
   } finally {
     isRenderingRef.current = false;
@@ -1672,6 +1672,32 @@ export const CenterViewport: React.FC = () => {
   ]);
 
   executeRenderPipelineRef.current = executeRenderPipeline;
+
+  // Pre-render all frames upfront when in Rendered mode — zero lag during playback
+  const preRenderAllFrames = useCallback(async () => {
+    if (appMode !== 'animation' || videoRenderMode !== 'rendered' || !sourceImageData) return;
+    const totalFps = Math.max(1, fps || 30);
+    const totalFrames = Math.max(1, Math.round((duration || 15) * totalFps));
+    const cache = renderedFramesCacheRef.current;
+    let preRendered = 0;
+    for (let i = 0; i < totalFrames; i++) {
+      if (videoRenderMode !== 'rendered') break; // Abort if mode changed
+      if (cache.has(i)) continue; // Already cached
+      const frameTime = i / totalFps;
+      await executeRenderPipeline(frameTime, true); // preRender = true, skip canvas draw
+      preRendered++;
+      // Yield to UI every 10 frames to keep page responsive
+      if (preRendered % 10 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+  }, [appMode, videoRenderMode, sourceImageData, duration, fps, executeRenderPipeline]);
+
+  useEffect(() => {
+    if (videoRenderMode === 'rendered' && appMode === 'animation' && sourceImageData) {
+      preRenderAllFrames();
+    }
+  }, [videoRenderMode, appMode, sourceImageData, preRenderAllFrames]);
 
   useEffect(() => {
     if (!sourceImageData) return;

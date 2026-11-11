@@ -391,6 +391,8 @@ export const CenterViewport: React.FC = () => {
 
   const workingPalette = useAppStore((state) => state.workingPalette);
   const paletteDepth = useAppStore((state) => state.paletteDepth);
+  const paletteFlipped = useAppStore((state) => state.paletteFlipped);
+  const paletteInverted = useAppStore((state) => state.paletteInverted);
   const effects = useAppStore((state) => state.effects);
   const previewPaletteId = useAppStore((state) => state.previewPaletteId);
   const savedPalettes = useAppStore((state) => state.savedPalettes);
@@ -1338,7 +1340,11 @@ export const CenterViewport: React.FC = () => {
       ':' +
       effPaletteHueShift.toFixed(2) +
       ':' +
-      effPaletteCycle;
+      effPaletteCycle +
+      ':' +
+      paletteFlipped +
+      ':' +
+      paletteInverted;
 
     const renderSig = [
       sourceImageData.width,

@@ -2290,17 +2290,15 @@ button .btn-icon:hover,
   display: inline-flex;
   align-items: stretch;
   height: 26px;
-  background-color: color-mix(in srgb, var(--bg-panel) var(--glass-opacity, 75%), transparent);
-  backdrop-filter: blur(var(--glass-blur-radius, 12px));
-  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 12px));
-  border: 1.5px solid color-mix(in srgb, var(--border-color) 70%, rgba(255, 255, 255, 0.12));
+  background-color: var(--bg-panel);
+  border: 1.5px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 .topbar-compare-grid-switch,
 .topbar-viewport-switch {
-  background-color: color-mix(in srgb, var(--bg-control) 65%, transparent);
+  background-color: var(--bg-control);
 }
 .switch-btn,
 .strip-viewport-btn {
@@ -2308,7 +2306,7 @@ button .btn-icon:hover,
   padding: 0 11px;
   background: transparent;
   border: none;
-  border-right: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  border-right: 1px solid var(--border-color);
   color: var(--text-dim);
   font-size: 0.78rem;
   font-weight: 600;
@@ -2329,12 +2327,12 @@ button .btn-icon:hover,
 .switch-btn:hover:not(:disabled),
 .strip-viewport-btn:hover:not(:disabled) {
   color: var(--text-main);
-  background-color: color-mix(in srgb, var(--bg-hover) 55%, transparent);
+  background-color: var(--bg-hover);
 }
 .switch-btn.active,
 .strip-viewport-btn.active {
-  background-color: color-mix(in srgb, var(--bg-raised) 85%, transparent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  background-color: var(--bg-raised);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
   color: var(--text-main);
   font-weight: 600;
 }

@@ -908,12 +908,10 @@ pub fn export_video_native_ffmpeg(
     let mut encoder_child = enc_cmd
         .spawn()
         .map_err(|e| format!("Failed to spawn FFmpeg encoder: {}", e))?;
-
     let mut encoder_stdin = encoder_child
         .stdin
         .take()
         .ok_or_else(|| "Failed to open FFmpeg encoder stdin".to_string())?;
-
     let enc_stderr = encoder_child.stderr.take();
     let stderr_drain = std::thread::spawn(move || {
         let mut err_buf = Vec::new();
@@ -922,6 +920,8 @@ pub fn export_video_native_ffmpeg(
         }
         err_buf
     });
+    // Wrap encoder in ChildGuard so any early `?` return kills & reaps it
+    let mut encoder_guard = ChildGuard(Some(encoder_child));
 
     // 2. If input video exists, spawn FFmpeg decoder piping raw RGBA to Rust
     let mut decoder_child = if let Some(ref in_path) = request.input_video_path {
@@ -971,95 +971,108 @@ pub fn export_video_native_ffmpeg(
     // Pre-decode source image for still-to-video (no input video file)
     let source_image: Option<RgbaImage> = if request.input_video_path.is_none() {
         if let Some(ref b64) = request.source_image_base64 {
-            let bytes = STANDARD.decode(b64).map_err(|e| format!("Failed to decode source image base64: {e}"))?;
-            let img = image::load_from_memory(&bytes)
-                .map_err(|e| format!("Failed to load source image: {e}"))?
-                .to_rgba8();
-            if img.width() == width && img.height() == height {
-                Some(img)
+            let bytes = STANDARD
+                .decode(b64)
+                .map_err(|e| format!("Failed to decode source image base64: {e}"))?;
+            let img = if bytes.len() == byte_len {
+                RgbaImage::from_raw(width, height, bytes)
+                    .ok_or_else(|| "Failed to construct RgbaImage from raw RGBA bytes".to_string())?
             } else {
-                // Exact-resize (not thumbnail, which preserves aspect ratio)
-                Some(image::imageops::resize(
-                    &img,
-                    width,
-                    height,
-                    image::imageops::FilterType::Triangle,
-                ))
-            }
+                let decoded = image::load_from_memory(&bytes)
+                    .map_err(|e| format!("Failed to load source image: {e}"))?
+                    .to_rgba8();
+                if decoded.width() == width && decoded.height() == height {
+                    decoded
+                } else {
+                    image::imageops::resize(
+                        &decoded,
+                        width,
+                        height,
+                        image::imageops::FilterType::Triangle,
+                    )
+                }
+            };
+            Some(img)
         } else {
-            None
+            return Err("Neither input_video_path nor source_image_base64 was provided".to_string());
         }
     } else {
         None
     };
 
-    for frame_idx in 0..total_frames {
-        if NATIVE_EXPORT_CANCELLED.load(Ordering::SeqCst) {
-            drop(encoder_stdin);
-            let _ = encoder_child.kill();
-            let _ = encoder_child.wait();
-            let _ = std::fs::remove_file(&request.output_path);
-            return Err("Video export cancelled by user".to_string());
-        }
+    let mut actual_frames = 0u64;
 
-        // Read decoded frame from FFmpeg decoder stdout
-        if let Some(ref mut reader) = decoder_reader {
-            if let Err(e) = reader.read_exact(&mut frame_buf) {
-                if frame_idx > 0 {
-                    // Reached EOF of source video before target duration
-                    break;
+    let loop_result: Result<(), String> = (|| {
+        for frame_idx in 0..total_frames {
+            if NATIVE_EXPORT_CANCELLED.load(Ordering::SeqCst) {
+                return Err("Video export cancelled by user".to_string());
+            }
+            if let Some(ref mut reader) = decoder_reader {
+                if let Err(e) = reader.read_exact(&mut frame_buf) {
+                    if frame_idx > 0 {
+                        break;
+                    }
+                    return Err(format!("Failed to read frame {} from decoder: {e}", frame_idx));
                 }
-                return Err(format!("Failed to read frame {} from decoder: {e}", frame_idx));
+            } else if let Some(ref src_img) = source_image {
+                // Still-to-video: source image already resized to exact dimensions above
+                frame_buf.copy_from_slice(src_img.as_raw());
             }
-        } else if let Some(ref src_img) = source_image {
-            // Still-to-video: source image already resized to exact dimensions above
-            frame_buf.copy_from_slice(src_img.as_raw());
-        }
-        // else: frame_buf stays zeros (shouldn't happen if source_image is set)
+            // else: frame_buf stays zeros (shouldn't happen if source_image is set)
 
-        let mut frame_header = request.header.clone();
-        frame_header.temporal_seed = Some(frame_idx as u32);
-        // Offset post-effect seeds per frame so film_grain, scanlines, vhs_tracking,
-        // gate_weave, exposure_flicker, glitch_slices etc. animate during export
-        for eff in &mut frame_header.effect_stack {
-            eff.offset_seed(frame_idx as u32);
-        }
+            let mut frame_header = request.header.clone();
+            frame_header.temporal_seed = Some(frame_idx as u32);
+            // Offset post-effect seeds per frame so film_grain, scanlines, vhs_tracking,
+            // gate_weave, exposure_flicker, glitch_slices etc. animate during export
+            for eff in &mut frame_header.effect_stack {
+                eff.offset_seed(frame_idx as u32);
+            }
 
-        // Execute unified Rust image processing pipeline
-        let processed_frame = crate::execute_binary_frame(&frame_header, &frame_buf)?;
+            // Execute unified Rust image processing pipeline
+            let processed_frame = crate::execute_binary_frame(&frame_header, &frame_buf)?;
 
-        // Pipe processed raw RGBA frame to FFmpeg encoder stdin
-        if let Err(e) = encoder_stdin.write_all(&processed_frame) {
-            return Err(format!("Failed to write frame {} to encoder stdin: {}", frame_idx, e));
-        }
+            // Pipe processed raw RGBA frame to FFmpeg encoder stdin
+            encoder_stdin
+                .write_all(&processed_frame)
+                .map_err(|e| format!("Failed to write frame {} to encoder stdin: {}", frame_idx, e))?;
 
-        // Emit non-blocking progress to UI every 5 frames
-        if frame_idx % 5 == 0 || frame_idx == total_frames - 1 {
-            if let Some(ref win) = window {
-                let _ = win.emit(
-                    "video-export-progress",
-                    VideoExportProgress {
-                        current_frame: frame_idx + 1,
-                        total_frames,
-                        percent: ((frame_idx + 1) as f32) / (total_frames as f32),
-                        fps: target_fps,
-                    },
-                );
+            actual_frames += 1;
+
+            // Emit non-blocking progress to UI every 5 frames
+            if frame_idx % 5 == 0 || frame_idx == total_frames - 1 {
+                if let Some(ref win) = window {
+                    let _ = win.emit(
+                        "video-export-progress",
+                        VideoExportProgress {
+                            current_frame: frame_idx + 1,
+                            total_frames,
+                            percent: ((frame_idx + 1) as f32) / (total_frames as f32),
+                            fps: target_fps,
+                        },
+                    );
+                }
             }
         }
-    }
+        Ok(())
+    })();
 
-    // Flush and close encoder stdin
+    // Always close encoder stdin before waiting or cleaning up
     drop(encoder_stdin);
 
-    // Wait for encoder to finish muxing
+    if let Err(err) = loop_result {
+        drop(encoder_guard); // Kills and waits on encoder_child
+        let _ = stderr_drain.join();
+        let _ = std::fs::remove_file(&request.output_path);
+        return Err(err);
+    }
+
+    let mut encoder_child = encoder_guard.take().unwrap();
     let enc_status = encoder_child
         .wait()
         .map_err(|e| format!("Error waiting for FFmpeg encoder: {}", e))?;
-
     let stderr_output = stderr_drain.join().unwrap_or_default();
-
     if !enc_status.success() {
+        let _ = std::fs::remove_file(&request.output_path);
         return Err(format!(
             "FFmpeg encoding failed: {}",
             String::from_utf8_lossy(&stderr_output)
@@ -1069,15 +1082,19 @@ pub fn export_video_native_ffmpeg(
     let file_size_bytes = std::fs::metadata(&request.output_path)
         .map(|m| m.len())
         .unwrap_or(0);
-
     let elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
+    let actual_duration = if target_fps > 0.0 {
+        (actual_frames as f64) / target_fps
+    } else {
+        duration
+    };
 
     Ok(VideoExportResult {
         success: true,
         output_path: request.output_path,
         format: fmt,
-        duration,
-        total_frames,
+        duration: actual_duration,
+        total_frames: actual_frames,
         file_size_bytes,
         elapsed_ms,
     })

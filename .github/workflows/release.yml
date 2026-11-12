@@ -74,14 +74,20 @@ jobs:
             xdg-utils \
             rpm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Set RUSTFLAGS for target CPU
+        run: |
+          if [[ "${{ matrix.args }}" == *"aarch64"* ]]; then
+            echo "RUSTFLAGS=" >> $GITHUB_ENV
+            echo "RUSTFLAGS cleared for ARM64 target (x86-64-v2 not applicable)"
+          else
+            echo "RUSTFLAGS=-C target-cpu=x86-64-v2" >> $GITHUB_ENV
+            echo "RUSTFLAGS set to x86-64-v2 for x86_64 target"
+          fi
 
       - name: Build Tauri App & Publish Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUSTFLAGS: "-C target-cpu=x86-64-v2"
         with:
           tagName: "${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}"
           releaseName: "DitherForge ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}"

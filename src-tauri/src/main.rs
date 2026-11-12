@@ -137,12 +137,14 @@ fn decode_and_cache_source(bytes: &[u8]) -> Result<(), String> {
     };
 
     let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-    // Don't overwrite an existing entry for the same resolution —
-    // 1x1 probe must never evict a real 400x300 image.
-    if cache.iter().any(|(_, cw, ch)| *cw == width && *ch == height) {
-        return Ok(());
+    // Replace entry for this resolution if it exists (1x1 probe must never
+    // evict a real 400x300 image, but adjusted pixels for the same resolution
+    // must overwrite the stale entry).
+    if let Some(idx) = cache.iter().position(|(_, cw, ch)| *cw == width && *ch == height) {
+        cache[idx] = (Arc::new(rgba_bytes), width, height);
+    } else {
+        cache.push((Arc::new(rgba_bytes), width, height));
     }
-    cache.push((Arc::new(rgba_bytes), width, height));
     Ok(())
 }
 

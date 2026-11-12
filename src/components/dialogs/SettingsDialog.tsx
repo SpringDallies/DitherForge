@@ -700,6 +700,53 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <span className="settings-readonly-text">React + Vite + Rust</span>
             </div>
           </div>
+
+          {/* Section: DEVELOPER */}
+          <div className="settings-section">
+            <div className="settings-section-title">DEVELOPER SETTINGS</div>
+
+            <div className="settings-row">
+              <span className="settings-label">Build mode</span>
+              <span className="settings-readonly-text">
+                {import.meta.env.PROD ? 'Release' : 'Development'}
+              </span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Rust opt level</span>
+              <span className="settings-readonly-text">
+                {import.meta.env.PROD ? 'opt-level 3 (LTO thin)' : 'opt-level 1'}
+              </span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Platform</span>
+              <span className="settings-readonly-text">
+                {navigator.platform}
+              </span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Active backend</span>
+              <span className="settings-readonly-text">
+                {activeBackend === 'rust' ? 'Rust' : activeBackend === 'js-fallback' ? 'JavaScript (Fallback)' : 'JavaScript'}
+              </span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Last render time</span>
+              <span className="settings-readonly-text">
+                {lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)} ms` : '< 1 ms'}
+              </span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Backend error</span>
+              <span className="settings-readonly-text">
+                {backendError ?? 'None'}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

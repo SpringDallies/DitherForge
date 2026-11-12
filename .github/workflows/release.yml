@@ -74,6 +74,9 @@ jobs:
             xdg-utils \
             rpm
 
+      - name: Install dependencies
+        run: npm install
+
       - name: Set RUSTFLAGS for x86_64 targets
         if: contains(matrix.args, 'aarch64') != true
         run: echo "RUSTFLAGS=-C target-cpu=x86-64-v2" >> $GITHUB_ENV

@@ -757,6 +757,7 @@ pub fn extract_single_frame(
             (target_width.unwrap_or(info.width), target_height.unwrap_or(info.height))
         }
     };
+    crate::validate_image_dimensions(w, h)?;
 
     let mut cmd = create_command(&ffmpeg_bin);
     cmd.args([
@@ -999,6 +1000,13 @@ pub fn export_video_native_ffmpeg(
     } else {
         None
     };
+
+    // Clear frame_echo history before starting export so frame 0 starts clean
+    if let Some(lock) = crate::effects::get_frame_history_lock() {
+        if let Ok(mut hist) = lock.lock() {
+            hist.clear_history();
+        }
+    }
 
     let mut actual_frames = 0u64;
 

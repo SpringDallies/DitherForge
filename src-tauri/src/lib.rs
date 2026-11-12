@@ -59,7 +59,7 @@ pub struct BinaryProcessHeader {
     pub diffusion_strength: Option<f32>,
     #[serde(default)]
     pub serpentine: Option<bool>,
-    #[serde(default, alias = "temporalSeed")]
+    #[serde(default, alias = "temporalSeed", alias = "seed")]
     pub temporal_seed: Option<u32>,
     #[serde(default, alias = "luminanceThreshold")]
     pub luminance_threshold: Option<f32>,
@@ -438,7 +438,7 @@ pub fn execute_binary_frame(header: &BinaryProcessHeader, pixel_data: &[u8]) -> 
         freq_a: header.freq_a,
         freq_b: header.freq_b,
         angle: header.angle,
-        swirl: header.swirl,
+        swirl: header.swirl.or(header.twist_strength),
         cell_size: header.cell_size,
         edge_sensitivity: header.edge_sensitivity,
         checkers_size: header.checkers_size,

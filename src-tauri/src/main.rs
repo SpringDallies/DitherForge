@@ -14,14 +14,15 @@ use image::{
 use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufWriter, Cursor};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::ipc::{InvokeBody, Request, Response};
 
 /// Cache for source image pixels — avoids sending 5.7MB across IPC on every frame.
 /// On Linux WebKitGTK, request bodies are JSON-serialized (slow), so we cache pixels
 /// in Rust and send only the small header JSON on each invoke.
-/// Stores (bytes, width, height) so resolution changes (Live vs Full) are detected.
-static SOURCE_IMAGE_CACHE: Mutex<Option<(Vec<u8>, u32, u32)>> = Mutex::new(None);
+/// Stores (Arc<bytes>, width, height) so resolution changes (Live vs Full) are detected.
+/// Arc<Vec<u8>> avoids copying 5.73 MB on every frame.
+static SOURCE_IMAGE_CACHE: Mutex<Option<(Arc<Vec<u8>>, u32, u32)>> = Mutex::new(None);
 
 #[derive(serde::Serialize)]
 struct AlgorithmInfo {
@@ -119,7 +120,7 @@ fn set_source_image(params: serde_json::Value) -> Result<(), String> {
         .ok_or_else(|| "Missing height field".to_string())? as u32;
     let bytes = STANDARD.decode(image_base64).map_err(|e| e.to_string())?;
     let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-    *cache = Some((bytes, width, height));
+    *cache = Some((Arc::new(bytes), width, height));
     Ok(())
 }
 

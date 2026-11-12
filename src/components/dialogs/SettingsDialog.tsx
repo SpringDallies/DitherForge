@@ -101,10 +101,50 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   const [settings, setSettings] = useState<DitherForgeSettings>(getStoredSettings);
   const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
   const [defaultExportDir, setDefaultExportDir] = useState<string>('Downloads');
+  const [devLogs, setDevLogs] = useState<Array<{ level: 'info' | 'warn' | 'error'; msg: string; time: string }>>([]);
 
   const activeBackend = useAppStore((state) => state.activeBackend);
   const backendError = useAppStore((state) => state.backendError);
   const lastRenderMs = useAppStore((state) => state.lastRenderMs);
+
+  // In-app log capture: intercept console calls so Developer Settings can show recent logs
+  useEffect(() => {
+    const origLog = console.log.bind(console);
+    const origWarn = console.warn.bind(console);
+    const origError = console.error.bind(console);
+
+    const pushLog = (level: 'info' | 'warn' | 'error', args: any[]) => {
+      const msg = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+      setDevLogs((prev) => {
+        const next = [...prev, { level, msg, time }];
+        return next.slice(-500); // keep last 500 entries
+      });
+    };
+
+    console.log = (...args: any[]) => {
+      origLog(...args);
+      pushLog('info', args);
+    };
+    console.warn = (...args: any[]) => {
+      origWarn(...args);
+      pushLog('warn', args);
+    };
+    console.error = (...args: any[]) => {
+      origError(...args);
+      pushLog('error', args);
+    };
+
+    return () => {
+      console.log = origLog;
+      console.warn = origWarn;
+      console.error = origError;
+    };
+  }, []);
+
+  const clearDevLogs = () => {
+    setDevLogs([]);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -726,6 +766,24 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <span className="settings-readonly-text">
                 {backendError ?? 'None'}
               </span>
+            </div>
+
+            {/* Log viewer */}
+            <div className="settings-row settings-row-log">
+              <span className="settings-label">App logs</span>
+              <div className="dev-log-panel">
+                {devLogs.length === 0 && <span className="dev-log-empty">No logs yet</span>}
+                {devLogs.map((entry, i) => (
+                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`}>
+                    <span className="dev-log-time">{entry.time}</span>
+                    <span className={`dev-log-level dev-log-level-${entry.level}`}>{entry.level.toUpperCase()}</span>
+                    <span className="dev-log-msg">{entry.msg}</span>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="btn-subtle dev-log-clear" onClick={clearDevLogs}>
+                Clear
+              </button>
             </div>
           </div>
         </div>

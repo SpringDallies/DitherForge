@@ -178,6 +178,62 @@ body {
   background-color: color-mix(in srgb, var(--status-warning, #ff9800) 15%, transparent);
   white-space: nowrap;
 }
+
+/* Developer Settings log viewer */
+.dev-log-panel {
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-main);
+}
+.dev-log-entry {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+}
+.dev-log-entry:last-child {
+  border-bottom: none;
+}
+.dev-log-time {
+  color: var(--text-muted);
+  user-select: none;
+}
+.dev-log-level {
+  font-weight: 700;
+  text-transform: uppercase;
+  width: 42px;
+  display: inline-block;
+}
+.dev-log-level-info { color: var(--text-dim); }
+.dev-log-level-warn { color: var(--status-warning, #ff9800); }
+.dev-log-level-error { color: var(--status-error, #ef4444); }
+.dev-log-msg {
+  flex: 1;
+}
+.dev-log-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
+.settings-row-log {
+  align-items: flex-start;
+  gap: 8px;
+}
+.dev-log-clear {
+  margin-top: 8px;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 0.72rem;
+}
 .topbar-settings-pill {
   height: 26px;
   padding: 0 12px;

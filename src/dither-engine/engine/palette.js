@@ -39,7 +39,13 @@ export function colorDistSq(r1, g1, b1, r2, g2, b2) {
 }
 
 export class FastPaletteLUT {
+  static cache = new Map();
+
   constructor(palette, optionsOrBias = 0.5) {
+    const cacheKey = palette.map(c => c.slice(0, 3).join(',')).join('|');
+    const cached = FastPaletteLUT.cache.get(cacheKey);
+    if (cached) return cached;
+
     this.rawPalette = parsePalette(palette);
     this.paletteSize = this.rawPalette.length;
     this.luminances = this.rawPalette.map(c => getLuminance(c[0], c[1], c[2]));
@@ -95,6 +101,7 @@ export class FastPaletteLUT {
         }
       }
     }
+    FastPaletteLUT.cache.set(cacheKey, this);
   }
 
   findNearest(r, g, b) {

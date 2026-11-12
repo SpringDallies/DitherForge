@@ -21,9 +21,9 @@ use tauri::ipc::{InvokeBody, Request, Response};
 /// Cache for source image pixels — avoids sending 5.7MB across IPC on every frame.
 /// On Linux WebKitGTK, request bodies are JSON-serialized (slow), so we cache pixels
 /// in Rust and send only the small header JSON on each invoke.
-/// Stores (Arc<bytes>, width, height) so resolution changes (Live vs Full) are detected.
-/// Arc<Vec<u8>> avoids copying 5.73 MB on every frame.
-static SOURCE_IMAGE_CACHE: Mutex<Option<(Arc<Vec<u8>>, u32, u32)>> = Mutex::new(None);
+/// Stores Vec<(Arc<bytes>, width, height)> so multiple resolutions (Live vs Full vs 1x1 probe)
+/// never evict each other. Arc<Vec<u8>> avoids copying 5.73 MB on every frame.
+static SOURCE_IMAGE_CACHE: Mutex<Vec<(Arc<Vec<u8>>, u32, u32)>> = Mutex::new(Vec::new());
 
 #[derive(serde::Serialize)]
 struct AlgorithmInfo {
@@ -137,7 +137,12 @@ fn decode_and_cache_source(bytes: &[u8]) -> Result<(), String> {
     };
 
     let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-    *cache = Some((Arc::new(rgba_bytes), width, height));
+    // Don't overwrite an existing entry for the same resolution —
+    // 1x1 probe must never evict a real 400x300 image.
+    if cache.iter().any(|(_, cw, ch)| *cw == width && *ch == height) {
+        return Ok(());
+    }
+    cache.push((Arc::new(rgba_bytes), width, height));
     Ok(())
 }
 
@@ -215,13 +220,10 @@ async fn process_image_binary(request: Request<'_>) -> Result<Response, String> 
                 if header.width > 0 && header.height > 0 && !header.algorithm.is_empty() {
                     let cached_arc = {
                         let cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-                        match cache.as_ref() {
-                            Some((pixel_data, cached_w, cached_h)) => {
+                        match cache.iter().find(|(_, cw, ch)| *cw == header.width && *ch == header.height) {
+                            Some((pixel_data, _, _)) => {
                                 let expected = (header.width as usize) * (header.height as usize) * 4;
-                                if pixel_data.len() == expected
-                                    && *cached_w == header.width
-                                    && *cached_h == header.height
-                                {
+                                if pixel_data.len() == expected {
                                     #[cfg(debug_assertions)]
                                     eprintln!(
                                         "[process_image_binary] Header-only path, using cached image ({} bytes)",
@@ -231,16 +233,18 @@ async fn process_image_binary(request: Request<'_>) -> Result<Response, String> 
                                 } else {
                                     #[cfg(debug_assertions)]
                                     eprintln!(
-                                        "[process_image_binary] Size/dimension mismatch: cached {}x{} ({} bytes) vs expected {}x{} ({} bytes)",
-                                        cached_w, cached_h, pixel_data.len(),
-                                        header.width, header.height, expected
+                                        "[process_image_binary] Size/dimension mismatch: cached {} bytes vs expected {} bytes",
+                                        pixel_data.len(), expected
                                     );
                                     Err("cache_size_mismatch")
                                 }
                             }
                             None => {
                                 #[cfg(debug_assertions)]
-                                eprintln!("[process_image_binary] No source image cached. Call set_source_image first.");
+                                eprintln!(
+                                    "[process_image_binary] No cached entry for {}x{}. Call set_source_image first.",
+                                    header.width, header.height
+                                );
                                 Err("No source image cached. Call set_source_image first.")
                             }
                         }
@@ -256,8 +260,7 @@ async fn process_image_binary(request: Request<'_>) -> Result<Response, String> 
                             .map_err(|e| format!("Frame processing task panicked: {}", e))?;
                         }
                         Err("cache_size_mismatch") => {
-                            let mut mut_cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-                            *mut_cache = None;
+                            // Do NOT wipe the cache — the correct resolution may still be in it.
                             return Err("cache_size_mismatch".to_string());
                         }
                         Err(msg) => return Err(msg.to_string()),
@@ -586,7 +589,7 @@ fn purge_temp_cache() -> Result<String, String> {
     }
     // Clear source image cache
     if let Ok(mut cache) = SOURCE_IMAGE_CACHE.lock() {
-        *cache = None;
+        cache.clear();
     }
     // Cancel all active FFmpeg sessions
     ffmpeg::cancel_all_ffmpeg_sessions();

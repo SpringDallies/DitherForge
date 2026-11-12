@@ -36,7 +36,7 @@ pub struct FastPaletteLUT {
 use std::sync::{Arc, Mutex, OnceLock};
 
 const MAX_LUT_CACHE: usize = 8;
-static LUT_CACHE: OnceLock<Mutex<Vec<(Vec<[u8; 4]>, u32, Arc<FastPaletteLUT>)>>> = OnceLock::new();
+static LUT_CACHE: OnceLock<Mutex<Vec<(Vec<[u8; 4]>, Arc<FastPaletteLUT>)>>> = OnceLock::new();
 
 pub fn clear_lut_cache() {
     if let Some(mutex) = LUT_CACHE.get() {
@@ -53,11 +53,10 @@ impl FastPaletteLUT {
             bias /= 100.0;
         }
         let threshold_bias = if bias.is_nan() { 0.5 } else { bias.clamp(0.0, 1.0) };
-        let bias_bits = threshold_bias.to_bits();
 
         let cache_mutex = LUT_CACHE.get_or_init(|| Mutex::new(Vec::with_capacity(MAX_LUT_CACHE)));
         if let Ok(guard) = cache_mutex.lock() {
-            if let Some((_, _, cached_lut)) = guard.iter().find(|(pal, bias, _)| pal.as_slice() == palette && *bias == bias_bits) {
+            if let Some((_, cached_lut)) = guard.iter().find(|(pal, _)| pal.as_slice() == palette) {
                 return cached_lut.clone();
             }
         }
@@ -141,7 +140,7 @@ impl FastPaletteLUT {
             if guard.len() >= MAX_LUT_CACHE {
                 guard.remove(0);
             }
-            guard.push((palette.to_vec(), bias_bits, built.clone()));
+            guard.push((palette.to_vec(), built.clone()));
         }
 
         built

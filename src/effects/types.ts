@@ -74,7 +74,7 @@ export interface EffectDescriptor<P = any> {
   defaultBlendMode?: BlendMode;
   mutatesAlpha?: boolean;
   canOperateInPlace?: boolean;
-  paramsMeta?: ParamMeta[];
+  paramsMeta?: ParamMeta[] | (() => ParamMeta[]);
   params?: any[];
   apply: (
     dataOrCtx: any,
@@ -92,7 +92,8 @@ export interface EffectDescriptor<P = any> {
 
 export function getEffectParamsMeta(desc?: EffectDescriptor | null): ParamMeta[] {
   if (!desc) return [];
-  return desc.paramsMeta || (desc.params as ParamMeta[]) || [];
+  const meta = desc.paramsMeta;
+  return typeof meta === 'function' ? meta() : meta || (desc.params as ParamMeta[]) || [];
 }
 
 export interface EffectItem {

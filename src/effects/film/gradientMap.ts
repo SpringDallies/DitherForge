@@ -2,6 +2,7 @@
 // Maps image luminance across 2-5 stops in sRGB, Linear, or Perceptual Oklab color space
 
 import type { EffectDescriptor, ParamMeta } from '../types';
+import { useAppStore } from '../../state/useAppStore';
 
 export interface GradientStop {
   pos: number; // 0.0 to 1.0
@@ -9,7 +10,7 @@ export interface GradientStop {
 }
 
 export interface GradientMapParams {
-  preset: 'custom' | 'gameboy_dmg' | 'amber_crt' | 'cyanotype' | 'risograph_2ink' | 'sepia';
+  preset: string;
   space: 'oklab' | 'linear' | 'srgb';
   preserveLuminance: boolean;
   mix: number;
@@ -165,6 +166,16 @@ function buildGradientLUT(
 const MAX_LUT_CACHE_SIZE = 32;
 const moduleLutCache = new Map<string, Uint8Array>();
 
+// Convert saved palette colors (RGBA) to evenly-spaced gradient stops
+function paletteToStops(colors: number[][]): GradientStop[] {
+  const n = colors.length;
+  if (n === 0) return [{ pos: 0.0, color: [0, 0, 0] }, { pos: 1.0, color: [255, 255, 255] }];
+  return colors.map((c, i) => ({
+    pos: n === 1 ? 0.5 : i / (n - 1),
+    color: [c[0] || 0, c[1] || 0, c[2] || 0]
+  }));
+}
+
 export function getOrBuildGradientLUT(
   stops: GradientStop[],
   space: 'oklab' | 'linear' | 'srgb',
@@ -212,48 +223,59 @@ export function getOrBuildGradientLUT(
   return lut;
 }
 
-const paramsMeta: ParamMeta[] = [
-  {
-    id: 'preset',
-    label: 'Colorway Preset',
-    type: 'select',
-    options: [
-      { value: 'gameboy_dmg', label: 'GameBoy DMG (Pea Soup Green)' },
-      { value: 'amber_crt', label: 'Amber Phosphor CRT' },
-      { value: 'cyanotype', label: 'Cyanotype / Blueprint' },
-      { value: 'risograph_2ink', label: 'Risograph 2-Ink (Scarlet & Gold)' },
-      { value: 'sepia', label: 'Vintage Photographic Sepia' },
-      { value: 'custom', label: 'Custom Palette Stops' }
-    ],
-    defaultValue: 'gameboy_dmg'
-  },
-  {
-    id: 'space',
-    label: 'Interpolation Space',
-    type: 'select',
-    options: [
-      { value: 'oklab', label: 'Oklab (Perceptually Uniform)' },
-      { value: 'linear', label: 'Linear sRGB' },
-      { value: 'srgb', label: 'Standard sRGB' }
-    ],
-    defaultValue: 'oklab'
-  },
-  {
-    id: 'preserveLuminance',
-    label: 'Preserve Input Luminance',
-    type: 'boolean',
-    defaultValue: false
-  },
-  {
-    id: 'mix',
-    label: 'Gradient Mix',
-    type: 'range',
-    min: 0,
-    max: 1,
-    step: 0.05,
-    defaultValue: 1.0
-  }
+const builtInPresetOptions = [
+  { value: 'gameboy_dmg', label: 'GameBoy DMG (Pea Soup Green)' },
+  { value: 'amber_crt', label: 'Amber Phosphor CRT' },
+  { value: 'cyanotype', label: 'Cyanotype / Blueprint' },
+  { value: 'risograph_2ink', label: 'Risograph 2-Ink (Scarlet & Gold)' },
+  { value: 'sepia', label: 'Vintage Photographic Sepia' },
+  { value: 'custom', label: 'Custom Palette Stops' }
 ];
+
+function getParamsMeta(): ParamMeta[] {
+  const savedPalettes = useAppStore.getState().savedPalettes;
+  const savedOptions = savedPalettes.map((p) => ({
+    value: `saved_${p.id}`,
+    label: p.name
+  }));
+  return [
+    {
+      id: 'preset',
+      label: 'Colorway Preset',
+      type: 'select',
+      options: [...builtInPresetOptions, ...savedOptions],
+      defaultValue: 'gameboy_dmg'
+    },
+    {
+      id: 'space',
+      label: 'Interpolation Space',
+      type: 'select',
+      options: [
+        { value: 'oklab', label: 'Oklab (Perceptually Uniform)' },
+        { value: 'linear', label: 'Linear sRGB' },
+        { value: 'srgb', label: 'Standard sRGB' }
+      ],
+      defaultValue: 'oklab'
+    },
+    {
+      id: 'preserveLuminance',
+      label: 'Preserve Input Luminance',
+      type: 'boolean',
+      defaultValue: false
+    },
+    {
+      id: 'mix',
+      label: 'Gradient Mix',
+      type: 'range',
+      min: 0,
+      max: 1,
+      step: 0.05,
+      defaultValue: 1.0
+    }
+  ];
+}
+
+const paramsMeta: ParamMeta[] | (() => ParamMeta[]) = getParamsMeta;
 
 export const gradientMapEffect: EffectDescriptor<GradientMapParams> = {
   id: 'gradient_map',
@@ -301,9 +323,12 @@ export const gradientMapEffect: EffectDescriptor<GradientMapParams> = {
 
     if (mix <= 0.001) return;
 
-    const stops = (preset !== 'custom' && GRADIENT_PRESETS[preset])
-      ? GRADIENT_PRESETS[preset]
-      : (customStops && customStops.length >= 2 ? customStops : GRADIENT_PRESETS.gameboy_dmg);
+    const savedPalettes = useAppStore.getState().savedPalettes;
+    const stops = (preset.startsWith('saved_')
+      ? paletteToStops(savedPalettes.find((p) => `saved_${p.id}` === preset)?.colors || [])
+      : preset !== 'custom' && GRADIENT_PRESETS[preset]
+        ? GRADIENT_PRESETS[preset]
+        : (customStops && customStops.length >= 2 ? customStops : GRADIENT_PRESETS.gameboy_dmg));
 
     const lut = getOrBuildGradientLUT(stops, space, preset, customStops, context);
     const pixelCount = w * h;

@@ -20,7 +20,8 @@ use tauri::ipc::{InvokeBody, Request, Response};
 /// Cache for source image pixels — avoids sending 5.7MB across IPC on every frame.
 /// On Linux WebKitGTK, request bodies are JSON-serialized (slow), so we cache pixels
 /// in Rust and send only the small header JSON on each invoke.
-static SOURCE_IMAGE_CACHE: Mutex<Option<Vec<u8>>> = Mutex::new(None);
+/// Stores (bytes, width, height) so resolution changes (Live vs Full) are detected.
+static SOURCE_IMAGE_CACHE: Mutex<Option<(Vec<u8>, u32, u32)>> = Mutex::new(None);
 
 #[derive(serde::Serialize)]
 struct AlgorithmInfo {
@@ -108,14 +109,22 @@ fn set_source_image(params: serde_json::Value) -> Result<(), String> {
         .get("image_base64")
         .and_then(|v| v.as_str())
         .ok_or_else(|| "Missing image_base64 field".to_string())?;
+    let width = params
+        .get("width")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "Missing width field".to_string())? as u32;
+    let height = params
+        .get("height")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "Missing height field".to_string())? as u32;
     let bytes = STANDARD.decode(image_base64).map_err(|e| e.to_string())?;
     let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-    *cache = Some(bytes);
+    *cache = Some((bytes, width, height));
     Ok(())
 }
 
 #[tauri::command]
-fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
+async fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
     let parse_and_exec = |raw_bytes: &[u8]| -> Result<Response, String> {
         if raw_bytes.len() < 4 {
             return Err("Payload too short: missing header length".to_string());
@@ -143,23 +152,39 @@ fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
             if let Ok(header) = serde_json::from_value::<BinaryProcessHeader>(val.clone()) {
                 if header.width > 0 && header.height > 0 && !header.algorithm.is_empty() {
                     let cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-                    let pixel_data = cache.as_ref().ok_or_else(|| {
-                        "No source image cached. Call set_source_image first."
-                    })?;
-                    let expected = (header.width as usize) * (header.height as usize) * 4;
-                    if pixel_data.len() == expected {
-                        eprintln!(
-                            "[process_image_binary] Header-only path, using cached image ({} bytes)",
-                            pixel_data.len()
-                        );
-                        let out_bytes = execute_binary_frame(&header, pixel_data)?;
-                        return Ok(Response::new(out_bytes));
-                    } else {
-                        eprintln!(
-                            "[process_image_binary] Cached image size {} != expected {}",
-                            pixel_data.len(),
-                            expected
-                        );
+                    match cache.as_ref() {
+                        Some((pixel_data, cached_w, cached_h)) => {
+                            let expected = (header.width as usize) * (header.height as usize) * 4;
+                            if pixel_data.len() == expected
+                                && *cached_w == header.width
+                                && *cached_h == header.height
+                            {
+                                eprintln!(
+                                    "[process_image_binary] Header-only path, using cached image ({} bytes)",
+                                    pixel_data.len()
+                                );
+                                // Clone before releasing lock so execute_binary_frame runs without holding the mutex
+                                let cached = pixel_data.clone();
+                                drop(cache);
+                                let out_bytes = execute_binary_frame(&header, &cached)?;
+                                return Ok(Response::new(out_bytes));
+                            } else {
+                                eprintln!(
+                                    "[process_image_binary] Size/dimension mismatch: cached {}x{} ({} bytes) vs expected {}x{} ({} bytes)",
+                                    cached_w, cached_h, pixel_data.len(),
+                                    header.width, header.height, expected
+                                );
+                                // Clear stale cache so frontend will re-send pixels
+                                drop(cache);
+                                let mut mut_cache = SOURCE_IMAGE_CACHE.lock().unwrap();
+                                *mut_cache = None;
+                                return Err("cache_size_mismatch".to_string());
+                            }
+                        }
+                        None => {
+                            eprintln!("[process_image_binary] No source image cached. Call set_source_image first.");
+                            return Err("No source image cached. Call set_source_image first.".to_string());
+                        }
                     }
                 }
             }
@@ -478,6 +503,10 @@ fn purge_temp_cache() -> Result<String, String> {
         if let Ok(mut hist) = lock.lock() {
             hist.clear_history();
         }
+    }
+    // Clear source image cache
+    if let Ok(mut cache) = SOURCE_IMAGE_CACHE.lock() {
+        *cache = None;
     }
     // Cancel all active FFmpeg sessions
     ffmpeg::cancel_all_ffmpeg_sessions();

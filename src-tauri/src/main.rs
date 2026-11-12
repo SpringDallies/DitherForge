@@ -118,86 +118,133 @@ fn set_source_image(params: serde_json::Value) -> Result<(), String> {
         .get("height")
         .and_then(|v| v.as_u64())
         .ok_or_else(|| "Missing height field".to_string())? as u32;
+
+    validate_image_dimensions(width, height)?;
+
     let bytes = STANDARD.decode(image_base64).map_err(|e| e.to_string())?;
+    let expected_len = (width as usize) * (height as usize) * 4;
+
+    // Auto-decode if PNG/JPEG bytes were passed instead of raw RGBA, or reject if invalid
+    let rgba_bytes = if bytes.len() == expected_len {
+        bytes
+    } else {
+        let img = image::load_from_memory(&bytes)
+            .map_err(|e| format!("Source image size mismatch (got {} bytes, expected {} raw RGBA) and not a valid encoded image: {}", bytes.len(), expected_len, e))?
+            .to_rgba8();
+        if img.width() != width || img.height() != height {
+            return Err(format!(
+                "Decoded image dimensions {}x{} do not match requested {}x{}",
+                img.width(),
+                img.height(),
+                width,
+                height
+            ));
+        }
+        img.into_raw()
+    };
+
     let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-    *cache = Some((Arc::new(bytes), width, height));
+    *cache = Some((Arc::new(rgba_bytes), width, height));
     Ok(())
+}
+
+fn parse_and_exec_raw(raw_bytes: &[u8]) -> Result<Response, String> {
+    if raw_bytes.len() < 4 {
+        return Err("Payload too short: missing header length".to_string());
+    }
+    let header_len = u32::from_le_bytes(raw_bytes[0..4].try_into().unwrap()) as usize;
+    if raw_bytes.len() < 4 + header_len {
+        return Err("Payload too short for metadata".to_string());
+    }
+    let header: BinaryProcessHeader = serde_json::from_slice(&raw_bytes[4..4 + header_len])
+        .map_err(|e| format!("Failed to parse metadata header: {}", e))?;
+    let pixel_data = &raw_bytes[4 + header_len..];
+    let out_bytes = execute_binary_frame(&header, pixel_data)?;
+    Ok(Response::new(out_bytes))
 }
 
 #[tauri::command]
 async fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
-    let parse_and_exec = |raw_bytes: &[u8]| -> Result<Response, String> {
-        if raw_bytes.len() < 4 {
-            return Err("Payload too short: missing header length".to_string());
-        }
-        let header_len = u32::from_le_bytes(raw_bytes[0..4].try_into().unwrap()) as usize;
-        if raw_bytes.len() < 4 + header_len {
-            return Err("Payload too short for metadata".to_string());
-        }
-        let header: BinaryProcessHeader = serde_json::from_slice(&raw_bytes[4..4 + header_len])
-            .map_err(|e| format!("Failed to parse metadata header: {}", e))?;
-        let pixel_data = &raw_bytes[4 + header_len..];
-        let out_bytes = execute_binary_frame(&header, pixel_data)?;
-        Ok(Response::new(out_bytes))
-    };
-
     match request.body() {
         InvokeBody::Raw(bytes) => {
+            #[cfg(debug_assertions)]
             eprintln!("[process_image_binary] InvokeBody::Raw ({} bytes)", bytes.len());
-            parse_and_exec(bytes)
+            let raw_owned = bytes.to_vec();
+            tauri::async_runtime::spawn_blocking(move || parse_and_exec_raw(&raw_owned))
+                .await
+                .map_err(|e| format!("Frame processing task panicked: {}", e))?
         }
         InvokeBody::Json(val) => {
+            #[cfg(debug_assertions)]
             eprintln!("[process_image_binary] InvokeBody::Json");
-            // Header-only path: JSON contains BinaryProcessHeader fields,
-            // pixel data comes from SOURCE_IMAGE_CACHE (set via set_source_image)
+
+            // Header-only fast path: pixel data comes from SOURCE_IMAGE_CACHE
             if let Ok(header) = serde_json::from_value::<BinaryProcessHeader>(val.clone()) {
                 if header.width > 0 && header.height > 0 && !header.algorithm.is_empty() {
-                    let cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-                    match cache.as_ref() {
-                        Some((pixel_data, cached_w, cached_h)) => {
-                            let expected = (header.width as usize) * (header.height as usize) * 4;
-                            if pixel_data.len() == expected
-                                && *cached_w == header.width
-                                && *cached_h == header.height
-                            {
-                                eprintln!(
-                                    "[process_image_binary] Header-only path, using cached image ({} bytes)",
-                                    pixel_data.len()
-                                );
-                                // Clone before releasing lock so execute_binary_frame runs without holding the mutex
-                                let cached = pixel_data.clone();
-                                drop(cache);
-                                let out_bytes = execute_binary_frame(&header, &cached)?;
-                                return Ok(Response::new(out_bytes));
-                            } else {
-                                eprintln!(
-                                    "[process_image_binary] Size/dimension mismatch: cached {}x{} ({} bytes) vs expected {}x{} ({} bytes)",
-                                    cached_w, cached_h, pixel_data.len(),
-                                    header.width, header.height, expected
-                                );
-                                // Clear stale cache so frontend will re-send pixels
-                                drop(cache);
-                                let mut mut_cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-                                *mut_cache = None;
-                                return Err("cache_size_mismatch".to_string());
+                    let cached_arc = {
+                        let cache = SOURCE_IMAGE_CACHE.lock().unwrap();
+                        match cache.as_ref() {
+                            Some((pixel_data, cached_w, cached_h)) => {
+                                let expected = (header.width as usize) * (header.height as usize) * 4;
+                                if pixel_data.len() == expected
+                                    && *cached_w == header.width
+                                    && *cached_h == header.height
+                                {
+                                    #[cfg(debug_assertions)]
+                                    eprintln!(
+                                        "[process_image_binary] Header-only path, using cached image ({} bytes)",
+                                        pixel_data.len()
+                                    );
+                                    Ok(Arc::clone(pixel_data))
+                                } else {
+                                    #[cfg(debug_assertions)]
+                                    eprintln!(
+                                        "[process_image_binary] Size/dimension mismatch: cached {}x{} ({} bytes) vs expected {}x{} ({} bytes)",
+                                        cached_w, cached_h, pixel_data.len(),
+                                        header.width, header.height, expected
+                                    );
+                                    Err("cache_size_mismatch")
+                                }
+                            }
+                            None => {
+                                #[cfg(debug_assertions)]
+                                eprintln!("[process_image_binary] No source image cached. Call set_source_image first.");
+                                Err("No source image cached. Call set_source_image first.")
                             }
                         }
-                        None => {
-                            eprintln!("[process_image_binary] No source image cached. Call set_source_image first.");
-                            return Err("No source image cached. Call set_source_image first.".to_string());
+                    };
+
+                    match cached_arc {
+                        Ok(cached) => {
+                            return tauri::async_runtime::spawn_blocking(move || {
+                                let out_bytes = execute_binary_frame(&header, &cached)?;
+                                Ok(Response::new(out_bytes))
+                            })
+                            .await
+                            .map_err(|e| format!("Frame processing task panicked: {}", e))?;
                         }
+                        Err("cache_size_mismatch") => {
+                            let mut mut_cache = SOURCE_IMAGE_CACHE.lock().unwrap();
+                            *mut_cache = None;
+                            return Err("cache_size_mismatch".to_string());
+                        }
+                        Err(msg) => return Err(msg.to_string()),
                     }
                 }
             }
+
             // Fallback: full JSON array of pixel values (slow path)
             if let Some(arr) = val.as_array() {
+                #[cfg(debug_assertions)]
                 eprintln!(
                     "[process_image_binary] JSON array fallback ({} elements)",
                     arr.len()
                 );
                 let raw_bytes: Vec<u8> =
                     arr.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect();
-                parse_and_exec(&raw_bytes)
+                tauri::async_runtime::spawn_blocking(move || parse_and_exec_raw(&raw_bytes))
+                    .await
+                    .map_err(|e| format!("Frame processing task panicked: {}", e))?
             } else {
                 Err(
                     "Expected raw binary payload or header-only JSON for process_image_binary"
@@ -655,6 +702,6 @@ fn ping_rust_engine() -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({
         "status": "ok",
         "backend": "rust",
-        "version": "1.0.0"
+        "version": "2.0.0"
     }))
 }

@@ -261,11 +261,13 @@ fn main() {
         effect_stack: header.effect_stack.unwrap_or_default(),
     };
 
-    let mut out_data = vec![0u8; total_pixels];
-    if let Err(e) = execute_binary_frame(&bph, &pixel_data) {
-        eprintln!("Error in execute_binary_frame: {e}");
-        return;
-    }
+    let out_data = match execute_binary_frame(&bph, &pixel_data) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            eprintln!("Error in execute_binary_frame: {e}");
+            return;
+        }
+    };
 
     let mut stdout = io::stdout().lock();
     let _ = stdout.write_all(&out_data);

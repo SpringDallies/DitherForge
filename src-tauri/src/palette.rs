@@ -149,10 +149,9 @@ impl FastPaletteLUT {
 
     #[inline(always)]
     pub fn inline_match(&self, r: f32, g: f32, b: f32) -> [u8; 3] {
-        let shift = (0.5 - self.threshold_bias) * 96.0;
-        let ir = (((r + shift).round() as i32) >> 3).clamp(0, 31) as usize;
-        let ig = (((g + shift).round() as i32) >> 3).clamp(0, 31) as usize;
-        let ib = (((b + shift).round() as i32) >> 3).clamp(0, 31) as usize;
+        let ir = ((r.round() as i32) >> 3).clamp(0, 31) as usize;
+        let ig = ((g.round() as i32) >> 3).clamp(0, 31) as usize;
+        let ib = ((b.round() as i32) >> 3).clamp(0, 31) as usize;
         let idx = (ir * 1024 + ig * 32 + ib) * 3;
         [self.table[idx], self.table[idx + 1], self.table[idx + 2]]
     }
@@ -168,10 +167,9 @@ impl FastPaletteLUT {
 
     #[inline(always)]
     pub fn inline_match_f64(&self, r: f64, g: f64, b: f64) -> [u8; 3] {
-        let shift = (0.5 - self.threshold_bias as f64) * 96.0;
-        let ir = (((r + shift).round() as i32) >> 3).clamp(0, 31) as usize;
-        let ig = (((g + shift).round() as i32) >> 3).clamp(0, 31) as usize;
-        let ib = (((b + shift).round() as i32) >> 3).clamp(0, 31) as usize;
+        let ir = ((r.round() as i32) >> 3).clamp(0, 31) as usize;
+        let ig = ((g.round() as i32) >> 3).clamp(0, 31) as usize;
+        let ib = ((b.round() as i32) >> 3).clamp(0, 31) as usize;
         let idx = (ir * 1024 + ig * 32 + ib) * 3;
         [self.table[idx], self.table[idx + 1], self.table[idx + 2]]
     }

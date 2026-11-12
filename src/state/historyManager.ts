@@ -174,7 +174,10 @@ export class HistoryManager {
     this.syncCanUndoRedo();
 
     this.unsubscribe = store.subscribe((state: any) => {
-      this.handleStateChange(state);
+      queueMicrotask(() => {
+        if (this.isApplying) return;
+        this.handleStateChange(store.getState());
+      });
     });
   }
 
@@ -246,6 +249,7 @@ export class HistoryManager {
     const isDiscrete =
       adjustmentChangeCount > 1 || // batch reset of adjustments
       this.currentSnapshot.algorithmId !== newSnapshot.algorithmId ||
+      JSON.stringify(this.currentSnapshot.algoParams) !== JSON.stringify(newSnapshot.algoParams) ||
       this.currentSnapshot.activePaletteId !== newSnapshot.activePaletteId ||
       this.currentSnapshot.paletteInverted !== newSnapshot.paletteInverted ||
       this.currentSnapshot.paletteFlipped !== newSnapshot.paletteFlipped ||

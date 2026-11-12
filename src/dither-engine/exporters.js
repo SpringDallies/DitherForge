@@ -122,46 +122,49 @@ export function exportSvgContours(canvas) {
   const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
 
-  // Extract pixel paths or pixel rects optimized for vector rendering
-  let svgPaths = "";
   const rects = [];
 
-  // Group continuous horizontal spans into compact SVG rectangles
   for (let y = 0; y < height; y++) {
     let spanStart = -1;
     let spanColor = null;
 
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      const luma = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
-      const isDark = luma < 128;
-
-      if (isDark) {
-        if (spanStart === -1) {
-          spanStart = x;
-          spanColor = `rgb(${data[idx]},${data[idx + 1]},${data[idx + 2]})`;
-        }
-      } else {
-        if (spanStart !== -1) {
-          rects.push(`<rect x="${spanStart}" y="${y}" width="${x - spanStart}" height="1" fill="${spanColor}" />`);
-          spanStart = -1;
+    for (let x = 0; x <= width; x++) {
+      let isOpaque = false;
+      let color = null;
+      if (x < width) {
+        const idx = (y * width + x) * 4;
+        if (data[idx + 3] > 0) {
+          isOpaque = true;
+          color = `rgb(${data[idx]},${data[idx + 1]},${data[idx + 2]})`;
         }
       }
-    }
-    if (spanStart !== -1) {
-      rects.push(`<rect x="${spanStart}" y="${y}" width="${width - spanStart}" height="1" fill="${spanColor}" />`);
+
+      if (isOpaque && spanStart === -1) {
+        spanStart = x;
+        spanColor = color;
+      } else if (spanStart !== -1 && (!isOpaque || color !== spanColor)) {
+        rects.push(
+          `<rect x="${spanStart}" y="${y}" width="${x - spanStart}" height="1" fill="${spanColor}" />`
+        );
+        spanStart = -1;
+        spanColor = null;
+        if (isOpaque) {
+          spanStart = x;
+          spanColor = color;
+        }
+      }
     }
   }
 
   const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
-  <rect width="100%" height="100%" fill="#ffffff" />
   <g shape-rendering="crispEdges">
     ${rects.join("\n    ")}
   </g>
 </svg>`;
 
   downloadText(svgContent, "ditherforge_vector.svg", "image/svg+xml");
+  return svgContent;
 }
 
 // Video Recording Export (WebM / MP4)

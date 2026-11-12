@@ -3398,7 +3398,11 @@ const ENGINE_GRID_SCALED_ALGOS = new Set([
   'uniform-modulation-y',
   'smooth-diffuse',
   'modulated-diffuse-x',
-  'modulated-diffuse-y'
+  'modulated-diffuse-y',
+  'atkinson-line-modulation',
+  'atkinson-vhs',
+  'wave-modulation-x',
+  'wave-modulation-y'
 ]);
 
 // Master Algorithm Dispatcher - Fully applies settings & mutates imageData buffer in place

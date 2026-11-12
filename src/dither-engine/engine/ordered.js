@@ -47,10 +47,10 @@ export function ditherBayerMatrix(w, h, data, palette, controls = {}) {
   const mask = size - 1;
 
   for (let y = 0; y < h; y++) {
-    const sy = scale > 1 ? Math.floor(y / scale) : y;
+    const sy = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(y / scale) : y;
     const rowOffset = (sy & mask) * size;
     for (let x = 0; x < w; x++) {
-      const sx = scale > 1 ? Math.floor(x / scale) : x;
+      const sx = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(x / scale) : x;
       const idx = (y * w + x) * 4;
       const bayerVal = matrix[rowOffset + (sx & mask)];
 
@@ -76,11 +76,11 @@ export function ditherBayerVoid(w, h, data, palette, controls = {}) {
   const matrix = BAYER_4X4, size = 4, mask = 3;
 
   for (let y = 0; y < h; y++) {
-    const sy = scale > 1 ? Math.floor(y / scale) : y;
+    const sy = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(y / scale) : y;
     const ny = (2 * y) / h - 1;
     const warpOffset = warp * ny * ny * 5;
     for (let x = 0; x < w; x++) {
-      const sx = scale > 1 ? Math.floor(x / scale) : x;
+      const sx = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(x / scale) : x;
       const idx = (y * w + x) * 4;
       const warpedX = Math.round(sx + warpOffset);
       const bayerVal = matrix[(sy & mask) * size + (warpedX & mask)];
@@ -176,9 +176,9 @@ export function ditherRandomOrdered(w, h, data, palette, controls = {}) {
   const scale = Number(controls.scale || 1.0);
 
   for (let y = 0; y < h; y++) {
-    const sy = scale > 1 ? Math.floor(y / scale) : y;
+    const sy = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(y / scale) : y;
     for (let x = 0; x < w; x++) {
-      const sx = scale > 1 ? Math.floor(x / scale) : x;
+      const sx = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(x / scale) : x;
       const idx = (y * w + x) * 4;
       const hVal = (((Math.sin(sx * 12.9898 + sy * 78.233) * 43758.5453) % 1) + 1) % 1;
 
@@ -212,10 +212,10 @@ export function ditherClusteredDot(w, h, data, palette, controls = {}) {
   const size = 6;
 
   for (let y = 0; y < h; y++) {
-    const sy = scale > 1 ? Math.floor(y / scale) : y;
+    const sy = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(y / scale) : y;
     const row = sy % size;
     for (let x = 0; x < w; x++) {
-      const sx = scale > 1 ? Math.floor(x / scale) : x;
+      const sx = scale > 0.01 && Math.abs(scale - 1) > 0.001 ? Math.floor(x / scale) : x;
       const idx = (y * w + x) * 4;
       const clusterVal = (CLUSTER_6[row][sx % size] + 0.5) / 36;
 

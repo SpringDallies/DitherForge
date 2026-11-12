@@ -286,6 +286,18 @@ fn is_grid_scaled_algorithm(id: &str) -> bool {
             | "orb_diffuse"
             | "orb_diffuse_x"
             | "orb_diffuse_y"
+            | "atkinson_line_modulation"
+            | "atkinson_vhs"
+            | "contrast_aware_x"
+            | "contrast_aware_y"
+            | "modulated_diffuse_x"
+            | "modulated_diffuse_y"
+            | "smooth_diffuse"
+            | "stucki_diffusion_lines"
+            | "uniform_modulation_x"
+            | "uniform_modulation_y"
+            | "wave_modulation_x"
+            | "wave_modulation_y"
     )
 }
 
@@ -881,10 +893,9 @@ pub fn dither_color_separation(
     height: u32,
     input: &[u8],
     out: &mut [u8],
-    palette: &[[u8; 4]],
+    lut: &FastPaletteLUT,
     params: &RawAlgorithmParams,
 ) {
-    let lut = FastPaletteLUT::new(palette, None);
     let w = width as usize;
     let h = height as usize;
     let scale = params.scale;
@@ -3377,7 +3388,7 @@ pub fn apply_algorithm_raw_params(
             Ok(())
         }
         "color_separation" => {
-            dither_color_separation(width, height, input, out, palette, params);
+            dither_color_separation(width, height, input, out, &lut, params);
             Ok(())
         }
         "orb_diffuse" => {
@@ -4284,11 +4295,11 @@ pub fn dither_bayer_void(
     let mask = 3usize;
 
     for y in 0..h {
-        let sy = if scale > 1.0 { (y as f32 / scale).floor() as usize } else { y };
+        let sy = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (y as f32 / scale).floor() as usize } else { y };
         let ny = (2.0 * y as f64) / (h as f64) - 1.0;
         let warp_offset = warp as f64 * ny * ny * 5.0;
         for x in 0..w {
-            let sx = if scale > 1.0 { (x as f32 / scale).floor() as usize } else { x };
+            let sx = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (x as f32 / scale).floor() as usize } else { x };
             let idx = (y * w + x) * 4;
             let warped_x = (sx as f64 + warp_offset).round() as i32;
             let bayer_val = BAYER_4[(sy & mask) * 4 + ((warped_x & 3) as usize)];
@@ -4384,10 +4395,10 @@ pub fn dither_clustered_dot(
     let size = 6usize;
 
     for y in 0..h {
-        let sy = if scale > 1.0 { (y as f32 / scale).floor() as usize } else { y };
+        let sy = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (y as f32 / scale).floor() as usize } else { y };
         let row = sy % size;
         for x in 0..w {
-            let sx = if scale > 1.0 { (x as f32 / scale).floor() as usize } else { x };
+            let sx = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (x as f32 / scale).floor() as usize } else { x };
             let idx = (y * w + x) * 4;
             let cluster_val = (CLUSTER_6[row][sx % size] + 0.5) / 36.0;
 
@@ -4418,10 +4429,10 @@ pub fn dither_clustered_dot_8x8(
     let size = 8usize;
 
     for y in 0..h {
-        let sy = if scale > 1.0 { (y as f32 / scale).floor() as usize } else { y };
+        let sy = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (y as f32 / scale).floor() as usize } else { y };
         let row = sy % size;
         for x in 0..w {
-            let sx = if scale > 1.0 { (x as f32 / scale).floor() as usize } else { x };
+            let sx = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (x as f32 / scale).floor() as usize } else { x };
             let idx = (y * w + x) * 4;
             let cluster_val = (CLUSTER_8X8[row][sx % size] + 0.5) / 64.0;
 
@@ -4452,10 +4463,10 @@ pub fn dither_dispersed_dot_6x6(
     let size = 6usize;
 
     for y in 0..h {
-        let sy = if scale > 1.0 { (y as f32 / scale).floor() as usize } else { y };
+        let sy = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (y as f32 / scale).floor() as usize } else { y };
         let row = sy % size;
         for x in 0..w {
-            let sx = if scale > 1.0 { (x as f32 / scale).floor() as usize } else { x };
+            let sx = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (x as f32 / scale).floor() as usize } else { x };
             let idx = (y * w + x) * 4;
             let val = (DISPERSED_6X6[row][sx % size] + 0.5) / 36.0;
 
@@ -4540,9 +4551,9 @@ pub fn dither_random_ordered(
     let h = height as usize;
 
     for y in 0..h {
-        let sy = if scale > 1.0 { (y as f64 / scale as f64).floor() } else { y as f64 };
+        let sy = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (y as f64 / scale as f64).floor() } else { y as f64 };
         for x in 0..w {
-            let sx = if scale > 1.0 { (x as f64 / scale as f64).floor() } else { x as f64 };
+            let sx = if scale > 0.01 && (scale - 1.0).abs() > 0.001 { (x as f64 / scale as f64).floor() } else { x as f64 };
             let idx = (y * w + x) * 4;
             let raw = ((sx * 12.9898 + sy * 78.233).sin() * 43758.5453) % 1.0;
             let h_val = (((raw % 1.0) + 1.0) % 1.0) as f32;

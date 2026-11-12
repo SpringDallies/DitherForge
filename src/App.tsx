@@ -176,7 +176,7 @@ export const App: React.FC = () => {
 
     const pushLog = (level: 'info' | 'warn' | 'error', args: any[]) => {
       const msg = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
-      addDevLog(level, msg);
+      addDevLog(level, 'system', msg);
     };
 
     console.log = (...args: any[]) => {

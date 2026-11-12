@@ -330,45 +330,138 @@ pub fn apply_raw_temporal_noise(
     }
     let w = width as usize;
     let h = height as usize;
-    let t = (frame_idx as f32 * speed.max(0.1)).round() as u32;
-    let amp = intensity.clamp(0.0, 1.0) * 64.0;
+    let t = (frame_idx as f32 * speed.max(0.1)).round();
+    let amt = intensity.clamp(0.0, 1.0) * 40.0;
     const INV_U32_MAX: f32 = 1.0 / (u32::MAX as f32);
 
-    let is_flicker = pat == "flicker";
-    let is_scanline = matches!(
-        pat.as_str(),
-        "scanline" | "scanlines" | "scanline_drift" | "rolling"
-    );
-    let flicker_term = if is_flicker {
-        (frame_idx as f32 * speed * 0.8).sin() * 0.5
-    } else {
-        0.0
+    let hash = |x: u32, y: u32, seed: u32| -> f32 {
+        let mut h = x
+            .wrapping_mul(374761393)
+            .wrapping_add(y.wrapping_mul(668265263))
+            .wrapping_add(seed.wrapping_mul(1274126177));
+        h = (h ^ (h >> 13)).wrapping_mul(1274126177);
+        (h ^ (h >> 16)) as f32 * INV_U32_MAX
     };
 
-    for y in 0..h {
-        let row_phase = if is_scanline {
-            ((y as f32 * 0.15 + frame_idx as f32 * speed * 0.4).sin()) * amp
-        } else {
-            0.0
-        };
-        for x in 0..w {
-            let idx = (y * w + x) * 4;
-            let mut h_val = (x as u32).wrapping_mul(374761393)
-                ^ (y as u32).wrapping_mul(668265263)
-                ^ t.wrapping_mul(1274126177);
-            h_val = (h_val ^ (h_val >> 13)).wrapping_mul(1274126177);
-            let rand_norm = ((h_val ^ (h_val >> 16)) as f32 * INV_U32_MAX) * 2.0 - 1.0;
-
-            let delta = if is_flicker {
-                (flicker_term + rand_norm * 0.5) * amp
-            } else if is_scanline {
-                row_phase + rand_norm * (amp * 0.35)
-            } else {
-                rand_norm * amp
-            };
-            data[idx] = (data[idx] as f32 + delta).round().clamp(0.0, 255.0) as u8;
-            data[idx + 1] = (data[idx + 1] as f32 + delta).round().clamp(0.0, 255.0) as u8;
-            data[idx + 2] = (data[idx + 2] as f32 + delta).round().clamp(0.0, 255.0) as u8;
+    match pat.as_str() {
+        "grain" => {
+            let seed = frame_idx.wrapping_mul(1274126177);
+            for y in 0..h {
+                for x in 0..w {
+                    let idx = (y * w + x) * 4;
+                    let n = (hash(x as u32, y as u32, seed) - 0.5) * amt * 2.0;
+                    data[idx] = (data[idx] as f32 + n).clamp(0.0, 255.0) as u8;
+                    data[idx + 1] = (data[idx + 1] as f32 + n).clamp(0.0, 255.0) as u8;
+                    data[idx + 2] = (data[idx + 2] as f32 + n).clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        "static" => {
+            let seed = frame_idx.wrapping_mul(2246822519);
+            let bs = 4usize;
+            for by in (0..h).step_by(bs) {
+                for bx in (0..w).step_by(bs) {
+                    let n = (hash((bx / bs) as u32, (by / bs) as u32, seed) - 0.5) * amt * 2.5;
+                    for dy in 0..bs {
+                        let py = by + dy;
+                        if py >= h { break; }
+                        for dx in 0..bs {
+                            let px = bx + dx;
+                            if px >= w { break; }
+                            let idx = (py * w + px) * 4;
+                            data[idx] = (data[idx] as f32 + n).clamp(0.0, 255.0) as u8;
+                            data[idx + 1] = (data[idx + 1] as f32 + n).clamp(0.0, 255.0) as u8;
+                            data[idx + 2] = (data[idx + 2] as f32 + n).clamp(0.0, 255.0) as u8;
+                        }
+                    }
+                }
+            }
+        }
+        "scanline" | "scanlines" | "scanline_drift" | "rolling" => {
+            let drift_y = (t * 4.0) % h as f32;
+            for y in 0..h {
+                let dist = (y as f32 - drift_y).abs();
+                if dist < 16.0 {
+                    let m = (dist * 0.2).sin() * amt;
+                    for x in 0..w {
+                        let idx = (y * w + x) * 4;
+                        data[idx] = (data[idx] as f32 + m).clamp(0.0, 255.0) as u8;
+                        data[idx + 1] = (data[idx + 1] as f32 + m).clamp(0.0, 255.0) as u8;
+                        data[idx + 2] = (data[idx + 2] as f32 + m).clamp(0.0, 255.0) as u8;
+                    }
+                }
+            }
+        }
+        "vertical_drift" => {
+            let v_offset = (t * 0.3).sin() * (intensity * 6.0);
+            for y in 0..h {
+                let m = ((y as f32 + v_offset) * 0.1).sin() * amt;
+                for x in 0..w {
+                    let idx = (y * w + x) * 4;
+                    data[idx] = (data[idx] as f32 + m).clamp(0.0, 255.0) as u8;
+                    data[idx + 1] = (data[idx + 1] as f32 + m).clamp(0.0, 255.0) as u8;
+                    data[idx + 2] = (data[idx + 2] as f32 + m).clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        "pulse" => {
+            let m = (t * 0.2).sin() * amt * 0.8;
+            for i in (0..data.len()).step_by(4) {
+                data[i] = (data[i] as f32 + m).clamp(0.0, 255.0) as u8;
+                data[i + 1] = (data[i + 1] as f32 + m).clamp(0.0, 255.0) as u8;
+                data[i + 2] = (data[i + 2] as f32 + m).clamp(0.0, 255.0) as u8;
+            }
+        }
+        "flicker" => {
+            let seed = frame_idx.wrapping_mul(2246822519);
+            if hash(0, 0, seed) < 0.25 {
+                let drop = -hash(1, 1, seed) * amt * 1.5;
+                for i in (0..data.len()).step_by(4) {
+                    data[i] = (data[i] as f32 + drop).clamp(0.0, 255.0) as u8;
+                    data[i + 1] = (data[i + 1] as f32 + drop).clamp(0.0, 255.0) as u8;
+                    data[i + 2] = (data[i + 2] as f32 + drop).clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        "wave" => {
+            for y in 0..h {
+                let m = ((y as f32 * 0.08) + t * 0.3).sin() * amt;
+                for x in 0..w {
+                    let idx = (y * w + x) * 4;
+                    data[idx] = (data[idx] as f32 + m).clamp(0.0, 255.0) as u8;
+                    data[idx + 1] = (data[idx + 1] as f32 + m).clamp(0.0, 255.0) as u8;
+                    data[idx + 2] = (data[idx + 2] as f32 + m).clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        "shimmer" => {
+            let t_int = (t * 19.0) as i64;
+            for y in 0..h {
+                for x in 0..w {
+                    let shim = ((((x as i64) * 67 + (y as i64) * 131 + t_int) % 64) - 32) as f32 * (amt / 32.0);
+                    let idx = (y * w + x) * 4;
+                    data[idx] = (data[idx] as f32 + shim).clamp(0.0, 255.0) as u8;
+                    data[idx + 1] = (data[idx + 1] as f32 + shim).clamp(0.0, 255.0) as u8;
+                    data[idx + 2] = (data[idx + 2] as f32 + shim).clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        "chaos" => {
+            let seed = frame_idx.wrapping_mul(374761393);
+            for y in 0..h {
+                let line_jitter = (hash(0, y as u32, seed) - 0.5) * amt * 0.5;
+                for x in 0..w {
+                    let pixel_jitter = (hash(x as u32, y as u32, seed.wrapping_add(1)) - 0.5) * amt * 1.5;
+                    let total = line_jitter + pixel_jitter;
+                    let idx = (y * w + x) * 4;
+                    data[idx] = (data[idx] as f32 + total).clamp(0.0, 255.0) as u8;
+                    data[idx + 1] = (data[idx + 1] as f32 + total).clamp(0.0, 255.0) as u8;
+                    data[idx + 2] = (data[idx + 2] as f32 + total).clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        _ => {
+            // Unknown pattern: do nothing rather than fall through to white noise.
         }
     }
 }

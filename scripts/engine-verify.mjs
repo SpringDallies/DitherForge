@@ -8,11 +8,11 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
 const FROZEN_HASHES = {
-  "src/dither-engine/algorithms.js": "4ca677060061fafd198683cc90508777725d3d0d3e030f8a97868fcf7088def6",
+  "src/dither-engine/algorithms.js": "e28456a65cef7b92844e0be699e5c962736fedb5ad65c0ec970df034b72939fc",
   "src/dither-engine/effect-stack.js": "5474d98640e15ba9580ae0ee2df128f28a1d84ae395c95ff97a3e7cc0e9dde81",
-  "src/dither-engine/exporters.js": "af0c062b18736a67ec4ae2b4a3dbda7dac32b3626f47ac712aef625d9718b7e2",
+  "src/dither-engine/exporters.js": "e792912cdeed123acaa372bfd12200a307d5a02f83c1a44c461dc7c73bf861c5",
   "src/dither-engine/palettes.js": "6aafb487f0be64eb24abe4c114a4488512483256b69cfa0e65aaf2fbba3217f5",
-  "src/dither-engine/temporal.js": "20140ac20911e85455a29fd772b0e64a5bc484505985dbfd3e07140d572b4584",
+  "src/dither-engine/temporal.js": "08060b0d1e22b2a3d9dda0ecfe878a1d3c64943bb96f9f55980673b9b6a4a50c",
   "src/ui/presets.js": "43e37f1203a09d26d05bcabad93933b0dc0fcb547740857fc51b4a038870527b"
 };
 

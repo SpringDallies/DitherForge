@@ -649,6 +649,10 @@ fn composite_effect_layer(base: &mut RgbaImage, layer: &RgbaImage, opacity: f32,
 }
 
 pub fn apply_effect_stack(image: &mut RgbaImage, stack: &[PostEffect]) {
+    if stack.is_empty() || !stack.iter().any(|e| e.enabled) {
+        return;
+    }
+    let original_alpha: Vec<u8> = image.pixels().map(|p| p[3]).collect();
     for effect_item in stack {
         if !effect_item.enabled || effect_item.opacity <= 0.001 {
             continue;
@@ -762,6 +766,9 @@ pub fn apply_effect_stack(image: &mut RgbaImage, stack: &[PostEffect]) {
             *image = working;
         }
     }
+    for (i, p) in image.pixels_mut().enumerate() {
+        p[3] = original_alpha[i];
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -843,47 +850,45 @@ fn apply_chromatic_aberration(image: &mut RgbaImage, offset_x: f32, offset_y: f3
 }
 
 fn apply_jpeg_artifacts(image: &mut RgbaImage, quality: f32) {
+    // Quality arrives from UI/JS as 0.0..=1.0 (default 0.3).
+    let q = quality.clamp(0.01, 1.0);
     let (width, height) = image.dimensions();
-    let block_size = ((100.0 - quality) / 10.0).max(1.0) as u32;
-    if block_size <= 1 {
-        return;
-    }
 
-    for by in (0..height).step_by(block_size as usize) {
-        for bx in (0..width).step_by(block_size as usize) {
-            let mut sum_r = 0u32;
-            let mut sum_g = 0u32;
-            let mut sum_b = 0u32;
-            let mut count = 0u32;
-
-            for dy in 0..block_size {
-                for dx in 0..block_size {
+    for by in (0..height).step_by(8) {
+        for bx in (0..width).step_by(8) {
+            let mut sum_r: u32 = 0;
+            let mut sum_g: u32 = 0;
+            let mut sum_b: u32 = 0;
+            let mut count: u32 = 0;
+            for dy in 0..8u32 {
+                let py = by + dy;
+                if py >= height { break; }
+                for dx in 0..8u32 {
                     let px = bx + dx;
-                    let py = by + dy;
-                    if px < width && py < height {
-                        let p = image.get_pixel(px, py);
-                        sum_r += p[0] as u32;
-                        sum_g += p[1] as u32;
-                        sum_b += p[2] as u32;
-                        count += 1;
-                    }
+                    if px >= width { break; }
+                    let p = image.get_pixel(px, py);
+                    sum_r += p[0] as u32;
+                    sum_g += p[1] as u32;
+                    sum_b += p[2] as u32;
+                    count += 1;
                 }
             }
+            if count == 0 { continue; }
+            let avg_r = (sum_r / count) as u8;
+            let avg_g = (sum_g / count) as u8;
+            let avg_b = (sum_b / count) as u8;
+            let blend = 1.0 - q;
 
-            if count > 0 {
-                let avg_r = (sum_r / count) as u8;
-                let avg_g = (sum_g / count) as u8;
-                let avg_b = (sum_b / count) as u8;
-
-                for dy in 0..block_size {
-                    for dx in 0..block_size {
-                        let px = bx + dx;
-                        let py = by + dy;
-                        if px < width && py < height {
-                            let cur_a = image.get_pixel(px, py)[3];
-                            image.put_pixel(px, py, Rgba([avg_r, avg_g, avg_b, cur_a]));
-                        }
-                    }
+            for dy in 0..8u32 {
+                let py = by + dy;
+                if py >= height { break; }
+                for dx in 0..8u32 {
+                    let px = bx + dx;
+                    if px >= width { break; }
+                    let p = image.get_pixel_mut(px, py);
+                    p[0] = ((p[0] as f32) * (1.0 - blend) + (avg_r as f32) * blend).round() as u8;
+                    p[1] = ((p[1] as f32) * (1.0 - blend) + (avg_g as f32) * blend).round() as u8;
+                    p[2] = ((p[2] as f32) * (1.0 - blend) + (avg_b as f32) * blend).round() as u8;
                 }
             }
         }
@@ -968,15 +973,37 @@ fn apply_pixelate(image: &mut RgbaImage, block_size: u32) {
 
     for by in (0..height).step_by(bs as usize) {
         for bx in (0..width).step_by(bs as usize) {
-            let p = *image.get_pixel(bx, by);
+            let mut sum_r: u32 = 0;
+            let mut sum_g: u32 = 0;
+            let mut sum_b: u32 = 0;
+            let mut count: u32 = 0;
             for dy in 0..bs {
+                let py = by + dy;
+                if py >= height { break; }
                 for dx in 0..bs {
                     let px = bx + dx;
-                    let py = by + dy;
-                    if px < width && py < height {
-                        let cur_a = image.get_pixel(px, py)[3];
-                        image.put_pixel(px, py, Rgba([p[0], p[1], p[2], cur_a]));
-                    }
+                    if px >= width { break; }
+                    let p = image.get_pixel(px, py);
+                    sum_r += p[0] as u32;
+                    sum_g += p[1] as u32;
+                    sum_b += p[2] as u32;
+                    count += 1;
+                }
+            }
+            if count == 0 { continue; }
+            let avg_r = (sum_r / count) as u8;
+            let avg_g = (sum_g / count) as u8;
+            let avg_b = (sum_b / count) as u8;
+            for dy in 0..bs {
+                let py = by + dy;
+                if py >= height { break; }
+                for dx in 0..bs {
+                    let px = bx + dx;
+                    if px >= width { break; }
+                    let p = image.get_pixel_mut(px, py);
+                    p[0] = avg_r;
+                    p[1] = avg_g;
+                    p[2] = avg_b;
                 }
             }
         }

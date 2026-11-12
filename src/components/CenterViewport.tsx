@@ -1161,18 +1161,32 @@ export const CenterViewport: React.FC = () => {
   const renderNonceRef = useRef<number>(0);
   const isRenderingRef = useRef<boolean>(false);
   const pendingRenderRef = useRef<boolean>(false);
+  const renderLogTimeRef = useRef<number>(0);
 
   const executeRenderPipeline = useCallback(async (overrideTime?: number, preRender = false) => {
+    const addDevLog = useAppStore.getState().addDevLog;
     const canvas = canvasRef.current;
     if (!canvas || !sourceImageData) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     if (isRenderingRef.current) {
-      pendingRenderRef.current = true;
+      if (!preRender) {
+        pendingRenderRef.current = true;
+      }
       return;
     }
     isRenderingRef.current = true;
+
+    // Throttled render log — max once per 500ms during active rendering
+    const now = performance.now();
+    const lastRenderLog = renderLogTimeRef.current ?? 0;
+    if (preRender || now - lastRenderLog > 500) {
+      renderLogTimeRef.current = now;
+      const w = sourceImageData.width;
+      const h = sourceImageData.height;
+      addDevLog('info', 'render', `Execute render pipeline ${w}x${h} preRender=${preRender} mode=${appMode} quality=${previewQuality}`);
+    }
 
     try {
       const currentNonce = ++renderNonceRef.current;
@@ -1366,7 +1380,9 @@ export const CenterViewport: React.FC = () => {
       JSON.stringify(effAlgoParams),
       JSON.stringify(effEffects),
       sourceVideoUrl ? Math.round(activeTime * 30) : '',
-      appMode === 'animation' ? frameIndex : (animatedNoiseActive ? frameIndex : '')
+      appMode === 'animation' && (animatedNoiseActive || animationTracks.length > 0 || sourceVideoUrl)
+        ? frameIndex
+        : ''
     ].join('::');
 
     if (renderSig === lastRenderSignatureRef.current) {
@@ -1389,7 +1405,8 @@ export const CenterViewport: React.FC = () => {
       height,
       sourceVideoUrl
         ? activeTime.toFixed(2)
-        : sourceImageData.data[0] + '_' + sourceImageData.data[Math.min(100, len - 1)],
+        : (sourceImageData as any).__cacheId ??
+          `${sourceImageData.data[0]}_${sourceImageData.data[Math.min(100, len - 1)]}_${sourceImageData.width}x${sourceImageData.height}`,
       effBrightness.toFixed(3),
       effContrast.toFixed(3),
       effSaturation.toFixed(3),
@@ -1440,18 +1457,8 @@ export const CenterViewport: React.FC = () => {
 
     const workingData = workBufferRef.current;
 
-    const activeNoiseVal = Number(effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0);
-    if ((animatedNoiseActive || activeNoiseVal > 0) && activeNoiseVal > 0) {
-      const seedOffset = animatedNoiseActive && appMode === 'animation' ? frameIndex * 1337 : 42;
-      const amp = activeNoiseVal * 110;
-      for (let i = 0; i < len; i += 4) {
-        const hash = Math.sin((i >> 2) * 12.9898 + seedOffset) * 43758.5453;
-        const n = (hash - Math.floor(hash) - 0.5) * amp;
-        workingData[i] = Math.max(0, Math.min(255, workingData[i] + n));
-        workingData[i + 1] = Math.max(0, Math.min(255, workingData[i + 1] + n));
-        workingData[i + 2] = Math.max(0, Math.min(255, workingData[i + 2] + n));
-      }
-    }
+    // Pre-dither noise is applied inside the dither engine (JS and Rust) via noiseAmount.
+    // Do not apply it here, or it will be doubled.
 
     const getEffectivePalette = (): number[][] => {
       let base: number[][];
@@ -1487,7 +1494,7 @@ export const CenterViewport: React.FC = () => {
     const mappedControls = {
       ...effAlgoParams,
       bleed: (effAlgoParams.bleedFraction ?? 0) / 100,
-      smoothing: effAlgoParams.smoothingFactor,
+      smoothing: effAlgoParams.smoothing ?? effAlgoParams.smoothingFactor ?? effAlgoParams.smoothness,
       scale: effAlgoParams.scale ?? 1.0,
       noise: effNoise,
       noiseAmount: effNoise,
@@ -1511,8 +1518,12 @@ export const CenterViewport: React.FC = () => {
       noise: effNoise,
       depth: effDepth,
       temporalSeed: animatedNoiseActive && appMode === 'animation' ? frameIndex : 0,
-      offsetX: effAlgoParams.offsetX ?? 0,
-      offsetY: effAlgoParams.offsetY ?? 0
+      offsetX:
+        (effAlgoParams.offsetX ?? 0) +
+        (effAlgoParams.orbVertical ? 0 : (effAlgoParams.orbOffset ?? 0)),
+      offsetY:
+        (effAlgoParams.offsetY ?? 0) +
+        (effAlgoParams.orbVertical ? (effAlgoParams.orbOffset ?? 0) : 0)
     });
 
     if (currentNonce !== renderNonceRef.current) {
@@ -1521,7 +1532,7 @@ export const CenterViewport: React.FC = () => {
 
     applyEffectPipeline(ditherImageData, effEffects, {
       frameIndex,
-      time: currentTime,
+      time: activeTime,
       fps
     });
 
@@ -1602,6 +1613,9 @@ export const CenterViewport: React.FC = () => {
     };
 
     if (!preRender) {
+      if (width === fullWidth && height === fullHeight) {
+        lastRenderedFullImageRef.current = ditherImageData;
+      }
       if (isOriginalView) {
         drawToCanvas(new ImageData(new Uint8ClampedArray(renderSource.data), width, height));
       } else if (showBeforeAfter) {
@@ -1684,8 +1698,15 @@ export const CenterViewport: React.FC = () => {
       if (videoRenderMode !== 'rendered') break; // Abort if mode changed
       if (cache.has(i)) continue; // Already cached
       const frameTime = i / totalFps;
-      await executeRenderPipeline(frameTime, true); // preRender = true, skip canvas draw
-      preRendered++;
+      let attempts = 0;
+      while (!cache.has(i) && attempts < 10 && videoRenderMode === 'rendered') {
+        await executeRenderPipeline(frameTime, true);
+        if (!cache.has(i)) {
+          await new Promise(resolve => setTimeout(resolve, 30));
+        }
+        attempts++;
+      }
+      if (cache.has(i)) preRendered++;
       // Yield to UI every 10 frames to keep page responsive
       if (preRendered % 10 === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));

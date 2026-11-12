@@ -4,6 +4,7 @@ import { X, Settings } from 'lucide-react';
 import { Dropdown } from '../common/Dropdown';
 import { useAppStore } from '../../state/useAppStore';
 import { EngineBridge } from '../../services/EngineBridge';
+import { invoke } from '@tauri-apps/api/core';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 
@@ -48,7 +49,9 @@ const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
 
 export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   if (typeof document === 'undefined') return;
-  const isGlass = settings.glassBlur !== false;
+  // Glass blur is disabled on Linux — WebKitGTK doesn't support backdrop-filter properly
+  const isLinux = typeof navigator !== 'undefined' && /linux/i.test(navigator.platform);
+  const isGlass = !isLinux && settings.glassBlur !== false;
   const isTopbarGlass = isGlass && settings.topbarGlass !== false;
   document.documentElement.setAttribute('data-glass-blur', isGlass ? 'true' : 'false');
   document.documentElement.setAttribute('data-topbar-glass', isTopbarGlass ? 'true' : 'false');
@@ -108,6 +111,22 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   const lastRenderMs = useAppStore((state) => state.lastRenderMs);
   const devLogs = useAppStore((state) => state.devLogs);
   const clearDevLogs = useAppStore((state) => state.clearDevLogs);
+  const addDevLog = useAppStore((state) => state.addDevLog);
+  const [logFilter, setLogFilter] = useState<Record<string, boolean>>({
+    rust: true,
+    ipc: true,
+    dither: true,
+    system: true,
+    render: true
+  });
+
+  const toggleLogCategory = (cat: string) => {
+    setLogFilter((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  const filteredLogs = devLogs.filter((entry) => logFilter[entry.category] !== false);
+
+  const availableCategories = [...new Set(devLogs.map((e) => e.category))];
 
   useEffect(() => {
     if (isOpen) {
@@ -147,26 +166,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
     setTimeout(() => setPurgeMsg(null), 3000);
   };
 
-  const handlePurgeTempFiles = () => {
+  const handlePurgeTempFiles = async () => {
     try {
-      const protectedKeys = ['ditherforge_settings', 'ditherforge_favorites'];
-      const keysToPurge: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && !protectedKeys.includes(key)) {
-          keysToPurge.push(key);
-        }
+      if (EngineBridge.isTauri()) {
+        await invoke('purge_temp_cache');
       }
-
-      if (keysToPurge.length === 0) {
-        setPurgeMsg('Nothing to purge');
-      } else {
-        keysToPurge.forEach(k => localStorage.removeItem(k));
-        setPurgeMsg(`Purged ${keysToPurge.length} temporary item(s)`);
-      }
+      setPurgeMsg('Temporary caches purged');
       setTimeout(() => setPurgeMsg(null), 3500);
     } catch {
-      setPurgeMsg('Error accessing storage');
+      setPurgeMsg('Error purging temporary caches');
     }
   };
 
@@ -777,7 +785,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           >
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: 'var(--text-dim)' }}>{devLogs.length} entries</span>
+                <span style={{ color: 'var(--text-dim)' }}>{filteredLogs.length} entries</span>
                 <span id="dev-logs-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
                   Developer Logs
                 </span>
@@ -795,14 +803,24 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 backgroundColor: 'var(--bg-secondary)',
               }}
             >
-              {devLogs.length === 0 ? (
-                <span className="dev-log-empty">No logs yet</span>
+              {/* Category filter chips */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                {availableCategories.map((cat) => (
+                  <button key={cat} type="button" onClick={() => toggleLogCategory(cat)} style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', border: `1px solid ${logFilter[cat] !== false ? 'var(--border-focus)' : 'var(--border-color)'}`, backgroundColor: logFilter[cat] !== false ? 'var(--bg-hover)' : 'transparent', color: logFilter[cat] !== false ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer' }}>{cat}</button>
+                ))}
+                <button type="button" onClick={() => { const allOn = Object.values(logFilter).every((v) => v !== false); setLogFilter(Object.fromEntries(Object.keys(logFilter).map((k) => [k, !allOn]))); }} style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>Toggle All</button>
+              </div>
+
+              {filteredLogs.length === 0 ? (
+                <span className="dev-log-empty">No logs match current filters</span>
               ) : (
-                devLogs.map((entry, i) => (
-                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`} style={{ marginBottom: 2 }}>
-                    <span className="dev-log-time">{entry.time}</span>
-                    <span className={`dev-log-level dev-log-level-${entry.level}`}>{entry.level.toUpperCase()}</span>
-                    <span className="dev-log-msg">{entry.msg}</span>
+                filteredLogs.map((entry, i) => (
+                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`} style={{ marginBottom: '2px', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                    <span className="dev-log-time" style={{ flexShrink: 0 }}>{entry.time}</span>
+                    <span className={`dev-log-level dev-log-level-${entry.level}`} style={{ flexShrink: 0, width: '52px' }}>{entry.level.toUpperCase()}</span>
+                    <span style={{ flexShrink: 0, fontSize: '0.65rem', color: 'var(--text-muted)', backgroundColor: 'color-mix(in srgb, var(--text-dim) 15%, transparent)', padding: '1px 6px', borderRadius: '3px', marginTop: '1px' }}>{entry.category}</span>
+                    <span className="dev-log-msg" style={{ flex: 1 }}>{entry.msg}</span>
+                    {entry.durationMs !== undefined && <span style={{ flexShrink: 0, fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '6px', whiteSpace: 'nowrap' }}>{entry.durationMs.toFixed(1)}ms</span>}
                   </div>
                 ))
               )}
@@ -812,7 +830,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 type="button"
                 className="btn-subtle"
                 onClick={() => {
-                  const text = devLogs.map((e) => `[${e.time}] ${e.level.toUpperCase()}: ${e.msg}`).join('\n');
+                  const text = filteredLogs.map((e) => `[${e.time}] [${e.category}] ${e.level.toUpperCase()}: ${e.msg}`).join('\n');
                   navigator.clipboard.writeText(text);
                 }}
               >

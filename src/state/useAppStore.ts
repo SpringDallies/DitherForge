@@ -428,8 +428,8 @@ interface AppState {
   setActiveBackend: (b: 'rust' | 'js' | 'js-fallback') => void;
   backendError: string | null;
   setBackendError: (err: string | null) => void;
-  devLogs: Array<{ level: 'info' | 'warn' | 'error'; msg: string; time: string }>;
-  addDevLog: (level: 'info' | 'warn' | 'error', msg: string) => void;
+  devLogs: Array<{ level: 'info' | 'warn' | 'error'; category: string; msg: string; time: string; durationMs?: number }>;
+  addDevLog: (level: 'info' | 'warn' | 'error', category: string, msg: string, durationMs?: number) => void;
   clearDevLogs: () => void;
 
   zoom: number;
@@ -878,13 +878,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   appMode: 'still',
 
-  setAppMode: (appMode) => set((state) => ({
-    appMode,
-    isPlaying: appMode === 'still' ? false : state.isPlaying,
-    selectedTrackId: appMode === 'still' ? null : state.selectedTrackId,
-    hasConfiguredAnimation: appMode === 'animation' ? false : state.hasConfiguredAnimation,
-    isCreateAnimationPopupOpen: appMode === 'animation'
-  })),
+  setAppMode: (mode) => {
+    const current = get();
+    const needsSetup = mode === 'animation' && !current.hasConfiguredAnimation;
+    set({
+      appMode: mode,
+      isCreateAnimationPopupOpen: needsSetup,
+      hasConfiguredAnimation: mode === 'still' ? current.hasConfiguredAnimation : current.hasConfiguredAnimation,
+    });
+  },
   toggleAppMode: () => set((state) => {
     const next = state.appMode === 'still' ? 'animation' : 'still';
     return {
@@ -1022,11 +1024,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   backendError: null,
   setBackendError: (backendError) => set({ backendError }),
   devLogs: [],
-  addDevLog: (level, msg) =>
+  addDevLog: (level, category, msg, durationMs) =>
     set((state) => {
       const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-      const next = [...state.devLogs, { level, msg, time }];
-      return { devLogs: next.slice(-500) };
+      const next = [...state.devLogs, { level, category, msg, time, durationMs }];
+      return { devLogs: next.slice(-1000) };
     }),
   clearDevLogs: () => set({ devLogs: [] }),
 

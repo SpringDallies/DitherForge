@@ -599,9 +599,26 @@ fn cancel_native_video_export() -> Result<(), String> {
     Ok(())
 }
 
+const MAX_READ_FILE_BYTES: u64 = 256 * 1024 * 1024;
+
 #[tauri::command]
-fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
-    std::fs::read(&path).map_err(|e| format!("Failed to read file {}: {}", path, e))
+fn read_binary_file(path: String) -> Result<tauri::ipc::Response, String> {
+    if path.starts_with('-') {
+        return Err("Invalid file path".to_string());
+    }
+    let canonical = std::fs::canonicalize(&path)
+        .map_err(|e| format!("Failed to resolve file {}: {}", path, e))?;
+    let metadata = std::fs::metadata(&canonical)
+        .map_err(|e| format!("Failed to stat file {}: {}", path, e))?;
+    if metadata.len() > MAX_READ_FILE_BYTES {
+        return Err(format!(
+            "File {} is {} bytes, exceeding the {} byte limit",
+            path, metadata.len(), MAX_READ_FILE_BYTES
+        ));
+    }
+    let bytes = std::fs::read(&canonical)
+        .map_err(|e| format!("Failed to read file {}: {}", path, e))?;
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 #[tauri::command]

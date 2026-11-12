@@ -782,7 +782,7 @@ export async function exportAnimatedVideoFfmpeg(
     }
 
     const exportResult = await ffmpegService.finishStream(sessionId);
-    const rawBytes = await invoke<number[]>('read_binary_file', { path: exportResult.output_path });
+    const rawBytes = await invoke<Uint8Array>('read_binary_file', { path: exportResult.output_path });
     const u8Bytes = new Uint8Array(rawBytes);
 
     const mime =
@@ -1064,4 +1064,4 @@ export async function downloadAnimatedVideo(
     offscreenCanvas.width = 0;
     offscreenCanvas.height = 0;
   }
-}
+}

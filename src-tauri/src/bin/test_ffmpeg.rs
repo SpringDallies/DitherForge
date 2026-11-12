@@ -79,6 +79,7 @@ fn main() {
         duration: 1.0,
         audio_sync: Some(true),
         source_image_base64: None,
+        frames_headers: None,
         header: BinaryProcessHeader {
             width: 320,
             height: 240,
@@ -183,6 +184,7 @@ fn main() {
         duration: 1.0,
         audio_sync: Some(true),
         source_image_base64: None,
+        frames_headers: None,
         header: BinaryProcessHeader {
             width: 320,
             height: 240,

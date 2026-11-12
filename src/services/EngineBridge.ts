@@ -14,6 +14,7 @@
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { invoke, isTauri as checkTauri } from '@tauri-apps/api/core';
+import { useAppStore } from '../state/useAppStore';
 
 export interface DitherSettings {
   algorithmId: string;
@@ -428,6 +429,9 @@ class EngineBridgeService {
   private reusablePayload: Uint8Array | null = null;
 
   private async dispatchRust(imageData: ImageData, settings: DitherSettings): Promise<void> {
+    const addDevLog = useAppStore.getState().addDevLog;
+    const tUpload0 = performance.now();
+
     const width = imageData.width;
     const height = imageData.height;
     const rawData = imageData.data;
@@ -445,6 +449,7 @@ class EngineBridgeService {
       this.lastCachedDimensions.head !== head ||
       this.lastCachedDimensions.tail !== tail;
 
+    let uploadMs = 0;
     if (needsUpload) {
       const base64 = this.arrayBufferToBase64(
         rawData.buffer,
@@ -452,15 +457,18 @@ class EngineBridgeService {
         rawData.byteLength
       );
       try {
-        await invoke('set_source_image', { image_base64: base64, width, height });
+        await invoke('set_source_image', { imageBase64: base64, width, height });
       } catch (err: any) {
         console.warn(
           `[EngineBridge] set_source_image failed for ${width}x${height}, falling back to JS:`,
           err
         );
+        addDevLog('error', 'ipc', `set_source_image failed ${width}x${height}: ${err?.message ?? String(err)}`);
         throw err;
       }
       this.lastCachedDimensions = { width, height, head, tail };
+      uploadMs = performance.now() - tUpload0;
+      addDevLog('info', 'ipc', `set_source_image uploaded ${width}x${height} (${rawData.byteLength} bytes)`, uploadMs);
     }
 
     const rustAlgo = this.canonicalizeId(settings.algorithmId);
@@ -578,13 +586,18 @@ class EngineBridgeService {
     // The processed pixel buffer returned by Rust must be copied back into imageData.data
     // so the caller sees the result (JS engine modifies imageData in place).
     let resultBuffer: ArrayBuffer | null = null;
+    const tRust0 = performance.now();
     try {
       resultBuffer = await invoke<ArrayBuffer>('process_image_binary', header);
+      const rustMs = performance.now() - tRust0;
+      addDevLog('info', 'rust', `process_image_binary algo=${rustAlgo} ${width}x${height}`, rustMs);
     } catch (raw: any) {
       // Bug 1: Tauri v2 rejects with a plain string for Result::Err(String),
       // so err?.message is undefined — normalize to a string before inspection.
       const msg = typeof raw === 'string' ? raw : (raw?.message ?? String(raw));
       this.lastError = msg;
+      const rustMs = performance.now() - tRust0;
+      addDevLog('error', 'rust', `process_image_binary algo=${rustAlgo} FAILED after ${rustMs.toFixed(1)}ms: ${msg}`);
       if (
         msg === 'cache_size_mismatch' ||
         msg.includes('No source image cached') ||
@@ -604,6 +617,7 @@ class EngineBridgeService {
         console.warn(
           `[EngineBridge] Rust returned ${resultBytes.length} bytes, expected ${rawData.length}; discarding`
         );
+        addDevLog('warn', 'rust', `Rust returned ${resultBytes.length} bytes, expected ${rawData.length}; discarding`);
       }
     }
     return;
@@ -631,6 +645,7 @@ class EngineBridgeService {
     imageData: ImageData,
     settings: DitherSettings
   ): Promise<EngineBridgeResult> {
+    const addDevLog = useAppStore.getState().addDevLog;
     const t0 = performance.now();
 
     const canUseRust = this.isTauri() && this.isAlgorithmSupported(settings.algorithmId);
@@ -638,14 +653,18 @@ class EngineBridgeService {
     if (canUseRust) {
       try {
         await this.dispatchRust(imageData, settings);
+        const totalMs = performance.now() - t0;
         this.lastBackend = 'rust';
         this.lastError = null;
+        addDevLog('info', 'dither', `Rust total ${totalMs.toFixed(1)}ms algo=${settings.algorithmId}`, totalMs);
         return {
           backend: 'rust',
-          elapsedMs: performance.now() - t0
+          elapsedMs: totalMs
         };
       } catch (err: any) {
+        const totalMs = performance.now() - t0;
         this.lastError = err?.message || String(err);
+        addDevLog('error', 'dither', `Rust FAILED ${totalMs.toFixed(1)}ms algo=${settings.algorithmId}: ${err?.message ?? String(err)}`);
         console.error(
           `[EngineBridge] Rust dispatch failed for algorithm '${settings.algorithmId}'. Falling back to JavaScript engine:`,
           err
@@ -653,20 +672,23 @@ class EngineBridgeService {
         // Fall back to JavaScript engine
         applyDitherAlgorithm(imageData, settings);
         this.lastBackend = 'js-fallback';
+        addDevLog('warn', 'dither', `JS fallback ${totalMs.toFixed(1)}ms algo=${settings.algorithmId}`, totalMs);
         return {
           backend: 'js-fallback',
-          elapsedMs: performance.now() - t0
+          elapsedMs: totalMs
         };
       }
     }
 
     // Default JavaScript execution
     applyDitherAlgorithm(imageData, settings);
+    const totalMs = performance.now() - t0;
     this.lastBackend = 'js';
     this.lastError = null;
+    addDevLog('info', 'dither', `JS total ${totalMs.toFixed(1)}ms algo=${settings.algorithmId}`, totalMs);
     return {
       backend: 'js',
-      elapsedMs: performance.now() - t0
+      elapsedMs: totalMs
     };
   }
 

@@ -119,6 +119,8 @@ pub struct NativeVideoExportRequest {
     /// Required when input_video_path is None.
     #[serde(default)]
     pub source_image_base64: Option<String>,
+    #[serde(default)]
+    pub frames_headers: Option<Vec<BinaryProcessHeader>>,
     pub audio_sync: Option<bool>,
 }
 
@@ -664,8 +666,14 @@ pub fn probe_video(video_path: &str) -> Result<VideoInfo, String> {
     let probe_bin = find_ffprobe_path()
         .ok_or_else(|| "ffprobe is not available on this system".to_string())?;
 
+    if video_path.starts_with('-') {
+        return Err("Invalid video path".to_string());
+    }
+
     let out = create_command(&probe_bin)
         .args([
+            "-protocol_whitelist",
+            "file,pipe",
             "-v",
             "error",
             "-show_entries",
@@ -759,8 +767,14 @@ pub fn extract_single_frame(
     };
     crate::validate_image_dimensions(w, h)?;
 
+    if video_path.starts_with('-') {
+        return Err("Invalid video path".to_string());
+    }
+
     let mut cmd = create_command(&ffmpeg_bin);
     cmd.args([
+        "-protocol_whitelist",
+        "file,pipe",
         "-nostdin",
         "-ss",
         &format!("{:.3}", timestamp_sec),
@@ -843,7 +857,9 @@ pub fn export_video_native_ffmpeg(
     // If source video has audio, include it as input #1 and map audio stream
     if has_audio && request.audio_sync.unwrap_or(true) {
         if let Some(ref in_path) = request.input_video_path {
-            enc_cmd.args(["-i", in_path, "-map", "0:v:0", "-map", "1:a:0?"]);
+            if !in_path.starts_with('-') {
+                enc_cmd.args(["-i", in_path, "-map", "0:v:0", "-map", "1:a:0?"]);
+            }
         }
     }
 
@@ -926,7 +942,7 @@ pub fn export_video_native_ffmpeg(
 
     // 2. If input video exists, spawn FFmpeg decoder piping raw RGBA to Rust
     let mut decoder_child = if let Some(ref in_path) = request.input_video_path {
-        if Path::new(in_path).is_file() {
+        if Path::new(in_path).is_file() && !in_path.starts_with('-') {
             let mut dec_cmd = create_command(&ffmpeg_bin);
             dec_cmd.args([
                 "-nostdin",
@@ -1028,7 +1044,10 @@ pub fn export_video_native_ffmpeg(
             }
             // else: frame_buf stays zeros (shouldn't happen if source_image is set)
 
-            let mut frame_header = request.header.clone();
+            let mut frame_header = match request.frames_headers.as_ref() {
+                Some(fh) if (frame_idx as usize) < fh.len() => fh[frame_idx as usize].clone(),
+                _ => request.header.clone(),
+            };
             frame_header.temporal_seed = Some(frame_idx as u32);
             // Offset post-effect seeds per frame so film_grain, scanlines, vhs_tracking,
             // gate_weave, exposure_flicker, glitch_slices etc. animate during export

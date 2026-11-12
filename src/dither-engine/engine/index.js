@@ -263,7 +263,7 @@ export function dispatchDither(algorithmId, width, height, inputBuffer, params =
     errorReduction: userControls.errorReduction !== undefined ? Number(userControls.errorReduction) : diffStrength,
     strength: userControls.strength !== undefined ? Number(userControls.strength) : Math.round(diffStrength * 100),
     serpentine: userControls.serpentine !== undefined ? !!userControls.serpentine : false,
-    noiseAmount: userControls.noiseAmount !== undefined ? Number(userControls.noiseAmount) : 0.3,
+    noiseAmount: userControls.noiseAmount !== undefined ? Number(userControls.noiseAmount) : 0.0,
     temporalSeed: userControls.temporalSeed !== undefined ? Number(userControls.temporalSeed) : 0,
     lineScale: userControls.lineScale !== undefined ? Number(userControls.lineScale) : 2,
     lineSpacing: userControls.lineSpacing !== undefined ? Number(userControls.lineSpacing) : 1,

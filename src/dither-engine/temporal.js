@@ -13,14 +13,25 @@ export const TEMPORAL_PATTERNS = [
   { id: "chaos", name: "9. Chaos (Analog Composite)", description: "Composite stochastic modulation combining grain, tracking & flutter." }
 ];
 
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export function applyTemporalNoise(data, width, height, patternId, frameIndex, intensity = 0.5, speed = 1.0) {
   const t = frameIndex * speed;
   const amt = intensity * 40;
+  const rand = mulberry32((frameIndex >>> 0) * 2654435761);
 
   switch (patternId) {
     case "grain": {
       for (let i = 0; i < data.length; i += 4) {
-        const n = (Math.random() - 0.5) * amt * 2;
+        const n = (rand() - 0.5) * amt * 2;
         data[i] = Math.max(0, Math.min(255, data[i] + n));
         data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + n));
         data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + n));
@@ -32,7 +43,7 @@ export function applyTemporalNoise(data, width, height, patternId, frameIndex, i
       const bs = 4;
       for (let by = 0; by < height; by += bs) {
         for (let bx = 0; bx < width; bx += bs) {
-          const n = (Math.random() - 0.5) * amt * 2.5;
+          const n = (rand() - 0.5) * amt * 2.5;
           for (let y = by; y < Math.min(height, by + bs); y++) {
             for (let x = bx; x < Math.min(width, bx + bs); x++) {
               const idx = (y * width + x) * 4;
@@ -88,8 +99,8 @@ export function applyTemporalNoise(data, width, height, patternId, frameIndex, i
     }
 
     case "flicker": {
-      if (Math.random() < 0.25) {
-        const drop = -Math.random() * amt * 1.5;
+      if (rand() < 0.25) {
+        const drop = -rand() * amt * 1.5;
         for (let i = 0; i < data.length; i += 4) {
           data[i] = Math.max(0, Math.min(255, data[i] + drop));
           data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + drop));
@@ -127,9 +138,9 @@ export function applyTemporalNoise(data, width, height, patternId, frameIndex, i
 
     case "chaos": {
       for (let y = 0; y < height; y++) {
-        const lineJitter = (Math.random() - 0.5) * amt * 0.5;
+        const lineJitter = (rand() - 0.5) * amt * 0.5;
         for (let x = 0; x < width; x++) {
-          const pixelJitter = (Math.random() - 0.5) * amt * 1.5;
+          const pixelJitter = (rand() - 0.5) * amt * 1.5;
           const idx = (y * width + x) * 4;
           const totalN = lineJitter + pixelJitter;
           data[idx] = Math.max(0, Math.min(255, data[idx] + totalN));

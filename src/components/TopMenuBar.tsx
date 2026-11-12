@@ -54,6 +54,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const imageWidth = useAppStore((state) => state.imageWidth);
   const imageHeight = useAppStore((state) => state.imageHeight);
   const lastRenderMs = useAppStore((state) => state.lastRenderMs);
+  const activeBackend = useAppStore((state) => state.activeBackend);
+  const backendError = useAppStore((state) => state.backendError);
 
   // Cycling 3-part VIEWPORT pill states + Video 2-part pill states
   const previewQuality = useAppStore((state) => state.previewQuality);
@@ -441,6 +443,11 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         <div className="topbar-status-text">
           <span>{imageWidth > 0 ? `${imageWidth}×${imageHeight}` : 'Ready'}</span>
           <span>{lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)}ms` : '<1ms'}</span>
+          {activeBackend === 'js-fallback' && (
+            <span className="backend-warning" title={backendError ?? 'Rust dispatch failed'}>
+              JS fallback
+            </span>
+          )}
         </div>
 
         <div className="segmented-switch topbar-compare-grid-switch" role="group" aria-label="Viewport Overlays">

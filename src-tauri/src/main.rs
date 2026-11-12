@@ -9,6 +9,7 @@ use ditherforge::{
 use base64::engine::{general_purpose::STANDARD, Engine};
 use image::{
     codecs::gif::{GifEncoder, Repeat},
+    imageops::FilterType,
     Delay, Frame, ImageFormat, RgbaImage,
 };
 use rayon::prelude::*;
@@ -104,48 +105,92 @@ fn process_image(
     Ok(STANDARD.encode(out_bytes))
 }
 
-#[tauri::command]
-fn set_source_image(params: serde_json::Value) -> Result<(), String> {
-    let image_base64 = params
-        .get("image_base64")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Missing image_base64 field".to_string())?;
-    let width = params
-        .get("width")
-        .and_then(|v| v.as_u64())
-        .ok_or_else(|| "Missing width field".to_string())? as u32;
-    let height = params
-        .get("height")
-        .and_then(|v| v.as_u64())
-        .ok_or_else(|| "Missing height field".to_string())? as u32;
+/// Shared helper: decode cached source image bytes into SOURCE_IMAGE_CACHE.
+/// Expects `bytes` to begin with an 8-byte little-endian header: u32 width, u32 height,
+/// followed by either raw RGBA bytes (len == width*height*4) or an encoded image
+/// (PNG/JPEG/WebP/etc.) that will be decoded and resized to (width, height).
+fn decode_and_cache_source(bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() < 8 {
+        return Err("Payload too short: missing width/height header".to_string());
+    }
+    let width = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
+    let height = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
 
     validate_image_dimensions(width, height)?;
 
-    let bytes = STANDARD.decode(image_base64).map_err(|e| e.to_string())?;
+    let pixel_data = &bytes[8..];
     let expected_len = (width as usize) * (height as usize) * 4;
 
     // Auto-decode if PNG/JPEG bytes were passed instead of raw RGBA, or reject if invalid
-    let rgba_bytes = if bytes.len() == expected_len {
-        bytes
+    let rgba_bytes = if pixel_data.len() == expected_len {
+        pixel_data.to_vec()
     } else {
-        let img = image::load_from_memory(&bytes)
-            .map_err(|e| format!("Source image size mismatch (got {} bytes, expected {} raw RGBA) and not a valid encoded image: {}", bytes.len(), expected_len, e))?
+        let img = image::load_from_memory(pixel_data)
+            .map_err(|e| format!("Source image size mismatch (got {} bytes, expected {} raw RGBA) and not a valid encoded image: {}", pixel_data.len(), expected_len, e))?
             .to_rgba8();
         if img.width() != width || img.height() != height {
-            return Err(format!(
-                "Decoded image dimensions {}x{} do not match requested {}x{}",
-                img.width(),
-                img.height(),
-                width,
-                height
-            ));
+            let resized = image::imageops::resize(&img, width, height, FilterType::Triangle);
+            resized.into_raw()
+        } else {
+            img.into_raw()
         }
-        img.into_raw()
     };
 
     let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
     *cache = Some((Arc::new(rgba_bytes), width, height));
     Ok(())
+}
+
+/// Tauri command: set source image from raw binary IPC body (InvokeBody::Raw).
+/// Expected body: 8-byte LE header (u32 width, u32 height) + raw RGBA or encoded image bytes.
+#[tauri::command]
+async fn set_source_image_raw(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => {
+            let owned = bytes.to_vec();
+            tauri::async_runtime::spawn_blocking(move || {
+                decode_and_cache_source(&owned)
+            })
+            .await
+            .map_err(|e| format!("set_source_image_raw task panicked: {e}"))?
+        }
+        _ => Err("Expected raw RGBA payload for set_source_image_raw".into()),
+    }
+}
+
+/// Tauri command: set source image from JSON base64 payload (kept for compatibility).
+/// Expects params with `image_base64`, `width`, `height` fields.
+#[tauri::command]
+async fn set_source_image(params: serde_json::Value) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let image_base64 = params
+            .get("image_base64")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Missing image_base64 field".to_string())?;
+        let width = params
+            .get("width")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "Missing width field".to_string())? as u32;
+        let height = params
+            .get("height")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "Missing height field".to_string())? as u32;
+
+        validate_image_dimensions(width, height)?;
+
+        let bytes = STANDARD.decode(image_base64).map_err(|e| e.to_string())?;
+        let expected_len = (width as usize) * (height as usize) * 4;
+
+        // Prepend 8-byte LE width/height header and reuse shared decoder
+        let mut header_bytes = Vec::with_capacity(8 + bytes.len());
+        header_bytes.extend_from_slice(&width.to_le_bytes());
+        header_bytes.extend_from_slice(&height.to_le_bytes());
+        header_bytes.extend_from_slice(&bytes);
+
+        decode_and_cache_source(&header_bytes)
+    })
+    .await
+    .map_err(|e| format!("set_source_image task panicked: {e}"))?
 }
 
 fn parse_and_exec_raw(raw_bytes: &[u8]) -> Result<Response, String> {
@@ -674,6 +719,7 @@ fn main() {
             get_palettes,
             extract_palette,
             set_source_image,
+            set_source_image_raw,
             process_image_binary,
             process_animation_batch,
             export_media_native,

@@ -1,3 +1,12 @@
+/**
+ * 2026-11-12 — Fix Rust→JS silent fallback
+ * - Bug 1: normalize Tauri string rejections before checking for cache_size_mismatch / "No source image cached"
+ * - Bug 2: replace base64 set_source_image with set_source_image_raw (InvokeBody::Raw) + head/tail skip logic
+ * - Bug 3: set_source_image is now async + spawn_blocking on the Rust side
+ * - Bug 4/6: isRustAvailable() called on App.tsx mount; TopMenuBar shows "JS fallback" chip when active
+ * - Bug 5: guard rawData.set() against length mismatch before copying Rust output
+ */
+
 // DitherForge EngineBridge Service
 // Transparently routes supported image-processing algorithms to the native Rust engine in Tauri
 // and seamlessly falls back to the reference JavaScript engine when running in browser mode or on error.
@@ -281,7 +290,7 @@ class EngineBridgeService {
   private rustAvailable: boolean | null = null;
   private checkingRust: Promise<boolean> | null = null;
   private lastBackend: 'rust' | 'js' | 'js-fallback' = 'js';
-  private lastCachedDimensions: { width: number; height: number } | null = null;
+  private lastCachedDimensions: { width: number; height: number; head: number; tail: number } | null = null;
 
   /**
    * Returns the backend that executed the most recent image processing operation.
@@ -423,30 +432,38 @@ class EngineBridgeService {
     const height = imageData.height;
     const rawData = imageData.data;
 
-    // Cache source image pixels in Rust when dimensions change.
-    // On Linux WebKitGTK, request bodies are JSON-serialized (slow), so we cache
-    // pixels in Rust via set_source_image and send only the small header JSON on
-    // subsequent invokes. Response bodies are fast on Linux (raw octet-stream).
-    if (
+    // Upload source pixels to Rust when dimensions or content change.
+    // On Linux WebKitGTK, InvokeBody::Raw is unreliable (JSON-serialized as 5.7M-element array),
+    // so we send raw binary via set_source_image_raw and look up pixels from the Rust cache.
+    const head = rawData[0] | (rawData[1] << 8) | (rawData[2] << 16) | (rawData[3] << 24);
+    const tailIdx = rawData.length - 4;
+    const tail = rawData[tailIdx] | (rawData[tailIdx + 1] << 8) | (rawData[tailIdx + 2] << 16) | (rawData[tailIdx + 3] << 24);
+    const needsUpload =
       !this.lastCachedDimensions ||
       this.lastCachedDimensions.width !== width ||
-      this.lastCachedDimensions.height !== height
-    ) {
-      const base64 = this.arrayBufferToBase64(
-        rawData.buffer,
-        rawData.byteOffset,
-        rawData.byteLength
-      );
+      this.lastCachedDimensions.height !== height ||
+      this.lastCachedDimensions.head !== head ||
+      this.lastCachedDimensions.tail !== tail;
+
+    if (needsUpload) {
+      // Build raw binary payload: 8-byte LE header (width, height) + RGBA pixels
+      const headerBuf = new Uint8Array(8);
+      new DataView(headerBuf.buffer).setUint32(0, width, true);
+      new DataView(headerBuf.buffer).setUint32(4, height, true);
+      const upload = new Uint8Array(8 + rawData.byteLength);
+      upload.set(headerBuf, 0);
+      upload.set(new Uint8Array(rawData.buffer, rawData.byteOffset, rawData.byteLength), 8);
+
       try {
-        await invoke('set_source_image', { image_base64: base64, width, height });
+        await invoke('set_source_image_raw', upload); // Uint8Array → InvokeBody::Raw
       } catch (err: any) {
         console.warn(
-          `[EngineBridge] set_source_image failed for ${width}x${height}, falling back to JS:`,
+          `[EngineBridge] set_source_image_raw failed for ${width}x${height}, falling back to JS:`,
           err
         );
         throw err;
       }
-      this.lastCachedDimensions = { width, height };
+      this.lastCachedDimensions = { width, height, head, tail };
     }
 
     const rustAlgo = this.canonicalizeId(settings.algorithmId);
@@ -566,30 +583,33 @@ class EngineBridgeService {
     let resultBuffer: ArrayBuffer | null = null;
     try {
       resultBuffer = await invoke<ArrayBuffer>('process_image_binary', header);
-    } catch (err: any) {
-      // If Rust reports a cache size mismatch (e.g. Live vs Full resolution changed),
-      // reset cached dimensions so the next frame re-uploads pixels via set_source_image.
-      if (err?.message === 'cache_size_mismatch') {
+    } catch (raw: any) {
+      // Bug 1: Tauri v2 rejects with a plain string for Result::Err(String),
+      // so err?.message is undefined — normalize to a string before inspection.
+      const msg = typeof raw === 'string' ? raw : (raw?.message ?? String(raw));
+      this.lastError = msg;
+      if (
+        msg === 'cache_size_mismatch' ||
+        msg.includes('No source image cached') ||
+        msg.includes('Pixel buffer size mismatch')
+      ) {
         this.lastCachedDimensions = null;
       }
-      throw err;
+      throw raw;
     }
     if (resultBuffer) {
       const resultBytes = new Uint8Array(resultBuffer);
-      rawData.set(resultBytes);
+      // Bug 5: guard against length mismatch — discarding if Rust returned
+      // a different byte count than expected prevents mixed-vendor frames.
+      if (resultBytes.length === rawData.length) {
+        rawData.set(resultBytes);
+      } else {
+        console.warn(
+          `[EngineBridge] Rust returned ${resultBytes.length} bytes, expected ${rawData.length}; discarding`
+        );
+      }
     }
     return;
-  }
-
-  /** Convert an ArrayBuffer slice to base64 for set_source_image. */
-  private arrayBufferToBase64(buffer: ArrayBuffer, byteOffset: number, byteLength: number): string {
-    const bytes = new Uint8Array(buffer, byteOffset, byteLength);
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
-    }
-    return btoa(binary);
   }
 
   public lastError: string | null = null;

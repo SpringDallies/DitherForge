@@ -12,6 +12,7 @@ import './styles/preferences.css';
 import { SettingsDialog, getStoredSettings, applyPerformanceSettings } from './components/dialogs/SettingsDialog';
 import { FfmpegInstallModal } from './components/dialogs/FfmpegInstallModal';
 import { ffmpegService } from './services/ffmpegService';
+import { EngineBridge } from './services/EngineBridge';
 
 export const App: React.FC = () => {
   const activeTheme = useAppStore((state) => state.activeTheme);
@@ -25,6 +26,27 @@ export const App: React.FC = () => {
   const setIsFfmpegModalOpen = useAppStore((state) => state.setIsFfmpegModalOpen);
   const ffmpegStatus = useAppStore((state) => state.ffmpegStatus);
   const setFfmpegStatus = useAppStore((state) => state.setFfmpegStatus);
+  const setActiveBackend = useAppStore((state) => state.setActiveBackend);
+  const setBackendError = useAppStore((state) => state.setBackendError);
+
+  // Proactively probe Rust IPC on startup so the first real render isn't also
+  // the first IPC probe. Stored in Zustand so the UI can show a fallback chip.
+  useEffect(() => {
+    if (!EngineBridge.isTauri()) {
+      setActiveBackend('js');
+      setBackendError(null);
+      return;
+    }
+    EngineBridge.isRustAvailable()
+      .then((ok) => {
+        setActiveBackend(ok ? 'rust' : 'js');
+        if (!ok) setBackendError('Rust IPC probe failed');
+      })
+      .catch((err) => {
+        setActiveBackend('js');
+        setBackendError(String(err ?? 'Rust IPC probe error'));
+      });
+  }, []);
 
   // Proactively query FFmpeg status on startup in Tauri desktop mode
   useEffect(() => {

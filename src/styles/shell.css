@@ -168,6 +168,16 @@ body {
   color: var(--text-dim);
   margin-right: 2px;
 }
+.backend-warning {
+  color: var(--status-warning, #ff9800);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border: 1px solid var(--status-warning, #ff9800);
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--status-warning, #ff9800) 15%, transparent);
+  white-space: nowrap;
+}
 .topbar-settings-pill {
   height: 26px;
   padding: 0 12px;

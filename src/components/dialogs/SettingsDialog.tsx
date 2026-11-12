@@ -667,40 +667,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
           </div>
 
-          {/* Section: ABOUT */}
-          <div className="settings-section">
-            <div className="settings-section-title">ENGINE & ABOUT</div>
-
-            <div className="settings-row">
-              <span className="settings-label">Active backend</span>
-              <span className="settings-readonly-text">
-                {activeBackend === 'rust' ? 'Rust' : activeBackend === 'js-fallback' ? 'JavaScript (Fallback)' : 'JavaScript'}
-              </span>
-            </div>
-
-            <div className="settings-row">
-              <span className="settings-label">Last render time</span>
-              <span className="settings-readonly-text">
-                {lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)} ms` : '< 1 ms'}
-              </span>
-            </div>
-
-            <div className="settings-row">
-              <span className="settings-label">Version</span>
-              <span className="settings-readonly-text">2.0</span>
-            </div>
-
-            <div className="settings-row">
-              <span className="settings-label">Engine</span>
-              <span className="settings-readonly-text">{ALGORITHM_REGISTRY.length} algorithms</span>
-            </div>
-
-            <div className="settings-row">
-              <span className="settings-label">Built with</span>
-              <span className="settings-readonly-text">React + Vite + Rust</span>
-            </div>
-          </div>
-
           {/* Section: DEVELOPER */}
           <div className="settings-section">
             <div className="settings-section-title">DEVELOPER SETTINGS</div>
@@ -724,6 +690,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <span className="settings-readonly-text">
                 {navigator.platform}
               </span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Version</span>
+              <span className="settings-readonly-text">2.0</span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Engine</span>
+              <span className="settings-readonly-text">{ALGORITHM_REGISTRY.length} algorithms</span>
+            </div>
+
+            <div className="settings-row">
+              <span className="settings-label">Built with</span>
+              <span className="settings-readonly-text">React + Vite + Rust</span>
             </div>
 
             <div className="settings-row">

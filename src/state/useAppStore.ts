@@ -428,6 +428,9 @@ interface AppState {
   setActiveBackend: (b: 'rust' | 'js' | 'js-fallback') => void;
   backendError: string | null;
   setBackendError: (err: string | null) => void;
+  devLogs: Array<{ level: 'info' | 'warn' | 'error'; msg: string; time: string }>;
+  addDevLog: (level: 'info' | 'warn' | 'error', msg: string) => void;
+  clearDevLogs: () => void;
 
   zoom: number;
   panX: number;
@@ -1018,6 +1021,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setActiveBackend: (activeBackend) => set({ activeBackend }),
   backendError: null,
   setBackendError: (backendError) => set({ backendError }),
+  devLogs: [],
+  addDevLog: (level, msg) =>
+    set((state) => {
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+      const next = [...state.devLogs, { level, msg, time }];
+      return { devLogs: next.slice(-500) };
+    }),
+  clearDevLogs: () => set({ devLogs: [] }),
 
   zoom: 100,
   panX: 0,

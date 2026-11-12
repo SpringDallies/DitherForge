@@ -101,50 +101,13 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   const [settings, setSettings] = useState<DitherForgeSettings>(getStoredSettings);
   const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
   const [defaultExportDir, setDefaultExportDir] = useState<string>('Downloads');
-  const [devLogs, setDevLogs] = useState<Array<{ level: 'info' | 'warn' | 'error'; msg: string; time: string }>>([]);
+  const [showDevLogs, setShowDevLogs] = useState<boolean>(false);
 
   const activeBackend = useAppStore((state) => state.activeBackend);
   const backendError = useAppStore((state) => state.backendError);
   const lastRenderMs = useAppStore((state) => state.lastRenderMs);
-
-  // In-app log capture: intercept console calls so Developer Settings can show recent logs
-  useEffect(() => {
-    const origLog = console.log.bind(console);
-    const origWarn = console.warn.bind(console);
-    const origError = console.error.bind(console);
-
-    const pushLog = (level: 'info' | 'warn' | 'error', args: any[]) => {
-      const msg = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
-      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-      setDevLogs((prev) => {
-        const next = [...prev, { level, msg, time }];
-        return next.slice(-500); // keep last 500 entries
-      });
-    };
-
-    console.log = (...args: any[]) => {
-      origLog(...args);
-      pushLog('info', args);
-    };
-    console.warn = (...args: any[]) => {
-      origWarn(...args);
-      pushLog('warn', args);
-    };
-    console.error = (...args: any[]) => {
-      origError(...args);
-      pushLog('error', args);
-    };
-
-    return () => {
-      console.log = origLog;
-      console.warn = origWarn;
-      console.error = origError;
-    };
-  }, []);
-
-  const clearDevLogs = () => {
-    setDevLogs([]);
-  };
+  const devLogs = useAppStore((state) => state.devLogs);
+  const clearDevLogs = useAppStore((state) => state.clearDevLogs);
 
   useEffect(() => {
     if (isOpen) {
@@ -768,21 +731,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               </span>
             </div>
 
-            {/* Log viewer */}
-            <div className="settings-row settings-row-log">
-              <span className="settings-label">App logs</span>
-              <div className="dev-log-panel">
-                {devLogs.length === 0 && <span className="dev-log-empty">No logs yet</span>}
-                {devLogs.map((entry, i) => (
-                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`}>
-                    <span className="dev-log-time">{entry.time}</span>
-                    <span className={`dev-log-level dev-log-level-${entry.level}`}>{entry.level.toUpperCase()}</span>
-                    <span className="dev-log-msg">{entry.msg}</span>
-                  </div>
-                ))}
-              </div>
-              <button type="button" className="btn-subtle dev-log-clear" onClick={clearDevLogs}>
-                Clear
+            <div className="settings-row settings-row-actions">
+              <button type="button" className="btn-subtle" onClick={() => setShowDevLogs(true)}>
+                View Logs
               </button>
             </div>
           </div>
@@ -799,6 +750,81 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           </button>
         </div>
       </div>
+
+      {/* Developer logs popup */}
+      {showDevLogs && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDevLogs(false);
+          }}
+          style={{ zIndex: 200 }}
+        >
+          <div
+            className="modal-dialog settings-dialog"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dev-logs-title"
+            style={{
+              width: '560px',
+              maxWidth: '92vw',
+              maxHeight: '75vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: 'var(--text-dim)' }}>{devLogs.length} entries</span>
+                <span id="dev-logs-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                  Developer Logs
+                </span>
+              </div>
+              <button className="tool-icon-btn" onClick={() => setShowDevLogs(false)} aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <div
+              className="modal-body"
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '16px 20px',
+                backgroundColor: 'var(--bg-secondary)',
+              }}
+            >
+              {devLogs.length === 0 ? (
+                <span className="dev-log-empty">No logs yet</span>
+              ) : (
+                devLogs.map((entry, i) => (
+                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`} style={{ marginBottom: 2 }}>
+                    <span className="dev-log-time">{entry.time}</span>
+                    <span className={`dev-log-level dev-log-level-${entry.level}`}>{entry.level.toUpperCase()}</span>
+                    <span className="dev-log-msg">{entry.msg}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+              <button
+                type="button"
+                className="btn-subtle"
+                onClick={() => {
+                  const text = devLogs.map((e) => `[${e.time}] ${e.level.toUpperCase()}: ${e.msg}`).join('\n');
+                  navigator.clipboard.writeText(text);
+                }}
+              >
+                Copy all
+              </button>
+              <button type="button" className="btn-subtle" onClick={clearDevLogs}>
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );

@@ -166,6 +166,39 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  // App-global console interception so Developer Settings logs survive
+  // dialog open/close cycles (SettingsDialog unmounts when closed).
+  const addDevLog = useAppStore((state) => state.addDevLog);
+  useEffect(() => {
+    const origLog = console.log.bind(console);
+    const origWarn = console.warn.bind(console);
+    const origError = console.error.bind(console);
+
+    const pushLog = (level: 'info' | 'warn' | 'error', args: any[]) => {
+      const msg = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+      addDevLog(level, msg);
+    };
+
+    console.log = (...args: any[]) => {
+      origLog(...args);
+      pushLog('info', args);
+    };
+    console.warn = (...args: any[]) => {
+      origWarn(...args);
+      pushLog('warn', args);
+    };
+    console.error = (...args: any[]) => {
+      origError(...args);
+      pushLog('error', args);
+    };
+
+    return () => {
+      console.log = origLog;
+      console.warn = origWarn;
+      console.error = origError;
+    };
+  }, [addDevLog]);
+
   // Sync performance settings (glass blur & shadows) with document root
   useEffect(() => {
     applyPerformanceSettings(getStoredSettings());

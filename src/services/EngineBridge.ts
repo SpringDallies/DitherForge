@@ -433,8 +433,8 @@ class EngineBridgeService {
     const rawData = imageData.data;
 
     // Upload source pixels to Rust when dimensions or content change.
-    // On Linux WebKitGTK, InvokeBody::Raw is unreliable (JSON-serialized as 5.7M-element array),
-    // so we send raw binary via set_source_image_raw and look up pixels from the Rust cache.
+    // Reuse head/tail tracking to skip redundant re-uploads on animation frames
+    // at the same resolution with the same pixel content.
     const head = rawData[0] | (rawData[1] << 8) | (rawData[2] << 16) | (rawData[3] << 24);
     const tailIdx = rawData.length - 4;
     const tail = rawData[tailIdx] | (rawData[tailIdx + 1] << 8) | (rawData[tailIdx + 2] << 16) | (rawData[tailIdx + 3] << 24);
@@ -446,19 +446,16 @@ class EngineBridgeService {
       this.lastCachedDimensions.tail !== tail;
 
     if (needsUpload) {
-      // Build raw binary payload: 8-byte LE header (width, height) + RGBA pixels
-      const headerBuf = new Uint8Array(8);
-      new DataView(headerBuf.buffer).setUint32(0, width, true);
-      new DataView(headerBuf.buffer).setUint32(4, height, true);
-      const upload = new Uint8Array(8 + rawData.byteLength);
-      upload.set(headerBuf, 0);
-      upload.set(new Uint8Array(rawData.buffer, rawData.byteOffset, rawData.byteLength), 8);
-
+      const base64 = this.arrayBufferToBase64(
+        rawData.buffer,
+        rawData.byteOffset,
+        rawData.byteLength
+      );
       try {
-        await invoke('set_source_image_raw', upload); // Uint8Array → InvokeBody::Raw
+        await invoke('set_source_image', { image_base64: base64, width, height });
       } catch (err: any) {
         console.warn(
-          `[EngineBridge] set_source_image_raw failed for ${width}x${height}, falling back to JS:`,
+          `[EngineBridge] set_source_image failed for ${width}x${height}, falling back to JS:`,
           err
         );
         throw err;
@@ -613,6 +610,17 @@ class EngineBridgeService {
   }
 
   public lastError: string | null = null;
+
+  /** Convert an ArrayBuffer slice to base64 for set_source_image. */
+  private arrayBufferToBase64(buffer: ArrayBuffer, byteOffset: number, byteLength: number): string {
+    const bytes = new Uint8Array(buffer, byteOffset, byteLength);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(binary);
+  }
 
   /**
    * Main dithering entry point.

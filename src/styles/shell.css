@@ -182,8 +182,8 @@ body {
 /* Developer Settings log viewer */
 .dev-log-entry {
   display: flex;
-  gap: 6px;
-  padding: 2px 0;
+  gap: 4px;
+  padding: 1px 0;
   white-space: pre-wrap;
   word-break: break-word;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
@@ -194,23 +194,27 @@ body {
 .dev-log-time {
   color: var(--text-muted);
   user-select: none;
+  font-size: 0.68rem;
 }
 .dev-log-level {
   font-weight: 700;
   text-transform: uppercase;
   width: 42px;
   display: inline-block;
+  font-size: 0.68rem;
 }
 .dev-log-level-info { color: var(--text-dim); }
 .dev-log-level-warn { color: var(--status-warning, #ff9800); }
 .dev-log-level-error { color: var(--status-error, #ef4444); }
 .dev-log-msg {
   flex: 1;
+  font-size: 0.68rem;
 }
 .dev-log-empty {
   color: var(--text-muted);
   font-style: italic;
   padding: 4px 0;
+  font-size: 0.68rem;
 }
 .settings-row-log {
   align-items: flex-start;

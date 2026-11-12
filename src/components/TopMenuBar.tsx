@@ -443,11 +443,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         <div className="topbar-status-text">
           <span>{imageWidth > 0 ? `${imageWidth}×${imageHeight}` : 'Ready'}</span>
           <span>{lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)}ms` : '<1ms'}</span>
-          {activeBackend === 'js-fallback' && (
-            <span className="backend-warning" title={backendError ?? 'Rust dispatch failed'}>
-              JS fallback
-            </span>
-          )}
         </div>
 
         <div className="segmented-switch topbar-compare-grid-switch" role="group" aria-label="Viewport Overlays">

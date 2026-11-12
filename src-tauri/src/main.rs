@@ -159,26 +159,13 @@ async fn set_source_image_raw(request: tauri::ipc::Request<'_>) -> Result<(), St
 }
 
 /// Tauri command: set source image from JSON base64 payload (kept for compatibility).
-/// Expects params with `image_base64`, `width`, `height` fields.
+/// Expects `image_base64`, `width`, `height` fields at the top level.
 #[tauri::command]
-async fn set_source_image(params: serde_json::Value) -> Result<(), String> {
+async fn set_source_image(image_base64: String, width: u32, height: u32) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let image_base64 = params
-            .get("image_base64")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| "Missing image_base64 field".to_string())?;
-        let width = params
-            .get("width")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| "Missing width field".to_string())? as u32;
-        let height = params
-            .get("height")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| "Missing height field".to_string())? as u32;
-
         validate_image_dimensions(width, height)?;
 
-        let bytes = STANDARD.decode(image_base64).map_err(|e| e.to_string())?;
+        let bytes = STANDARD.decode(&image_base64).map_err(|e| e.to_string())?;
         let expected_len = (width as usize) * (height as usize) * 4;
 
         // Prepend 8-byte LE width/height header and reuse shared decoder

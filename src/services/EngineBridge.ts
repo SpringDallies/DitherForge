@@ -437,7 +437,15 @@ class EngineBridgeService {
         rawData.byteOffset,
         rawData.byteLength
       );
-      await invoke('set_source_image', { image_base64: base64, width, height });
+      try {
+        await invoke('set_source_image', { image_base64: base64, width, height });
+      } catch (err: any) {
+        console.warn(
+          `[EngineBridge] set_source_image failed for ${width}x${height}, falling back to JS:`,
+          err
+        );
+        throw err;
+      }
       this.lastCachedDimensions = { width, height };
     }
 
@@ -553,8 +561,11 @@ class EngineBridgeService {
     // Send header-only JSON — pixels are cached in Rust via set_source_image.
     // On Linux WebKitGTK, InvokeBody::Raw is unreliable (JSON-serialized as 5.7M-element array),
     // so we send ~300 bytes of header JSON and look up pixels from the Rust cache.
+    // The processed pixel buffer returned by Rust must be copied back into imageData.data
+    // so the caller sees the result (JS engine modifies imageData in place).
+    let resultBuffer: ArrayBuffer | null = null;
     try {
-      await invoke<any>('process_image_binary', header);
+      resultBuffer = await invoke<ArrayBuffer>('process_image_binary', header);
     } catch (err: any) {
       // If Rust reports a cache size mismatch (e.g. Live vs Full resolution changed),
       // reset cached dimensions so the next frame re-uploads pixels via set_source_image.
@@ -562,6 +573,10 @@ class EngineBridgeService {
         this.lastCachedDimensions = null;
       }
       throw err;
+    }
+    if (resultBuffer) {
+      const resultBytes = new Uint8Array(resultBuffer);
+      rawData.set(resultBytes);
     }
     return;
   }

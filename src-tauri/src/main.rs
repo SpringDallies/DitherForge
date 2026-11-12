@@ -3,7 +3,7 @@
 
 use ditherforge::{
     algorithms, effects, engine, ffmpeg, palette,
-    apply_raw_pre_adjustments, execute_binary_frame, validate_image_dimensions,
+    execute_binary_frame, validate_image_dimensions,
     BinaryProcessHeader,
 };
 use base64::engine::{general_purpose::STANDARD, Engine};
@@ -97,19 +97,8 @@ fn process_image(
 }
 
 #[tauri::command]
-async fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
-    let raw_bytes: Vec<u8> = match request.body() {
-        InvokeBody::Raw(bytes) => bytes.clone(),
-        InvokeBody::Json(val) => {
-            if let Some(arr) = val.as_array() {
-                arr.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect()
-            } else {
-                return Err("Expected raw binary payload for process_image_binary".to_string());
-            }
-        }
-    };
-
-    tauri::async_runtime::spawn_blocking(move || {
+fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
+    let parse_and_exec = |raw_bytes: &[u8]| -> Result<Response, String> {
         if raw_bytes.len() < 4 {
             return Err("Payload too short: missing header length".to_string());
         }
@@ -117,16 +106,24 @@ async fn process_image_binary(request: Request<'_>) -> Result<Response, String> 
         if raw_bytes.len() < 4 + header_len {
             return Err("Payload too short for metadata".to_string());
         }
-
         let header: BinaryProcessHeader = serde_json::from_slice(&raw_bytes[4..4 + header_len])
             .map_err(|e| format!("Failed to parse metadata header: {}", e))?;
         let pixel_data = &raw_bytes[4 + header_len..];
         let out_bytes = execute_binary_frame(&header, pixel_data)?;
-
         Ok(Response::new(out_bytes))
-    })
-    .await
-    .map_err(|e| format!("Task error: {}", e))?
+    };
+
+    match request.body() {
+        InvokeBody::Raw(bytes) => parse_and_exec(bytes),
+        InvokeBody::Json(val) => {
+            if let Some(arr) = val.as_array() {
+                let raw_bytes: Vec<u8> = arr.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect();
+                parse_and_exec(&raw_bytes)
+            } else {
+                Err("Expected raw binary payload for process_image_binary".to_string())
+            }
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]

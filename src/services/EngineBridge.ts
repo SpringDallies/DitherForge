@@ -892,20 +892,45 @@ class EngineBridgeService {
   }
 }
 
+let scratchBuffer = new ArrayBuffer(0);
+let scratchView = new Uint8Array(scratchBuffer);
+const sharedEncoder = new TextEncoder();
+const headerEncodeBuf = new Uint8Array(16384);
+
+export function packBinaryPayload(
+  headerObj: Record<string, unknown>,
+  pixelData: Uint8ClampedArray | Uint8Array
+): Uint8Array {
+  const jsonStr = JSON.stringify(headerObj);
+  const { written: headerLen } = sharedEncoder.encodeInto(jsonStr, headerEncodeBuf);
+  const totalLen = 4 + headerLen + pixelData.byteLength;
+
+  if (scratchBuffer.byteLength < totalLen) {
+    scratchBuffer = new ArrayBuffer(Math.max(totalLen, scratchBuffer.byteLength * 2, 1024 * 1024));
+    scratchView = new Uint8Array(scratchBuffer);
+  }
+
+  // Write little-endian u32 header length
+  scratchView[0] = headerLen & 0xff;
+  scratchView[1] = (headerLen >>> 8) & 0xff;
+  scratchView[2] = (headerLen >>> 16) & 0xff;
+  scratchView[3] = (headerLen >>> 24) & 0xff;
+
+  scratchView.set(headerEncodeBuf.subarray(0, headerLen), 4);
+  scratchView.set(
+    new Uint8Array(pixelData.buffer, pixelData.byteOffset, pixelData.byteLength),
+    4 + headerLen
+  );
+
+  return scratchView.subarray(0, totalLen);
+}
+
 export async function processFrameBinary(
   header: Record<string, unknown>,
   rgbaBytes: Uint8ClampedArray | Uint8Array
 ): Promise<Uint8ClampedArray> {
-  const headerBytes = new TextEncoder().encode(JSON.stringify(header));
-  const headerLen = headerBytes.byteLength;
-
-  // 4-byte LE length prefix + JSON header + raw RGBA bytes
-  const payload = new Uint8Array(4 + headerLen + rgbaBytes.byteLength);
-  new DataView(payload.buffer).setUint32(0, headerLen, true);
-  payload.set(headerBytes, 4);
-  payload.set(rgbaBytes, 4 + headerLen);
-
   // Pass Uint8Array directly so Tauri uses InvokeBody::Raw
+  const payload = packBinaryPayload(header, rgbaBytes);
   const resultBuffer = await invoke<ArrayBuffer>('process_image_binary', payload);
   return new Uint8ClampedArray(resultBuffer);
 }

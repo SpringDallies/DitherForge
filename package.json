@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "tauri": "npx tauri",
     "serve": "npx vite preview --port 8080",
     "inventory:check": "node scripts/inventory-check.mjs",
     "engine:verify": "node scripts/engine-verify.mjs",

@@ -14,7 +14,13 @@ use image::{
 use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufWriter, Cursor};
+use std::sync::Mutex;
 use tauri::ipc::{InvokeBody, Request, Response};
+
+/// Cache for source image pixels — avoids sending 5.7MB across IPC on every frame.
+/// On Linux WebKitGTK, request bodies are JSON-serialized (slow), so we cache pixels
+/// in Rust and send only the small header JSON on each invoke.
+static SOURCE_IMAGE_CACHE: Mutex<Option<Vec<u8>>> = Mutex::new(None);
 
 #[derive(serde::Serialize)]
 struct AlgorithmInfo {
@@ -97,6 +103,18 @@ fn process_image(
 }
 
 #[tauri::command]
+fn set_source_image(params: serde_json::Value) -> Result<(), String> {
+    let image_base64 = params
+        .get("image_base64")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing image_base64 field".to_string())?;
+    let bytes = STANDARD.decode(image_base64).map_err(|e| e.to_string())?;
+    let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
+    *cache = Some(bytes);
+    Ok(())
+}
+
+#[tauri::command]
 fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
     let parse_and_exec = |raw_bytes: &[u8]| -> Result<Response, String> {
         if raw_bytes.len() < 4 {
@@ -114,13 +132,51 @@ fn process_image_binary(request: Request<'_>) -> Result<Response, String> {
     };
 
     match request.body() {
-        InvokeBody::Raw(bytes) => parse_and_exec(bytes),
+        InvokeBody::Raw(bytes) => {
+            eprintln!("[process_image_binary] InvokeBody::Raw ({} bytes)", bytes.len());
+            parse_and_exec(bytes)
+        }
         InvokeBody::Json(val) => {
+            eprintln!("[process_image_binary] InvokeBody::Json");
+            // Header-only path: JSON contains BinaryProcessHeader fields,
+            // pixel data comes from SOURCE_IMAGE_CACHE (set via set_source_image)
+            if let Ok(header) = serde_json::from_value::<BinaryProcessHeader>(val.clone()) {
+                if header.width > 0 && header.height > 0 && !header.algorithm.is_empty() {
+                    let cache = SOURCE_IMAGE_CACHE.lock().unwrap();
+                    let pixel_data = cache.as_ref().ok_or_else(|| {
+                        "No source image cached. Call set_source_image first."
+                    })?;
+                    let expected = (header.width as usize) * (header.height as usize) * 4;
+                    if pixel_data.len() == expected {
+                        eprintln!(
+                            "[process_image_binary] Header-only path, using cached image ({} bytes)",
+                            pixel_data.len()
+                        );
+                        let out_bytes = execute_binary_frame(&header, pixel_data)?;
+                        return Ok(Response::new(out_bytes));
+                    } else {
+                        eprintln!(
+                            "[process_image_binary] Cached image size {} != expected {}",
+                            pixel_data.len(),
+                            expected
+                        );
+                    }
+                }
+            }
+            // Fallback: full JSON array of pixel values (slow path)
             if let Some(arr) = val.as_array() {
-                let raw_bytes: Vec<u8> = arr.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect();
+                eprintln!(
+                    "[process_image_binary] JSON array fallback ({} elements)",
+                    arr.len()
+                );
+                let raw_bytes: Vec<u8> =
+                    arr.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect();
                 parse_and_exec(&raw_bytes)
             } else {
-                Err("Expected raw binary payload for process_image_binary".to_string())
+                Err(
+                    "Expected raw binary payload or header-only JSON for process_image_binary"
+                        .to_string(),
+                )
             }
         }
     }
@@ -540,7 +596,7 @@ fn main() {
             get_effects_list,
             get_palettes,
             extract_palette,
-            process_image,
+            set_source_image,
             process_image_binary,
             process_animation_batch,
             export_media_native,

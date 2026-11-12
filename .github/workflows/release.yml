@@ -81,6 +81,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUSTFLAGS: "-C target-cpu=native"
         with:
           tagName: "${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}"
           releaseName: "DitherForge ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v1.0' }}"

@@ -281,6 +281,7 @@ class EngineBridgeService {
   private rustAvailable: boolean | null = null;
   private checkingRust: Promise<boolean> | null = null;
   private lastBackend: 'rust' | 'js' | 'js-fallback' = 'js';
+  private lastCachedDimensions: { width: number; height: number } | null = null;
 
   /**
    * Returns the backend that executed the most recent image processing operation.
@@ -422,6 +423,24 @@ class EngineBridgeService {
     const height = imageData.height;
     const rawData = imageData.data;
 
+    // Cache source image pixels in Rust when dimensions change.
+    // On Linux WebKitGTK, request bodies are JSON-serialized (slow), so we cache
+    // pixels in Rust via set_source_image and send only the small header JSON on
+    // subsequent invokes. Response bodies are fast on Linux (raw octet-stream).
+    if (
+      !this.lastCachedDimensions ||
+      this.lastCachedDimensions.width !== width ||
+      this.lastCachedDimensions.height !== height
+    ) {
+      const base64 = this.arrayBufferToBase64(
+        rawData.buffer,
+        rawData.byteOffset,
+        rawData.byteLength
+      );
+      await invoke('set_source_image', { image_base64: base64 });
+      this.lastCachedDimensions = { width, height };
+    }
+
     const rustAlgo = this.canonicalizeId(settings.algorithmId);
     const palette = this.normalizePalette(settings.palette);
 
@@ -531,46 +550,22 @@ class EngineBridgeService {
         }))
     };
 
-    const headerJson = new TextEncoder().encode(JSON.stringify(header));
-    const headerLen = headerJson.byteLength;
+    // Send header-only JSON — pixels are cached in Rust via set_source_image.
+    // On Linux WebKitGTK, InvokeBody::Raw is unreliable (JSON-serialized as 5.7M-element array),
+    // so we send ~300 bytes of header JSON and look up pixels from the Rust cache.
+    await invoke<any>('process_image_binary', header);
+    return;
+  }
 
-    // Pack 4-byte LE length + JSON header + raw RGBA pixel slice
-    const totalLen = 4 + headerLen + rawData.byteLength;
-    if (!this.reusablePayload || this.reusablePayload.byteLength !== totalLen) {
-      this.reusablePayload = new Uint8Array(totalLen);
+  /** Convert an ArrayBuffer slice to base64 for set_source_image. */
+  private arrayBufferToBase64(buffer: ArrayBuffer, byteOffset: number, byteLength: number): string {
+    const bytes = new Uint8Array(buffer, byteOffset, byteLength);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
     }
-    const payload = this.reusablePayload;
-    const view = new DataView(payload.buffer, payload.byteOffset, 4);
-    view.setUint32(0, headerLen, true);
-    payload.set(headerJson, 4);
-    payload.set(
-      new Uint8Array(rawData.buffer, rawData.byteOffset, rawData.byteLength),
-      4 + headerLen
-    );
-
-    // Pass ArrayBuffer.buffer (not Uint8Array) so Tauri uses zero-copy InvokeBody::Raw
-    // instead of JSON-serializing a multi-million-element array
-    const response = await invoke<any>('process_image_binary', payload.buffer as ArrayBuffer);
-    let responseBytes: Uint8Array;
-    if (response instanceof Uint8Array) {
-      responseBytes = response;
-    } else if (response instanceof ArrayBuffer) {
-      responseBytes = new Uint8Array(response);
-    } else if (Array.isArray(response)) {
-      responseBytes = new Uint8Array(response);
-    } else if (response && typeof response === 'object' && 'data' in response) {
-      responseBytes = new Uint8Array((response as any).data);
-    } else {
-      throw new Error(`Unexpected binary IPC response type: ${Object.prototype.toString.call(response)}`);
-    }
-
-    if (responseBytes.byteLength !== rawData.byteLength) {
-      throw new Error(
-        `Binary IPC response size mismatch: expected ${rawData.byteLength} bytes, received ${responseBytes.byteLength}`
-      );
-    }
-
-    rawData.set(responseBytes);
+    return btoa(binary);
   }
 
   public lastError: string | null = null;

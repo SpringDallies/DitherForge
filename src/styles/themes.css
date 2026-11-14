@@ -44,55 +44,100 @@
   --transition-mid: 180ms ease;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   PARENT 1: LIGHT PRO (:root & light_pro)
-   ═══════════════════════════════════════════════════════════════ */
-:root,
 [data-theme="light_pro"] {
-  --bg-primary: #ECEEF2;
-  --bg-secondary: #F3F4F7;
-  --bg-tertiary: #E1E4EB;
-  --bg-panel: #F8F9FA;
-  --bg-control: #FFFFFF;
-  --bg-raised: #FFFFFF;
-  --bg-hover: #E9ECF2;
-  --bg-active: #DFE2EA;
+  /* Core 6-Color Template Specification */
+  --lp-panel: #E6E6ED;
+  --lp-button: #E1E1E7;
+  --lp-outline: #CFD4DD;
+  --lp-bg: #DDDDE3;
+  --lp-misc: #CFCFD0;
+  --lp-text: #9DA0A5;
 
-  --border-color: #CBD0DC;
-  --border-secondary: #D7DBE4;
-  --border-soft: #E5E8F0;
-  --border-raised: #BFC4D2;
-  --border-hover: #7E8596;
-  --border-focus: #1E2330;
+  /* Mapped Application Tokens */
+  --bg-primary: #DDDDE3;      /* BG */
+  --bg-secondary: #E6E6ED;    /* Panel */
+  --bg-panel: #E6E6ED;        /* Panel */
+  --bg-tertiary: #E1E1E7;     /* Button */
+  --bg-control: #E1E1E7;      /* Button */
+  --bg-raised: #D6D8E2;
+  --bg-elevated: #E6E6ED;
+  --bg-hover: #D6D8E2;
+  --bg-active: #CFD4DD;
 
-  --text-main: #181B22;
-  --text-secondary: #242833;
-  --text-muted: #4A5160;
-  --text-dim: #242833;
-  --text-disabled: #A2A8B8;
-  --text-on-accent: #FFFFFF;
+  --border-color: #CFD4DD;    /* Outline */
+  --border-secondary: #CFCFD0;/* Misc. / Slider unfilled track */
+  --border-soft: #D5D8E0;
+  --border-raised: #C4C9D4;
+  --border-hover: #9DA0A5;
+  --border-focus: #9DA0A5;
 
-  --accent-primary: #242833;
-  --accent-hover: #11141A;
-  --accent-secondary: #4A5160;
-  --accent-cyan: #0284C7;
-  --accent-amber: #D97706;
-  --accent-pink: #DB2777;
-  --accent-blue: #2563EB;
-  --accent-glow: rgba(0, 0, 0, 0.08);
+  --text-main: #6E727A;
+  --text-secondary: #8A8E96;
+  --text-dim: #8A8E96;
+  --text-muted: #9DA0A5;
+  --text-disabled: #B8BBC2;
+  --text-on-accent: #E6E6ED;
 
-  --canvas-bg: #E4E7EE;
-  --canvas-checker-1: #EFF1F6;
-  --canvas-checker-2: #E4E7EE;
+  --accent-primary: #9DA0A5;
+  --accent-hover: #838790;
+  --accent-secondary: #CFCFD0;
+  --accent-cyan: #8A8E96;
+  --accent-amber: #9DA0A5;
+  --accent-pink: #9DA0A5;
+  --accent-blue: #8A8E96;
 
-  --status-info: #2563EB;
-  --status-warning: #D97706;
-  --status-error: #DC2626;
-  --status-ok: #16A34A;
+  --canvas-bg: #DDDDE3;
+  --canvas-checker-1: #DDDDE3;
+  --canvas-checker-2: #E6E6ED;
 
-  --scrollbar-thumb: #BFC4D2;
-  --scrollbar-thumb-hover: #8F95A5;
+  --status-info: #7C8088;
+  --status-warning: #C98A2C;
+  --status-error: #D65A62;
+  --status-ok: #5E9E6E;
+
+  --scrollbar-thumb: #CFD4DD;
+  --scrollbar-thumb-hover: #9DA0A5;
+
   color-scheme: light;
+}
+
+/* Light Pro UI Rules from Spec:
+   1. Standalone pills/dropdowns use outer outline (1.5px solid #CFD4DD);
+      nested options inside a dropdown/pill use thinner inner outline (1px solid #CFD4DD).
+   2. Center and align text inside dropdowns and options with symmetrical padding.
+   3. Dropdowns and options animate for a split second when toggled. */
+[data-theme="light_pro"] .unified-action-pill,
+[data-theme="light_pro"] .picker-box-with-steppers,
+[data-theme="light_pro"] .replica-picker-box,
+[data-theme="light_pro"] .segmented-switch {
+  background-color: #E1E1E7;
+  border: 1.5px solid #CFD4DD;
+  box-shadow: none;
+}
+
+[data-theme="light_pro"] .export-format-toggle,
+[data-theme="light_pro"] .inline-stepper-cluster,
+[data-theme="light_pro"] .replica-segmented-stepper,
+[data-theme="light_pro"] .algo-listbox-card,
+[data-theme="light_pro"] .palette-options-box {
+  background-color: #E6E6ED;
+  border: 1px solid #CFD4DD;
+  box-shadow: inset 0 0 0 0.5px #CFD4DD;
+}
+
+[data-theme="light_pro"] .algo-listbox-trigger,
+[data-theme="light_pro"] .custom-dropdown-trigger,
+[data-theme="light_pro"] .replica-picker-trigger,
+[data-theme="light_pro"] .algo-listbox-item,
+[data-theme="light_pro"] .custom-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6px 12px;
+  transition: background-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 140ms ease;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -102,6 +147,11 @@
    text-dim & text-secondary must be high-contrast light foregrounds!
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="dark_pro"],
+[data-theme="obsidian_oled"],
+[data-theme="kanagawa_wave"],
+[data-theme="rose_pine"],
+[data-theme="dracula"],
+[data-theme="monokai_pro"],
 [data-theme="nord"],
 [data-theme="evergreen"],
 [data-theme="gruvbox"],
@@ -489,6 +539,246 @@
 
   --scrollbar-thumb: #3E4451;
   --scrollbar-thumb-hover: #61AFEF;
+}
+
+/* ==========================================================================
+   CHILD 8: OBSIDIAN OLED (True Pitch-Black Carbon & Crisp Silver)
+   ========================================================================== */
+[data-theme="obsidian_oled"] {
+  --bg-primary: #0D0E11;
+  --bg-secondary: #15171C;
+  --bg-panel: #15171C;
+  --bg-tertiary: #1E2028;
+  --bg-control: #1E2028;
+  --bg-raised: #282B36;
+  --bg-hover: #282B36;
+  --bg-active: #323644;
+
+  --border-color: #282B36;
+  --border-secondary: #2E323F;
+  --border-soft: #20232C;
+  --border-raised: #383D4D;
+  --border-hover: #E2E4EB;
+  --border-focus: #E2E4EB;
+
+  --text-main: #F4F5F8;
+  --text-secondary: #D8DCE6;
+  --text-muted: #9EA4B8;
+  --text-dim: #D8DCE6;
+  --text-disabled: #525769;
+  --text-on-accent: #0D0E11;
+
+  --accent-primary: #E2E4EB;
+  --accent-hover: #FFFFFF;
+  --accent-secondary: #2E323F;
+  --accent-cyan: #94E2D5;
+  --accent-amber: #F9E2AF;
+  --accent-pink: #F5C2E7;
+  --accent-blue: #89B4FA;
+
+  --canvas-bg: #0D0E11;
+  --canvas-checker-1: #0D0E11;
+  --canvas-checker-2: #15171C;
+
+  --status-info: #89B4FA;
+  --status-warning: #F9E2AF;
+  --status-error: #F38BA8;
+  --status-ok: #A6E3A1;
+
+  --scrollbar-thumb: #282B36;
+  --scrollbar-thumb-hover: #E2E4EB;
+}
+
+/* ==========================================================================
+   CHILD 9: KANAGAWA WAVE (Japanese Woodblock Sumi Ink & Wave Gold)
+   ========================================================================== */
+[data-theme="kanagawa_wave"] {
+  --bg-primary: #1F1F28;
+  --bg-secondary: #2A2A37;
+  --bg-panel: #2A2A37;
+  --bg-tertiary: #363646;
+  --bg-control: #363646;
+  --bg-raised: #434357;
+  --bg-hover: #434357;
+  --bg-active: #54546D;
+
+  --border-color: #434357;
+  --border-secondary: #49495E;
+  --border-soft: #363646;
+  --border-raised: #54546D;
+  --border-hover: #E6C384;
+  --border-focus: #7E9CD8;
+
+  --text-main: #DCD7BA;
+  --text-secondary: #C8C093;
+  --text-muted: #A6A69C;
+  --text-dim: #DCD7BA;
+  --text-disabled: #727169;
+  --text-on-accent: #1F1F28;
+
+  --accent-primary: #7E9CD8;
+  --accent-hover: #7FB4CA;
+  --accent-secondary: #49495E;
+  --accent-cyan: #7AA89F;
+  --accent-amber: #E6C384;
+  --accent-pink: #D27E99;
+  --accent-blue: #7E9CD8;
+
+  --canvas-bg: #1F1F28;
+  --canvas-checker-1: #1F1F28;
+  --canvas-checker-2: #2A2A37;
+
+  --status-info: #7FB4CA;
+  --status-warning: #FF9E3B;
+  --status-error: #E82424;
+  --status-ok: #98BB6C;
+
+  --scrollbar-thumb: #434357;
+  --scrollbar-thumb-hover: #7E9CD8;
+}
+
+/* ==========================================================================
+   CHILD 10: ROSÉ PINE (Soho Pine Velvet & Rose Gold)
+   ========================================================================== */
+[data-theme="rose_pine"] {
+  --bg-primary: #191724;
+  --bg-secondary: #1F1D2E;
+  --bg-panel: #1F1D2E;
+  --bg-tertiary: #26233A;
+  --bg-control: #26233A;
+  --bg-raised: #34304C;
+  --bg-hover: #34304C;
+  --bg-active: #403D52;
+
+  --border-color: #34304C;
+  --border-secondary: #393552;
+  --border-soft: #2A273F;
+  --border-raised: #484366;
+  --border-hover: #EBBCBA;
+  --border-focus: #EBBCBA;
+
+  --text-main: #E0DEF4;
+  --text-secondary: #C8C4E2;
+  --text-muted: #908CAA;
+  --text-dim: #E0DEF4;
+  --text-disabled: #6E6A86;
+  --text-on-accent: #191724;
+
+  --accent-primary: #EBBCBA;
+  --accent-hover: #F6C177;
+  --accent-secondary: #393552;
+  --accent-cyan: #9CCFD8;
+  --accent-amber: #F6C177;
+  --accent-pink: #EB6F92;
+  --accent-blue: #31748F;
+
+  --canvas-bg: #191724;
+  --canvas-checker-1: #191724;
+  --canvas-checker-2: #1F1D2E;
+
+  --status-info: #9CCFD8;
+  --status-warning: #F6C177;
+  --status-error: #EB6F92;
+  --status-ok: #31748F;
+
+  --scrollbar-thumb: #34304C;
+  --scrollbar-thumb-hover: #EBBCBA;
+}
+
+/* ==========================================================================
+   CHILD 11: DRACULA (Classic Vampire Purple & Neon Cyan)
+   ========================================================================== */
+[data-theme="dracula"] {
+  --bg-primary: #1E1F29;
+  --bg-secondary: #282A36;
+  --bg-panel: #282A36;
+  --bg-tertiary: #343746;
+  --bg-control: #343746;
+  --bg-raised: #44475A;
+  --bg-hover: #44475A;
+  --bg-active: #51556B;
+
+  --border-color: #44475A;
+  --border-secondary: #4D5066;
+  --border-soft: #383B4C;
+  --border-raised: #5A5E78;
+  --border-hover: #BD93F9;
+  --border-focus: #BD93F9;
+
+  --text-main: #F8F8F2;
+  --text-secondary: #E2E2DC;
+  --text-muted: #B0B6D0;
+  --text-dim: #F8F8F2;
+  --text-disabled: #6272A4;
+  --text-on-accent: #1E1F29;
+
+  --accent-primary: #BD93F9;
+  --accent-hover: #FF79C6;
+  --accent-secondary: #4D5066;
+  --accent-cyan: #8BE9FD;
+  --accent-amber: #F1FA8C;
+  --accent-pink: #FF79C6;
+  --accent-blue: #BD93F9;
+
+  --canvas-bg: #1E1F29;
+  --canvas-checker-1: #1E1F29;
+  --canvas-checker-2: #282A36;
+
+  --status-info: #8BE9FD;
+  --status-warning: #FFB86C;
+  --status-error: #FF5555;
+  --status-ok: #50FA7B;
+
+  --scrollbar-thumb: #44475A;
+  --scrollbar-thumb-hover: #BD93F9;
+}
+
+/* ==========================================================================
+   CHILD 12: MONOKAI PRO (Warm Charcoal Filter & Golden Amber)
+   ========================================================================== */
+[data-theme="monokai_pro"] {
+  --bg-primary: #221F22;
+  --bg-secondary: #2D2A2E;
+  --bg-panel: #2D2A2E;
+  --bg-tertiary: #3A363B;
+  --bg-control: #3A363B;
+  --bg-raised: #49444B;
+  --bg-hover: #49444B;
+  --bg-active: #58525A;
+
+  --border-color: #49444B;
+  --border-secondary: #524C54;
+  --border-soft: #3E3A40;
+  --border-raised: #635C66;
+  --border-hover: #FFD866;
+  --border-focus: #FFD866;
+
+  --text-main: #FCFCFA;
+  --text-secondary: #E6E5E2;
+  --text-muted: #C1C0C0;
+  --text-dim: #FCFCFA;
+  --text-disabled: #727072;
+  --text-on-accent: #221F22;
+
+  --accent-primary: #FFD866;
+  --accent-hover: #FC9867;
+  --accent-secondary: #524C54;
+  --accent-cyan: #78DCE8;
+  --accent-amber: #FFD866;
+  --accent-pink: #FF6188;
+  --accent-blue: #AB9DF2;
+
+  --canvas-bg: #221F22;
+  --canvas-checker-1: #221F22;
+  --canvas-checker-2: #2D2A2E;
+
+  --status-info: #78DCE8;
+  --status-warning: #FC9867;
+  --status-error: #FF6188;
+  --status-ok: #A9DC76;
+
+  --scrollbar-thumb: #49444B;
+  --scrollbar-thumb-hover: #FFD866;
 }
 
 *,

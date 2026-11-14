@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
 import { Tooltip } from './common/Tooltip';
@@ -30,11 +31,16 @@ type MenuType = 'file' | 'edit' | 'view' | null;
 const THEMES = [
   { id: 'light_pro', label: 'Light Pro' },
   { id: 'dark_pro', label: 'Dark Pro' },
+  { id: 'obsidian_oled', label: 'Obsidian OLED' },
   { id: 'nord', label: 'Nord' },
   { id: 'evergreen', label: 'Evergreen' },
   { id: 'gruvbox', label: 'Gruvbox' },
   { id: 'catppuccin_mocha', label: 'Catppuccin Mocha' },
   { id: 'tokyo_night', label: 'Tokyo Night' },
+  { id: 'kanagawa_wave', label: 'Kanagawa Wave' },
+  { id: 'rose_pine', label: 'Rosé Pine' },
+  { id: 'dracula', label: 'Dracula' },
+  { id: 'monokai_pro', label: 'Monokai Pro' },
   { id: 'solarized_dark', label: 'Solarized Dark' },
   { id: 'one_dark', label: 'One Dark' },
 ];
@@ -67,8 +73,41 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const toggleAppMode = useAppStore((state) => state.toggleAppMode);
   const videoPlaybackMode = useAppStore((state) => state.videoPlaybackMode);
   const toggleVideoPlaybackMode = useAppStore((state) => state.toggleVideoPlaybackMode);
-  const videoRenderMode = useAppStore((state) => state.videoRenderMode);
-  const toggleVideoRenderMode = useAppStore((state) => state.toggleVideoRenderMode);
+
+  const themesTriggerRef = useRef<HTMLDivElement | null>(null);
+  const themesCloseTimerRef = useRef<number | null>(null);
+  const [themesSubmenuPos, setThemesSubmenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  const openThemesSubmenu = useCallback(() => {
+    if (themesCloseTimerRef.current) {
+      window.clearTimeout(themesCloseTimerRef.current);
+      themesCloseTimerRef.current = null;
+    }
+    if (themesTriggerRef.current) {
+      const triggerRect = themesTriggerRef.current.getBoundingClientRect();
+      const parentPopover = themesTriggerRef.current.closest('.dropdown-menu-popover');
+      const parentRect = parentPopover ? parentPopover.getBoundingClientRect() : triggerRect;
+      const menuMaxH = 280;
+      const top = Math.min(
+        triggerRect.top - 8,
+        Math.max(12, window.innerHeight - menuMaxH - 16)
+      );
+      // 12px breathing gap from the outer edge of the View dropdown popover
+      const left = Math.min(parentRect.right + 12, window.innerWidth - 230);
+      setThemesSubmenuPos({ top, left });
+    }
+    setIsThemesSubmenuOpen(true);
+  }, []);
+
+  const scheduleCloseThemesSubmenu = useCallback(() => {
+    if (themesCloseTimerRef.current) {
+      window.clearTimeout(themesCloseTimerRef.current);
+    }
+    themesCloseTimerRef.current = window.setTimeout(() => {
+      setIsThemesSubmenuOpen(false);
+      themesCloseTimerRef.current = null;
+    }, 300);
+  }, []);
 
   const loadImageFromData = useAppStore((state) => state.loadImageFromData);
   const loadSampleImage = useAppStore((state) => state.loadSampleImage);
@@ -121,7 +160,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
     if (!activeMenu) return;
     const handleOutsideInteraction = (e: MouseEvent | PointerEvent) => {
       const target = e.target as HTMLElement | null;
-      if (!target?.closest?.('.menu-dropdowns')) {
+      if (!target?.closest?.('.menu-dropdowns, .df-portaled-themes-menu')) {
         setActiveMenu(null);
         setIsThemesSubmenuOpen(false);
       }
@@ -229,7 +268,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const updateLabel = viewportUpdateMode === 'live' ? 'Live' : 'Debounce';
   const modeLabel = appMode === 'animation' ? 'Animated' : 'Still';
   const playbackLabel = videoPlaybackMode === 'standard' ? 'Standard' : 'Looped';
-  const renderLabel = videoRenderMode === 'quick' ? 'Quick' : 'Rendered';
 
   return (
     <header className="top-menu-bar">
@@ -348,19 +386,43 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 </button>
                 <div className="dropdown-divider" />
                 <div
+                  ref={themesTriggerRef}
                   className={`dropdown-menu-item dropdown-submenu-trigger ${isThemesSubmenuOpen ? 'active' : ''}`}
-                  onMouseEnter={() => setIsThemesSubmenuOpen(true)}
-                  onMouseLeave={() => setIsThemesSubmenuOpen(false)}
+                  onMouseEnter={openThemesSubmenu}
+                  onMouseLeave={scheduleCloseThemesSubmenu}
                 >
                   <span>Themes</span>
                   <ChevronRight size={13} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
-                  {isThemesSubmenuOpen && (
-                    <div className="dropdown-submenu-popover open" role="menu">
+                </div>
+                {isThemesSubmenuOpen &&
+                  createPortal(
+                    <div
+                      className="dropdown-submenu-popover open df-portaled-themes-menu"
+                      role="menu"
+                      style={{
+                        position: 'fixed',
+                        top: `${themesSubmenuPos.top}px`,
+                        left: `${themesSubmenuPos.left}px`,
+                        maxHeight: '260px',
+                        overflowY: 'auto',
+                        overscrollBehavior: 'contain',
+                        zIndex: 9999
+                      }}
+                      onMouseEnter={openThemesSubmenu}
+                      onMouseLeave={scheduleCloseThemesSubmenu}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
                       {THEMES.map((theme) => (
                         <button
                           key={theme.id}
+                          type="button"
                           className="dropdown-menu-item"
-                          onClick={() => { setActiveTheme(theme.id); setActiveMenu(null); setIsThemesSubmenuOpen(false); }}
+                          onClick={() => {
+                            setActiveTheme(theme.id);
+                            setActiveMenu(null);
+                            setIsThemesSubmenuOpen(false);
+                          }}
                         >
                           <span style={{ width: '14px', display: 'inline-flex', alignItems: 'center' }}>
                             {activeTheme === theme.id && <Check size={13} style={{ color: 'var(--text-main)' }} />}
@@ -368,9 +430,9 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                           <span>{theme.label}</span>
                         </button>
                       ))}
-                    </div>
+                    </div>,
+                    document.body
                   )}
-                </div>
               </div>
             )}
         </div>
@@ -422,15 +484,6 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                   onClick={toggleVideoPlaybackMode}
                 >
                   {playbackLabel}
-                </button>
-              </Tooltip>
-              <Tooltip text="Quick / Rendered mode">
-                <button
-                  type="button"
-                  className="switch-btn"
-                  onClick={toggleVideoRenderMode}
-                >
-                  {renderLabel}
                 </button>
               </Tooltip>
             </div>

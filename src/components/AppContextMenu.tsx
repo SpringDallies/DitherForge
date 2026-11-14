@@ -39,6 +39,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [menuHeight, setMenuHeight] = useState(0);
   const [copiedFeedback, setCopiedFeedback] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,9 +126,10 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
       const menuWidth = 250;
       const isAnim = useAppStore.getState().appMode === 'animation';
       const approxHeight = isTimelineClick ? 360 : (isAnim ? 480 : 360);
+      const height = menuHeight || approxHeight;
 
       const clampedX = Math.max(10, Math.min(window.innerWidth - menuWidth - 12, e.clientX));
-      const clampedY = Math.max(10, Math.min(window.innerHeight - approxHeight - 12, e.clientY));
+      const clampedY = Math.max(10, Math.min(window.innerHeight - height - 12, e.clientY));
 
       setContextType(isTimelineClick ? 'timeline' : 'app');
       setPosition({ x: clampedX, y: clampedY });
@@ -137,6 +139,15 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
     window.addEventListener('contextmenu', handleContextMenu);
     return () => window.removeEventListener('contextmenu', handleContextMenu);
   }, [closeMenu]);
+
+  // Measure actual menu height after it opens so clamping uses real dimensions
+  // instead of a hardcoded approxHeight. Prevents the menu from jumping to the
+  // middle of the screen when right-clicking near the bottom edge.
+  useEffect(() => {
+    if (!isOpen || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    setMenuHeight(rect.height);
+  }, [isOpen]);
 
   // Listen to close requests from timeline track context menu
   useEffect(() => {

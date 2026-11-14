@@ -563,68 +563,72 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
           </div>
         </button>
 
-        <div className="df-app-context-divider" />
-        <div className="df-app-context-section-label">Animation</div>
+        {appMode === 'animation' && (
+          <>
+            <div className="df-app-context-divider" />
+            <div className="df-app-context-section-label">Animation</div>
 
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            togglePlay();
-          }}
-        >
-          <div className="df-app-context-left">
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-            <span>{isPlaying ? 'Pause' : 'Play'}</span>
-          </div>
-          <span className="df-app-context-shortcut">Space</span>
-        </button>
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                togglePlay();
+              }}
+            >
+              <div className="df-app-context-left">
+                {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                <span>{isPlaying ? 'Pause' : 'Play'}</span>
+              </div>
+              <span className="df-app-context-shortcut">Space</span>
+            </button>
 
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            addAnimationTrack();
-          }}
-        >
-          <div className="df-app-context-left">
-            <Plus size={14} />
-            <span>Add Track</span>
-          </div>
-          <span className="df-app-context-shortcut">T</span>
-        </button>
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                addAnimationTrack();
+              }}
+            >
+              <div className="df-app-context-left">
+                <Plus size={14} />
+                <span>Add Track</span>
+              </div>
+              <span className="df-app-context-shortcut">T</span>
+            </button>
 
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            setCurrentTime(0);
-          }}
-        >
-          <div className="df-app-context-left">
-            <SkipBack size={14} />
-            <span>Jump to Start</span>
-          </div>
-          <span className="df-app-context-shortcut">Home</span>
-        </button>
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                setCurrentTime(0);
+              }}
+            >
+              <div className="df-app-context-left">
+                <SkipBack size={14} />
+                <span>Jump to Start</span>
+              </div>
+              <span className="df-app-context-shortcut">Home</span>
+            </button>
 
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            setCurrentTime(duration);
-          }}
-        >
-          <div className="df-app-context-left">
-            <SkipForward size={14} />
-            <span>Jump to End</span>
-          </div>
-          <span className="df-app-context-shortcut">End</span>
-        </button>
+            <button
+              type="button"
+              className="df-app-context-item"
+              onClick={() => {
+                closeMenu();
+                setCurrentTime(duration);
+              }}
+            >
+              <div className="df-app-context-left">
+                <SkipForward size={14} />
+                <span>Jump to End</span>
+              </div>
+              <span className="df-app-context-shortcut">End</span>
+            </button>
+            </>
+          )}
           </>
         )
       }

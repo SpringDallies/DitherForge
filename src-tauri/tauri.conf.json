@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/tooling/cli/schema.json",
-  "productName": "DitherForge",
+  "productName": "Ditherforge",
   "version": "1.0.0",
   "identifier": "com.ditherforge.desktop",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "DitherForge — Retro Synthesis & Precision Dithering Suite",
+        "title": "Ditherforge",
         "width": 1400,
         "height": 900,
         "minWidth": 1024,

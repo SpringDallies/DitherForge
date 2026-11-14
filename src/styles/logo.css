@@ -38,18 +38,35 @@
   }
 }
 
-/* Sidebar Brand Mark */
+/* Sidebar Brand Mark & Hover Area (spans full sidebar width, stops at top of import/export pill) */
 .sidebar-brand {
   display: flex;
-  justify-content: center;
   align-items: center;
-  padding: 8px 0 14px 0;
+  justify-content: center;
+  width: calc(100% + 32px);
+  margin: -16px -16px 0 -16px;
+  padding: 32px 36px 30px 36px;
+  box-sizing: border-box;
+  position: relative;
+  cursor: default;
 }
 
-.sidebar-brand .logo-mark {
-  height: 210px;
-  width: auto;
-  opacity: 1;
+.df-anvil-3d-logo.sharpness-pixelated {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.df-anvil-3d-logo.sharpness-crisp {
+  image-rendering: crisp-edges;
+}
+
+.df-anvil-3d-logo.sharpness-smooth {
+  image-rendering: auto;
+}
+
+[data-theme="light_pro"] .df-anvil-3d-logo {
+  filter: drop-shadow(0 2px 6px rgba(15, 20, 30, 0.14));
 }
 
 /* Top Menu Bar Left Alignment (Fix 3) */

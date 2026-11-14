@@ -564,18 +564,21 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
         </button>
 
         <div className="df-app-context-divider" />
+        <div className="df-app-context-section-label">Animation</div>
 
-        {/* Section 2: View Navigation */}
         <button
           type="button"
           className="df-app-context-item"
-          onClick={handleFit}
+          onClick={() => {
+            closeMenu();
+            togglePlay();
+          }}
         >
           <div className="df-app-context-left">
-            <Maximize2 size={14} />
-            <span>Fit to Viewport</span>
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+            <span>{isPlaying ? 'Pause' : 'Play'}</span>
           </div>
-          <span className="df-app-context-shortcut">0</span>
+          <span className="df-app-context-shortcut">Space</span>
         </button>
 
         <button
@@ -583,14 +586,14 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
           className="df-app-context-item"
           onClick={() => {
             closeMenu();
-            resetZoom();
+            addAnimationTrack();
           }}
         >
           <div className="df-app-context-left">
-            <ZoomIn size={14} />
-            <span>Actual Size (100%)</span>
+            <Plus size={14} />
+            <span>Add Track</span>
           </div>
-          <span className="df-app-context-shortcut">1</span>
+          <span className="df-app-context-shortcut">T</span>
         </button>
 
         <button
@@ -598,69 +601,14 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
           className="df-app-context-item"
           onClick={() => {
             closeMenu();
-            toggleBeforeAfter();
+            setCurrentTime(0);
           }}
         >
           <div className="df-app-context-left">
-            <MoveHorizontal size={14} />
-            <span>Toggle Compare</span>
+            <SkipBack size={14} />
+            <span>Jump to Start</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {showBeforeAfter && <Check size={12} style={{ color: 'var(--text-main)' }} />}
-            <span className="df-app-context-shortcut">\</span>
-          </div>
-        </button>
-
-        <div className="df-app-context-divider" />
-
-        {/* Section: Undo / Redo */}
-        <button
-          type="button"
-          className="df-app-context-item"
-          disabled={!canUndo}
-          onClick={() => {
-            closeMenu();
-            undo();
-          }}
-        >
-          <div className="df-app-context-left">
-            <Undo size={14} />
-            <span>Undo</span>
-          </div>
-          <span className="df-app-context-shortcut">Ctrl+Z</span>
-        </button>
-
-        <button
-          type="button"
-          className="df-app-context-item"
-          disabled={!canRedo}
-          onClick={() => {
-            closeMenu();
-            redo();
-          }}
-        >
-          <div className="df-app-context-left">
-            <Redo size={14} />
-            <span>Redo</span>
-          </div>
-          <span className="df-app-context-shortcut">Ctrl+Shift+Z</span>
-        </button>
-
-        <div className="df-app-context-divider" />
-
-        {/* Section 3: Reset Controls */}
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            resetAllAdjustments();
-          }}
-        >
-          <div className="df-app-context-left">
-            <RotateCcw size={14} />
-            <span>Reset Adjustments</span>
-          </div>
+          <span className="df-app-context-shortcut">Home</span>
         </button>
 
         <button
@@ -668,130 +616,18 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
           className="df-app-context-item"
           onClick={() => {
             closeMenu();
-            resetCurrentAlgoParams();
+            setCurrentTime(duration);
           }}
         >
           <div className="df-app-context-left">
-            <RotateCcw size={14} />
-            <span>Reset Algorithm Parameters</span>
+            <SkipForward size={14} />
+            <span>Jump to End</span>
           </div>
+          <span className="df-app-context-shortcut">End</span>
         </button>
-
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            resetAll();
-          }}
-        >
-          <div className="df-app-context-left">
-            <RefreshCw size={14} />
-            <span>Reset All</span>
-          </div>
-        </button>
-
-        {/* Section 4: Animation Controls (active in animation mode) */}
-        {appMode === 'animation' && (
-          <>
-            <div className="df-app-context-divider" />
-            <div className="df-app-context-section-label">Animation</div>
-
-            <button
-              type="button"
-              className="df-app-context-item"
-              onClick={() => {
-                closeMenu();
-                togglePlay();
-              }}
-            >
-              <div className="df-app-context-left">
-                {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-                <span>{isPlaying ? 'Pause' : 'Play'}</span>
-              </div>
-              <span className="df-app-context-shortcut">Space</span>
-            </button>
-
-            <button
-              type="button"
-              className="df-app-context-item"
-              onClick={() => {
-                closeMenu();
-                addAnimationTrack();
-              }}
-            >
-              <div className="df-app-context-left">
-                <Plus size={14} />
-                <span>Add Track</span>
-              </div>
-              <span className="df-app-context-shortcut">T</span>
-            </button>
-
-            <button
-              type="button"
-              className="df-app-context-item"
-              onClick={() => {
-                closeMenu();
-                setCurrentTime(0);
-              }}
-            >
-              <div className="df-app-context-left">
-                <SkipBack size={14} />
-                <span>Jump to Start</span>
-              </div>
-              <span className="df-app-context-shortcut">Home</span>
-            </button>
-
-            <button
-              type="button"
-              className="df-app-context-item"
-              onClick={() => {
-                closeMenu();
-                setCurrentTime(duration);
-              }}
-            >
-              <div className="df-app-context-left">
-                <SkipForward size={14} />
-                <span>Jump to End</span>
-              </div>
-              <span className="df-app-context-shortcut">End</span>
-            </button>
           </>
-        )}
-
-        <div className="df-app-context-divider" />
-
-        {/* Section 5: Preferences & Manual */}
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            if (onOpenSettings) onOpenSettings();
-          }}
-        >
-          <div className="df-app-context-left">
-            <Settings size={14} />
-            <span>Preferences…</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          className="df-app-context-item"
-          onClick={() => {
-            closeMenu();
-            if (onOpenManual) onOpenManual();
-            else setIsManualOpen(true);
-          }}
-        >
-          <div className="df-app-context-left">
-            <BookOpen size={14} />
-            <span>Algorithm Manual…</span>
-          </div>
-        </button>
-      </>
-        )}
+        )
+      }
       </div>
     </>
   );

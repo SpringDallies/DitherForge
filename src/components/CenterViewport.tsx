@@ -1161,6 +1161,7 @@ export const CenterViewport: React.FC = () => {
   const isRenderingRef = useRef<boolean>(false);
   const pendingRenderRef = useRef<boolean>(false);
   const renderLogTimeRef = useRef<number>(0);
+  const slowDitherTimerRef = useRef<number | null>(null);
 
   const executeRenderPipeline = useCallback(async (overrideTime?: number, preRender = false) => {
     const addDevLog = useAppStore.getState().addDevLog;
@@ -1187,12 +1188,23 @@ export const CenterViewport: React.FC = () => {
       addDevLog('info', 'render', `Execute render pipeline ${w}x${h} preRender=${preRender} mode=${appMode} quality=${previewQuality}`);
     }
 
-    let slowDitherTimer: number | null = window.setTimeout(() => {
+    let slowDitherTimer: number | null = slowDitherTimerRef.current;
+    if (slowDitherTimer !== null) {
+      window.clearTimeout(slowDitherTimer);
+    }
+    slowDitherTimer = window.setTimeout(() => {
       setShowSlowDitherAnvil(true);
     }, 2000);
+    slowDitherTimerRef.current = slowDitherTimer;
 
+    // Yield one animation frame so the browser can paint the overlay if the
+    // timer triggers before heavy JS work blocks the main thread.
+    if (EngineBridge.getLastBackend() !== "rust") {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    const currentNonce = ++renderNonceRef.current;
     try {
-      const currentNonce = ++renderNonceRef.current;
 
     const fullWidth = sourceImageData.width;
     const fullHeight = sourceImageData.height;
@@ -1641,11 +1653,14 @@ export const CenterViewport: React.FC = () => {
       }
     }
   } finally {
-    if (slowDitherTimer !== null) {
-      clearTimeout(slowDitherTimer);
-      slowDitherTimer = null;
+    // Only hide the anvil when the LATEST render completes
+    if (currentNonce === renderNonceRef.current) {
+      if (slowDitherTimerRef.current !== null) {
+        window.clearTimeout(slowDitherTimerRef.current);
+        slowDitherTimerRef.current = null;
+      }
+      setShowSlowDitherAnvil(false);
     }
-    setShowSlowDitherAnvil(false);
     isRenderingRef.current = false;
     if (pendingRenderRef.current) {
       pendingRenderRef.current = false;

@@ -2,6 +2,7 @@
    Performance-Optimized Clean Desktop Workstation Aesthetic */
 @import './themes.css';
 @import './main.css';
+@import './loading.css';
 
 *,
 *::before,
@@ -1152,7 +1153,7 @@ body {
 .top-action-block {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3, 12px);
+  gap: 0;
   margin-bottom: 0;
   padding-bottom: 0;
 }
@@ -2555,6 +2556,56 @@ button .btn-icon:hover,
   left: -12px;
   width: 12px;
   height: 100%;
+}
+
+.df-portaled-themes-menu {
+  min-width: 200px !important;
+  max-height: 280px !important;
+  padding: 6px !important;
+  gap: 2px !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  border-radius: 12px !important;
+}
+
+/* Invisible hover bridge across the 12px gap between View menu and Themes submenu */
+.df-portaled-themes-menu::before {
+  content: '';
+  position: fixed;
+  width: 40px;
+  height: 280px;
+  margin-left: -52px;
+  margin-top: 0;
+  pointer-events: auto;
+  z-index: 10000;
+}
+
+.df-portaled-themes-menu::-webkit-scrollbar {
+  width: 5px;
+}
+.df-portaled-themes-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.df-portaled-themes-menu::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 999px;
+}
+
+html[data-glass-blur="true"] .df-portaled-themes-menu {
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent) !important;
+  backdrop-filter: blur(var(--glass-blur-radius, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px)) saturate(140%) !important;
+  border: 1px solid var(--border-color);
+}
+
+.df-portaled-themes-menu .dropdown-menu-item {
+  flex-shrink: 0 !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  gap: 8px !important;
+  font-size: 0.78rem !important;
+  border-radius: 7px !important;
 }
 .shortcut-kbd {
   background-color: var(--bg-tertiary);
@@ -4993,7 +5044,7 @@ body {
   background: transparent;
   border: none;
   border-radius: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: none;
   color: var(--text-dim);
   font-size: 0.78rem;
   font-weight: 600;
@@ -5015,7 +5066,6 @@ body {
 .topbar-menu-pill .switch-btn:last-child {
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
-  border-right: none;
 }
 
 .topbar-menu-pill .switch-btn:hover:not(:disabled) {

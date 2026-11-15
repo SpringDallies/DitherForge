@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './styles/shell.css';
 import './styles/logo.css';
 import './styles/loading.css';
+import { LoadingScreen } from './components/common/LoadingScreen';
 import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
 import { CenterViewport } from './components/CenterViewport';
@@ -15,6 +16,24 @@ import { ffmpegService } from './services/ffmpegService';
 import { EngineBridge } from './services/EngineBridge';
 
 export const App: React.FC = () => {
+  const [isBooting, setIsBooting] = useState(true);
+
+  // Boot splash: show fullscreen 3D anvil logo for a minimum of 1.2s while
+  // fonts/images/EngineBridge initialize, so the app never boots straight into
+  // the editor without a visible loading state.
+  useEffect(() => {
+    let mounted = true;
+    const minSplash = new Promise((res) => setTimeout(res, 1200));
+
+    minSplash.finally(() => {
+      if (mounted) setIsBooting(false);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const activeTheme = useAppStore((state) => state.activeTheme);
   const isFullScreen = useAppStore((state) => state.isFullScreen);
   const toggleFullScreen = useAppStore((state) => state.toggleFullScreen);
@@ -293,6 +312,7 @@ export const App: React.FC = () => {
       className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
       data-theme={activeTheme}
     >
+      {isBooting && <LoadingScreen fullscreen size={220} />}
       {/* Full-screen Edge-Peek Zone */}
       {isFullScreen && (
         <div

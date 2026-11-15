@@ -402,8 +402,6 @@ export const CenterViewport: React.FC = () => {
   const appMode = useAppStore((state) => state.appMode);
   const setAppMode = useAppStore((state) => state.setAppMode);
   const videoPlaybackMode = useAppStore((state) => state.videoPlaybackMode);
-  const videoRenderMode = useAppStore((state) => state.videoRenderMode);
-  const previewMode = useAppStore((state) => state.previewMode ?? state.videoRenderMode);
 
   const hasConfiguredAnimation = useAppStore((state) => state.hasConfiguredAnimation);
   const setHasConfiguredAnimation = useAppStore((state) => state.setHasConfiguredAnimation);
@@ -586,7 +584,6 @@ export const CenterViewport: React.FC = () => {
     savedPalettes,
     paletteDepth,
     effects,
-    videoRenderMode,
     previewQuality,
     animationTracks,
     duration,
@@ -1201,10 +1198,10 @@ export const CenterViewport: React.FC = () => {
 
     const activeTime = typeof overrideTime === 'number' ? overrideTime : useAppStore.getState().currentTime;
 
-    // Video: "Rendered" vs "Quick" behavior
-    // In "Rendered" mode, frames are pre-rendered at full resolution and cached by frame index with LRU byte eviction!
+    // Video: frames are cached on-demand at full resolution with LRU byte eviction
+    // First render of a frame is stored; subsequent loops/scrubs hit the cache instantly
     const frameIndex = appMode === 'animation' ? Math.round(activeTime * fps) : 0;
-    if (appMode === 'animation' && videoRenderMode === 'rendered' && !showBeforeAfter && !isOriginalView && !sourceVideoUrl) {
+    if (appMode === 'animation' && !showBeforeAfter && !isOriginalView && !sourceVideoUrl) {
       const cache = renderedFramesCacheRef.current;
       const cachedFrame = cache.get(frameIndex);
       if (cachedFrame && cachedFrame.width === fullWidth && cachedFrame.height === fullHeight) {
@@ -1218,9 +1215,6 @@ export const CenterViewport: React.FC = () => {
     }
 
     let effectiveQuality = previewQuality;
-    if (appMode === 'animation' && (videoRenderMode === 'rendered' || previewMode === 'rendered')) {
-      effectiveQuality = 'full';
-    }
 
     // If a video source is active, grab current video frame if ready
     let activeBaseImage = sourceImageData;
@@ -1261,7 +1255,7 @@ export const CenterViewport: React.FC = () => {
     // Quick mode renders at full resolution, just-in-time — no downsampling, no quality loss
     // Rendered mode uses full resolution (effectiveQuality = 'full')
     // Proxy quality reduction only applies to still-image preview (low/mid), not animation playback
-    const isQuickPlayback = appMode === 'animation' && isPlaying && videoRenderMode === 'quick';
+    const isQuickPlayback = appMode === 'animation' && isPlaying;
     if (!sourceVideoUrl && !isQuickPlayback) {
       if (!proxyCacheRef.current || proxyCacheRef.current.source !== activeBaseImage) {
         const lowScale = Math.min(0.25, 640 / Math.max(fullWidth, fullHeight));
@@ -1380,7 +1374,7 @@ export const CenterViewport: React.FC = () => {
       JSON.stringify(effAlgoParams),
       JSON.stringify(effEffects),
       sourceVideoUrl ? Math.round(activeTime * 30) : '',
-      appMode === 'animation' && (animatedNoiseActive || animationTracks.length > 0 || sourceVideoUrl)
+      appMode === 'animation'
         ? frameIndex
         : ''
     ].join('::');
@@ -1551,10 +1545,9 @@ export const CenterViewport: React.FC = () => {
       useAppStore.getState().setBackendError(EngineBridge.lastError);
     }
 
-    // Store in Rendered frame cache when Video: Rendered mode is active (strictly bounded to 128 MB)
+    // Store in Rendered frame cache (strictly bounded to 128 MB)
     if (
       appMode === 'animation' &&
-      videoRenderMode === 'rendered' &&
       width === fullWidth &&
       height === fullHeight &&
       !sourceVideoUrl
@@ -1655,8 +1648,6 @@ export const CenterViewport: React.FC = () => {
     sourceVideoUrl,
     previewQuality,
     appMode,
-    videoRenderMode,
-    previewMode,
     isPlaying,
     isScrubbingTimeline,
     currentTime,
@@ -1686,39 +1677,6 @@ export const CenterViewport: React.FC = () => {
   ]);
 
   executeRenderPipelineRef.current = executeRenderPipeline;
-
-  // Pre-render all frames upfront when in Rendered mode — zero lag during playback
-  const preRenderAllFrames = useCallback(async () => {
-    if (appMode !== 'animation' || videoRenderMode !== 'rendered' || !sourceImageData) return;
-    const totalFps = Math.max(1, fps || 30);
-    const totalFrames = Math.max(1, Math.round((duration || 15) * totalFps));
-    const cache = renderedFramesCacheRef.current;
-    let preRendered = 0;
-    for (let i = 0; i < totalFrames; i++) {
-      if (videoRenderMode !== 'rendered') break; // Abort if mode changed
-      if (cache.has(i)) continue; // Already cached
-      const frameTime = i / totalFps;
-      let attempts = 0;
-      while (!cache.has(i) && attempts < 10 && videoRenderMode === 'rendered') {
-        await executeRenderPipeline(frameTime, true);
-        if (!cache.has(i)) {
-          await new Promise(resolve => setTimeout(resolve, 30));
-        }
-        attempts++;
-      }
-      if (cache.has(i)) preRendered++;
-      // Yield to UI every 10 frames to keep page responsive
-      if (preRendered % 10 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
-    }
-  }, [appMode, videoRenderMode, sourceImageData, duration, fps, executeRenderPipeline]);
-
-  useEffect(() => {
-    if (videoRenderMode === 'rendered' && appMode === 'animation' && sourceImageData) {
-      preRenderAllFrames();
-    }
-  }, [videoRenderMode, appMode, sourceImageData, preRenderAllFrames]);
 
   useEffect(() => {
     if (!sourceImageData) return;

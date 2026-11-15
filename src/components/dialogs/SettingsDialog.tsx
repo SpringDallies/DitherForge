@@ -8,6 +8,11 @@ import { invoke } from '@tauri-apps/api/core';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 
+export type LogoSharpness = 'pixelated' | 'crisp' | 'smooth';
+export type LogoDitherStyle = 'bayer4' | 'bayer2' | 'bayer8' | 'halftone' | 'scanline' | 'checker' | 'none';
+export type LogoMode = '3d' | '2d';
+export type LogoCursorReact = 'direct' | 'sidebar' | 'global' | 'off';
+
 export interface DitherForgeSettings {
   defaultUpdateMode: 'precise' | 'live' | 'settle';
   liveProxyEnabled: boolean;
@@ -25,6 +30,19 @@ export interface DitherForgeSettings {
   shadows: boolean;
   animations: boolean;
   highQualityZoom: boolean;
+  // 3D / 2D Anvil Logo Settings
+  logoMode: LogoMode;
+  logoResolution: 64 | 128 | 256 | 512;
+  logoSharpness: LogoSharpness;
+  logoDitherStyle: LogoDitherStyle;
+  logoColorSteps: number;
+  logoDitherStrength: number;
+  logoSpeed: number;
+  logoWiggle: number;
+  logoCursorReact: LogoCursorReact;
+  logoCursorSensitivity: number;
+  logoInteractiveClick: boolean;
+  logoPeriodicShine: boolean;
 }
 
 export const DEFAULT_SETTINGS: DitherForgeSettings = {
@@ -43,15 +61,27 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   shadows: true,
   animations: true,
   highQualityZoom: true,
+  // Default Logo Settings matching user specification
+  logoMode: '2d',
+  logoDitherStyle: 'none',
+  logoSharpness: 'smooth',
+  logoResolution: 256,
+  logoColorSteps: 16,
+  logoDitherStrength: 2.0,
+  logoSpeed: 0.05,
+  logoWiggle: 0.0,
+  logoCursorReact: 'sidebar',
+  logoCursorSensitivity: 0.4,
+  logoInteractiveClick: true,
+  logoPeriodicShine: true,
 };
 
 const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
+const SETTINGS_VERSION = 2;
 
 export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   if (typeof document === 'undefined') return;
-  // Glass blur is disabled on Linux — WebKitGTK doesn't support backdrop-filter properly
-  const isLinux = typeof navigator !== 'undefined' && /linux/i.test(navigator.platform);
-  const isGlass = !isLinux && settings.glassBlur !== false;
+  const isGlass = settings.glassBlur !== false;
   const isTopbarGlass = isGlass && settings.topbarGlass !== false;
   document.documentElement.setAttribute('data-glass-blur', isGlass ? 'true' : 'false');
   document.documentElement.setAttribute('data-topbar-glass', isTopbarGlass ? 'true' : 'false');
@@ -75,7 +105,29 @@ export function getStoredSettings(): DitherForgeSettings {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      if (parsed._v === SETTINGS_VERSION) {
+        return { ...DEFAULT_SETTINGS, ...parsed };
+      }
+      // Migrate to v2 logo defaults while preserving user's non-logo preferences
+      const migrated = {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        logoMode: parsed.logoMode ?? DEFAULT_SETTINGS.logoMode,
+        logoDitherStyle: DEFAULT_SETTINGS.logoDitherStyle,
+        logoSharpness: DEFAULT_SETTINGS.logoSharpness,
+        logoResolution: DEFAULT_SETTINGS.logoResolution,
+        logoColorSteps: DEFAULT_SETTINGS.logoColorSteps,
+        logoDitherStrength: DEFAULT_SETTINGS.logoDitherStrength,
+        logoSpeed: DEFAULT_SETTINGS.logoSpeed,
+        logoWiggle: DEFAULT_SETTINGS.logoWiggle,
+        logoCursorReact: DEFAULT_SETTINGS.logoCursorReact,
+        logoCursorSensitivity: DEFAULT_SETTINGS.logoCursorSensitivity,
+        logoInteractiveClick: DEFAULT_SETTINGS.logoInteractiveClick,
+        logoPeriodicShine: DEFAULT_SETTINGS.logoPeriodicShine,
+        _v: SETTINGS_VERSION,
+      };
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
     }
   } catch {}
   return DEFAULT_SETTINGS;
@@ -83,7 +135,8 @@ export function getStoredSettings(): DitherForgeSettings {
 
 export function saveStoredSettings(settings: DitherForgeSettings): void {
   try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    const payload = { ...settings, _v: SETTINGS_VERSION };
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(payload));
     applyPerformanceSettings(settings);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('ditherforge_settings_changed', { detail: settings }));
@@ -258,9 +311,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           <div className="settings-section">
             <div className="settings-section-title">PERFORMANCE</div>
 
-            {typeof navigator === 'undefined' || !/linux/i.test(navigator.platform) && (
-              <>
-            <div className="settings-row">
+            <>
+              <div className="settings-row">
               <div>
                 <div className="settings-label">Glass blur effect</div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
@@ -374,8 +426,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 ]}
               />
             </div>
-              </>
-            )}
+            </>
 
             <div className="settings-row">
               <div>
@@ -430,6 +481,298 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 ]}
               />
             </div>
+          </div>
+
+          {/* Section: 3D ANVIL LOGO */}
+          <div className="settings-section">
+            <div className="settings-section-title">3D ANVIL LOGO</div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Logo mode (2D / 3D)</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Switch between the interactive 3D extruded anvil and a flat 2D silhouette logo.
+                </div>
+              </div>
+              <Dropdown
+                width={150}
+                value={settings.logoMode ?? '2d'}
+                onChange={(val) => updateSetting('logoMode', val as LogoMode)}
+                items={[
+                  { id: '2d', label: '2D Flat Logo' },
+                  { id: '3d', label: '3D Anvil' }
+                ]}
+              />
+            </div>
+
+            {settings.logoMode === '3d' && (
+              <>
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-label">Logo dither style</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Shader dither pattern applied across the 3D anvil's metallic quantization bands.
+                    </div>
+                  </div>
+                  <Dropdown
+                    width={150}
+                    value={settings.logoDitherStyle ?? 'none'}
+                    onChange={(val) => updateSetting('logoDitherStyle', val as LogoDitherStyle)}
+                    items={[
+                      { id: 'bayer4', label: 'Bayer 4x4' },
+                      { id: 'bayer2', label: 'Bayer 2x2' },
+                      { id: 'bayer8', label: 'Bayer 8x8' },
+                      { id: 'halftone', label: 'Halftone Dot' },
+                      { id: 'scanline', label: 'Scanlines' },
+                      { id: 'checker', label: 'Checkerboard' },
+                      { id: 'none', label: 'Smooth (No Dither)' }
+                    ]}
+                  />
+                </div>
+
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-label">Edge sharpness & filtering</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Pixelated keeps raw dither pixels; Smooth enables hardware anti-aliasing.
+                    </div>
+                  </div>
+                  <Dropdown
+                    width={150}
+                    value={settings.logoSharpness ?? 'pixelated'}
+                    onChange={(val) => updateSetting('logoSharpness', val as LogoSharpness)}
+                    items={[
+                      { id: 'pixelated', label: 'Pixelated (Retro)' },
+                      { id: 'crisp', label: 'Crisp Edges' },
+                      { id: 'smooth', label: 'Smooth (MSAA)' }
+                    ]}
+                  />
+                </div>
+
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-label">Render resolution</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Internal WebGL canvas grid density (lower = chunkier pixels, higher = finer detail).
+                    </div>
+                  </div>
+                  <Dropdown
+                    width={150}
+                    value={String(settings.logoResolution ?? 128)}
+                    onChange={(val) => updateSetting('logoResolution', parseInt(val, 10) as 64 | 128 | 256 | 512)}
+                    items={[
+                      { id: '64', label: '64 × 64 (Chunky)' },
+                      { id: '128', label: '128 × 128 (Default)' },
+                      { id: '256', label: '256 × 256 (Sharp)' },
+                      { id: '512', label: '512 × 512 (Ultra)' }
+                    ]}
+                  />
+                </div>
+
+                <div className="settings-row">
+                  <div style={{ flex: 1, paddingRight: '16px' }}>
+                    <div className="settings-label">Shading bands (Posterize steps)</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Number of metallic tone steps on the anvil surface.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="2"
+                      max="16"
+                      step="1"
+                      value={settings.logoColorSteps ?? 5}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        '--slider-fill': `${(((settings.logoColorSteps ?? 5) - 2) / 14) * 100}%`
+                      } as React.CSSProperties}
+                      onChange={(e) => updateSetting('logoColorSteps', parseInt(e.target.value, 10))}
+                    />
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)' }}>
+                      {settings.logoColorSteps ?? 5}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="settings-row">
+                  <div style={{ flex: 1, paddingRight: '16px' }}>
+                    <div className="settings-label">Dither spread strength</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Intensity of the dither transition between shading bands.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="0"
+                      max="2"
+                      step="0.05"
+                      value={settings.logoDitherStrength ?? 1.0}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        '--slider-fill': `${((settings.logoDitherStrength ?? 1.0) / 2.0) * 100}%`
+                      } as React.CSSProperties}
+                      onChange={(e) => updateSetting('logoDitherStrength', parseFloat(e.target.value))}
+                    />
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)' }}>
+                      {Math.round((settings.logoDitherStrength ?? 1.0) * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="settings-row">
+                  <div style={{ flex: 1, paddingRight: '16px' }}>
+                    <div className="settings-label">Animation speed</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      How fast or slow the anvil breathes, drifts, and orbits light (0% = frozen).
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="0"
+                      max="3"
+                      step="0.05"
+                      value={settings.logoSpeed ?? 1.0}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        '--slider-fill': `${((settings.logoSpeed ?? 1.0) / 3.0) * 100}%`
+                      } as React.CSSProperties}
+                      onChange={(e) => updateSetting('logoSpeed', parseFloat(e.target.value))}
+                    />
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)' }}>
+                      {Math.round((settings.logoSpeed ?? 1.0) * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="settings-row">
+                  <div style={{ flex: 1, paddingRight: '16px' }}>
+                    <div className="settings-label">Wiggle & float amount</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Amplitude of idle organic rotation, bobbing, and breathing scale.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="0"
+                      max="3"
+                      step="0.05"
+                      value={settings.logoWiggle ?? 1.0}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        '--slider-fill': `${((settings.logoWiggle ?? 1.0) / 3.0) * 100}%`
+                      } as React.CSSProperties}
+                      onChange={(e) => updateSetting('logoWiggle', parseFloat(e.target.value))}
+                    />
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)' }}>
+                      {Math.round((settings.logoWiggle ?? 1.0) * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-label">Cursor hover tracking</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Choose whether the anvil follows the pointer across the window, only in the sidebar, or not at all.
+                    </div>
+                  </div>
+                  <Dropdown
+                    width={150}
+                    value={settings.logoCursorReact ?? 'direct'}
+                    onChange={(val) => updateSetting('logoCursorReact', val as LogoCursorReact)}
+                    items={[
+                      { id: 'direct', label: 'Direct Hover Only' },
+                      { id: 'sidebar', label: 'Near Sidebar' },
+                      { id: 'global', label: 'Global (Window)' },
+                      { id: 'off', label: 'Off' }
+                    ]}
+                  />
+                </div>
+
+                <div
+                  className="settings-row"
+                  style={{
+                    opacity: (settings.logoCursorReact ?? 'direct') !== 'off' ? 1 : 0.45,
+                    pointerEvents: (settings.logoCursorReact ?? 'direct') !== 'off' ? 'auto' : 'none',
+                    transition: 'opacity 0.15s ease'
+                  }}
+                >
+                  <div style={{ flex: 1, paddingRight: '16px' }}>
+                    <div className="settings-label">Cursor tracking sensitivity</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      How strongly the anvil tilts toward the hovered cursor position.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '180px', flexShrink: 0, paddingRight: '6px' }}>
+                    <input
+                      type="range"
+                      className="control-slider"
+                      min="0.1"
+                      max="2.5"
+                      step="0.05"
+                      value={settings.logoCursorSensitivity ?? 0.4}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        '--slider-fill': `${(((settings.logoCursorSensitivity ?? 0.4) - 0.1) / 2.4) * 100}%`
+                      } as React.CSSProperties}
+                      onChange={(e) => updateSetting('logoCursorSensitivity', parseFloat(e.target.value))}
+                    />
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '40px', textAlign: 'right', color: 'var(--text-main)' }}>
+                      {Math.round((settings.logoCursorSensitivity ?? 0.4) * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-label">Click sparks, recoil & blush</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Spawn 3D forge sparks, spring recoil, glowing blush rods, and steam when clicking the anvil.
+                    </div>
+                  </div>
+                  <Dropdown
+                    width={150}
+                    value={settings.logoInteractiveClick !== false ? 'enabled' : 'disabled'}
+                    onChange={(val) => updateSetting('logoInteractiveClick', val === 'enabled')}
+                    items={[
+                      { id: 'enabled', label: 'Enabled' },
+                      { id: 'disabled', label: 'Disabled' }
+                    ]}
+                  />
+                </div>
+
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-label">Periodic metallic glint sweep</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      Occasional diagonal specular light band sweeping across the anvil face.
+                    </div>
+                  </div>
+                  <Dropdown
+                    width={150}
+                    value={settings.logoPeriodicShine !== false ? 'enabled' : 'disabled'}
+                    onChange={(val) => updateSetting('logoPeriodicShine', val === 'enabled')}
+                    items={[
+                      { id: 'enabled', label: 'Enabled' },
+                      { id: 'disabled', label: 'Disabled' }
+                    ]}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Section: EXPERIMENTAL */}

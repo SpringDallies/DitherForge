@@ -8,6 +8,7 @@ import {
   getDynamicStyleAnimatableProps
 } from '../state/useAppStore';
 import { Dropdown } from './common/Dropdown';
+import { LoadingScreen } from './common/LoadingScreen';
 import { getStoredSettings, DitherForgeSettings } from './dialogs/SettingsDialog';
 import { downsampleAreaGamma } from '../utils/areaDownsample';
 // @ts-ignore
@@ -368,6 +369,7 @@ export const CenterViewport: React.FC = () => {
   const scrubRafRef = useRef<number | null>(null);
   const trackDragRafRef = useRef<number | null>(null);
   const lastRenderMsUpdateWallRef = useRef<number>(0);
+  const [showSlowDitherAnvil, setShowSlowDitherAnvil] = useState(false);
 
   const hasImage = useAppStore((state) => state.hasImage);
   const sourceImageData = useAppStore((state) => state.sourceImageData);
@@ -1185,6 +1187,10 @@ export const CenterViewport: React.FC = () => {
       addDevLog('info', 'render', `Execute render pipeline ${w}x${h} preRender=${preRender} mode=${appMode} quality=${previewQuality}`);
     }
 
+    let slowDitherTimer: number | null = window.setTimeout(() => {
+      setShowSlowDitherAnvil(true);
+    }, 2000);
+
     try {
       const currentNonce = ++renderNonceRef.current;
 
@@ -1635,6 +1641,11 @@ export const CenterViewport: React.FC = () => {
       }
     }
   } finally {
+    if (slowDitherTimer !== null) {
+      clearTimeout(slowDitherTimer);
+      slowDitherTimer = null;
+    }
+    setShowSlowDitherAnvil(false);
     isRenderingRef.current = false;
     if (pendingRenderRef.current) {
       pendingRenderRef.current = false;
@@ -1986,6 +1997,12 @@ export const CenterViewport: React.FC = () => {
                 imageRendering: isSmoothDownscale ? 'auto' : 'pixelated'
               }}
             />
+            {showSlowDitherAnvil && (
+              <LoadingScreen
+                overlayOverImage
+                size={Math.max(72, Math.min(220, Math.round(Math.min(sourceImageData.width, sourceImageData.height) * 0.45)))}
+              />
+            )}
             {!isOriginalView && showBeforeAfter && canvasRef.current && (
               <>
                 <div

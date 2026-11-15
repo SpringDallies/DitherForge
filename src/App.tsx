@@ -16,21 +16,29 @@ import { ffmpegService } from './services/ffmpegService';
 import { EngineBridge } from './services/EngineBridge';
 
 export const App: React.FC = () => {
-  const [isBooting, setIsBooting] = useState(true);
+  const [isReady, setIsReady] = useState(false);
 
-  // Boot splash: show fullscreen 3D anvil logo for a minimum of 1.2s while
-  // fonts/images/EngineBridge initialize, so the app never boots straight into
-  // the editor without a visible loading state.
+  // Single loading state tied directly to app readiness.
+  // Shows fullscreen 3D anvil logo until the UI is ready;
+  // then reveals the Tauri window (if hidden) and dismisses the splash.
   useEffect(() => {
-    let mounted = true;
-    const minSplash = new Promise((res) => setTimeout(res, 1200));
+    let cancelled = false;
+    const readyPromise = EngineBridge.isTauri()
+      ? EngineBridge.isRustAvailable()
+      : Promise.resolve();
 
-    minSplash.finally(() => {
-      if (mounted) setIsBooting(false);
+    readyPromise.then(() => {
+      if (cancelled) return;
+      setIsReady(true);
+      if (EngineBridge.isTauri()) {
+        import('@tauri-apps/api/core')
+          .then(({ invoke }) => invoke('show_main_window'))
+          .catch(() => {});
+      }
     });
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, []);
 
@@ -108,64 +116,6 @@ export const App: React.FC = () => {
     } catch {}
   }, []);
   const peekTimerRef = useRef<number | null>(null);
-
-  // App boot: dismiss boot-loader only after everything is fully loaded
-  useEffect(() => {
-    let active = true;
-    let cleanupDone = false;
-
-    const finishBoot = () => {
-      if (active && !cleanupDone) {
-        cleanupDone = true;
-        const w = window as any;
-        const invokeFn = w.__TAURI_INTERNALS__?.invoke || w.__TAURI__?.core?.invoke;
-        if (typeof invokeFn === 'function') {
-          invokeFn('show_main_window').catch(() => {});
-        }
-        const loader = document.getElementById('boot-loader');
-        if (loader) {
-          loader.style.transition = 'opacity 120ms ease-out';
-          loader.style.opacity = '0';
-          setTimeout(() => loader.remove(), 130);
-        }
-      }
-    };
-
-    const checkAllLoaded = () => {
-          // Wait for fonts
-          const fontsReady = document.fonts?.ready ? document.fonts.ready : Promise.resolve();
-
-          // Wait for all images in the document to load
-          const images = Array.from(document.images);
-          const imagesLoaded = Promise.all(images.map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise(resolve => {
-              img.onload = img.onerror = resolve;
-            });
-          }));
-
-          // Wait for next paint after everything else
-          const nextPaint = new Promise(resolve => requestAnimationFrame(resolve));
-
-          Promise.all([fontsReady, imagesLoaded, nextPaint])
-            .then(finishBoot)
-            .catch(finishBoot);
-        };
-
-    // Safety timeout: dismiss boot-loader even if external resources hang
-    const safetyTimer = setTimeout(finishBoot, 1000);
-
-    // Start checking after React has mounted and painted
-    const raf1 = requestAnimationFrame(() => {
-      requestAnimationFrame(checkAllLoaded);
-    });
-
-    return () => {
-      active = false;
-      clearTimeout(safetyTimer);
-      cancelAnimationFrame(raf1);
-    };
-  }, []);
 
   // Sync theme with document root & body
   useEffect(() => {
@@ -307,12 +257,15 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  if (!isReady) {
+    return <LoadingScreen fullscreen size={220} />;
+  }
+
   return (
     <div
       className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
       data-theme={activeTheme}
     >
-      {isBooting && <LoadingScreen fullscreen size={220} />}
       {/* Full-screen Edge-Peek Zone */}
       {isFullScreen && (
         <div

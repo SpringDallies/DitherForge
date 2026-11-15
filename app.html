@@ -11,67 +11,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     html, body { margin: 0; font-family: 'Inter', sans-serif; }
-    .boot-loader {
-      position: fixed; inset: 0; z-index: 9999;
-      display: flex; align-items: center; justify-content: center;
-      user-select: none;
-    }
-    .boot-loader-logo {
-      height: 210px; width: auto; display: block;
-      animation: boot-pulse 2.5s ease-in-out infinite;
-      filter: none;
-    }
-    @keyframes boot-pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.03); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .boot-loader-logo { animation: none; }
-    }
+    html, body, #root { margin: 0; height: 100%; width: 100%; background-color: #101014; }
   </style>
+  <script>
+    try {
+      const t = localStorage.getItem('ditherforge_theme') || 'dark_pro';
+      document.documentElement.setAttribute('data-theme', t);
+      document.body.style.backgroundColor = 'transparent';
+    } catch {}
+  </script>
 </head>
 <body>
-  <div id="boot-loader" class="boot-loader" style="background:#333333" data-theme="dark_pro">
+  <div id="boot-loader" class="boot-loader" style="background:#101014" data-theme="dark_pro">
   </div>
-  <script>
-    (function() {
-      try {
-        var stored = localStorage.getItem('ditherforge_theme') || 'dark_pro';
-        var themeLogoMap = {
-          'light_pro': 'assets/themes/light_pro.webp',
-          'dark_pro': 'assets/themes/dark_pro.webp',
-          'nord': 'assets/themes/nord.webp',
-          'evergreen': 'assets/themes/evergreen.webp',
-          'gruvbox': 'assets/themes/gruvbox.webp',
-          'catppuccin_mocha': 'assets/themes/catppuccin_mocha.webp',
-          'tokyo_night': 'assets/themes/tokyo_night.webp',
-          'solarized_dark': 'assets/themes/solarized_dark.webp',
-          'one_dark': 'assets/themes/one_dark.webp'
-        };
-        var themeBgMap = {
-          'light_pro': '#DDDDE3',
-          'dark_pro': '#333333',
-          'nord': '#2e3440',
-          'evergreen': '#1b241e',
-          'gruvbox': '#282828',
-          'catppuccin_mocha': '#1e1e2e',
-          'tokyo_night': '#1a1b26',
-          'solarized_dark': '#002b36',
-          'one_dark': '#21252b'
-        };
-        var loader = document.getElementById('boot-loader');
-        var logo = document.getElementById('boot-loader-logo');
-        if (stored && themeBgMap[stored] && loader) {
-          loader.style.background = themeBgMap[stored];
-          loader.setAttribute('data-theme', stored);
-        }
-        if (stored && themeLogoMap[stored] && logo) {
-          logo.src = themeLogoMap[stored];
-        }
-        if (stored) document.documentElement.setAttribute('data-theme', stored);
-      } catch (e) {}
-    })();
-  </script>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
 </body>

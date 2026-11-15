@@ -5,7 +5,6 @@ export interface LoadingScreenProps {
   fullscreen?: boolean;
   imageOverlay?: boolean;
   size?: number | string;
-  fadingOut?: boolean;
   onFirstFrame?: () => void;
 }
 
@@ -13,7 +12,6 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   fullscreen = false,
   imageOverlay = false,
   size,
-  fadingOut = false,
   onFirstFrame
 }) => {
   const modeClass = fullscreen
@@ -22,12 +20,12 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     ? 'loading-screen-image-overlay'
     : 'loading-screen-inline';
 
-  const displaySize = size ?? (fullscreen ? 'min(360px, 80vw)' : 180);
+  const displaySize = size ?? (fullscreen ? 'min(360px, 80vw)' : 220);
 
   return (
     <div
-      className={`loading-screen ${modeClass} ${fadingOut ? 'loading-screen-fadeout' : ''}`.trim()}
-      aria-busy={!fadingOut}
+      className={`loading-screen ${modeClass}`.trim()}
+      aria-busy="true"
       aria-label="Loading DitherForge"
     >
       <AnvilLogo3D

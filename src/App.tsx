@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/shell.css';
 import './styles/logo.css';
 import './styles/loading.css';
@@ -16,9 +16,15 @@ import { ffmpegService } from './services/ffmpegService';
 import { EngineBridge } from './services/EngineBridge';
 
 export const App: React.FC = () => {
-  const [isBootFading, setIsBootFading] = useState(false);
-  const [showBootScreen, setShowBootScreen] = useState(true);
-  const firstFramePaintedRef = useRef<(() => void) | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const firstFrameResolveRef = useRef<(() => void) | null>(null);
+
+  const handleAnvilFirstFrame = useCallback(() => {
+    if (firstFrameResolveRef.current) {
+      firstFrameResolveRef.current();
+      firstFrameResolveRef.current = null;
+    }
+  }, []);
 
   const activeTheme = useAppStore((state) => state.activeTheme);
   const isFullScreen = useAppStore((state) => state.isFullScreen);
@@ -34,69 +40,34 @@ export const App: React.FC = () => {
   const setActiveBackend = useAppStore((state) => state.setActiveBackend);
   const setBackendError = useAppStore((state) => state.setBackendError);
 
-  // 1s boot sequence + proactive Rust IPC probe:
-  // Keeps the workspace mounted underneath the loading overlay so there is
-  // zero blank flash or layout jump when the 1s loading screen dismisses.
-  // The 1000ms timer starts ONLY after the first 3D anvil frame has painted,
-  // guaranteeing a full smooth anvil animation regardless of bundle parse time.
   useEffect(() => {
     let cancelled = false;
-    let unmountTimer: number | null = null;
-
     if (EngineBridge.isTauri()) {
       import('@tauri-apps/api/core')
         .then(({ invoke }) => invoke('show_main_window'))
         .catch(() => {});
     }
 
-    // Wait until the first 3D anvil frame is actually drawn on screen, THEN count 1000ms
-    const firstFramePromise = new Promise<void>((resolve) => {
-      firstFramePaintedRef.current = resolve;
-      // Safety fallback in case WebGL is disabled in headless browser
-      window.setTimeout(resolve, 400);
+    // Wait for the 3D Anvil to paint its first frame (or 300ms fallback), then run the full 1000ms loading animation
+    const firstFramePainted = new Promise<void>((resolve) => {
+      firstFrameResolveRef.current = resolve;
+      window.setTimeout(resolve, 300);
     });
 
-    const minDisplay = firstFramePromise.then(
-      () => new Promise<void>((resolve) => window.setTimeout(resolve, 1000))
+    const minDisplay = firstFramePainted.then(
+      () => new Promise<void>((r) => window.setTimeout(r, 1000))
     );
 
     const backendInit = EngineBridge.isTauri()
-      ? EngineBridge.isRustAvailable()
-          .then((ok) => {
-            if (!cancelled) {
-              setActiveBackend(ok ? 'rust' : 'js');
-              if (!ok) setBackendError('Rust IPC probe failed');
-            }
-            return ok;
-          })
-          .catch((err) => {
-            if (!cancelled) {
-              setActiveBackend('js');
-              setBackendError(String(err ?? 'Rust IPC probe error'));
-            }
-            return false;
-          })
-      : Promise.resolve(true).then(() => {
-          if (!cancelled) {
-            setActiveBackend('js');
-            setBackendError(null);
-          }
-          return true;
-        });
+      ? EngineBridge.isRustAvailable().catch(() => false)
+      : Promise.resolve(true);
 
     Promise.all([minDisplay, backendInit]).then(() => {
-      if (cancelled) return;
-      setIsBootFading(true);
-      unmountTimer = window.setTimeout(() => {
-        if (!cancelled) {
-          setShowBootScreen(false);
-        }
-      }, 220);
+      if (!cancelled) setIsReady(true);
     });
 
     return () => {
       cancelled = true;
-      if (unmountTimer !== null) clearTimeout(unmountTimer);
     };
   }, [setActiveBackend, setBackendError]);
 
@@ -282,25 +253,26 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  if (!isReady) {
+    return (
+      <div
+        className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
+        data-theme={activeTheme}
+      >
+        <LoadingScreen
+          fullscreen
+          size="min(360px, 80vw)"
+          onFirstFrame={handleAnvilFirstFrame}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
       data-theme={activeTheme}
     >
-      {/* 1s Boot Loading Screen Overlay (kept over mounted workspace so there is no layout jump) */}
-      {showBootScreen && (
-        <LoadingScreen
-          fullscreen
-          fadingOut={isBootFading}
-          onFirstFrame={() => {
-            if (firstFramePaintedRef.current) {
-              firstFramePaintedRef.current();
-              firstFramePaintedRef.current = null;
-            }
-          }}
-        />
-      )}
-
       {/* Full-screen Edge-Peek Zone */}
       {isFullScreen && (
         <div

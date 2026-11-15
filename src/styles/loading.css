@@ -1,13 +1,16 @@
-/* LoadingScreen Styles */
-
+/* LoadingScreen Styles — 1:1 with logo.html */
 .loading-screen {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 40px;
   background-color: var(--bg-primary, #101014);
-  transition: background-color 0.5s ease;
+  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1), background-color 0.5s ease;
   user-select: none;
+  -webkit-user-select: none;
   box-sizing: border-box;
+  opacity: 1;
 }
 
 .loading-screen-fullscreen {
@@ -17,6 +20,11 @@
   height: 100vh;
   background-color: var(--bg-primary, #101014);
   z-index: 99999;
+}
+
+.loading-screen-fadeout {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .loading-screen-inline {
@@ -36,6 +44,14 @@
   -webkit-backdrop-filter: blur(6px);
   z-index: 50;
   pointer-events: none;
+}
+
+.loading-screen canvas.df-anvil-3d-logo {
+  display: block;
+  aspect-ratio: 1 / 1;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 
 @media (prefers-reduced-motion: reduce) {

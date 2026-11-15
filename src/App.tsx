@@ -16,33 +16,8 @@ import { ffmpegService } from './services/ffmpegService';
 import { EngineBridge } from './services/EngineBridge';
 
 export const App: React.FC = () => {
-  const [isReady, setIsReady] = useState(false);
-
-  // Reveal the Tauri window immediately so the 3D anvil loading screen is visible
-  // during boot. Keep the full app mounted underneath the overlay so there is
-  // no second blank gap when the loading screen dismisses.
-  useEffect(() => {
-    let cancelled = false;
-
-    if (EngineBridge.isTauri()) {
-      import('@tauri-apps/api/core')
-        .then(({ invoke }) => invoke('show_main_window'))
-        .catch(() => {});
-    }
-
-    const minDisplay = new Promise((r) => setTimeout(r, 900));
-    const backendInit = EngineBridge.isTauri()
-      ? EngineBridge.isRustAvailable().catch(() => false)
-      : Promise.resolve(true);
-
-    Promise.all([minDisplay, backendInit]).then(() => {
-      if (!cancelled) setIsReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [isBootFading, setIsBootFading] = useState(false);
+  const [showBootScreen, setShowBootScreen] = useState(true);
 
   const activeTheme = useAppStore((state) => state.activeTheme);
   const isFullScreen = useAppStore((state) => state.isFullScreen);
@@ -58,24 +33,62 @@ export const App: React.FC = () => {
   const setActiveBackend = useAppStore((state) => state.setActiveBackend);
   const setBackendError = useAppStore((state) => state.setBackendError);
 
-  // Proactively probe Rust IPC on startup so the first real render isn't also
-  // the first IPC probe. Stored in Zustand so the UI can show a fallback chip.
+  // 1s boot sequence + proactive Rust IPC probe:
+  // Keeps the workspace mounted underneath the loading overlay so there is
+  // zero blank flash or layout jump when the 1s loading screen dismisses.
   useEffect(() => {
-    if (!EngineBridge.isTauri()) {
-      setActiveBackend('js');
-      setBackendError(null);
-      return;
+    let cancelled = false;
+    let unmountTimer: number | null = null;
+
+    if (EngineBridge.isTauri()) {
+      import('@tauri-apps/api/core')
+        .then(({ invoke }) => invoke('show_main_window'))
+        .catch(() => {});
     }
-    EngineBridge.isRustAvailable()
-      .then((ok) => {
-        setActiveBackend(ok ? 'rust' : 'js');
-        if (!ok) setBackendError('Rust IPC probe failed');
-      })
-      .catch((err) => {
-        setActiveBackend('js');
-        setBackendError(String(err ?? 'Rust IPC probe error'));
-      });
-  }, []);
+
+    const minDisplay = new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 1000);
+    });
+
+    const backendInit = EngineBridge.isTauri()
+      ? EngineBridge.isRustAvailable()
+          .then((ok) => {
+            if (!cancelled) {
+              setActiveBackend(ok ? 'rust' : 'js');
+              if (!ok) setBackendError('Rust IPC probe failed');
+            }
+            return ok;
+          })
+          .catch((err) => {
+            if (!cancelled) {
+              setActiveBackend('js');
+              setBackendError(String(err ?? 'Rust IPC probe error'));
+            }
+            return false;
+          })
+      : Promise.resolve(true).then(() => {
+          if (!cancelled) {
+            setActiveBackend('js');
+            setBackendError(null);
+          }
+          return true;
+        });
+
+    Promise.all([minDisplay, backendInit]).then(() => {
+      if (cancelled) return;
+      setIsBootFading(true);
+      unmountTimer = window.setTimeout(() => {
+        if (!cancelled) {
+          setShowBootScreen(false);
+        }
+      }, 220);
+    });
+
+    return () => {
+      cancelled = true;
+      if (unmountTimer !== null) clearTimeout(unmountTimer);
+    };
+  }, [setActiveBackend, setBackendError]);
 
   // Proactively query FFmpeg status on startup in Tauri desktop mode
   useEffect(() => {
@@ -259,22 +272,16 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  if (!isReady) {
-    return (
-      <div
-        className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
-        data-theme={activeTheme}
-      >
-        <LoadingScreen fullscreen size={220} />
-      </div>
-    );
-  }
-
   return (
     <div
       className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
       data-theme={activeTheme}
     >
+      {/* 1s Boot Loading Screen Overlay (kept over mounted workspace so there is no layout jump) */}
+      {showBootScreen && (
+        <LoadingScreen fullscreen fadingOut={isBootFading} />
+      )}
+
       {/* Full-screen Edge-Peek Zone */}
       {isFullScreen && (
         <div

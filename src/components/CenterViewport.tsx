@@ -2038,7 +2038,7 @@ export const CenterViewport: React.FC = () => {
             />
             {showSlowDitherAnvil && (
               <LoadingScreen
-                overlayOverImage
+                imageOverlay
                 size={Math.max(72, Math.min(220, Math.round(Math.min(sourceImageData.width, sourceImageData.height) * 0.45)))}
               />
             )}

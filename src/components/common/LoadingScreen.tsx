@@ -1,26 +1,40 @@
 import React from 'react';
-import { Anvil3DLogo } from './Anvil3DLogo';
+import { AnvilLogo3D } from './AnvilLogo3D';
 
-interface LoadingScreenProps {
+export interface LoadingScreenProps {
   fullscreen?: boolean;
-  overlayOverImage?: boolean;
-  size?: number;
+  imageOverlay?: boolean;
+  size?: number | string;
+  fadingOut?: boolean;
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   fullscreen = false,
-  overlayOverImage = false,
-  size = 180,
+  imageOverlay = false,
+  size,
+  fadingOut = false
 }) => {
   const modeClass = fullscreen
     ? 'loading-screen-fullscreen'
-    : overlayOverImage
+    : imageOverlay
     ? 'loading-screen-image-overlay'
     : 'loading-screen-inline';
 
+  const displaySize = size ?? (fullscreen ? 'min(360px, 80vw)' : 180);
+
   return (
-    <div className={`loading-screen ${modeClass}`} role="status" aria-label="Loading">
-      <Anvil3DLogo size={size} resolution={128} interactive={!overlayOverImage} />
+    <div
+      className={`loading-screen ${modeClass} ${fadingOut ? 'loading-screen-fadeout' : ''}`.trim()}
+      aria-busy={!fadingOut}
+      aria-label="Loading DitherForge"
+    >
+      <AnvilLogo3D
+        size={displaySize}
+        interactive={true}
+        sharpness="pixelated"
+      />
     </div>
   );
 };
+
+export default LoadingScreen;

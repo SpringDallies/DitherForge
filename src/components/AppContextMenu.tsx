@@ -39,10 +39,11 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [menuHeight, setMenuHeight] = useState(0);
+  const [menuSize, setMenuSize] = useState<{ w: number; h: number } | null>(null);
   const [copiedFeedback, setCopiedFeedback] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const justRightClickedRef = useRef(false);
 
   const appMode = useAppStore((s) => s.appMode);
   const isPlaying = useAppStore((s) => s.isPlaying);
@@ -119,6 +120,9 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
       );
 
       e.preventDefault();
+      e.stopImmediatePropagation();
+      justRightClickedRef.current = true;
+      setTimeout(() => { justRightClickedRef.current = false; }, 100);
 
       // Close any open track context menu in timeline
       window.dispatchEvent(new CustomEvent('close_track_context_menu'));
@@ -126,10 +130,12 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
       const menuWidth = 250;
       const isAnim = useAppStore.getState().appMode === 'animation';
       const approxHeight = isTimelineClick ? (isAnim ? 360 : 220) : (isAnim ? 480 : 220);
-      const height = menuHeight || approxHeight;
+      const width = menuSize?.w || menuWidth;
+      const height = menuSize?.h || approxHeight;
+      const pad = 12;
 
-      const clampedX = Math.max(10, Math.min(window.innerWidth - menuWidth - 12, e.clientX));
-      const clampedY = Math.max(10, Math.min(window.innerHeight - height - 12, e.clientY));
+      const clampedX = Math.max(pad, Math.min(window.innerWidth - width - pad, e.clientX));
+      const clampedY = Math.max(pad, Math.min(window.innerHeight - height - pad, e.clientY));
 
       setContextType(isTimelineClick ? 'timeline' : 'app');
       setPosition({ x: clampedX, y: clampedY });
@@ -138,16 +144,34 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 
     window.addEventListener('contextmenu', handleContextMenu);
     return () => window.removeEventListener('contextmenu', handleContextMenu);
-  }, [closeMenu]);
+  }, [closeMenu, menuSize]);
 
-  // Measure actual menu height after it opens so clamping uses real dimensions
-  // instead of a hardcoded approxHeight. Prevents the menu from jumping to the
-  // middle of the screen when right-clicking near the bottom edge.
+  // Measure actual menu size after it opens so clamping uses real dimensions
+  // instead of hardcoded estimates. Prevents clipping against window edges,
+  // especially in animation mode where the menu is taller and wider.
   useEffect(() => {
     if (!isOpen || !menuRef.current) return;
     const rect = menuRef.current.getBoundingClientRect();
-    setMenuHeight(rect.height);
+    setMenuSize({ w: rect.width, h: rect.height });
   }, [isOpen]);
+
+  // Reposition after measuring so the first open also stays in bounds
+  useEffect(() => {
+    if (!isOpen || !menuSize || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    let nextX = position.x;
+    let nextY = position.y;
+    const pad = 12;
+
+    if (rect.left < pad) nextX = pad;
+    if (rect.right > window.innerWidth - pad) nextX = window.innerWidth - rect.width - pad;
+    if (rect.top < pad) nextY = pad;
+    if (rect.bottom > window.innerHeight - pad) nextY = window.innerHeight - rect.height - pad;
+
+    if (nextX !== position.x || nextY !== position.y) {
+      setPosition({ x: nextX, y: nextY });
+    }
+  }, [menuSize, isOpen, position]);
 
   // Listen to close requests from timeline track context menu
   useEffect(() => {
@@ -163,6 +187,13 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
     const handleOutsideInteraction = (e: MouseEvent | PointerEvent) => {
       // Don't close on right-click; handleContextMenu will reposition the menu seamlessly
       if (e.button === 2) return;
+
+      // Suppress the left-click event that fires right after a right-click
+      if (e.type === 'click' && justRightClickedRef.current) {
+        justRightClickedRef.current = false;
+        e.stopImmediatePropagation();
+        return;
+      }
 
       const isInside = Boolean(
         menuRef.current &&

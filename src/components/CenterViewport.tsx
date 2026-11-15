@@ -1162,6 +1162,31 @@ export const CenterViewport: React.FC = () => {
   const pendingRenderRef = useRef<boolean>(false);
   const renderLogTimeRef = useRef<number>(0);
   const slowDitherTimerRef = useRef<number | null>(null);
+  const activeDitherCountRef = useRef<number>(0);
+
+  const startDitherTimer = useCallback(() => {
+    activeDitherCountRef.current += 1;
+    if (slowDitherTimerRef.current === null && activeDitherCountRef.current === 1) {
+      slowDitherTimerRef.current = window.setTimeout(() => {
+        slowDitherTimerRef.current = null;
+        // Only show if a dither is STILL actively running after 2000ms
+        if (activeDitherCountRef.current > 0) {
+          setShowSlowDitherAnvil(true);
+        }
+      }, 2000);
+    }
+  }, []);
+
+  const finishDitherTimer = useCallback(() => {
+    activeDitherCountRef.current = Math.max(0, activeDitherCountRef.current - 1);
+    if (activeDitherCountRef.current === 0) {
+      if (slowDitherTimerRef.current !== null) {
+        window.clearTimeout(slowDitherTimerRef.current);
+        slowDitherTimerRef.current = null;
+      }
+      setShowSlowDitherAnvil(false);
+    }
+  }, []);
 
   const executeRenderPipeline = useCallback(async (overrideTime?: number, preRender = false) => {
     const addDevLog = useAppStore.getState().addDevLog;
@@ -1187,15 +1212,6 @@ export const CenterViewport: React.FC = () => {
       const h = sourceImageData.height;
       addDevLog('info', 'render', `Execute render pipeline ${w}x${h} preRender=${preRender} mode=${appMode} quality=${previewQuality}`);
     }
-
-    let slowDitherTimer: number | null = slowDitherTimerRef.current;
-    if (slowDitherTimer !== null) {
-      window.clearTimeout(slowDitherTimer);
-    }
-    slowDitherTimer = window.setTimeout(() => {
-      setShowSlowDitherAnvil(true);
-    }, 2000);
-    slowDitherTimerRef.current = slowDitherTimer;
 
     // Yield one animation frame so the browser can paint the overlay if the
     // timer triggers before heavy JS work blocks the main thread.
@@ -1231,6 +1247,8 @@ export const CenterViewport: React.FC = () => {
         return;
       }
     }
+
+    startDitherTimer();
 
     let effectiveQuality = previewQuality;
 
@@ -1654,13 +1672,7 @@ export const CenterViewport: React.FC = () => {
     }
   } finally {
     // Only hide the anvil when the LATEST render completes
-    if (currentNonce === renderNonceRef.current) {
-      if (slowDitherTimerRef.current !== null) {
-        window.clearTimeout(slowDitherTimerRef.current);
-        slowDitherTimerRef.current = null;
-      }
-      setShowSlowDitherAnvil(false);
-    }
+    finishDitherTimer();
     isRenderingRef.current = false;
     if (pendingRenderRef.current) {
       pendingRenderRef.current = false;
@@ -1699,7 +1711,9 @@ export const CenterViewport: React.FC = () => {
     showBeforeAfter,
     splitRatio,
     effects,
-    setLastRenderMs
+    setLastRenderMs,
+    startDitherTimer,
+    finishDitherTimer
   ]);
 
   executeRenderPipelineRef.current = executeRenderPipeline;

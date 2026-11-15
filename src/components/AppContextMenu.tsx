@@ -125,7 +125,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 
       const menuWidth = 250;
       const isAnim = useAppStore.getState().appMode === 'animation';
-      const approxHeight = isTimelineClick ? 360 : (isAnim ? 480 : 360);
+      const approxHeight = isTimelineClick ? (isAnim ? 360 : 220) : (isAnim ? 480 : 220);
       const height = menuHeight || approxHeight;
 
       const clampedX = Math.max(10, Math.min(window.innerWidth - menuWidth - 12, e.clientX));

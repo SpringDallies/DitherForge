@@ -1404,6 +1404,7 @@ export const RightSidebar: React.FC = () => {
     if (!sourceImageData) return;
     closeColorPicker(true);
     setIsExtractingPalette(true);
+    const start = performance.now();
     requestAnimationFrame(() => {
       const extracted = extractPaletteMedianCut(sourceImageData, 8);
       useAppStore.setState({
@@ -1412,7 +1413,9 @@ export const RightSidebar: React.FC = () => {
         workingPalette: extracted.map((c: number[]) => [...c]),
         paletteDepth: extracted.length
       });
-      setIsExtractingPalette(false);
+      const elapsed = performance.now() - start;
+      const remaining = Math.max(0, 600 - elapsed);
+      setTimeout(() => setIsExtractingPalette(false), remaining);
     });
   };
 
@@ -1420,6 +1423,7 @@ export const RightSidebar: React.FC = () => {
     if (!sourceImageData) return;
     closeColorPicker(true);
     setIsExtractingPalette(true);
+    const start = performance.now();
     requestAnimationFrame(() => {
       const extracted = extractPaletteKMeans(sourceImageData, 8, 8);
       useAppStore.setState({
@@ -1428,7 +1432,9 @@ export const RightSidebar: React.FC = () => {
         workingPalette: extracted.map((c: number[]) => [...c]),
         paletteDepth: extracted.length
       });
-      setIsExtractingPalette(false);
+      const elapsed = performance.now() - start;
+      const remaining = Math.max(0, 600 - elapsed);
+      setTimeout(() => setIsExtractingPalette(false), remaining);
     });
   };
 
@@ -1597,7 +1603,7 @@ export const RightSidebar: React.FC = () => {
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block">
           <div className="sidebar-brand">
-            <Logo variant="mark" size={210} />
+            <Logo variant="mark" size={280} />
           </div>
           <input
             type="file"

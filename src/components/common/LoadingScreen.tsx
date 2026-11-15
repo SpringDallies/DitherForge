@@ -6,13 +6,15 @@ export interface LoadingScreenProps {
   imageOverlay?: boolean;
   size?: number | string;
   fadingOut?: boolean;
+  onFirstFrame?: () => void;
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   fullscreen = false,
   imageOverlay = false,
   size,
-  fadingOut = false
+  fadingOut = false,
+  onFirstFrame
 }) => {
   const modeClass = fullscreen
     ? 'loading-screen-fullscreen'
@@ -32,6 +34,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         size={displaySize}
         interactive={true}
         sharpness="pixelated"
+        onFirstFrame={onFirstFrame}
       />
     </div>
   );

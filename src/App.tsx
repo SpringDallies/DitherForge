@@ -18,6 +18,7 @@ import { EngineBridge } from './services/EngineBridge';
 export const App: React.FC = () => {
   const [isBootFading, setIsBootFading] = useState(false);
   const [showBootScreen, setShowBootScreen] = useState(true);
+  const firstFramePaintedRef = useRef<(() => void) | null>(null);
 
   const activeTheme = useAppStore((state) => state.activeTheme);
   const isFullScreen = useAppStore((state) => state.isFullScreen);
@@ -36,6 +37,8 @@ export const App: React.FC = () => {
   // 1s boot sequence + proactive Rust IPC probe:
   // Keeps the workspace mounted underneath the loading overlay so there is
   // zero blank flash or layout jump when the 1s loading screen dismisses.
+  // The 1000ms timer starts ONLY after the first 3D anvil frame has painted,
+  // guaranteeing a full smooth anvil animation regardless of bundle parse time.
   useEffect(() => {
     let cancelled = false;
     let unmountTimer: number | null = null;
@@ -46,9 +49,16 @@ export const App: React.FC = () => {
         .catch(() => {});
     }
 
-    const minDisplay = new Promise<void>((resolve) => {
-      window.setTimeout(resolve, 1000);
+    // Wait until the first 3D anvil frame is actually drawn on screen, THEN count 1000ms
+    const firstFramePromise = new Promise<void>((resolve) => {
+      firstFramePaintedRef.current = resolve;
+      // Safety fallback in case WebGL is disabled in headless browser
+      window.setTimeout(resolve, 400);
     });
+
+    const minDisplay = firstFramePromise.then(
+      () => new Promise<void>((resolve) => window.setTimeout(resolve, 1000))
+    );
 
     const backendInit = EngineBridge.isTauri()
       ? EngineBridge.isRustAvailable()
@@ -279,7 +289,16 @@ export const App: React.FC = () => {
     >
       {/* 1s Boot Loading Screen Overlay (kept over mounted workspace so there is no layout jump) */}
       {showBootScreen && (
-        <LoadingScreen fullscreen fadingOut={isBootFading} />
+        <LoadingScreen
+          fullscreen
+          fadingOut={isBootFading}
+          onFirstFrame={() => {
+            if (firstFramePaintedRef.current) {
+              firstFramePaintedRef.current();
+              firstFramePaintedRef.current = null;
+            }
+          }}
+        />
       )}
 
       {/* Full-screen Edge-Peek Zone */}

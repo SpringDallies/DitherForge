@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useAppStore } from '../../state/useAppStore';
 import { getAnvilPaletteForTheme } from '../../utils/anvilThemeColors';
 
-/* Anvil outline traced from the PNG (x,y pairs, 6 units wide, CCW) */
+/* Anvil outline traced from the PNG (x,y pairs, 6 units wide, CCW) — 1:1 from logo.html */
 const OUTLINE = [
   2.123,-1.578,2.156,-1.577,2.195,-1.567,2.228,-1.554,2.257,-1.538,2.287,-1.515,2.314,-1.488,2.326,-1.472,
   2.342,-1.447,2.362,-1.403,2.369,-1.383,2.376,-1.344,2.376,-1.295,2.373,-1.272,2.366,-1.243,2.346,-1.194,
@@ -48,171 +48,180 @@ const OUTLINE = [
 const DEPTH = 1.1;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 
-/* Cached singleton geometries so mounting is instantaneous */
-let cachedAnvilGeo: THREE.ExtrudeGeometry | null = null;
-let cachedSparkGeo: THREE.OctahedronGeometry | null = null;
-let cachedSteamGeo: THREE.IcosahedronGeometry | null = null;
+interface Subscriber {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  interactive: boolean;
+  onFirstFrame?: () => void;
+  hasPaintedFirstFrame: boolean;
+}
 
-function getSharedAnvilGeometry(): THREE.ExtrudeGeometry {
-  if (cachedAnvilGeo) return cachedAnvilGeo;
+/**
+ * Shared 1:1 Singleton Engine for the 3D Anvil Logo.
+ * Uses ONE WebGLRenderer across the entire app (LoadingScreen + RightSidebar)
+ * so there is zero WebGL context contention or shader recompilation lag.
+ */
+class SharedAnvilEngine {
+  private offscreenCanvas: HTMLCanvasElement;
+  private renderer: THREE.WebGLRenderer | null = null;
+  private scene: THREE.Scene;
+  private camera: THREE.PerspectiveCamera;
+  private rootGroup: THREE.Group;
+  private mesh: THREE.Mesh;
+  private material: THREE.ShaderMaterial;
+  private blushGroup: THREE.Group;
+  private blushMaterial: THREE.ShaderMaterial;
+  private raycaster = new THREE.Raycaster();
+  private ndcClick = new THREE.Vector2();
+  private localHit = new THREE.Vector3();
 
-  const shape = new THREE.Shape();
-  for (let i = 0; i < OUTLINE.length; i += 2) {
-    if (i === 0) shape.moveTo(OUTLINE[i], OUTLINE[i + 1]);
-    else shape.lineTo(OUTLINE[i], OUTLINE[i + 1]);
-  }
-  shape.closePath();
+  private subscribers = new Set<Subscriber>();
+  private rafId: number | null = null;
+  private start = performance.now();
+  private lastS = 0;
+  private gainNow = 1;
 
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: DEPTH,
-    curveSegments: 1,
-    steps: 1,
-    bevelEnabled: true,
-    bevelThickness: 0.19,
-    bevelSize: 0.085,
-    bevelSegments: 5
-  });
-  geo.center();
+  private cur = { s: [0.34, 0.35, 0.45], h: [0.96, 0.98, 1.0] };
+  private tgt = { s: [0.34, 0.35, 0.45], h: [0.96, 0.98, 1.0] };
 
-  const p = geo.attributes.position as THREE.BufferAttribute;
-  const out = new Float32Array(p.count * 3);
-  const key = (i: number) =>
-    p.getX(i).toFixed(3) + ',' + p.getY(i).toFixed(3) + ',' + p.getZ(i).toFixed(3);
-  const A = new THREE.Vector3();
-  const B = new THREE.Vector3();
-  const C = new THREE.Vector3();
-  const acc = new Map<string, THREE.Vector3>();
-  const tris: { f: THREE.Vector3; cap: boolean }[] = [];
+  private SPARK_POOL: {
+    mesh: THREE.Mesh<THREE.OctahedronGeometry, THREE.ShaderMaterial>;
+    active: boolean;
+    age: number;
+    maxAge: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    scale: number;
+  }[] = [];
 
-  for (let i = 0; i < p.count; i += 3) {
-    A.fromBufferAttribute(p, i);
-    B.fromBufferAttribute(p, i + 1);
-    C.fromBufferAttribute(p, i + 2);
-    const f = C.clone().sub(B).cross(A.clone().sub(B));
-    const len = f.length();
-    const cap = len > 0 && Math.abs(f.z) / len > 0.999;
-    tris.push({ f, cap });
-    if (!cap) {
-      for (let k = 0; k < 3; k++) {
-        const kk = key(i + k);
-        let vec = acc.get(kk);
-        if (!vec) {
-          vec = new THREE.Vector3();
-          acc.set(kk, vec);
+  private STEAM_PUFFS: {
+    mesh: THREE.Mesh<THREE.IcosahedronGeometry, THREE.ShaderMaterial>;
+    active: boolean;
+    age: number;
+    maxAge: number;
+    vx: number;
+    vy: number;
+    rx: number;
+    ry: number;
+    baseScale: number;
+  }[] = [];
+  private steamSpawnTimer = 0;
+
+  private MOTION: Record<string, any>;
+  private L = {
+    a: rnd(0, 6.28),
+    b: rnd(0, 6.28),
+    c: rnd(0, 6.28),
+    s1: rnd(0.05, 0.09),
+    s2: rnd(0.09, 0.14),
+    s3: rnd(0.07, 0.11)
+  };
+  private SHINE = {
+    on: false,
+    t0: 0,
+    dur: 1.1,
+    next: rnd(6.0, 11.0),
+    cooldownUntil: 0
+  };
+  private HOVER = {
+    tx: 0,
+    ty: 0,
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    influence: 0,
+    smoothedInfluence: 0,
+    energy: 0,
+    lastPx: 0,
+    lastPy: 0,
+    clickPosY: 0,
+    clickVelY: 0,
+    clickRotZ: 0,
+    clickVelRotZ: 0,
+    clickPitch: 0,
+    clickVelPitch: 0,
+    clickMeter: 0,
+    lastClickTime: -999,
+    rodOpacity: 0,
+    rodEmission: 0,
+    anvilHeat: 0,
+    steaming: false
+  };
+
+  constructor() {
+    this.offscreenCanvas = document.createElement('canvas');
+    this.offscreenCanvas.width = 128;
+    this.offscreenCanvas.height = 128;
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    this.camera.position.set(0, 2.0, 10);
+    this.camera.lookAt(0, 0, 0);
+
+    this.rootGroup = new THREE.Group();
+    this.scene.add(this.rootGroup);
+
+    // Build extruded anvil geometry with smoothWalls (1:1 logo.html)
+    const shape = new THREE.Shape();
+    for (let i = 0; i < OUTLINE.length; i += 2) {
+      if (i === 0) shape.moveTo(OUTLINE[i], OUTLINE[i + 1]);
+      else shape.lineTo(OUTLINE[i], OUTLINE[i + 1]);
+    }
+    shape.closePath();
+
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: DEPTH,
+      curveSegments: 1,
+      steps: 1,
+      bevelEnabled: true,
+      bevelThickness: 0.19,
+      bevelSize: 0.085,
+      bevelSegments: 5
+    });
+    geo.center();
+
+    // Smooth walls while keeping front/back caps crisp
+    const p = geo.attributes.position as THREE.BufferAttribute;
+    const out = new Float32Array(p.count * 3);
+    const key = (i: number) =>
+      p.getX(i).toFixed(3) + ',' + p.getY(i).toFixed(3) + ',' + p.getZ(i).toFixed(3);
+    const A = new THREE.Vector3();
+    const B = new THREE.Vector3();
+    const C = new THREE.Vector3();
+    const acc = new Map<string, THREE.Vector3>();
+    const tris: { f: THREE.Vector3; cap: boolean }[] = [];
+
+    for (let i = 0; i < p.count; i += 3) {
+      A.fromBufferAttribute(p, i);
+      B.fromBufferAttribute(p, i + 1);
+      C.fromBufferAttribute(p, i + 2);
+      const f = C.clone().sub(B).cross(A.clone().sub(B));
+      const len = f.length();
+      const cap = len > 0 && Math.abs(f.z) / len > 0.999;
+      tris.push({ f, cap });
+      if (!cap) {
+        for (let k = 0; k < 3; k++) {
+          const kk = key(i + k);
+          if (!acc.has(kk)) acc.set(kk, new THREE.Vector3());
+          acc.get(kk)!.add(f);
         }
-        vec.add(f);
       }
     }
-  }
+    tris.forEach((t, ti) => {
+      for (let k = 0; k < 3; k++) {
+        let n = t.cap ? t.f.clone() : acc.get(key(ti * 3 + k))!.clone();
+        n = n.length() > 1e-9 ? n.normalize() : new THREE.Vector3(0, 0, 1);
+        out.set([n.x, n.y, n.z], (ti * 3 + k) * 3);
+      }
+    });
+    geo.setAttribute('normal', new THREE.BufferAttribute(out, 3));
 
-  tris.forEach((t, ti) => {
-    for (let k = 0; k < 3; k++) {
-      const accVec = acc.get(key(ti * 3 + k));
-      let n = t.cap ? t.f.clone() : (accVec ? accVec.clone() : new THREE.Vector3(0, 0, 1));
-      n = n.length() > 1e-9 ? n.normalize() : new THREE.Vector3(0, 0, 1);
-      out.set([n.x, n.y, n.z], (ti * 3 + k) * 3);
-    }
-  });
-
-  geo.setAttribute('normal', new THREE.BufferAttribute(out, 3));
-  cachedAnvilGeo = geo;
-  return geo;
-}
-
-function getSharedSparkGeometry(): THREE.OctahedronGeometry {
-  if (cachedSparkGeo) return cachedSparkGeo;
-  const sparkGeo = new THREE.OctahedronGeometry(0.08, 0);
-  sparkGeo.scale(0.65, 2.6, 0.65);
-  cachedSparkGeo = sparkGeo;
-  return sparkGeo;
-}
-
-function getSharedSteamGeometry(): THREE.IcosahedronGeometry {
-  if (cachedSteamGeo) return cachedSteamGeo;
-  cachedSteamGeo = new THREE.IcosahedronGeometry(0.32, 1);
-  return cachedSteamGeo;
-}
-
-export interface AnvilLogo3DProps {
-  size?: number | string;
-  className?: string;
-  interactive?: boolean;
-  sharpness?: 'pixelated' | 'crisp' | 'smooth';
-  themeOverride?: string;
-}
-
-export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
-  size = 128,
-  className = '',
-  interactive = true,
-  sharpness = 'pixelated',
-  themeOverride
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const activeTheme = useAppStore((s) => s.activeTheme);
-  const effectiveTheme = themeOverride || activeTheme || 'obsidian_oled';
-
-  const tgtColorsRef = useRef<{ s: [number, number, number]; h: [number, number, number] }>({
-    s: [...getAnvilPaletteForTheme(effectiveTheme).shadow],
-    h: [...getAnvilPaletteForTheme(effectiveTheme).highlight]
-  });
-
-  const triggerThemeShineRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    const pal = getAnvilPaletteForTheme(effectiveTheme);
-    tgtColorsRef.current = {
-      s: [...pal.shadow],
-      h: [...pal.highlight]
-    };
-    if (triggerThemeShineRef.current) {
-      triggerThemeShineRef.current();
-    }
-  }, [effectiveTheme]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        canvas,
-        alpha: true,
-        antialias: false,
-        depth: true,
-        stencil: false,
-        powerPreference: 'default',
-        preserveDrawingBuffer: false
-      });
-    } catch (err) {
-      console.warn('[AnvilLogo3D] WebGL initialization failed:', err);
-      return;
-    }
-
-    renderer.setPixelRatio(1);
-    renderer.setSize(128, 128, false);
-    renderer.setClearColor(0x000000, 0);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.set(0, 2.0, 10);
-    camera.lookAt(0, 0, 0);
-
-    const rootGroup = new THREE.Group();
-    scene.add(rootGroup);
-
-    const geo = getSharedAnvilGeometry();
-    const initialPal = getAnvilPaletteForTheme(effectiveTheme);
-    const cur = {
-      s: [...initialPal.shadow] as [number, number, number],
-      h: [...initialPal.highlight] as [number, number, number]
-    };
-
-    const material = new THREE.ShaderMaterial({
+    this.material = new THREE.ShaderMaterial({
       uniforms: {
-        uShadow:     { value: new THREE.Vector3(...cur.s) },
-        uHighlight:  { value: new THREE.Vector3(...cur.h) },
+        uShadow:     { value: new THREE.Vector3(...this.cur.s) },
+        uHighlight:  { value: new THREE.Vector3(...this.cur.h) },
         uLight:      { value: new THREE.Vector3(0.4, 0.75, 0.6) },
         uGain:       { value: 1 },
         uShine:      { value: -1 },
@@ -376,13 +385,14 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
         }`
     });
 
-    const mesh = new THREE.Mesh(geo, material);
-    rootGroup.add(mesh);
+    this.mesh = new THREE.Mesh(geo, this.material);
+    this.rootGroup.add(this.mesh);
 
-    const blushGroup = new THREE.Group();
-    rootGroup.add(blushGroup);
+    // 3D Blush Rods
+    this.blushGroup = new THREE.Group();
+    this.rootGroup.add(this.blushGroup);
 
-    const blushMaterial = new THREE.ShaderMaterial({
+    this.blushMaterial = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: true,
       uniforms: {
@@ -434,8 +444,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
         }`
     });
 
-    const disposableGeos: THREE.BufferGeometry[] = [];
-    function create3DSlash(x1: number, y1: number, x2: number, y2: number, radius: number) {
+    const create3DSlash = (x1: number, y1: number, x2: number, y2: number, radius: number) => {
       const slashGroup = new THREE.Group();
       const dx = x2 - x1;
       const dy = y2 - y1;
@@ -443,17 +452,16 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       const angle = Math.atan2(dy, dx) - Math.PI * 0.5;
       const cylGeo = new THREE.CylinderGeometry(radius, radius, len, 12, 1);
       const capGeo = new THREE.SphereGeometry(radius, 12, 8);
-      disposableGeos.push(cylGeo, capGeo);
-      const cyl = new THREE.Mesh(cylGeo, blushMaterial);
-      const topCap = new THREE.Mesh(capGeo, blushMaterial);
-      const botCap = new THREE.Mesh(capGeo, blushMaterial);
+      const cyl = new THREE.Mesh(cylGeo, this.blushMaterial);
+      const topCap = new THREE.Mesh(capGeo, this.blushMaterial);
+      const botCap = new THREE.Mesh(capGeo, this.blushMaterial);
       topCap.position.y = len * 0.5;
       botCap.position.y = -len * 0.5;
       slashGroup.add(cyl, topCap, botCap);
       slashGroup.position.set((x1 + x2) * 0.5, (y1 + y2) * 0.5, 0);
       slashGroup.rotation.z = angle;
       return slashGroup;
-    }
+    };
 
     const SLASH_RADIUS = 0.105;
     const slashL1 = create3DSlash(-1.62, 0.36, -1.30, 1.12, SLASH_RADIUS);
@@ -464,37 +472,22 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
     slashL2.rotation.y =  0.10;
     slashR1.rotation.y = -0.10;
     slashR2.rotation.y = -0.16;
-    blushGroup.add(slashL1, slashL2, slashR1, slashR2);
-    blushGroup.position.set(0, 0, 0.92);
-    blushGroup.scale.setScalar(1.0);
-    blushGroup.visible = false;
+    this.blushGroup.add(slashL1, slashL2, slashR1, slashR2);
+    this.blushGroup.position.set(0, 0, 0.92);
+    this.blushGroup.visible = false;
 
+    // Sparks
     const sparkGroup = new THREE.Group();
-    rootGroup.add(sparkGroup);
-    const sparkGeo = getSharedSparkGeometry();
-    interface SparkItem {
-      mesh: THREE.Mesh<THREE.OctahedronGeometry, THREE.ShaderMaterial>;
-      active: boolean;
-      age: number;
-      maxAge: number;
-      vx: number;
-      vy: number;
-      vz: number;
-      scale: number;
-    }
-    const SPARK_POOL: SparkItem[] = [];
-    function makeSparkMaterial() {
-      return new THREE.ShaderMaterial({
+    this.rootGroup.add(sparkGroup);
+    const sparkGeo = new THREE.OctahedronGeometry(0.08, 0);
+    sparkGeo.scale(0.65, 2.6, 0.65);
+
+    for (let i = 0; i < 28; i++) {
+      const sMat = new THREE.ShaderMaterial({
         transparent: true,
         depthWrite: false,
-        uniforms: {
-          uLife: { value: 0.0 },
-          uGlow: { value: 0.0 }
-        },
-        vertexShader: `
-          void main() {
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }`,
+        uniforms: { uLife: { value: 0.0 }, uGlow: { value: 0.0 } },
+        vertexShader: `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
         fragmentShader: `
           #ifdef GL_FRAGMENT_PRECISION_HIGH
             precision highp float;
@@ -508,20 +501,15 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
             vec3 birthCol = mix(vec3(1.0, 0.88, 0.60), vec3(1.0, 1.0, 1.0), uGlow);
             vec3 midCol   = mix(vec3(1.0, 0.52, 0.12), vec3(1.0, 0.78, 0.35), uGlow);
             vec3 tailCol  = vec3(0.85, 0.14, 0.08);
-            vec3 col = t < 0.45
-              ? mix(birthCol, midCol, t / 0.45)
-              : mix(midCol, tailCol, (t - 0.45) / 0.55);
+            vec3 col = t < 0.45 ? mix(birthCol, midCol, t / 0.45) : mix(midCol, tailCol, (t - 0.45) / 0.55);
             float alpha = (1.0 - pow(t, 2.2)) * (0.80 + 0.20 * uGlow);
             gl_FragColor = vec4(col, alpha);
           }`
       });
-    }
-    for (let i = 0; i < 28; i++) {
-      const sMat = makeSparkMaterial();
       const sMesh = new THREE.Mesh(sparkGeo, sMat);
       sMesh.visible = false;
       sparkGroup.add(sMesh);
-      SPARK_POOL.push({
+      this.SPARK_POOL.push({
         mesh: sMesh,
         active: false,
         age: 0,
@@ -532,96 +520,16 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
         scale: 1
       });
     }
-    const raycaster = new THREE.Raycaster();
-    const ndcClick = new THREE.Vector2();
-    const localHit = new THREE.Vector3();
-    function getStrictAnvilClickPoint(clientX: number, clientY: number): THREE.Vector3 | null {
-      if (!canvas) return null;
-      const rect = canvas.getBoundingClientRect();
-      ndcClick.x = ((clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1;
-      ndcClick.y = -((clientY - rect.top) / Math.max(rect.height, 1)) * 2 + 1;
-      rootGroup.updateMatrixWorld(true);
-      raycaster.setFromCamera(ndcClick, camera);
-      const hits = raycaster.intersectObject(mesh, false);
-      if (hits.length === 0) return null;
-      localHit.copy(hits[0].point);
-      rootGroup.worldToLocal(localHit);
-      localHit.z += 0.14;
-      return localHit;
-    }
-    function spawnClickSparks(localOrigin: THREE.Vector3, clickMeter: number) {
-      const glowLevel = Math.min(1.0, Math.max(0.1, (clickMeter - 1.0) / 10.0));
-      material.uniforms.uSparkPos.value.copy(localOrigin);
-      material.uniforms.uSparkLight.value = 0.50 + 0.70 * glowLevel;
-      const count = 6;
-      let spawned = 0;
-      for (const sp of SPARK_POOL) {
-        if (sp.active) continue;
-        sp.active = true;
-        sp.age = 0;
-        sp.maxAge = rnd(0.28, 0.46);
-        const angle = rnd(-Math.PI * 0.85, Math.PI * 0.85);
-        const speed = rnd(3.2, 5.8);
-        sp.vx = Math.sin(angle) * speed;
-        sp.vy = Math.cos(angle) * speed * 0.85 + rnd(1.1, 2.5);
-        sp.vz = rnd(0.8, 2.8);
-        sp.scale = rnd(0.85, 1.25);
-        sp.mesh.position.set(
-          localOrigin.x + rnd(-0.05, 0.05),
-          localOrigin.y + rnd(-0.05, 0.05),
-          localOrigin.z
-        );
-        sp.mesh.scale.setScalar(sp.scale);
-        sp.mesh.material.uniforms.uLife.value = 0.0;
-        sp.mesh.material.uniforms.uGlow.value = glowLevel;
-        sp.mesh.visible = true;
-        spawned++;
-        if (spawned >= count) break;
-      }
-    }
-    function stepSparks(dt: number) {
-      const gravity = 15.5;
-      for (const sp of SPARK_POOL) {
-        if (!sp.active) continue;
-        sp.age += dt;
-        const progress = sp.age / sp.maxAge;
-        if (progress >= 1.0) {
-          sp.active = false;
-          sp.mesh.visible = false;
-          continue;
-        }
-        sp.vy -= gravity * dt;
-        sp.vx *= 1.0 - 1.5 * dt;
-        sp.mesh.position.x += sp.vx * dt;
-        sp.mesh.position.y += sp.vy * dt;
-        sp.mesh.position.z += sp.vz * dt;
-        sp.mesh.rotation.z = Math.atan2(sp.vy, sp.vx) - Math.PI * 0.5;
-        sp.mesh.scale.setScalar(sp.scale * (1.0 - 0.55 * progress));
-        sp.mesh.material.uniforms.uLife.value = progress;
-      }
-    }
+
+    // Steam
     const steamGroup = new THREE.Group();
-    scene.add(steamGroup);
-    const steamBaseGeo = getSharedSteamGeometry();
-    interface SteamPuff {
-      mesh: THREE.Mesh<THREE.IcosahedronGeometry, THREE.ShaderMaterial>;
-      active: boolean;
-      age: number;
-      maxAge: number;
-      vx: number;
-      vy: number;
-      rx: number;
-      ry: number;
-      baseScale: number;
-    }
-    const STEAM_PUFFS: SteamPuff[] = [];
-    function makeSteamMaterial() {
-      return new THREE.ShaderMaterial({
+    this.scene.add(steamGroup);
+    const steamBaseGeo = new THREE.IcosahedronGeometry(0.32, 1);
+    for (let i = 0; i < 10; i++) {
+      const mat = new THREE.ShaderMaterial({
         transparent: true,
         depthWrite: false,
-        uniforms: {
-          uLife: { value: 0.0 }
-        },
+        uniforms: { uLife: { value: 0.0 } },
         vertexShader: `
           varying vec3 vNormal;
           void main() {
@@ -638,9 +546,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
           uniform float uLife;
           float bayer4(vec2 p) {
             vec2 c = mod(floor(p), 4.0);
-            float x = c.x;
-            float y = c.y;
-            float b = 0.0;
+            float x = c.x, y = c.y, b = 0.0;
             if (y < 0.5) b = (x < 0.5) ? 0.0 : (x < 1.5) ? 8.0 : (x < 2.5) ? 2.0 : 10.0;
             else if (y < 1.5) b = (x < 0.5) ? 12.0 : (x < 1.5) ? 4.0 : (x < 2.5) ? 14.0 : 6.0;
             else if (y < 2.5) b = (x < 0.5) ? 3.0 : (x < 1.5) ? 11.0 : (x < 2.5) ? 1.0 : 9.0;
@@ -658,13 +564,10 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
             gl_FragColor = vec4(steamCol, 0.9);
           }`
       });
-    }
-    for (let i = 0; i < 10; i++) {
-      const mat = makeSteamMaterial();
       const puff = new THREE.Mesh(steamBaseGeo, mat);
       puff.visible = false;
       steamGroup.add(puff);
-      STEAM_PUFFS.push({
+      this.STEAM_PUFFS.push({
         mesh: puff,
         active: false,
         age: 0,
@@ -676,50 +579,8 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
         baseScale: 1
       });
     }
-    let steamSpawnTimer = 0;
-    function spawnSteamPuff() {
-      const p = STEAM_PUFFS.find((x) => !x.active);
-      if (!p) return;
-      p.active = true;
-      p.age = 0;
-      p.maxAge = rnd(0.95, 1.45);
-      const spawnX = rootGroup.position.x + rnd(-1.85, 1.85);
-      const spawnY = rootGroup.position.y + rnd(1.05, 1.45);
-      const spawnZ = rnd(-0.25, 0.45);
-      p.mesh.position.set(spawnX, spawnY, spawnZ);
-      p.vx = rnd(-0.45, 0.45);
-      p.vy = rnd(1.35, 2.05);
-      p.rx = rnd(-2.5, 2.5);
-      p.ry = rnd(-2.5, 2.5);
-      p.baseScale = rnd(0.55, 1.05);
-      p.mesh.scale.setScalar(p.baseScale * 0.5);
-      p.mesh.visible = true;
-    }
-    function stepSteam(dt: number, shouldEmit: boolean) {
-      if (shouldEmit) {
-        steamSpawnTimer -= dt;
-        if (steamSpawnTimer <= 0) {
-          spawnSteamPuff();
-          steamSpawnTimer = rnd(0.11, 0.20);
-        }
-      }
-      for (const p of STEAM_PUFFS) {
-        if (!p.active) continue;
-        p.age += dt;
-        const progress = p.age / p.maxAge;
-        if (progress >= 1.0) {
-          p.active = false;
-          p.mesh.visible = false;
-          continue;
-        }
-        p.mesh.position.x += p.vx * dt;
-        p.mesh.position.y += p.vy * dt;
-        p.mesh.rotation.x += p.rx * dt;
-        p.mesh.rotation.y += p.ry * dt;
-        p.mesh.scale.setScalar(p.baseScale * (0.65 + 0.95 * progress));
-        p.mesh.material.uniforms.uLife.value = progress;
-      }
-    }
+
+    // Motion Noise
     const makeNoise = () => {
       const g = Array.from({ length: 256 }, () => rnd(-1, 1));
       const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
@@ -741,309 +602,485 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       n2: makeNoise(),
       nm: makeNoise()
     });
-    const MOTION = {
+    this.MOTION = {
       ry: chan(0.68, 0.11),
       rx: chan(0.20, 0.15),
       rz: chan(0.09, 0.19),
       px: chan(0.22, 0.09),
       py: chan(0.26, 0.14)
     };
-    const HOVER = {
-      tx: 0, ty: 0,
-      x: 0, y: 0,
-      vx: 0, vy: 0,
-      influence: 0,
-      smoothedInfluence: 0,
-      energy: 0,
-      lastPx: 0,
-      lastPy: 0,
-      clickPosY: 0,
-      clickVelY: 0,
-      clickRotZ: 0,
-      clickVelRotZ: 0,
-      clickPitch: 0,
-      clickVelPitch: 0,
-      clickMeter: 0,
-      lastClickTime: -999,
-      rodOpacity: 0,
-      rodEmission: 0,
-      anvilHeat: 0,
-      steaming: false
-    };
-    const start = performance.now();
-    let gainNow = 1;
-    let lastS = 0;
-    let rafId: number | null = null;
-    let contextLost = false;
-    let disposed = false;
-    const SHINE = {
-      on: false,
-      t0: 0,
-      dur: 1.1,
-      next: rnd(6.0, 11.0),
-      cooldownUntil: 0
-    };
-    function triggerShineSweep(dx: number, dy: number, dur: number) {
-      const now = (performance.now() - start) / 1000;
-      SHINE.on = true;
-      SHINE.t0 = now;
-      SHINE.dur = dur;
-      SHINE.cooldownUntil = now + dur + rnd(5.0, 8.0);
-      SHINE.next = now + rnd(10.0, 18.0);
-      const angle = Math.atan2(dy || 0.5, dx || 0.8);
-      const sweepAngle = angle * 0.5 + 0.65;
-      const flip = dx >= 0 ? 1 : -1;
-      material.uniforms.uAxis.value.set(Math.cos(sweepAngle) * flip, Math.sin(sweepAngle));
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointermove', this.onWindowPointerMove, { passive: true });
+      document.addEventListener('mouseleave', this.onWindowLeave);
+      window.addEventListener('blur', this.onWindowLeave);
     }
-    triggerThemeShineRef.current = () => triggerShineSweep(1, 0.5, 0.95);
-    function triggerInteractiveShine(dx: number, dy: number) {
-      const now = (performance.now() - start) / 1000;
-      if (SHINE.on || now < SHINE.cooldownUntil) return;
-      if (HOVER.energy < 0.75) return;
-      HOVER.energy = 0;
-      triggerShineSweep(dx, dy, rnd(0.85, 1.15));
+  }
+
+  private ensureRenderer(): boolean {
+    if (this.renderer) return true;
+    try {
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: this.offscreenCanvas,
+        alpha: true,
+        antialias: false,
+        depth: true,
+        stencil: false,
+        powerPreference: 'default',
+        preserveDrawingBuffer: true
+      });
+      this.renderer.setPixelRatio(1);
+      this.renderer.setSize(128, 128, false);
+      this.renderer.setClearColor(0x000000, 0);
+      return true;
+    } catch (e) {
+      console.warn('[SharedAnvilEngine] WebGLRenderer creation failed:', e);
+      return false;
     }
-    function stepShine(s: number) {
-      if (!SHINE.on && s >= SHINE.next && s >= SHINE.cooldownUntil) {
-        const a = rnd(0.45, 1.15);
-        const flip = Math.random() < 0.5 ? -1 : 1;
-        triggerShineSweep(Math.cos(a) * flip, Math.sin(a), rnd(1.0, 1.4));
-      }
-      if (SHINE.on) {
-        const p = (s - SHINE.t0) / SHINE.dur;
-        if (p >= 1) {
-          SHINE.on = false;
-          SHINE.next = s + rnd(10.0, 18.0);
-          material.uniforms.uShine.value = -1;
-        } else {
-          material.uniforms.uShine.value = p * p * (3 - 2 * p);
-        }
-      }
+  }
+
+  public setThemePalette(shadow: [number, number, number], highlight: [number, number, number]) {
+    this.tgt = { s: [...shadow], h: [...highlight] };
+    this.triggerShineSweep(1, 0.5, 0.95);
+  }
+
+  public subscribe(sub: Subscriber): () => void {
+    this.subscribers.add(sub);
+    if (this.rafId === null) {
+      this.lastS = (performance.now() - this.start) / 1000;
+      this.loop();
     }
-    function updateHoverFromWindow(clientX: number, clientY: number) {
-      if (!canvas || !interactive) return;
-      const rect = canvas.getBoundingClientRect();
-      const cx = rect.left + rect.width * 0.5;
-      const cy = rect.top + rect.height * 0.5;
-      const halfW = Math.max(rect.width * 0.5, 1);
-      const halfH = Math.max(rect.height * 0.5, 1);
-      const rawX = (clientX - cx) / halfW;
-      const rawY = (clientY - cy) / halfH;
-      const dist = Math.hypot(rawX, rawY);
-      const falloff = Math.exp(-dist * dist * 0.42);
-      HOVER.influence = falloff;
-      const dirX = rawX / Math.max(1.0, dist * 0.65);
-      const dirY = rawY / Math.max(1.0, dist * 0.65);
-      HOVER.ty = dirX * 0.58 * falloff;
-      HOVER.tx = dirY * 0.38 * falloff;
-      const dx = rawX - HOVER.lastPx;
-      const dy = rawY - HOVER.lastPy;
-      const stepDist = Math.hypot(dx, dy);
-      if (stepDist > 0.006 && falloff > 0.25) {
-        HOVER.energy = Math.min(1.5, HOVER.energy + stepDist * 1.15 * falloff);
-        if (stepDist * falloff > 0.065) {
-          triggerInteractiveShine(dx, dy);
-        }
-      }
-      HOVER.lastPx = rawX;
-      HOVER.lastPy = rawY;
-    }
-    const onPointerMove = (e: PointerEvent) => updateHoverFromWindow(e.clientX, e.clientY);
-    const handleWindowLeave = () => {
-      HOVER.tx = 0;
-      HOVER.ty = 0;
-      HOVER.influence = 0;
-    };
-    const onPointerDown = (e: PointerEvent) => {
-      if (!interactive) return;
-      const hitLocal = getStrictAnvilClickPoint(e.clientX, e.clientY);
-      if (!hitLocal) return;
-      const now = (performance.now() - start) / 1000;
-      HOVER.lastClickTime = now;
-      HOVER.clickMeter = Math.min(14.0, HOVER.clickMeter + 1.0);
-      spawnClickSparks(hitLocal, HOVER.clickMeter);
-      const intensity = 0.40 + 0.60 * Math.min(1.0, HOVER.clickMeter / 11.0);
-      HOVER.clickVelY -= 1.0 + 1.3 * intensity;
-      const sideSign =
-        Math.abs(hitLocal.x) > 0.15 ? Math.sign(hitLocal.x) : Math.random() < 0.5 ? -1 : 1;
-      HOVER.clickVelRotZ += -sideSign * (0.75 + 1.15 * intensity);
-      HOVER.clickVelPitch += 0.60 + 0.90 * intensity;
-      if (HOVER.clickMeter >= 10.5) {
-        spawnSteamPuff();
+    return () => {
+      this.subscribers.delete(sub);
+      if (this.subscribers.size === 0 && this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
       }
     };
-    window.addEventListener('pointermove', onPointerMove);
-    document.addEventListener('mouseleave', handleWindowLeave);
-    window.addEventListener('blur', handleWindowLeave);
-    canvas.addEventListener('pointerdown', onPointerDown);
-    function stepMotion(s: number) {
-      const dt = Math.max(0.001, Math.min(s - lastS, 0.05));
-      lastS = s;
-      for (const c of Object.values(MOTION)) {
+  }
+
+  private getActiveInteractiveCanvas(): HTMLCanvasElement | null {
+    let fallback: HTMLCanvasElement | null = null;
+    for (const sub of this.subscribers) {
+      if (!sub.interactive) continue;
+      const rect = sub.canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        if (rect.width >= 200) return sub.canvas;
+        fallback = sub.canvas;
+      }
+    }
+    return fallback;
+  }
+
+  private onWindowPointerMove = (e: PointerEvent) => {
+    const targetCanvas = this.getActiveInteractiveCanvas();
+    if (!targetCanvas) return;
+
+    const rect = targetCanvas.getBoundingClientRect();
+    const cx = rect.left + rect.width * 0.5;
+    const cy = rect.top + rect.height * 0.5;
+    const halfW = Math.max(rect.width * 0.5, 1);
+    const halfH = Math.max(rect.height * 0.5, 1);
+
+    const rawX = (e.clientX - cx) / halfW;
+    const rawY = (e.clientY - cy) / halfH;
+    const dist = Math.hypot(rawX, rawY);
+
+    const falloff = Math.exp(-dist * dist * 0.42);
+    this.HOVER.influence = falloff;
+
+    const dirX = rawX / Math.max(1.0, dist * 0.65);
+    const dirY = rawY / Math.max(1.0, dist * 0.65);
+
+    this.HOVER.ty = dirX * 0.58 * falloff;
+    this.HOVER.tx = dirY * 0.38 * falloff;
+
+    const dx = rawX - this.HOVER.lastPx;
+    const dy = rawY - this.HOVER.lastPy;
+    const stepDist = Math.hypot(dx, dy);
+
+    if (stepDist > 0.006 && falloff > 0.25) {
+      this.HOVER.energy = Math.min(1.5, this.HOVER.energy + stepDist * 1.15 * falloff);
+      if (stepDist * falloff > 0.065) {
+        this.triggerInteractiveShine(dx, dy);
+      }
+    }
+
+    this.HOVER.lastPx = rawX;
+    this.HOVER.lastPy = rawY;
+  };
+
+  private onWindowLeave = () => {
+    this.HOVER.tx = 0;
+    this.HOVER.ty = 0;
+    this.HOVER.influence = 0;
+  };
+
+  public handleCanvasPointerDown(canvas: HTMLCanvasElement, clientX: number, clientY: number) {
+    const rect = canvas.getBoundingClientRect();
+    this.ndcClick.x = ((clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1;
+    this.ndcClick.y = -((clientY - rect.top) / Math.max(rect.height, 1)) * 2 + 1;
+
+    this.rootGroup.updateMatrixWorld(true);
+    this.raycaster.setFromCamera(this.ndcClick, this.camera);
+
+    const hits = this.raycaster.intersectObject(this.mesh, false);
+    if (hits.length === 0) return;
+
+    this.localHit.copy(hits[0].point);
+    this.rootGroup.worldToLocal(this.localHit);
+    this.localHit.z += 0.14;
+
+    const now = (performance.now() - this.start) / 1000;
+    this.HOVER.lastClickTime = now;
+    this.HOVER.clickMeter = Math.min(14.0, this.HOVER.clickMeter + 1.0);
+
+    this.spawnClickSparks(this.localHit, this.HOVER.clickMeter);
+
+    const intensity = 0.40 + 0.60 * Math.min(1.0, this.HOVER.clickMeter / 11.0);
+    this.HOVER.clickVelY -= 1.0 + 1.3 * intensity;
+    const sideSign =
+      Math.abs(this.localHit.x) > 0.15
+        ? Math.sign(this.localHit.x)
+        : Math.random() < 0.5
+        ? -1
+        : 1;
+    this.HOVER.clickVelRotZ += -sideSign * (0.75 + 1.15 * intensity);
+    this.HOVER.clickVelPitch += 0.60 + 0.90 * intensity;
+
+    if (this.HOVER.clickMeter >= 10.5) {
+      this.spawnSteamPuff();
+    }
+  }
+
+  private spawnClickSparks(localOrigin: THREE.Vector3, clickMeter: number) {
+    const glowLevel = Math.min(1.0, Math.max(0.1, (clickMeter - 1.0) / 10.0));
+    this.material.uniforms.uSparkPos.value.copy(localOrigin);
+    this.material.uniforms.uSparkLight.value = 0.50 + 0.70 * glowLevel;
+
+    let spawned = 0;
+    for (const sp of this.SPARK_POOL) {
+      if (sp.active) continue;
+      sp.active = true;
+      sp.age = 0;
+      sp.maxAge = rnd(0.28, 0.46);
+      const angle = rnd(-Math.PI * 0.85, Math.PI * 0.85);
+      const speed = rnd(3.2, 5.8);
+      sp.vx = Math.sin(angle) * speed;
+      sp.vy = Math.cos(angle) * speed * 0.85 + rnd(1.1, 2.5);
+      sp.vz = rnd(0.8, 2.8);
+      sp.scale = rnd(0.85, 1.25);
+      sp.mesh.position.set(
+        localOrigin.x + rnd(-0.05, 0.05),
+        localOrigin.y + rnd(-0.05, 0.05),
+        localOrigin.z
+      );
+      sp.mesh.scale.setScalar(sp.scale);
+      sp.mesh.material.uniforms.uLife.value = 0.0;
+      sp.mesh.material.uniforms.uGlow.value = glowLevel;
+      sp.mesh.visible = true;
+      if (++spawned >= 6) break;
+    }
+  }
+
+  private spawnSteamPuff() {
+    const p = this.STEAM_PUFFS.find((x) => !x.active);
+    if (!p) return;
+    p.active = true;
+    p.age = 0;
+    p.maxAge = rnd(0.95, 1.45);
+    p.mesh.position.set(
+      this.rootGroup.position.x + rnd(-1.85, 1.85),
+      this.rootGroup.position.y + rnd(1.05, 1.45),
+      rnd(-0.25, 0.45)
+    );
+    p.vx = rnd(-0.45, 0.45);
+    p.vy = rnd(1.35, 2.05);
+    p.rx = rnd(-2.5, 2.5);
+    p.ry = rnd(-2.5, 2.5);
+    p.baseScale = rnd(0.55, 1.05);
+    p.mesh.scale.setScalar(p.baseScale * 0.5);
+    p.mesh.visible = true;
+  }
+
+  private triggerShineSweep(dx: number, dy: number, dur: number) {
+    const now = (performance.now() - this.start) / 1000;
+    this.SHINE.on = true;
+    this.SHINE.t0 = now;
+    this.SHINE.dur = dur;
+    this.SHINE.cooldownUntil = now + dur + rnd(5.0, 8.0);
+    this.SHINE.next = now + rnd(10.0, 18.0);
+
+    const angle = Math.atan2(dy || 0.5, dx || 0.8);
+    const sweepAngle = angle * 0.5 + 0.65;
+    const flip = dx >= 0 ? 1 : -1;
+    this.material.uniforms.uAxis.value.set(Math.cos(sweepAngle) * flip, Math.sin(sweepAngle));
+  }
+
+  private triggerInteractiveShine(dx: number, dy: number) {
+    const now = (performance.now() - this.start) / 1000;
+    if (this.SHINE.on || now < this.SHINE.cooldownUntil) return;
+    if (this.HOVER.energy < 0.75) return;
+    this.HOVER.energy = 0;
+    this.triggerShineSweep(dx, dy, rnd(0.85, 1.15));
+  }
+
+  private loop = () => {
+    if (this.subscribers.size === 0) {
+      this.rafId = null;
+      return;
+    }
+
+    if (this.ensureRenderer() && this.renderer) {
+      const s = (performance.now() - this.start) / 1000;
+      const dt = Math.max(0.001, Math.min(s - this.lastS, 0.05));
+      this.lastS = s;
+
+      // 1. Organic drift
+      for (const c of Object.values(this.MOTION)) {
         const x = s * c.hz + c.off;
         c.v = c.amp * (0.85 + 0.3 * c.nm(x * 0.2)) * (c.n1(x) + 0.3 * c.n2(x * 2.7));
       }
-      MOTION.rz.v -= MOTION.ry.v * 0.10;
-      MOTION.px.v += MOTION.ry.v * 0.12;
-      MOTION.py.v += MOTION.rx.v * 0.15;
-      HOVER.smoothedInfluence +=
-        (HOVER.influence - HOVER.smoothedInfluence) * (1 - Math.exp(-5.0 * dt));
-      const wanderWeight = 1.0 - 0.72 * HOVER.smoothedInfluence;
+      this.MOTION.rz.v -= this.MOTION.ry.v * 0.10;
+      this.MOTION.px.v += this.MOTION.ry.v * 0.12;
+      this.MOTION.py.v += this.MOTION.rx.v * 0.15;
+
+      this.HOVER.smoothedInfluence +=
+        (this.HOVER.influence - this.HOVER.smoothedInfluence) * (1 - Math.exp(-5.0 * dt));
+      const wanderWeight = 1.0 - 0.72 * this.HOVER.smoothedInfluence;
+
+      // 2. Floating & Breathing
       const breathMain = Math.sin(s * 2.05);
-      const floatY = 0.24 * breathMain + MOTION.py.v * wanderWeight;
-      const floatX = MOTION.px.v * wanderWeight;
+      const floatY = 0.24 * breathMain + this.MOTION.py.v * wanderWeight;
+      const floatX = this.MOTION.px.v * wanderWeight;
       const breathPitch = 0.055 * Math.cos(s * 2.05 - 0.4);
       const breathScale = 1.0 + 0.022 * breathMain;
-      const timeSinceClick = s - HOVER.lastClickTime;
-      if (timeSinceClick > 0.65) {
-        const coolRate = HOVER.clickMeter >= 10.5 ? 3.5 : 2.8;
-        HOVER.clickMeter = Math.max(0, HOVER.clickMeter - dt * coolRate);
+
+      // 3. Blush & Heat
+      if (s - this.HOVER.lastClickTime > 0.65) {
+        const coolRate = this.HOVER.clickMeter >= 10.5 ? 3.5 : 2.8;
+        this.HOVER.clickMeter = Math.max(0, this.HOVER.clickMeter - dt * coolRate);
       }
-      const m = HOVER.clickMeter;
+      const m = this.HOVER.clickMeter;
       const targetOpacity = m >= 5.0 ? Math.min(1.0, (m - 4.5) / 1.5) : 0.0;
       const targetEmission =
         m >= 5.0
           ? 0.28 + 1.02 * Math.pow(Math.min(1.0, Math.max(0.0, (m - 5.0) / 6.0)), 1.15)
           : 0.0;
       const targetHeat = m >= 7.5 ? Math.min(1.0, (m - 7.5) / 3.5) : 0.0;
-      HOVER.steaming = m >= 10.5;
-      const opRate = targetOpacity < HOVER.rodOpacity ? 9.5 : 6.5;
-      const emRate = targetEmission < HOVER.rodEmission ? 8.5 : 5.5;
-      const heatRate = targetHeat < HOVER.anvilHeat ? 6.0 : 3.8;
-      HOVER.rodOpacity += (targetOpacity - HOVER.rodOpacity) * (1 - Math.exp(-opRate * dt));
-      HOVER.rodEmission += (targetEmission - HOVER.rodEmission) * (1 - Math.exp(-emRate * dt));
-      HOVER.anvilHeat += (targetHeat - HOVER.anvilHeat) * (1 - Math.exp(-heatRate * dt));
-      blushGroup.visible = HOVER.rodOpacity > 0.01;
-      const emissionPulse = HOVER.rodEmission * (0.93 + 0.07 * Math.sin(s * 7.0));
-      blushMaterial.uniforms.uOpacity.value = HOVER.rodOpacity;
-      blushMaterial.uniforms.uEmission.value = emissionPulse;
-      material.uniforms.uBlush.value = emissionPulse * HOVER.rodOpacity;
-      material.uniforms.uHeat.value = HOVER.anvilHeat;
-      material.uniforms.uSparkLight.value = Math.max(
+      this.HOVER.steaming = m >= 10.5;
+
+      const opRate = targetOpacity < this.HOVER.rodOpacity ? 9.5 : 6.5;
+      const emRate = targetEmission < this.HOVER.rodEmission ? 8.5 : 5.5;
+      const heatRate = targetHeat < this.HOVER.anvilHeat ? 6.0 : 3.8;
+
+      this.HOVER.rodOpacity += (targetOpacity - this.HOVER.rodOpacity) * (1 - Math.exp(-opRate * dt));
+      this.HOVER.rodEmission += (targetEmission - this.HOVER.rodEmission) * (1 - Math.exp(-emRate * dt));
+      this.HOVER.anvilHeat += (targetHeat - this.HOVER.anvilHeat) * (1 - Math.exp(-heatRate * dt));
+
+      this.blushGroup.visible = this.HOVER.rodOpacity > 0.01;
+      const emissionPulse = this.HOVER.rodEmission * (0.93 + 0.07 * Math.sin(s * 7.0));
+      this.blushMaterial.uniforms.uOpacity.value = this.HOVER.rodOpacity;
+      this.blushMaterial.uniforms.uEmission.value = emissionPulse;
+      this.material.uniforms.uBlush.value = emissionPulse * this.HOVER.rodOpacity;
+      this.material.uniforms.uHeat.value = this.HOVER.anvilHeat;
+      this.material.uniforms.uSparkLight.value = Math.max(
         0.0,
-        material.uniforms.uSparkLight.value - dt * 5.5
+        this.material.uniforms.uSparkLight.value - dt * 5.5
       );
-      stepSteam(dt, HOVER.steaming);
-      stepSparks(dt);
-      HOVER.clickVelY += (-HOVER.clickPosY * 65.0 - HOVER.clickVelY * 10.5) * dt;
-      HOVER.clickPosY += HOVER.clickVelY * dt;
-      HOVER.clickVelRotZ += (-HOVER.clickRotZ * 58.0 - HOVER.clickVelRotZ * 9.5) * dt;
-      HOVER.clickRotZ += HOVER.clickVelRotZ * dt;
-      HOVER.clickVelPitch += (-HOVER.clickPitch * 60.0 - HOVER.clickVelPitch * 10.0) * dt;
-      HOVER.clickPitch += HOVER.clickVelPitch * dt;
-      const stiffness = 24.0;
-      const damping = 7.2;
-      HOVER.vx += ((HOVER.tx - HOVER.x) * stiffness - HOVER.vx * damping) * dt;
-      HOVER.vy += ((HOVER.ty - HOVER.y) * stiffness - HOVER.vy * damping) * dt;
-      HOVER.x += HOVER.vx * dt;
-      HOVER.y += HOVER.vy * dt;
-      HOVER.energy = Math.max(0, HOVER.energy - dt * 1.15);
-      const bankZ = -HOVER.y * 0.14;
-      rootGroup.rotation.set(
-        MOTION.rx.v * wanderWeight + breathPitch + HOVER.x + HOVER.clickPitch,
-        MOTION.ry.v * wanderWeight + HOVER.y,
-        MOTION.rz.v * wanderWeight + bankZ + HOVER.clickRotZ
+
+      // Step Steam
+      if (this.HOVER.steaming) {
+        this.steamSpawnTimer -= dt;
+        if (this.steamSpawnTimer <= 0) {
+          this.spawnSteamPuff();
+          this.steamSpawnTimer = rnd(0.11, 0.20);
+        }
+      }
+      for (const p of this.STEAM_PUFFS) {
+        if (!p.active) continue;
+        p.age += dt;
+        const progress = p.age / p.maxAge;
+        if (progress >= 1.0) {
+          p.active = false;
+          p.mesh.visible = false;
+          continue;
+        }
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.rotation.x += p.rx * dt;
+        p.mesh.rotation.y += p.ry * dt;
+        p.mesh.scale.setScalar(p.baseScale * (0.65 + 0.95 * progress));
+        p.mesh.material.uniforms.uLife.value = progress;
+      }
+
+      // Step Sparks
+      for (const sp of this.SPARK_POOL) {
+        if (!sp.active) continue;
+        sp.age += dt;
+        const progress = sp.age / sp.maxAge;
+        if (progress >= 1.0) {
+          sp.active = false;
+          sp.mesh.visible = false;
+          continue;
+        }
+        sp.vy -= 15.5 * dt;
+        sp.vx *= 1.0 - 1.5 * dt;
+        sp.mesh.position.x += sp.vx * dt;
+        sp.mesh.position.y += sp.vy * dt;
+        sp.mesh.position.z += sp.vz * dt;
+        sp.mesh.rotation.z = Math.atan2(sp.vy, sp.vx) - Math.PI * 0.5;
+        sp.mesh.scale.setScalar(sp.scale * (1.0 - 0.55 * progress));
+        sp.mesh.material.uniforms.uLife.value = progress;
+      }
+
+      // Recoil & Hover Springs
+      this.HOVER.clickVelY += (-this.HOVER.clickPosY * 65.0 - this.HOVER.clickVelY * 10.5) * dt;
+      this.HOVER.clickPosY += this.HOVER.clickVelY * dt;
+      this.HOVER.clickVelRotZ += (-this.HOVER.clickRotZ * 58.0 - this.HOVER.clickVelRotZ * 9.5) * dt;
+      this.HOVER.clickRotZ += this.HOVER.clickVelRotZ * dt;
+      this.HOVER.clickVelPitch += (-this.HOVER.clickPitch * 60.0 - this.HOVER.clickVelPitch * 10.0) * dt;
+      this.HOVER.clickPitch += this.HOVER.clickVelPitch * dt;
+
+      this.HOVER.vx += ((this.HOVER.tx - this.HOVER.x) * 24.0 - this.HOVER.vx * 7.2) * dt;
+      this.HOVER.vy += ((this.HOVER.ty - this.HOVER.y) * 24.0 - this.HOVER.vy * 7.2) * dt;
+      this.HOVER.x += this.HOVER.vx * dt;
+      this.HOVER.y += this.HOVER.vy * dt;
+      this.HOVER.energy = Math.max(0, this.HOVER.energy - dt * 1.15);
+
+      const bankZ = -this.HOVER.y * 0.14;
+      this.rootGroup.rotation.set(
+        this.MOTION.rx.v * wanderWeight + breathPitch + this.HOVER.x + this.HOVER.clickPitch,
+        this.MOTION.ry.v * wanderWeight + this.HOVER.y,
+        this.MOTION.rz.v * wanderWeight + bankZ + this.HOVER.clickRotZ
       );
-      rootGroup.position.set(
-        floatX + HOVER.y * 0.22,
-        floatY - HOVER.x * 0.18 + HOVER.clickPosY,
+      this.rootGroup.position.set(
+        floatX + this.HOVER.y * 0.22,
+        floatY - this.HOVER.x * 0.18 + this.HOVER.clickPosY,
         0
       );
-      rootGroup.scale.setScalar(breathScale);
-    }
-    const L = {
-      a: rnd(0, 6.28),
-      b: rnd(0, 6.28),
-      c: rnd(0, 6.28),
-      s1: rnd(0.05, 0.09),
-      s2: rnd(0.09, 0.14),
-      s3: rnd(0.07, 0.11)
-    };
+      this.rootGroup.scale.setScalar(breathScale);
 
-    function stepLight(s: number) {
-      const az = 0.20 + 0.45 * Math.sin(s * L.s1 + L.a) + 0.25 * Math.sin(s * L.s2 + L.b);
-      const el = 0.78 + 0.18 * Math.sin(s * L.s3 + L.c) + 0.08 * Math.sin(s * 2.05);
-      const azA = az + rootGroup.rotation.y * 0.75 - HOVER.y * 0.55;
-      const elA = el - rootGroup.rotation.x * 0.75 + HOVER.x * 0.45;
-      material.uniforms.uLight.value.set(
+      // Step Light
+      const az = 0.20 + 0.45 * Math.sin(s * this.L.s1 + this.L.a) + 0.25 * Math.sin(s * this.L.s2 + this.L.b);
+      const el = 0.78 + 0.18 * Math.sin(s * this.L.s3 + this.L.c) + 0.08 * Math.sin(s * 2.05);
+      const azA = az + this.rootGroup.rotation.y * 0.75 - this.HOVER.y * 0.55;
+      const elA = el - this.rootGroup.rotation.x * 0.75 + this.HOVER.x * 0.45;
+      this.material.uniforms.uLight.value.set(
         Math.sin(azA) * Math.cos(elA),
         Math.sin(elA),
         Math.cos(azA) * Math.cos(elA)
       );
-      blushMaterial.uniforms.uLight.value.copy(material.uniforms.uLight.value);
-      const facing = Math.max(0, Math.cos(rootGroup.rotation.y) * Math.cos(rootGroup.rotation.x));
-      gainNow += (1.02 + 0.28 * (1 - facing) - gainNow) * 0.06;
-      material.uniforms.uGain.value = gainNow;
-    }
-    const onContextLost = (e: Event) => {
-      e.preventDefault();
-      contextLost = true;
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-    };
+      this.blushMaterial.uniforms.uLight.value.copy(this.material.uniforms.uLight.value);
+      const facing = Math.max(0, Math.cos(this.rootGroup.rotation.y) * Math.cos(this.rootGroup.rotation.x));
+      this.gainNow += (1.02 + 0.28 * (1 - facing) - this.gainNow) * 0.06;
+      this.material.uniforms.uGain.value = this.gainNow;
 
-    const onContextRestored = () => {
-      contextLost = false;
-      if (!disposed && rafId === null) {
-        lastS = (performance.now() - start) / 1000;
-        frame();
+      // Step Shine
+      if (!this.SHINE.on && s >= this.SHINE.next && s >= this.SHINE.cooldownUntil) {
+        const a = rnd(0.45, 1.15);
+        const flip = Math.random() < 0.5 ? -1 : 1;
+        this.triggerShineSweep(Math.cos(a) * flip, Math.sin(a), rnd(1.0, 1.4));
       }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
+      if (this.SHINE.on) {
+        const p = (s - this.SHINE.t0) / this.SHINE.dur;
+        if (p >= 1) {
+          this.SHINE.on = false;
+          this.SHINE.next = s + rnd(10.0, 18.0);
+          this.material.uniforms.uShine.value = -1;
+        } else {
+          this.material.uniforms.uShine.value = p * p * (3 - 2 * p);
         }
-      } else if (!contextLost && !disposed && rafId === null) {
-        lastS = (performance.now() - start) / 1000;
-        frame();
       }
+
+      // Theme interpolation
+      for (let i = 0; i < 3; i++) {
+        this.cur.s[i] += (this.tgt.s[i] - this.cur.s[i]) * 0.08;
+        this.cur.h[i] += (this.tgt.h[i] - this.cur.h[i]) * 0.08;
+      }
+      this.material.uniforms.uShadow.value.set(this.cur.s[0], this.cur.s[1], this.cur.s[2]);
+      this.material.uniforms.uHighlight.value.set(this.cur.h[0], this.cur.h[1], this.cur.h[2]);
+
+      this.renderer.render(this.scene, this.camera);
+
+      // Copy rendered 128x128 frame to all mounted canvases (LoadingScreen + Sidebar)
+      for (const sub of this.subscribers) {
+        sub.ctx.clearRect(0, 0, 128, 128);
+        sub.ctx.drawImage(this.offscreenCanvas, 0, 0);
+        if (!sub.hasPaintedFirstFrame) {
+          sub.hasPaintedFirstFrame = true;
+          if (sub.onFirstFrame) sub.onFirstFrame();
+        }
+      }
+    }
+
+    this.rafId = requestAnimationFrame(this.loop);
+  };
+}
+
+let sharedEngineInstance: SharedAnvilEngine | null = null;
+function getSharedEngine(): SharedAnvilEngine {
+  if (!sharedEngineInstance) {
+    sharedEngineInstance = new SharedAnvilEngine();
+  }
+  return sharedEngineInstance;
+}
+
+export interface AnvilLogo3DProps {
+  size?: number | string;
+  className?: string;
+  interactive?: boolean;
+  sharpness?: 'pixelated' | 'crisp' | 'smooth';
+  themeOverride?: string;
+  onFirstFrame?: () => void;
+}
+
+export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
+  size = 128,
+  className = '',
+  interactive = true,
+  sharpness = 'pixelated',
+  themeOverride,
+  onFirstFrame
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const activeTheme = useAppStore((s) => s.activeTheme);
+  const effectiveTheme = themeOverride || activeTheme || 'dark_pro';
+
+  useEffect(() => {
+    const pal = getAnvilPaletteForTheme(effectiveTheme);
+    getSharedEngine().setThemePalette(pal.shadow, pal.highlight);
+  }, [effectiveTheme]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const engine = getSharedEngine();
+    const unsubscribe = engine.subscribe({
+      canvas,
+      ctx,
+      interactive,
+      onFirstFrame,
+      hasPaintedFirstFrame: false
+    });
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (!interactive) return;
+      engine.handleCanvasPointerDown(canvas, e.clientX, e.clientY);
     };
 
-    canvas.addEventListener('webglcontextlost', onContextLost);
-    canvas.addEventListener('webglcontextrestored', onContextRestored);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    function frame() {
-      if (disposed || contextLost || document.hidden) return;
-      const s = (performance.now() - start) / 1000;
-      stepMotion(s);
-      stepLight(s);
-      stepShine(s);
-      const tgt = tgtColorsRef.current;
-      for (let i = 0; i < 3; i++) {
-        cur.s[i] += (tgt.s[i] - cur.s[i]) * 0.08;
-        cur.h[i] += (tgt.h[i] - cur.h[i]) * 0.08;
-      }
-      material.uniforms.uShadow.value.set(cur.s[0], cur.s[1], cur.s[2]);
-      material.uniforms.uHighlight.value.set(cur.h[0], cur.h[1], cur.h[2]);
-      renderer.render(scene, camera);
-      rafId = requestAnimationFrame(frame);
-    }
-    frame();
+    canvas.addEventListener('pointerdown', onPointerDown);
     return () => {
-      disposed = true;
-      triggerThemeShineRef.current = null;
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      window.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('mouseleave', handleWindowLeave);
-      window.removeEventListener('blur', handleWindowLeave);
       canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('webglcontextlost', onContextLost);
-      canvas.removeEventListener('webglcontextrestored', onContextRestored);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      material.dispose();
-      blushMaterial.dispose();
-      disposableGeos.forEach((g) => g.dispose());
-      SPARK_POOL.forEach((sp) => sp.mesh.material.dispose());
-      STEAM_PUFFS.forEach((st) => st.mesh.material.dispose());
-      renderer.dispose();
+      unsubscribe();
     };
-  }, [interactive]);
+  }, [interactive, onFirstFrame]);
+
   const resolvedCssSize = typeof size === 'number' ? `${size}px` : size;
+
   return (
     <canvas
       ref={canvasRef}
@@ -1062,4 +1099,5 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
     />
   );
 };
+
 export default AnvilLogo3D;

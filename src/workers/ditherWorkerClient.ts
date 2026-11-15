@@ -288,3 +288,9 @@ export class DitherWorkerClient {
     return this.pendingRequests.size;
   }
 }
+
+// Shared Web Worker client instance for browser-mode dithering (off-main-thread)
+// In Tauri desktop mode, EngineBridge.dither() routes to Rust IPC.
+// In browser mode (localhost:5173), ditherWorkerClient.execute() routes to dither.worker.ts
+// so heavy algorithms (camo, voronoi-cellular, riemersma) don't freeze the UI.
+export const ditherWorkerClient = new DitherWorkerClient();

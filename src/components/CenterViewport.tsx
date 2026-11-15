@@ -14,6 +14,7 @@ import { downsampleAreaGamma } from '../utils/areaDownsample';
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { EngineBridge } from '../services/EngineBridge';
+import { ditherWorkerClient } from '../workers/ditherWorkerClient';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
 import { applyEffectPipeline } from '../effects';
 // @ts-ignore
@@ -1533,28 +1534,40 @@ export const CenterViewport: React.FC = () => {
       strength: effAlgoParams.diffusionStrength ?? 1.0
     };
 
-    const bridgeResult = await EngineBridge.dither(ditherImageData, {
+    // Route through Web Worker (browser mode) or Rust IPC (Tauri) so heavy
+    // algorithms like camo/voronoi-cellular/riemersma never block the main UI thread.
+    const workerResponse = await ditherWorkerClient.execute({
+      buffer: ditherImageData.data.buffer,
+      width,
+      height,
       algorithmId,
       palette,
-      ...mappedControls,
-      controls: mappedControls,
-      threshold: effAlgoParams.threshold ?? 0.5,
-      scale: mappedControls.scale,
-      bleed: mappedControls.bleed,
-      smoothing: mappedControls.smoothing,
-      diffusionStrength: effAlgoParams.diffusionStrength ?? 1.0,
-      serpentine: effAlgoParams.serpentine ?? false,
-      noiseAmount: effNoise,
-      noise: effNoise,
-      depth: effDepth,
-      temporalSeed: animatedNoiseActive && appMode === 'animation' ? frameIndex : 0,
-      offsetX:
-        (effAlgoParams.offsetX ?? 0) +
-        (effAlgoParams.orbVertical ? 0 : (effAlgoParams.orbOffset ?? 0)),
-      offsetY:
-        (effAlgoParams.offsetY ?? 0) +
-        (effAlgoParams.orbVertical ? (effAlgoParams.orbOffset ?? 0) : 0)
+      params: mappedControls,
+      tweaks: {
+        brightness: effAlgoParams.brightness ?? 0,
+        contrast: effAlgoParams.contrast ?? 0,
+        saturation: effAlgoParams.saturation ?? 0,
+        gamma: effAlgoParams.gamma ?? 1
+      },
+      effects: effEffects,
+      temporal: animatedNoiseActive && appMode === 'animation'
+        ? {
+          patternId: 'grain',
+          frameIndex,
+          intensity: effNoise,
+          speed: 1
+        }
+        : undefined
     });
+
+    if (workerResponse.success && workerResponse.buffer) {
+      ditherImageData.data.set(new Uint8ClampedArray(workerResponse.buffer));
+    }
+
+    const bridgeResult = {
+      backend: 'js',
+      elapsedMs: workerResponse.elapsedMs ?? 0
+    };
 
     if (currentNonce !== renderNonceRef.current) {
       return;
@@ -1572,12 +1585,12 @@ export const CenterViewport: React.FC = () => {
     if (!isPlaying && !isScrubbingTimeline) {
       lastRenderMsUpdateWallRef.current = nowWall;
       setLastRenderMs(elapsedMs);
-      useAppStore.getState().setActiveBackend(bridgeResult.backend);
+      useAppStore.getState().setActiveBackend(bridgeResult.backend as 'rust' | 'js' | 'js-fallback');
       useAppStore.getState().setBackendError(EngineBridge.lastError);
     } else if (nowWall - lastRenderMsUpdateWallRef.current >= 200) {
       lastRenderMsUpdateWallRef.current = nowWall;
       setLastRenderMs(elapsedMs);
-      useAppStore.getState().setActiveBackend(bridgeResult.backend);
+      useAppStore.getState().setActiveBackend(bridgeResult.backend as 'rust' | 'js' | 'js-fallback');
       useAppStore.getState().setBackendError(EngineBridge.lastError);
     }
 

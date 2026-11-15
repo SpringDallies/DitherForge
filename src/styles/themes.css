@@ -39,7 +39,12 @@
   --radius-pill: 9999px;
   --corner-shape: squircle;
 
-  /* ─── Motion ─── */
+    /* ─── Default Background (used before data-theme loads) ─── */
+    --bg-primary: #333333;
+    --bg-secondary: #444444;
+    --text-main: #DEDEDE;
+
+    /* ─── Motion ─── */
   --transition-fast: 120ms ease;
   --transition-mid: 180ms ease;
 }

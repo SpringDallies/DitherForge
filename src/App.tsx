@@ -18,23 +18,25 @@ import { EngineBridge } from './services/EngineBridge';
 export const App: React.FC = () => {
   const [isReady, setIsReady] = useState(false);
 
-  // Single loading state tied directly to app readiness.
-  // Shows fullscreen 3D anvil logo until the UI is ready;
-  // then reveals the Tauri window (if hidden) and dismisses the splash.
+  // Reveal the Tauri window immediately so the 3D anvil loading screen is visible
+  // during boot. Keep the full app mounted underneath the overlay so there is
+  // no second blank gap when the loading screen dismisses.
   useEffect(() => {
     let cancelled = false;
-    const readyPromise = EngineBridge.isTauri()
-      ? EngineBridge.isRustAvailable()
-      : Promise.resolve();
 
-    readyPromise.then(() => {
-      if (cancelled) return;
-      setIsReady(true);
-      if (EngineBridge.isTauri()) {
-        import('@tauri-apps/api/core')
-          .then(({ invoke }) => invoke('show_main_window'))
-          .catch(() => {});
-      }
+    if (EngineBridge.isTauri()) {
+      import('@tauri-apps/api/core')
+        .then(({ invoke }) => invoke('show_main_window'))
+        .catch(() => {});
+    }
+
+    const minDisplay = new Promise((r) => setTimeout(r, 900));
+    const backendInit = EngineBridge.isTauri()
+      ? EngineBridge.isRustAvailable().catch(() => false)
+      : Promise.resolve(true);
+
+    Promise.all([minDisplay, backendInit]).then(() => {
+      if (!cancelled) setIsReady(true);
     });
 
     return () => {
@@ -258,7 +260,14 @@ export const App: React.FC = () => {
   }, []);
 
   if (!isReady) {
-    return <LoadingScreen fullscreen size={220} />;
+    return (
+      <div
+        className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
+        data-theme={activeTheme}
+      >
+        <LoadingScreen fullscreen size={220} />
+      </div>
+    );
   }
 
   return (

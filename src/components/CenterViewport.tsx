@@ -1169,11 +1169,11 @@ export const CenterViewport: React.FC = () => {
     if (slowDitherTimerRef.current === null && activeDitherCountRef.current === 1) {
       slowDitherTimerRef.current = window.setTimeout(() => {
         slowDitherTimerRef.current = null;
-        // Only show if a dither is STILL actively running after 2000ms
+        // Only show if a dither is STILL actively running after 1000ms
         if (activeDitherCountRef.current > 0) {
           setShowSlowDitherAnvil(true);
         }
-      }, 2000);
+      }, 1000);
     }
   }, []);
 
@@ -1247,8 +1247,6 @@ export const CenterViewport: React.FC = () => {
         return;
       }
     }
-
-    startDitherTimer();
 
     let effectiveQuality = previewQuality;
 
@@ -1419,6 +1417,8 @@ export const CenterViewport: React.FC = () => {
       return;
     }
     lastRenderSignatureRef.current = renderSig;
+
+    startDitherTimer();
 
     const width = renderSource.width;
     const height = renderSource.height;
@@ -1717,6 +1717,16 @@ export const CenterViewport: React.FC = () => {
   ]);
 
   executeRenderPipelineRef.current = executeRenderPipeline;
+
+  // Clean up slow dither timer on unmount
+  useEffect(() => {
+    return () => {
+      if (slowDitherTimerRef.current !== null) {
+        window.clearTimeout(slowDitherTimerRef.current);
+        slowDitherTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!sourceImageData) return;

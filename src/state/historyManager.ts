@@ -174,10 +174,8 @@ export class HistoryManager {
     this.syncCanUndoRedo();
 
     this.unsubscribe = store.subscribe((state: any) => {
-      queueMicrotask(() => {
-        if (this.isApplying) return;
-        this.handleStateChange(store.getState());
-      });
+      if (this.isApplying) return;
+      this.handleStateChange(state);
     });
   }
 

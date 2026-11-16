@@ -196,6 +196,63 @@ export const BUILTIN_PALETTES = [
       [17, 17, 17, 255],
       [238, 238, 238, 255]
     ]
+  },
+  {
+    id: "coffee_espresso",
+    name: "Coffee Espresso",
+    category: "Retro & Tonal",
+    colors: [
+      [24, 16, 12, 255],
+      [74, 48, 34, 255],
+      [140, 96, 68, 255],
+      [204, 164, 130, 255],
+      [244, 230, 212, 255]
+    ]
+  },
+  {
+    id: "gameboy_pocket_ice",
+    name: "Pocket Ice Grayscale",
+    category: "Console",
+    colors: [
+      [28, 31, 36, 255],
+      [88, 96, 108, 255],
+      [162, 172, 184, 255],
+      [230, 234, 240, 255]
+    ]
+  },
+  {
+    id: "pc98_neon",
+    name: "NEC PC-98 Neon",
+    category: "Cyber & Synth",
+    colors: [
+      [12, 8, 28, 255],
+      [68, 28, 116, 255],
+      [214, 44, 114, 255],
+      [46, 196, 214, 255],
+      [252, 234, 140, 255]
+    ]
+  },
+  {
+    id: "risograph_coral_teal",
+    name: "Risograph Coral & Teal",
+    category: "Print & Zine",
+    colors: [
+      [22, 34, 46, 255],
+      [0, 138, 144, 255],
+      [255, 102, 94, 255],
+      [251, 246, 236, 255]
+    ]
+  },
+  {
+    id: "matcha_paper",
+    name: "Matcha Botanical",
+    category: "Retro & Tonal",
+    colors: [
+      [24, 38, 28, 255],
+      [66, 104, 72, 255],
+      [136, 174, 122, 255],
+      [238, 242, 226, 255]
+    ]
   }
 ];
 

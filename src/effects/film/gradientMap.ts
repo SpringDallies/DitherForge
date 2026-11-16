@@ -2,7 +2,18 @@
 // Maps image luminance across 2-5 stops in sRGB, Linear, or Perceptual Oklab color space
 
 import type { EffectDescriptor, ParamMeta } from '../types';
-import { useAppStore } from '../../state/useAppStore';
+
+export const STORAGE_KEY_CUSTOM_PALETTES = 'ditherforge_custom_palettes';
+
+function getStoredCustomPalettes(): Array<{ id: string; name: string; colors: number[][] }> {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_PALETTES);
+      return raw ? JSON.parse(raw) : [];
+    }
+  } catch {}
+  return [];
+}
 
 export interface GradientStop {
   pos: number; // 0.0 to 1.0
@@ -233,7 +244,7 @@ const builtInPresetOptions = [
 ];
 
 function getParamsMeta(): ParamMeta[] {
-  const savedPalettes = useAppStore.getState().savedPalettes;
+  const savedPalettes = getStoredCustomPalettes();
   const savedOptions = savedPalettes.map((p) => ({
     value: `saved_${p.id}`,
     label: p.name
@@ -275,7 +286,7 @@ function getParamsMeta(): ParamMeta[] {
   ];
 }
 
-const paramsMeta: ParamMeta[] | (() => ParamMeta[]) = getParamsMeta;
+const staticParamsMeta: ParamMeta[] = getParamsMeta();
 
 export const gradientMapEffect: EffectDescriptor<GradientMapParams> = {
   id: 'gradient_map',
@@ -291,7 +302,9 @@ export const gradientMapEffect: EffectDescriptor<GradientMapParams> = {
   },
   defaultOpacity: 1.0,
   defaultBlendMode: 'normal',
-  paramsMeta,
+  get paramsMeta() {
+    return getParamsMeta();
+  },
   apply: (dataOrCtx, widthOrParams, height, paramsArg, contextArg) => {
     let data: Uint8ClampedArray;
     let w: number;
@@ -323,7 +336,7 @@ export const gradientMapEffect: EffectDescriptor<GradientMapParams> = {
 
     if (mix <= 0.001) return;
 
-    const savedPalettes = useAppStore.getState().savedPalettes;
+    const savedPalettes = getStoredCustomPalettes();
     const stops = (preset.startsWith('saved_')
       ? paletteToStops(savedPalettes.find((p) => `saved_${p.id}` === preset)?.colors || [])
       : preset !== 'custom' && GRADIENT_PRESETS[preset]

@@ -86,3 +86,43 @@
   background-color: var(--bg-hover);
   color: var(--text-main);
 }
+
+/* Ensure Settings modal & dialog have true frosted-glass blur when glassBlur is enabled */
+html[data-glass-blur="true"] .modal-backdrop {
+  background-color: rgba(10, 12, 18, 0.32);
+  backdrop-filter: blur(calc(var(--glass-blur-radius, 16px) * 0.5));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur-radius, 16px) * 0.5));
+}
+
+html[data-glass-blur="true"] .settings-dialog,
+html[data-glass-blur="true"] .modal-dialog,
+html[data-glass-blur="true"] .export-dialog {
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent) !important;
+  backdrop-filter: blur(var(--glass-blur-radius, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px)) saturate(140%) !important;
+  border: 1px solid var(--border-color);
+}
+
+html[data-glass-blur="true"] .settings-dialog .modal-header,
+html[data-glass-blur="true"] .settings-dialog .modal-footer,
+html[data-glass-blur="true"] .settings-dialog .modal-body {
+  background-color: transparent !important;
+}
+
+/* Unified Frosted Glass Backdrop Blur across all Popovers, Submenus, and Modals */
+html[data-glass-blur="true"] .dropdown-menu-popover,
+html[data-glass-blur="true"] .dropdown-submenu-popover,
+html[data-glass-blur="true"] .algo-listbox-panel,
+html[data-glass-blur="true"] .custom-dropdown-panel,
+html[data-glass-blur="true"] .df-app-context-menu,
+html[data-glass-blur="true"] .df-floating-property-editor,
+html[data-glass-blur="true"] .df-speed-popover,
+html[data-glass-blur="true"] .replica-callout-popover,
+html[data-glass-blur="true"] .palette-options-card,
+html[data-glass-blur="true"] .settings-dialog,
+html[data-glass-blur="true"] .modal-dialog,
+html[data-glass-blur="true"] .export-dialog {
+  background-color: color-mix(in srgb, var(--bg-secondary) var(--glass-opacity, 82%), transparent) !important;
+  backdrop-filter: blur(var(--glass-blur-radius, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-radius, 16px)) saturate(140%) !important;
+}

@@ -1536,8 +1536,9 @@ export const CenterViewport: React.FC = () => {
 
     // Route through Web Worker (browser mode) or Rust IPC (Tauri) so heavy
     // algorithms like camo/voronoi-cellular/riemersma never block the main UI thread.
+    // Clone buffer so workingData is not detached by transferable postMessage
     const workerResponse = await ditherWorkerClient.execute({
-      buffer: ditherImageData.data.buffer,
+      buffer: ditherImageData.data.slice().buffer,
       width,
       height,
       algorithmId,
@@ -1681,6 +1682,13 @@ export const CenterViewport: React.FC = () => {
         drawToCanvas(new ImageData(comp as any, width, height));
       } else {
         drawToCanvas(ditherImageData);
+      }
+
+      // First real image render completed: dismiss the initial 3D anvil boot-loader overlay
+      const dismissBoot = (window as any).__dismissBootAnvil;
+      if (typeof dismissBoot === 'function') {
+        dismissBoot();
+        (window as any).__dismissBootAnvil = null;
       }
     }
   } finally {

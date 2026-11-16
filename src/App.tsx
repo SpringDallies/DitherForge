@@ -16,16 +16,6 @@ import { ffmpegService } from './services/ffmpegService';
 import { EngineBridge } from './services/EngineBridge';
 
 export const App: React.FC = () => {
-  const [isReady, setIsReady] = useState(false);
-  const firstFrameResolveRef = useRef<(() => void) | null>(null);
-
-  const handleAnvilFirstFrame = useCallback(() => {
-    if (firstFrameResolveRef.current) {
-      firstFrameResolveRef.current();
-      firstFrameResolveRef.current = null;
-    }
-  }, []);
-
   const activeTheme = useAppStore((state) => state.activeTheme);
   const isFullScreen = useAppStore((state) => state.isFullScreen);
   const toggleFullScreen = useAppStore((state) => state.toggleFullScreen);
@@ -41,34 +31,26 @@ export const App: React.FC = () => {
   const setBackendError = useAppStore((state) => state.setBackendError);
 
   useEffect(() => {
-    let cancelled = false;
     if (EngineBridge.isTauri()) {
       import('@tauri-apps/api/core')
         .then(({ invoke }) => invoke('show_main_window'))
         .catch(() => {});
     }
 
-    // Wait for the 3D Anvil to paint its first frame (or 300ms fallback), then run the full 1000ms loading animation
-    const firstFramePainted = new Promise<void>((resolve) => {
-      firstFrameResolveRef.current = resolve;
-      window.setTimeout(resolve, 300);
-    });
-
-    const minDisplay = firstFramePainted.then(
-      () => new Promise<void>((r) => window.setTimeout(r, 1000))
-    );
-
-    const backendInit = EngineBridge.isTauri()
-      ? EngineBridge.isRustAvailable().catch(() => false)
-      : Promise.resolve(true);
-
-    Promise.all([minDisplay, backendInit]).then(() => {
-      if (!cancelled) setIsReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    if (EngineBridge.isTauri()) {
+      EngineBridge.isRustAvailable()
+        .then((ok) => {
+          setActiveBackend(ok ? 'rust' : 'js');
+          if (!ok) setBackendError('Rust IPC probe failed');
+        })
+        .catch((err) => {
+          setActiveBackend('js');
+          setBackendError(String(err ?? 'Rust IPC probe error'));
+        });
+    } else {
+      setActiveBackend('js');
+      setBackendError(null);
+    }
   }, [setActiveBackend, setBackendError]);
 
   // Proactively query FFmpeg status on startup in Tauri desktop mode
@@ -252,21 +234,6 @@ export const App: React.FC = () => {
       if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
     };
   }, []);
-
-  if (!isReady) {
-    return (
-      <div
-        className={`app-container ${isFullScreen ? 'fullscreen' : ''} ${isPeekOpen ? 'peek-open' : ''}`}
-        data-theme={activeTheme}
-      >
-        <LoadingScreen
-          fullscreen
-          size="min(360px, 80vw)"
-          onFirstFrame={handleAnvilFirstFrame}
-        />
-      </div>
-    );
-  }
 
   return (
     <div

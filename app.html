@@ -10,20 +10,81 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    html, body { margin: 0; font-family: 'Inter', sans-serif; }
-    html, body, #root { margin: 0; height: 100%; width: 100%; background-color: #101014; }
+    :root {
+      --bg: #333333;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    #root {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+    .boot-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: auto;
+    }
+    #boot-anvil-3d {
+      width: min(360px, 80vw);
+      height: min(360px, 80vw);
+      aspect-ratio: 1 / 1;
+      display: block;
+      cursor: pointer;
+      touch-action: none;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
+    }
   </style>
   <script>
-    try {
-      const t = localStorage.getItem('ditherforge_theme') || 'dark_pro';
-      document.documentElement.setAttribute('data-theme', t);
-      document.body.style.backgroundColor = 'transparent';
-    } catch {}
+    (function() {
+      try {
+        var theme = localStorage.getItem('ditherforge_theme') || 'dark_pro';
+        document.documentElement.setAttribute('data-theme', theme);
+        var themeBgMap = {
+          'light_pro': '#DDDDE3',
+          'dark_pro': '#333333',
+          'obsidian_oled': '#0D0E11',
+          'nord': '#2E3440',
+          'evergreen': '#1B2A23',
+          'gruvbox': '#282828',
+          'catppuccin_mocha': '#1E1E2E',
+          'tokyo_night': '#1A1B26',
+          'kanagawa_wave': '#1F1F28',
+          'rose_pine': '#191724',
+          'dracula': '#1E1F29',
+          'monokai_pro': '#221F22',
+          'solarized_dark': '#002B36',
+          'one_dark': '#21252B'
+        };
+        var bg = themeBgMap[theme] || '#333333';
+        document.documentElement.style.setProperty('--bg', bg);
+        document.documentElement.style.backgroundColor = bg;
+      } catch (e) {}
+    })();
   </script>
 </head>
 <body>
-  <div id="boot-loader" class="boot-loader" style="background:#101014" data-theme="dark_pro">
+  <div id="boot-loader" class="boot-loader">
+    <canvas id="boot-anvil-3d" width="128" height="128"></canvas>
   </div>
+  <script src="/assets/three.min.js"></script>
+  <script src="/assets/boot-anvil.js"></script>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
 </body>

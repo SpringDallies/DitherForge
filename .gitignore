@@ -38,3 +38,4 @@ benchmark_results*.json
 scripts/benchmark-baseline.mjs
 src-tauri/.cargo/
 src-tauri/gen/
+.npm-cache/

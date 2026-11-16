@@ -4,6 +4,7 @@ import { AnvilLogo3D } from './AnvilLogo3D';
 export interface LoadingScreenProps {
   fullscreen?: boolean;
   imageOverlay?: boolean;
+  imageReplace?: boolean;
   size?: number | string;
   onFirstFrame?: () => void;
 }
@@ -11,11 +12,14 @@ export interface LoadingScreenProps {
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   fullscreen = false,
   imageOverlay = false,
+  imageReplace = false,
   size,
   onFirstFrame
 }) => {
   const modeClass = fullscreen
     ? 'loading-screen-fullscreen'
+    : imageReplace
+    ? 'loading-screen-image-replace'
     : imageOverlay
     ? 'loading-screen-image-overlay'
     : 'loading-screen-inline';

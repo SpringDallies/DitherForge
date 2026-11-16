@@ -1170,11 +1170,11 @@ export const CenterViewport: React.FC = () => {
     if (slowDitherTimerRef.current === null && activeDitherCountRef.current === 1) {
       slowDitherTimerRef.current = window.setTimeout(() => {
         slowDitherTimerRef.current = null;
-        // Only show if a dither is STILL actively running after 1000ms
+        // Only show if a dither is STILL actively running after 900ms
         if (activeDitherCountRef.current > 0) {
           setShowSlowDitherAnvil(true);
         }
-      }, 1000);
+      }, 900);
     }
   }, []);
 
@@ -2053,14 +2053,14 @@ export const CenterViewport: React.FC = () => {
               draggable={false}
               onDragStart={(e) => e.preventDefault()}
               style={{
-                display: 'block',
+                display: showSlowDitherAnvil ? 'none' : 'block',
                 imageRendering: isSmoothDownscale ? 'auto' : 'pixelated'
               }}
             />
             {showSlowDitherAnvil && (
               <LoadingScreen
-                imageOverlay
-                size={Math.max(72, Math.min(220, Math.round(Math.min(sourceImageData.width, sourceImageData.height) * 0.45)))}
+                imageReplace
+                size={Math.max(120, Math.min(360, Math.round(Math.min(sourceImageData.width, sourceImageData.height) * 0.65)))}
               />
             )}
             {!isOriginalView && showBeforeAfter && canvasRef.current && (

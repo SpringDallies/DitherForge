@@ -1164,9 +1164,14 @@ export const CenterViewport: React.FC = () => {
   const renderLogTimeRef = useRef<number>(0);
   const slowDitherTimerRef = useRef<number | null>(null);
   const activeDitherCountRef = useRef<number>(0);
+  const lastMeasuredRenderDurationRef = useRef<number>(0);
 
   const startDitherTimer = useCallback(() => {
     activeDitherCountRef.current += 1;
+    // If dynamically measured previous render took >= 900ms, immediately show anvil
+    if (lastMeasuredRenderDurationRef.current >= 900) {
+      setShowSlowDitherAnvil(true);
+    }
     if (slowDitherTimerRef.current === null && activeDitherCountRef.current === 1) {
       slowDitherTimerRef.current = window.setTimeout(() => {
         slowDitherTimerRef.current = null;
@@ -1429,6 +1434,8 @@ export const CenterViewport: React.FC = () => {
       workBufferRef.current = new Uint8ClampedArray(len);
     }
 
+    const effNoise = effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0;
+
     // Avoid unnecessary full-resolution recomputation:
     // If only Threshold or algorithm/style/effect params are changing, reuse the pre-dither adjusted buffer!
     const adjustmentsSig = [
@@ -1445,7 +1452,8 @@ export const CenterViewport: React.FC = () => {
       effGamma.toFixed(3),
       effBlur.toFixed(3),
       effDenoise.toFixed(3),
-      effHighlight.toFixed(3)
+      effHighlight.toFixed(3),
+      effNoise.toFixed(3)
     ].join('::');
 
     const t0 = performance.now();
@@ -1482,14 +1490,24 @@ export const CenterViewport: React.FC = () => {
         );
       }
 
+      if (effNoise > 0) {
+        const seedOffset = animatedNoiseActive && appMode === 'animation' ? frameIndex * 1337 : 42;
+        const amp = effNoise * 110;
+        const buf = adjustedBaseBufferRef.current;
+        for (let i = 0; i < len; i += 4) {
+          const hash = Math.sin((i >> 2) * 12.9898 + seedOffset) * 43758.5453;
+          const n = (hash - Math.floor(hash) - 0.5) * amp;
+          buf[i] = Math.max(0, Math.min(255, buf[i] + n));
+          buf[i + 1] = Math.max(0, Math.min(255, buf[i + 1] + n));
+          buf[i + 2] = Math.max(0, Math.min(255, buf[i + 2] + n));
+        }
+      }
+
       lastAdjustmentsSigRef.current = adjustmentsSig;
       workBufferRef.current.set(adjustedBaseBufferRef.current);
     }
 
     const workingData = workBufferRef.current;
-
-    // Pre-dither noise is applied inside the dither engine (JS and Rust) via noiseAmount.
-    // Do not apply it here, or it will be doubled.
 
     const getEffectivePalette = (): number[][] => {
       let base: number[][];
@@ -1521,7 +1539,6 @@ export const CenterViewport: React.FC = () => {
 
     const palette = getEffectivePalette();
     const ditherImageData = new ImageData(workingData as any, width, height);
-    const effNoise = effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0;
     const mappedControls = {
       ...effAlgoParams,
       bleed: (effAlgoParams.bleedFraction ?? 0) / 100,
@@ -1581,6 +1598,7 @@ export const CenterViewport: React.FC = () => {
     });
 
     const elapsedMs = performance.now() - t0;
+    lastMeasuredRenderDurationRef.current = elapsedMs;
     const nowWall = performance.now();
     // Throttle Zustand store updates of lastRenderMs during active playback/scrubbing to avoid TopMenuBar re-render storms
     if (!isPlaying && !isScrubbingTimeline) {
@@ -1753,17 +1771,31 @@ export const CenterViewport: React.FC = () => {
     if (!sourceImageData) return;
     if (isPlaying) return; // Dedicated animation loop drives playback ticks directly
     if (viewportUpdateMode === 'debounce' && !isScrubbingTimeline) {
-      if (isDraggingSlider) return;
+      if (isDraggingSlider) {
+        if (lastMeasuredRenderDurationRef.current >= 900) {
+          setShowSlowDitherAnvil(true);
+        }
+        return;
+      }
+      if (lastMeasuredRenderDurationRef.current >= 900) {
+        setShowSlowDitherAnvil(true);
+      }
       const timer = window.setTimeout(() => {
         executeRenderPipeline();
       }, 140);
       return () => clearTimeout(timer);
     }
     if (isDraggingSlider) {
+      if (lastMeasuredRenderDurationRef.current >= 900) {
+        setShowSlowDitherAnvil(true);
+      }
       let rafId = requestAnimationFrame(() => {
         executeRenderPipeline();
       });
       return () => cancelAnimationFrame(rafId);
+    }
+    if (lastMeasuredRenderDurationRef.current >= 900) {
+      setShowSlowDitherAnvil(true);
     }
     executeRenderPipeline();
   }, [

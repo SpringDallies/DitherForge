@@ -7,7 +7,7 @@
 }
 
 .settings-section {
-  margin-bottom: 20px;
+  margin-bottom: 26px;
 }
 
 .settings-section:last-child {
@@ -20,7 +20,7 @@
   letter-spacing: 0.06em;
   color: var(--text-dim);
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border-color);
   font-family: var(--font-sans);
@@ -30,7 +30,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0;
+  padding: 9px 0;
 }
 
 .settings-label {

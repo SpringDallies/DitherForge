@@ -1048,11 +1048,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 </button>
               </div>
             </div>
-
-            <div className="settings-row settings-row-actions">
-            </div>
           </div>
           </div>
+        </div>
 
         {/* Footer */}
         <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)', gap: '10px' }}>
@@ -1066,7 +1064,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           >
             Reset to Default
           </button>
-        </div>
         </div>
       </div>
 

@@ -172,6 +172,9 @@ export const App: React.FC = () => {
       const customEvent = e as CustomEvent<any>;
       if (customEvent.detail) {
         applyPerformanceSettings(customEvent.detail);
+        if (typeof customEvent.detail.liveProxyEnabled === 'boolean') {
+          useAppStore.getState().setLiveProxyEnabled(customEvent.detail.liveProxyEnabled);
+        }
       }
     };
     window.addEventListener('ditherforge_settings_changed', handleSettingsChanged);

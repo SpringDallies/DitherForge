@@ -2004,6 +2004,11 @@ export const CenterViewport: React.FC = () => {
 
     if (viewportUpdateMode === 'debounce' && !isScrubbingTimeline) {
       if (isDraggingSlider) {
+        if (!liveProxyEnabled) {
+          return;
+        }
+        // Live proxy: render at low res during drag for speed
+        executeRenderPipeline();
         return;
       }
       const timer = window.setTimeout(() => {
@@ -2024,6 +2029,7 @@ export const CenterViewport: React.FC = () => {
     sourceImageData,
     viewportUpdateMode,
     isDraggingSlider,
+    liveProxyEnabled,
     isPlaying,
     isScrubbingTimeline,
     executeRenderPipeline

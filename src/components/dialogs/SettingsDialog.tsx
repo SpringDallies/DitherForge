@@ -949,31 +949,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
           </div>
 
-          {/* Section: STORAGE */}
-          <div className="settings-section">
-            <div className="settings-section-title">STORAGE</div>
-
-            <div className="settings-row">
-              <div>
-                <div className="settings-label">Purge temp files</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                  Clear cached sessions, recent files, and temporary buffers
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                {purgeMsg && <span className="settings-status-msg">{purgeMsg}</span>}
-                <button
-                  type="button"
-                  className="btn-default"
-                  onClick={handlePurgeTempFiles}
-                  style={{ minWidth: '70px', padding: '4px 12px' }}
-                >
-                  Purge
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Section: VIDEO ENGINE */}
           <div className="settings-section">
             <div className="settings-section-title">VIDEO ENGINE</div>
@@ -1062,6 +1037,26 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <span className="settings-readonly-text">
                 {backendError ?? 'None'}
               </span>
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Purge temp files</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Clear cached sessions, recent files, and temporary buffers
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                {purgeMsg && <span className="settings-status-msg">{purgeMsg}</span>}
+                <button
+                  type="button"
+                  className="btn-default"
+                  onClick={handlePurgeTempFiles}
+                  style={{ minWidth: '70px', padding: '4px 12px' }}
+                >
+                  Purge
+                </button>
+              </div>
             </div>
 
             <div className="settings-row settings-row-actions">

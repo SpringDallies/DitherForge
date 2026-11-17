@@ -31,7 +31,6 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 0;
-  border-bottom: 1px solid var(--border-secondary);
 }
 
 .settings-label {

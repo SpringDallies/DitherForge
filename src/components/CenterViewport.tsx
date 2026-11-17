@@ -401,7 +401,6 @@ export const CenterViewport: React.FC = () => {
   const savedPalettes = useAppStore((state) => state.savedPalettes);
 
   const previewQuality = useAppStore((state) => state.previewQuality);
-  const liveProxyEnabled = useAppStore((state) => state.liveProxyEnabled);
   const viewportUpdateMode = useAppStore((state) => state.viewportUpdateMode);
   const appMode = useAppStore((state) => state.appMode);
   const setAppMode = useAppStore((state) => state.setAppMode);
@@ -1376,15 +1375,6 @@ export const CenterViewport: React.FC = () => {
 
     let effectiveQuality = previewQuality;
 
-    // Live drag proxy: when dragging a slider with live proxy enabled, render at
-    // low resolution for speed (blurry while dragging, sharp once released)
-    if (
-      liveProxyEnabled &&
-      useAppStore.getState().isDraggingSlider
-    ) {
-      effectiveQuality = 'low';
-    }
-
     // If a video source is active, grab current video frame if ready
     let activeBaseImage = sourceImageData;
     if (sourceVideoUrl && videoElRef.current && videoElRef.current.readyState >= 2) {
@@ -1880,7 +1870,6 @@ export const CenterViewport: React.FC = () => {
     sourceImageData,
     sourceVideoUrl,
     previewQuality,
-    liveProxyEnabled,
     appMode,
     isPlaying,
     isScrubbingTimeline,
@@ -2004,11 +1993,6 @@ export const CenterViewport: React.FC = () => {
 
     if (viewportUpdateMode === 'debounce' && !isScrubbingTimeline) {
       if (isDraggingSlider) {
-        if (!liveProxyEnabled) {
-          return;
-        }
-        // Live proxy: render at low res during drag for speed
-        executeRenderPipeline();
         return;
       }
       const timer = window.setTimeout(() => {
@@ -2029,7 +2013,6 @@ export const CenterViewport: React.FC = () => {
     sourceImageData,
     viewportUpdateMode,
     isDraggingSlider,
-    liveProxyEnabled,
     isPlaying,
     isScrubbingTimeline,
     executeRenderPipeline

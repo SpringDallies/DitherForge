@@ -91,11 +91,6 @@ export const App: React.FC = () => {
           useAppStore.getState().setUpdateMode(settings.defaultUpdateMode);
         }
       }
-      // Always hydrate liveProxyEnabled from settings (regardless of update_mode key)
-      const settings = getStoredSettings();
-      if (typeof settings.liveProxyEnabled === 'boolean') {
-        useAppStore.getState().setLiveProxyEnabled(settings.liveProxyEnabled);
-      }
     } catch {}
   }, []);
   const peekTimerRef = useRef<number | null>(null);
@@ -172,9 +167,6 @@ export const App: React.FC = () => {
       const customEvent = e as CustomEvent<any>;
       if (customEvent.detail) {
         applyPerformanceSettings(customEvent.detail);
-        if (typeof customEvent.detail.liveProxyEnabled === 'boolean') {
-          useAppStore.getState().setLiveProxyEnabled(customEvent.detail.liveProxyEnabled);
-        }
       }
     };
     window.addEventListener('ditherforge_settings_changed', handleSettingsChanged);

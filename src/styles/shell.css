@@ -2581,14 +2581,16 @@ button .btn-icon:hover,
 }
 
 .df-portaled-themes-menu::-webkit-scrollbar {
-  width: 5px;
+  display: none;
 }
 .df-portaled-themes-menu::-webkit-scrollbar-track {
   background: transparent;
 }
 .df-portaled-themes-menu::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 999px;
+  background: transparent;
+}
+.df-portaled-themes-menu {
+  scrollbar-width: none;
 }
 
 html[data-glass-blur="true"] .df-portaled-themes-menu {

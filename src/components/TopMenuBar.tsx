@@ -89,11 +89,11 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       const parentRect = parentPopover ? parentPopover.getBoundingClientRect() : triggerRect;
       const menuMaxH = 280;
       const top = Math.min(
-        triggerRect.top - 8,
-        Math.max(12, window.innerHeight - menuMaxH - 16)
+        triggerRect.top - 4,
+        Math.max(4, window.innerHeight - menuMaxH - 4)
       );
-      // 12px breathing gap from the outer edge of the View dropdown popover
-      const left = Math.min(parentRect.right + 12, window.innerWidth - 230);
+      // 4px breathing gap from the outer edge of the View dropdown popover
+      const left = Math.min(parentRect.right + 4, window.innerWidth - 4);
       setThemesSubmenuPos({ top, left });
     }
     setIsThemesSubmenuOpen(true);

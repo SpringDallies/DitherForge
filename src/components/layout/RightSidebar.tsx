@@ -2929,24 +2929,25 @@ export const RightSidebar: React.FC = () => {
                       >
                         <div className="effects-category-title-group">
                           <span className="effects-category-title">{catDef.label}</span>
-                          {activeCount > 0 && (
-                            <span
-                              className="effects-category-badge"
-                              title={`${activeCount} active effect${activeCount > 1 ? 's' : ''}`}
-                            >
-                              {activeCount}
-                            </span>
-                          )}
                         </div>
-                        <ChevronDown
-                          size={16}
-                          strokeWidth={2.2}
-                          className="effects-category-chevron"
-                          style={{
-                            transform: isCatCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                            transition: 'transform 150ms ease'
-                          }}
-                        />
+                        {activeCount > 0 ? (
+                          <span
+                            className="effects-category-badge"
+                            title={`${activeCount} active effect${activeCount > 1 ? 's' : ''}`}
+                          >
+                            {activeCount}
+                          </span>
+                        ) : (
+                          <ChevronDown
+                            size={16}
+                            strokeWidth={2.2}
+                            className="effects-category-chevron"
+                            style={{
+                              transform: isCatCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                              transition: 'transform 150ms ease'
+                            }}
+                          />
+                        )}
                       </div>
 
                       {!isCatCollapsed && (

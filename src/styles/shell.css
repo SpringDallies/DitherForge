@@ -4464,7 +4464,7 @@ body {
 }
 .effects-category-accordion {
   background-color: var(--bg-panel);
-  border: 1.5px solid var(--border-color);
+  border: 1px solid var(--border-color);
   border-radius: 14px;
   overflow: visible;
   display: flex;
@@ -4473,7 +4473,7 @@ body {
   position: relative;
 }
 .effects-category-accordion:hover {
-  border-color: var(--border-hover);
+  border-color: var(--border-secondary);
 }
 .effects-category-accordion:has(.popover-open),
 .effects-category-accordion:has(.effect-color-popover),

@@ -898,9 +898,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               </div>
             </div>
 
-          {/* Section: FILES */}
-          <div className="settings-section">
-            <div className="settings-section-title">FILES</div>
             <div className="settings-row">
               <span className="settings-label">Default export format</span>
               <Dropdown
@@ -966,7 +963,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 aria-label="Recent files limit"
               />
             </div>
-          </div>
 
           {/* Section: DEVELOPER */}
           <div className="settings-section">

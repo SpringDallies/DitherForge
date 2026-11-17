@@ -949,35 +949,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
           </div>
 
-          {/* Section: VIDEO ENGINE */}
-          <div className="settings-section">
-            <div className="settings-section-title">VIDEO ENGINE</div>
-
-            {EngineBridge.isTauri() && (
-              <div className="settings-row">
-                <div>
-                  <div className="settings-label">FFmpeg Native Backend</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    Video decoding, H.264 / VP9 encoding, and audio synchronization
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="btn-default"
-                    onClick={() => {
-                      useAppStore.getState().setIsFfmpegModalOpen(true);
-                    }}
-                    style={{ minWidth: '70px', padding: '4px 12px' }}
-                  >
-                    Configure
-                  </button>
-                </div>
-              </div>
-            )
-            }
-          </div>
-
           {/* Section: DEVELOPER */}
           <div className="settings-section">
             <div className="settings-section-title">DEVELOPER SETTINGS</div>
@@ -1060,15 +1031,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
 
             <div className="settings-row settings-row-actions">
-              <button type="button" className="btn-subtle" onClick={() => setShowDevLogs(true)}>
-                View Logs
-              </button>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)' }}>
+        <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)', gap: '10px' }}>
+          <button type="button" className="btn-subtle" onClick={() => setShowDevLogs(true)}>
+            View Logs
+          </button>
           <button
             type="button"
             className="btn-subtle"

@@ -1169,37 +1169,147 @@ export const CenterViewport: React.FC = () => {
   const isRenderingRef = useRef<boolean>(false);
   const pendingRenderRef = useRef<boolean>(false);
   const renderLogTimeRef = useRef<number>(0);
+  // Dither fallback loader timing constants:
+  // - SLOW_DITHER_SHOW_DELAY_MS: delay before showing logo so fast renders never flash
+  // - MIN_ANVIL_VISIBLE_MS: minimum dwell duration once shown to prevent split-second flashes
+  const SLOW_DITHER_SHOW_DELAY_MS = 300;
+  const MIN_ANVIL_VISIBLE_MS = 450;
+
   const slowDitherTimerRef = useRef<number | null>(null);
+  const anvilHideTimerRef = useRef<number | null>(null);
+  const anvilShownAtRef = useRef<number>(0);
+  const showSlowDitherAnvilRef = useRef<boolean>(false);
   const activeDitherCountRef = useRef<number>(0);
-  const lastMeasuredRenderDurationRef = useRef<number>(0);
+  const queuedRenderScheduledRef = useRef<boolean>(false);
 
-  const startDitherTimer = useCallback(() => {
-    activeDitherCountRef.current += 1;
-    // If dynamically measured previous render took >= 900ms, immediately show anvil
-    if (lastMeasuredRenderDurationRef.current >= 900) {
-      setShowSlowDitherAnvil(true);
-    }
-    if (slowDitherTimerRef.current === null && activeDitherCountRef.current === 1) {
-      slowDitherTimerRef.current = window.setTimeout(() => {
-        slowDitherTimerRef.current = null;
-        // Only show if a dither is STILL actively running after 900ms
-        if (activeDitherCountRef.current > 0) {
-          setShowSlowDitherAnvil(true);
-        }
-      }, 900);
-    }
-  }, []);
+  const appModeRef = useRef(appMode);
+  appModeRef.current = appMode;
 
-  const finishDitherTimer = useCallback(() => {
-    activeDitherCountRef.current = Math.max(0, activeDitherCountRef.current - 1);
-    if (activeDitherCountRef.current === 0) {
-      if (slowDitherTimerRef.current !== null) {
-        window.clearTimeout(slowDitherTimerRef.current);
-        slowDitherTimerRef.current = null;
-      }
+  const hideAnvilImmediate = useCallback(() => {
+    if (slowDitherTimerRef.current !== null) {
+      window.clearTimeout(slowDitherTimerRef.current);
+      slowDitherTimerRef.current = null;
+    }
+    if (anvilHideTimerRef.current !== null) {
+      window.clearTimeout(anvilHideTimerRef.current);
+      anvilHideTimerRef.current = null;
+    }
+    if (showSlowDitherAnvilRef.current) {
+      showSlowDitherAnvilRef.current = false;
       setShowSlowDitherAnvil(false);
     }
   }, []);
+
+  const isRenderActiveOrQueued = useCallback(() => {
+    return (
+      activeDitherCountRef.current > 0 ||
+      isRenderingRef.current ||
+      pendingRenderRef.current ||
+      queuedRenderScheduledRef.current
+    );
+  }, []);
+
+  const revealAnvil = useCallback(() => {
+    // Never show the fallback logo in Animation mode
+    if (appModeRef.current === 'animation') {
+      hideAnvilImmediate();
+      return;
+    }
+    if (anvilHideTimerRef.current !== null) {
+      window.clearTimeout(anvilHideTimerRef.current);
+      anvilHideTimerRef.current = null;
+    }
+    if (!showSlowDitherAnvilRef.current) {
+      showSlowDitherAnvilRef.current = true;
+      anvilShownAtRef.current = performance.now();
+      setShowSlowDitherAnvil(true);
+    }
+  }, [hideAnvilImmediate]);
+
+  const scheduleHideAnvil = useCallback(() => {
+    if (appModeRef.current === 'animation') {
+      hideAnvilImmediate();
+      return;
+    }
+
+    // Only wait while a render is actively running or queued—never block on mouse hold
+    if (isRenderActiveOrQueued()) {
+      return;
+    }
+
+    if (slowDitherTimerRef.current !== null) {
+      window.clearTimeout(slowDitherTimerRef.current);
+      slowDitherTimerRef.current = null;
+    }
+
+    if (!showSlowDitherAnvilRef.current) {
+      return;
+    }
+
+    const elapsedVisible = performance.now() - anvilShownAtRef.current;
+    const remainingDwell = Math.max(0, MIN_ANVIL_VISIBLE_MS - elapsedVisible);
+
+    if (remainingDwell === 0) {
+      if (anvilHideTimerRef.current !== null) {
+        window.clearTimeout(anvilHideTimerRef.current);
+        anvilHideTimerRef.current = null;
+      }
+      showSlowDitherAnvilRef.current = false;
+      setShowSlowDitherAnvil(false);
+    } else if (anvilHideTimerRef.current === null) {
+      anvilHideTimerRef.current = window.setTimeout(() => {
+        anvilHideTimerRef.current = null;
+        if (!isRenderActiveOrQueued()) {
+          showSlowDitherAnvilRef.current = false;
+          setShowSlowDitherAnvil(false);
+        }
+      }, remainingDwell);
+    }
+  }, [hideAnvilImmediate, isRenderActiveOrQueued]);
+
+  const startDitherTimer = useCallback(() => {
+    if (appModeRef.current === 'animation') {
+      return;
+    }
+
+    if (anvilHideTimerRef.current !== null) {
+      window.clearTimeout(anvilHideTimerRef.current);
+      anvilHideTimerRef.current = null;
+    }
+
+    // Always start a fresh 300ms countdown for this specific render
+    if (slowDitherTimerRef.current !== null) {
+      window.clearTimeout(slowDitherTimerRef.current);
+      slowDitherTimerRef.current = null;
+    }
+
+    activeDitherCountRef.current += 1;
+
+    if (showSlowDitherAnvilRef.current) {
+      return;
+    }
+
+    slowDitherTimerRef.current = window.setTimeout(() => {
+      slowDitherTimerRef.current = null;
+      if (appModeRef.current !== 'animation' && activeDitherCountRef.current > 0) {
+        revealAnvil();
+      }
+    }, SLOW_DITHER_SHOW_DELAY_MS);
+  }, [revealAnvil]);
+
+  const finishDitherTimer = useCallback((hasQueuedRender = false) => {
+    activeDitherCountRef.current = Math.max(0, activeDitherCountRef.current - 1);
+
+    // Always cancel this render's 300ms timer when it completes; any queued render starts its own fresh 300ms timer
+    if (slowDitherTimerRef.current !== null) {
+      window.clearTimeout(slowDitherTimerRef.current);
+      slowDitherTimerRef.current = null;
+    }
+
+    if (activeDitherCountRef.current === 0 && !hasQueuedRender) {
+      scheduleHideAnvil();
+    }
+  }, [scheduleHideAnvil]);
 
   const executeRenderPipeline = useCallback(async (overrideTime?: number, preRender = false) => {
     const addDevLog = useAppStore.getState().addDevLog;
@@ -1215,6 +1325,7 @@ export const CenterViewport: React.FC = () => {
       return;
     }
     isRenderingRef.current = true;
+    queuedRenderScheduledRef.current = false;
 
     // Throttled render log — max once per 500ms during active rendering
     const now = performance.now();
@@ -1233,6 +1344,7 @@ export const CenterViewport: React.FC = () => {
     }
 
     const currentNonce = ++renderNonceRef.current;
+    let didStartTimer = false;
     try {
 
     const fullWidth = sourceImageData.width;
@@ -1426,8 +1538,18 @@ export const CenterViewport: React.FC = () => {
     if (renderSig === lastRenderSignatureRef.current) {
       return;
     }
+    lastRenderSignatureRef.current = renderSig;
 
+    // Start wall-clock timer BEFORE proxy generation & heavy buffer work
+    const t0 = performance.now();
     startDitherTimer();
+    didStartTimer = true;
+
+    // Yield a macrotask so the timer & UI frame can paint before heavy work begins
+    await new Promise((r) => setTimeout(r, 0));
+    if (currentNonce !== renderNonceRef.current) {
+      return;
+    }
 
     const width = renderSource.width;
     const height = renderSource.height;
@@ -1458,8 +1580,6 @@ export const CenterViewport: React.FC = () => {
       effHighlight.toFixed(3),
       effNoise.toFixed(3)
     ].join('::');
-
-    const t0 = performance.now();
 
     if (
       adjustedBaseBufferRef.current &&
@@ -1594,6 +1714,16 @@ export const CenterViewport: React.FC = () => {
       return;
     }
 
+    // Fallback paint yield: if synchronous main-thread work exceeded the show delay
+    // without yielding, force the logo to paint before continuing.
+    if (performance.now() - t0 >= SLOW_DITHER_SHOW_DELAY_MS && !showSlowDitherAnvilRef.current) {
+      revealAnvil();
+      await new Promise((r) => setTimeout(r, 0));
+      if (currentNonce !== renderNonceRef.current) {
+        return;
+      }
+    }
+
     applyEffectPipeline(ditherImageData, effEffects, {
       frameIndex,
       time: activeTime,
@@ -1601,7 +1731,6 @@ export const CenterViewport: React.FC = () => {
     });
 
     const elapsedMs = performance.now() - t0;
-    lastMeasuredRenderDurationRef.current = elapsedMs;
     const nowWall = performance.now();
     // Throttle Zustand store updates of lastRenderMs during active playback/scrubbing to avoid TopMenuBar re-render storms
     if (!isPlaying && !isScrubbingTimeline) {
@@ -1716,11 +1845,22 @@ export const CenterViewport: React.FC = () => {
       }
     }
   } finally {
-    // Only hide the anvil when the LATEST render completes
-    finishDitherTimer();
     isRenderingRef.current = false;
-    if (pendingRenderRef.current) {
+    const hasQueuedRender = pendingRenderRef.current;
+    if (hasQueuedRender) {
+      queuedRenderScheduledRef.current = true;
       pendingRenderRef.current = false;
+    } else {
+      queuedRenderScheduledRef.current = false;
+    }
+
+    if (didStartTimer) {
+      finishDitherTimer(hasQueuedRender);
+    } else if (!hasQueuedRender) {
+      scheduleHideAnvil();
+    }
+
+    if (hasQueuedRender) {
       requestAnimationFrame(() => {
         executeRenderPipelineRef.current();
       });
@@ -1754,7 +1894,8 @@ export const CenterViewport: React.FC = () => {
     effects,
     setLastRenderMs,
     startDitherTimer,
-    finishDitherTimer
+    finishDitherTimer,
+    scheduleHideAnvil
   ]);
 
   executeRenderPipelineRef.current = executeRenderPipeline;
@@ -1824,46 +1965,49 @@ export const CenterViewport: React.FC = () => {
     }
   }, [showBeforeAfter, splitRatio, isOriginalView, sourceImageData]);
 
-  // Clean up slow dither timer on unmount
+  // Clean up slow dither & dwell timers on unmount
   useEffect(() => {
     return () => {
       if (slowDitherTimerRef.current !== null) {
         window.clearTimeout(slowDitherTimerRef.current);
         slowDitherTimerRef.current = null;
       }
+      if (anvilHideTimerRef.current !== null) {
+        window.clearTimeout(anvilHideTimerRef.current);
+        anvilHideTimerRef.current = null;
+      }
     };
   }, []);
+
+  // Immediately clear any fallback logo when entering Animation mode
+  useEffect(() => {
+    appModeRef.current = appMode;
+    if (appMode === 'animation') {
+      hideAnvilImmediate();
+    }
+  }, [appMode, hideAnvilImmediate]);
 
   useEffect(() => {
     if (!sourceImageData) return;
     if (isPlaying) return; // Dedicated animation loop drives playback ticks directly
+
     if (viewportUpdateMode === 'debounce' && !isScrubbingTimeline) {
       if (isDraggingSlider) {
-        if (lastMeasuredRenderDurationRef.current >= 900) {
-          setShowSlowDitherAnvil(true);
-        }
         return;
-      }
-      if (lastMeasuredRenderDurationRef.current >= 900) {
-        setShowSlowDitherAnvil(true);
       }
       const timer = window.setTimeout(() => {
         executeRenderPipeline();
       }, 140);
       return () => clearTimeout(timer);
     }
+
     if (isDraggingSlider) {
-      if (lastMeasuredRenderDurationRef.current >= 900) {
-        setShowSlowDitherAnvil(true);
-      }
-      let rafId = requestAnimationFrame(() => {
+      const rafId = requestAnimationFrame(() => {
         executeRenderPipeline();
       });
       return () => cancelAnimationFrame(rafId);
     }
-    if (lastMeasuredRenderDurationRef.current >= 900) {
-      setShowSlowDitherAnvil(true);
-    }
+
     executeRenderPipeline();
   }, [
     sourceImageData,
@@ -2159,7 +2303,7 @@ export const CenterViewport: React.FC = () => {
             {showSlowDitherAnvil && (
               <LoadingScreen
                 imageReplace
-                size={Math.max(120, Math.min(360, Math.round(Math.min(sourceImageData.width, sourceImageData.height) * 0.65)))}
+                size={Math.max(180, Math.min(520, Math.round(Math.min(sourceImageData.width, sourceImageData.height) * 0.9)))}
               />
             )}
             {!isOriginalView && showBeforeAfter && canvasRef.current && (

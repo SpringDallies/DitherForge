@@ -1,6 +1,5 @@
 import { Logo } from '../common/Logo';
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
-import { LoadingScreen } from '../common/LoadingScreen';
 import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
 import { ColorPicker } from '../common/ColorPicker';
@@ -2542,10 +2541,6 @@ export const RightSidebar: React.FC = () => {
 
             {!collapsedSections.palette && (
               <div className="section-content section-card replica-palette-card" style={{ position: 'relative' }}>
-                {isExtractingPalette && (
-                  <LoadingScreen />
-                )}
-
                 {/* 1. Palette Row */}
                 <div className="replica-row" style={{ position: 'relative', zIndex: activeDropdownId === 'palette-builtin-dropdown' ? 100 : 10 }}>
                   <span className="replica-label">Palette</span>
@@ -2664,7 +2659,7 @@ export const RightSidebar: React.FC = () => {
                     <button
                       type="button"
                       className="replica-btn-2"
-                      disabled={!hasImage || !sourceImageData}
+                      disabled={!hasImage || !sourceImageData || isExtractingPalette}
                       onClick={handleExtractMedianCut}
                     >
                       Median Cut
@@ -2672,7 +2667,7 @@ export const RightSidebar: React.FC = () => {
                     <button
                       type="button"
                       className="replica-btn-2"
-                      disabled={!hasImage || !sourceImageData}
+                      disabled={!hasImage || !sourceImageData || isExtractingPalette}
                       onClick={handleExtractKMeans}
                     >
                       K-Means

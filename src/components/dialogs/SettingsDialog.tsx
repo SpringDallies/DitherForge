@@ -897,16 +897,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               />
             </div>
 
-            <div className="settings-row" style={{ alignItems: 'flex-start' }}>
-              <div>
-                <span className="settings-label">Export folder</span>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px', maxWidth: '280px', wordBreak: 'break-all' }}>
-                  {EngineBridge.isTauri()
-                    ? (settings.exportFolder || `${defaultExportDir} (Default)`)
-                    : '(n/a — browser downloads)'}
+            {EngineBridge.isTauri() && (
+              <div className="settings-row" style={{ alignItems: 'flex-start' }}>
+                <div>
+                  <span className="settings-label">Export folder</span>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px', maxWidth: '280px', wordBreak: 'break-all' }}>
+                    {settings.exportFolder || `${defaultExportDir} (Default)`}
+                  </div>
                 </div>
-              </div>
-              {EngineBridge.isTauri() && (
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
                     type="button"
@@ -933,8 +931,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </button>
                   )}
                 </div>
-              )}
-            </div>
+              </div>
+            )
+            }
 
             <div className="settings-row">
               <span className="settings-label">Recent files limit</span>
@@ -979,26 +978,29 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           <div className="settings-section">
             <div className="settings-section-title">VIDEO ENGINE</div>
 
-            <div className="settings-row">
-              <div>
-                <div className="settings-label">FFmpeg Native Backend</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                  Video decoding, H.264 / VP9 encoding, and audio synchronization
+            {EngineBridge.isTauri() && (
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">FFmpeg Native Backend</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Video decoding, H.264 / VP9 encoding, and audio synchronization
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn-default"
+                    onClick={() => {
+                      useAppStore.getState().setIsFfmpegModalOpen(true);
+                    }}
+                    style={{ minWidth: '70px', padding: '4px 12px' }}
+                  >
+                    Configure
+                  </button>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  type="button"
-                  className="btn-default"
-                  onClick={() => {
-                    useAppStore.getState().setIsFfmpegModalOpen(true);
-                  }}
-                  style={{ minWidth: '70px', padding: '4px 12px' }}
-                >
-                  Configure
-                </button>
-              </div>
-            </div>
+            )
+            }
           </div>
 
           {/* Section: DEVELOPER */}

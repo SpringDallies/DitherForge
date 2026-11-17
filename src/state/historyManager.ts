@@ -161,6 +161,10 @@ export class HistoryManager {
   private debounceTimer: any = null;
   private pendingDebounceSnapshot: EditorSnapshot | null = null;
   private currentDebounceLatest: EditorSnapshot | null = null;
+  private lastSeenAlgoParams: any = null;
+  private lastSeenWorkingPalette: any = null;
+  private lastSeenEffects: any = null;
+  private lastSeenTracks: any = null;
 
   constructor(maxHistory = 50) {
     this.maxHistory = maxHistory;
@@ -168,7 +172,12 @@ export class HistoryManager {
 
   public init(store: any): void {
     this.store = store;
-    this.currentSnapshot = captureSnapshot(store.getState());
+    const initial = store.getState();
+    this.currentSnapshot = captureSnapshot(initial);
+    this.lastSeenAlgoParams = initial.algoParams;
+    this.lastSeenWorkingPalette = initial.workingPalette;
+    this.lastSeenEffects = initial.effects;
+    this.lastSeenTracks = initial.animationTracks;
     this.undoStack = [];
     this.redoStack = [];
     this.syncCanUndoRedo();
@@ -196,6 +205,38 @@ export class HistoryManager {
 
   public handleStateChange(state: any): void {
     if (this.isApplying) return;
+
+    // Fast-path: short-circuit if none of the tracked fields changed
+    if (
+      this.currentSnapshot &&
+      state.algorithmId === this.currentSnapshot.algorithmId &&
+      state.algoParams === this.lastSeenAlgoParams &&
+      state.workingPalette === this.lastSeenWorkingPalette &&
+      state.effects === this.lastSeenEffects &&
+      state.animationTracks === this.lastSeenTracks &&
+      state.brightness === this.currentSnapshot.brightness &&
+      state.contrast === this.currentSnapshot.contrast &&
+      state.saturation === this.currentSnapshot.saturation &&
+      state.hue === this.currentSnapshot.hue &&
+      state.gamma === this.currentSnapshot.gamma &&
+      state.blur === this.currentSnapshot.blur &&
+      state.denoise === this.currentSnapshot.denoise &&
+      state.highlight === this.currentSnapshot.highlight &&
+      state.depth === this.currentSnapshot.depth &&
+      state.activePaletteId === this.currentSnapshot.activePaletteId &&
+      state.paletteDepth === this.currentSnapshot.paletteDepth &&
+      state.paletteInverted === this.currentSnapshot.paletteInverted &&
+      state.paletteFlipped === this.currentSnapshot.paletteFlipped &&
+      state.fps === this.currentSnapshot.fps &&
+      state.duration === this.currentSnapshot.duration
+    ) {
+      return;
+    }
+
+    this.lastSeenAlgoParams = state.algoParams;
+    this.lastSeenWorkingPalette = state.workingPalette;
+    this.lastSeenEffects = state.effects;
+    this.lastSeenTracks = state.animationTracks;
 
     const isDragging = Boolean(state.isDraggingSlider);
 
@@ -243,11 +284,18 @@ export class HistoryManager {
     if (this.currentSnapshot.highlight !== newSnapshot.highlight) adjustmentChangeCount++;
     if (this.currentSnapshot.depth !== newSnapshot.depth) adjustmentChangeCount++;
 
+    // Compare active algorithm parameters only
+    const currActiveAlgoParams = this.currentSnapshot.algoParams[newSnapshot.algorithmId] ?? {};
+    const newActiveAlgoParams = newSnapshot.algoParams[newSnapshot.algorithmId] ?? {};
+    const algoParamKeysChanged = Object.keys(currActiveAlgoParams).length !== Object.keys(newActiveAlgoParams).length ||
+      Object.keys(newActiveAlgoParams).filter(k => currActiveAlgoParams[k] !== newActiveAlgoParams[k]);
+    const algoParamChangedCount = Array.isArray(algoParamKeysChanged) ? algoParamKeysChanged.length : 1;
+
     // Discrete structural change: algorithms, palettes, effect list/toggle, animation tracks, or batch reset
     const isDiscrete =
       adjustmentChangeCount > 1 || // batch reset of adjustments
       this.currentSnapshot.algorithmId !== newSnapshot.algorithmId ||
-      JSON.stringify(this.currentSnapshot.algoParams) !== JSON.stringify(newSnapshot.algoParams) ||
+      algoParamChangedCount > 1 || // batch reset or multi-param change
       this.currentSnapshot.activePaletteId !== newSnapshot.activePaletteId ||
       this.currentSnapshot.paletteInverted !== newSnapshot.paletteInverted ||
       this.currentSnapshot.paletteFlipped !== newSnapshot.paletteFlipped ||

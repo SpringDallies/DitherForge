@@ -1360,8 +1360,12 @@ export const RightSidebar: React.FC = () => {
     const baseName = (imageFileName || 'palette').replace(/\.[^/.]+$/, '');
     a.download = `${baseName}_${Date.now()}.json`;
     a.href = url;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   const handleImportPalette = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1547,6 +1551,10 @@ export const RightSidebar: React.FC = () => {
       vid.preload = 'auto';
       vid.muted = true;
       vid.playsInline = true;
+      vid.onerror = () => {
+        try { URL.revokeObjectURL(url); } catch {}
+        vid.src = '';
+      };
       vid.src = url;
       vid.onloadeddata = () => { vid.currentTime = 0; };
       vid.onseeked = () => {
@@ -1558,8 +1566,14 @@ export const RightSidebar: React.FC = () => {
           ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           loadVideoSource(url, imgData, vid.duration || 10, file.name);
+          const canvasArea = document.querySelector('.canvas-area');
+          if (canvasArea) {
+            fitToViewport(canvasArea.clientWidth, canvasArea.clientHeight);
+          }
         }
         vid.onseeked = null;
+        vid.onerror = null;
+        vid.src = '';
       };
       e.target.value = '';
       return;

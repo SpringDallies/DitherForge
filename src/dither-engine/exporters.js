@@ -12,10 +12,28 @@ export function exportRaster(canvas, format = "png", quality = 0.92, filename = 
   if (format === "jpg" || format === "jpeg") mime = "image/jpeg";
   if (format === "webp") mime = "image/webp";
 
-  const dataUrl = canvas.toDataURL(mime, quality);
   const baseName = filename && filename.trim() ? filename.trim() : "ditherforge_export";
   const finalName = baseName.endsWith(`.${format}`) ? baseName : `${baseName}.${format}`;
-  downloadDataUrl(dataUrl, finalName);
+
+  if (typeof canvas.toBlob === "function") {
+    canvas.toBlob(
+      blob => {
+        if (!blob) {
+          const dataUrl = canvas.toDataURL(mime, quality);
+          downloadDataUrl(dataUrl, finalName);
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        downloadDataUrl(url, finalName);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      mime,
+      quality
+    );
+  } else {
+    const dataUrl = canvas.toDataURL(mime, quality);
+    downloadDataUrl(dataUrl, finalName);
+  }
 }
 
 export function copyCanvasToClipboard(canvas) {

@@ -122,7 +122,20 @@ export const App: React.FC = () => {
     const origError = console.error.bind(console);
 
     const pushLog = (level: 'info' | 'warn' | 'error', args: any[]) => {
-      const msg = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+      const msg = args
+        .map((a) => {
+          if (typeof a === 'string') {
+            return a.length > 512 ? a.slice(0, 512) + '…' : a;
+          }
+          try {
+            const str = JSON.stringify(a);
+            return str.length > 512 ? str.slice(0, 512) + '…' : str;
+          } catch {
+            const fallback = String(a);
+            return fallback.length > 512 ? fallback.slice(0, 512) + '…' : fallback;
+          }
+        })
+        .join(' ');
       addDevLog(level, 'system', msg);
     };
 

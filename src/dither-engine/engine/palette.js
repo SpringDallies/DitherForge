@@ -42,14 +42,6 @@ export class FastPaletteLUT {
   static cache = new Map();
 
   constructor(palette, optionsOrBias = 0.5) {
-    const cacheKey = palette.map(c => c.slice(0, 3).join(',')).join('|');
-    const cached = FastPaletteLUT.cache.get(cacheKey);
-    if (cached) return cached;
-
-    this.rawPalette = parsePalette(palette);
-    this.paletteSize = this.rawPalette.length;
-    this.luminances = this.rawPalette.map(c => getLuminance(c[0], c[1], c[2]));
-
     let bias = 0.5;
     if (typeof optionsOrBias === 'number') {
       bias = optionsOrBias;
@@ -57,7 +49,16 @@ export class FastPaletteLUT {
       bias = Number(optionsOrBias.threshold);
     }
     if (bias > 1.0) bias = bias / 100;
-    this.thresholdBias = isNaN(bias) ? 0.5 : Math.max(0.0, Math.min(1.0, bias));
+    const thresholdBias = isNaN(bias) ? 0.5 : Math.max(0.0, Math.min(1.0, bias));
+    const roundedBias = Math.round(thresholdBias * 1000) / 1000;
+    const cacheKey = `${roundedBias}::${palette.map(c => c.slice(0, 3).join(',')).join('|')}`;
+    const cached = FastPaletteLUT.cache.get(cacheKey);
+    if (cached) return cached;
+
+    this.rawPalette = parsePalette(palette);
+    this.paletteSize = this.rawPalette.length;
+    this.luminances = this.rawPalette.map(c => getLuminance(c[0], c[1], c[2]));
+    this.thresholdBias = thresholdBias;
 
     // Build luminance-sorted palette for consistent dark->light pair ordering
     const indexed = this.rawPalette.map((c, idx) => ({ color: c, lum: this.luminances[idx], origIdx: idx }));
@@ -100,6 +101,9 @@ export class FastPaletteLUT {
           this.table[idx + 2] = best[2];
         }
       }
+    }
+    if (FastPaletteLUT.cache.size >= 24) {
+      FastPaletteLUT.cache.delete(FastPaletteLUT.cache.keys().next().value);
     }
     FastPaletteLUT.cache.set(cacheKey, this);
   }

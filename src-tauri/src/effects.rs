@@ -57,7 +57,11 @@ impl FrameHistory {
 
     /// Store the current frame for future temporal blending
     fn store_current(&mut self, frame: &[u8]) {
-        self.frames[self.write_idx] = frame.to_vec();
+        if self.frames[self.write_idx].len() == frame.len() {
+            self.frames[self.write_idx].copy_from_slice(frame);
+        } else {
+            self.frames[self.write_idx] = frame.to_vec();
+        }
         self.write_idx = (self.write_idx + 1) % self.frames.len();
         if self.populated < self.frames.len() {
             self.populated += 1;
@@ -652,7 +656,17 @@ pub fn apply_effect_stack(image: &mut RgbaImage, stack: &[PostEffect]) {
     if stack.is_empty() || !stack.iter().any(|e| e.enabled) {
         return;
     }
-    let original_alpha: Vec<u8> = image.pixels().map(|p| p[3]).collect();
+    // Only clone original alpha if any enabled effect potentially modifies alpha (e.g. lens distortion, crt, etc.)
+    let modifies_alpha = stack.iter().any(|e| {
+        if !e.enabled { return false; }
+        let id = e.id.as_str();
+        id == "lens_distortion" || id == "crt_curvature" || id == "ascii_overlay" || id == "led_matrix" || id == "lcd_subpixel"
+    });
+    let original_alpha: Option<Vec<u8>> = if modifies_alpha {
+        Some(image.pixels().map(|p| p[3]).collect())
+    } else {
+        None
+    };
     for effect_item in stack {
         if !effect_item.enabled || effect_item.opacity <= 0.001 {
             continue;
@@ -766,8 +780,10 @@ pub fn apply_effect_stack(image: &mut RgbaImage, stack: &[PostEffect]) {
             *image = working;
         }
     }
-    for (i, p) in image.pixels_mut().enumerate() {
-        p[3] = original_alpha[i];
+    if let Some(alpha) = original_alpha {
+        for (i, p) in image.pixels_mut().enumerate() {
+            p[3] = alpha[i];
+        }
     }
 }
 
@@ -2863,7 +2879,7 @@ fn apply_frontend_effect(image: &mut RgbaImage, eff: &PostEffect) -> bool {
         }
         "frame_echo" => {
             let decay = eff.f32_param("decay", 0.65).clamp(0.05, 0.95);
-            let mut history = get_frame_history().lock().unwrap();
+            let mut history = get_frame_history().lock().unwrap_or_else(|e| e.into_inner());
             history.ensure_size(image.width(), image.height());
             let frame_bytes = history.frame_bytes();
 

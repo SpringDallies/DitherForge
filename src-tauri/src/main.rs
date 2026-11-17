@@ -6,6 +6,7 @@ use ditherforge::{
     execute_binary_frame, validate_image_dimensions,
     BinaryProcessHeader,
 };
+use serde::Deserialize;
 use base64::engine::{general_purpose::STANDARD, Engine};
 use image::{
     codecs::gif::{GifEncoder, Repeat},
@@ -218,7 +219,7 @@ async fn process_image_binary(request: Request<'_>) -> Result<Response, String> 
             eprintln!("[process_image_binary] InvokeBody::Json");
 
             // Header-only fast path: pixel data comes from SOURCE_IMAGE_CACHE
-            if let Ok(header) = serde_json::from_value::<BinaryProcessHeader>(val.clone()) {
+            if let Ok(header) = BinaryProcessHeader::deserialize(val) {
                 if header.width > 0 && header.height > 0 && !header.algorithm.is_empty() {
                     let cached_arc = {
                         let cache = SOURCE_IMAGE_CACHE.lock().unwrap();

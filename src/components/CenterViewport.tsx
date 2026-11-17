@@ -1109,6 +1109,10 @@ export const CenterViewport: React.FC = () => {
       vid.preload = 'auto';
       vid.muted = true;
       vid.playsInline = true;
+      vid.onerror = () => {
+        try { URL.revokeObjectURL(url); } catch {}
+        vid.src = '';
+      };
       vid.src = url;
       vid.onloadeddata = () => {
         vid.currentTime = 0;
@@ -1129,6 +1133,8 @@ export const CenterViewport: React.FC = () => {
           }
         }
         vid.onseeked = null;
+        vid.onerror = null;
+        vid.src = '';
       };
       return;
     }
@@ -1158,6 +1164,7 @@ export const CenterViewport: React.FC = () => {
   const compositeBufferRef = useRef<Uint8ClampedArray | null>(null);
   const proxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const proxyCacheRef = useRef<{ source: ImageData; low: ImageData; mid: ImageData } | null>(null);
+  const lastDitheredImageRef = useRef<ImageData | null>(null);
   const renderNonceRef = useRef<number>(0);
   const isRenderingRef = useRef<boolean>(false);
   const pendingRenderRef = useRef<boolean>(false);
@@ -1408,9 +1415,6 @@ export const CenterViewport: React.FC = () => {
       effHighlight.toFixed(2),
       effDepth,
       paletteSig,
-      showBeforeAfter,
-      splitRatio.toFixed(3),
-      isOriginalView,
       JSON.stringify(effAlgoParams),
       JSON.stringify(effEffects),
       sourceVideoUrl ? Math.round(activeTime * 30) : '',
@@ -1422,7 +1426,6 @@ export const CenterViewport: React.FC = () => {
     if (renderSig === lastRenderSignatureRef.current) {
       return;
     }
-    lastRenderSignatureRef.current = renderSig;
 
     startDitherTimer();
 
@@ -1604,12 +1607,12 @@ export const CenterViewport: React.FC = () => {
     if (!isPlaying && !isScrubbingTimeline) {
       lastRenderMsUpdateWallRef.current = nowWall;
       setLastRenderMs(elapsedMs);
-      useAppStore.getState().setActiveBackend(bridgeResult.backend as 'rust' | 'js' | 'js-fallback');
+      useAppStore.getState().setActiveBackend(EngineBridge.getLastBackend() as 'rust' | 'js' | 'js-fallback');
       useAppStore.getState().setBackendError(EngineBridge.lastError);
     } else if (nowWall - lastRenderMsUpdateWallRef.current >= 200) {
       lastRenderMsUpdateWallRef.current = nowWall;
       setLastRenderMs(elapsedMs);
-      useAppStore.getState().setActiveBackend(bridgeResult.backend as 'rust' | 'js' | 'js-fallback');
+      useAppStore.getState().setActiveBackend(EngineBridge.getLastBackend() as 'rust' | 'js' | 'js-fallback');
       useAppStore.getState().setBackendError(EngineBridge.lastError);
     }
 
@@ -1649,6 +1652,9 @@ export const CenterViewport: React.FC = () => {
         renderedCacheBytesRef.current += frameBytes;
       }
     }
+
+    lastDitheredImageRef.current = ditherImageData;
+    lastRenderSignatureRef.current = renderSig;
 
     const drawToCanvas = (imgData: ImageData) => {
       if (width === fullWidth && height === fullHeight) {
@@ -1727,7 +1733,6 @@ export const CenterViewport: React.FC = () => {
     appMode,
     isPlaying,
     isScrubbingTimeline,
-    currentTime,
     duration,
     fps,
     animationTracks,
@@ -1746,9 +1751,6 @@ export const CenterViewport: React.FC = () => {
     paletteDepth,
     algorithmId,
     currentParams,
-    isOriginalView,
-    showBeforeAfter,
-    splitRatio,
     effects,
     setLastRenderMs,
     startDitherTimer,
@@ -1756,6 +1758,71 @@ export const CenterViewport: React.FC = () => {
   ]);
 
   executeRenderPipelineRef.current = executeRenderPipeline;
+
+  // Lightweight split-screen composite update: when splitRatio, showBeforeAfter, or isOriginalView change
+  // composite directly from cached dithered result without re-executing full dithering pipeline.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !sourceImageData || isRenderingRef.current) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dithered = lastDitheredImageRef.current;
+    if (!dithered) return;
+
+    const fullWidth = sourceImageData.width;
+    const fullHeight = sourceImageData.height;
+    const width = dithered.width;
+    const height = dithered.height;
+    const len = width * height * 4;
+
+    const drawToCanvas = (imgData: ImageData) => {
+      if (width === fullWidth && height === fullHeight) {
+        lastRenderedFullImageRef.current = imgData;
+        ctx.putImageData(imgData, 0, 0);
+      } else {
+        if (!proxyCanvasRef.current) {
+          proxyCanvasRef.current = document.createElement('canvas');
+        }
+        const offscreen = proxyCanvasRef.current;
+        if (offscreen.width !== width || offscreen.height !== height) {
+          offscreen.width = width;
+          offscreen.height = height;
+        }
+        const offCtx = offscreen.getContext('2d');
+        if (offCtx) {
+          offCtx.putImageData(imgData, 0, 0);
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
+          lastRenderedFullImageRef.current = ctx.getImageData(0, 0, fullWidth, fullHeight);
+        }
+      }
+    };
+
+    if (isOriginalView) {
+      drawToCanvas(new ImageData(new Uint8ClampedArray(sourceImageData.data), fullWidth, fullHeight));
+    } else if (showBeforeAfter) {
+      if (!compositeBufferRef.current || compositeBufferRef.current.length !== len) {
+        compositeBufferRef.current = new Uint8ClampedArray(len);
+      }
+      compositeBufferRef.current.set(dithered.data);
+      const comp = compositeBufferRef.current;
+      const splitX = Math.round(width * splitRatio);
+      const originalData = sourceImageData.data;
+      for (let y = 0; y < height; y++) {
+        const rowOffset = y * width;
+        for (let x = splitX; x < width; x++) {
+          const idx = (rowOffset + x) * 4;
+          comp[idx] = originalData[idx];
+          comp[idx + 1] = originalData[idx + 1];
+          comp[idx + 2] = originalData[idx + 2];
+          comp[idx + 3] = originalData[idx + 3];
+        }
+      }
+      drawToCanvas(new ImageData(comp as any, width, height));
+    } else {
+      drawToCanvas(dithered);
+    }
+  }, [showBeforeAfter, splitRatio, isOriginalView, sourceImageData]);
 
   // Clean up slow dither timer on unmount
   useEffect(() => {

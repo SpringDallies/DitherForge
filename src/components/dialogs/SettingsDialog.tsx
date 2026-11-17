@@ -974,10 +974,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
           </div>
 
-          {/* Section: VIDEO ENGINE */}
           <div className="settings-section">
-            <div className="settings-section-title">VIDEO ENGINE</div>
-
             {EngineBridge.isTauri() && (
               <div className="settings-row">
                 <div>
@@ -1065,15 +1062,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
 
             <div className="settings-row settings-row-actions">
-              <button type="button" className="btn-subtle" onClick={() => setShowDevLogs(true)}>
-                View Logs
-              </button>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)' }}>
+        <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)', gap: '10px' }}>
+          <button type="button" className="btn-subtle" onClick={() => setShowDevLogs(true)}>
+            View Logs
+          </button>
           <button
             type="button"
             className="btn-subtle"

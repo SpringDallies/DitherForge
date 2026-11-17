@@ -90,6 +90,9 @@ export const App: React.FC = () => {
         if (settings.defaultUpdateMode) {
           useAppStore.getState().setUpdateMode(settings.defaultUpdateMode);
         }
+        if (typeof settings.liveProxyEnabled === 'boolean') {
+          useAppStore.getState().setLiveProxyEnabled(settings.liveProxyEnabled);
+        }
       }
     } catch {}
   }, []);

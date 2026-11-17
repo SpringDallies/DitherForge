@@ -372,7 +372,9 @@ interface AppState {
   removeEffect: (index: number) => void;
 
   previewQuality: PreviewQuality;
-  setPreviewQuality: (q: PreviewQuality) => void;
+  liveProxyEnabled: boolean;
+  setPreviewQuality: (previewQuality: PreviewQuality) => void;
+  setLiveProxyEnabled: (enabled: boolean) => void;
   cyclePreviewQuality: () => void;
   viewportUpdateMode: ViewportUpdateMode;
   setViewportUpdateMode: (m: ViewportUpdateMode) => void;
@@ -863,7 +865,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   removeEffect: (index) => set((state) => ({ effects: state.effects.filter((_, i) => i !== index) })),
 
   previewQuality: 'full',
+  liveProxyEnabled: false,
   setPreviewQuality: (previewQuality) => set({ previewQuality }),
+  setLiveProxyEnabled: (v) => set({ liveProxyEnabled: v }),
   cyclePreviewQuality: () => set((state) => {
     const order: PreviewQuality[] = ['full', 'low', 'mid'];
     const next = order[(order.indexOf(state.previewQuality) + 1) % order.length];

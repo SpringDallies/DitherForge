@@ -463,9 +463,36 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
           </div>
 
-          {/* Section: 3D ANVIL LOGO */}
+          {/* Section: VIDEO SETTINGS */}
+          {EngineBridge.isTauri() && (
+            <div className="settings-section">
+              <div className="settings-section-title">VIDEO SETTINGS</div>
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">FFmpeg Native Backend</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Video decoding, H.264 / VP9 encoding, and audio synchronization
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn-default"
+                    onClick={() => {
+                      useAppStore.getState().setIsFfmpegModalOpen(true);
+                    }}
+                    style={{ minWidth: '70px', padding: '4px 12px' }}
+                  >
+                    Configure
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section: MISC */}
           <div className="settings-section">
-            <div className="settings-section-title">3D ANVIL LOGO</div>
+            <div className="settings-section-title">MISC</div>
 
             <div className="settings-row">
               <div>
@@ -753,12 +780,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 </div>
               </>
             )}
-          </div>
-
-          {/* Section: EXPERIMENTAL */}
-          <div className="settings-section">
-            <div className="settings-section-title">EXPERIMENTAL</div>
-
             <div className="settings-row">
               <div>
                 <div className="settings-label">Smooth scrolling (Lenis)</div>
@@ -876,12 +897,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 </span>
               </div>
             </div>
-          </div>
 
           {/* Section: FILES */}
           <div className="settings-section">
             <div className="settings-section-title">FILES</div>
-
             <div className="settings-row">
               <span className="settings-label">Default export format</span>
               <Dropdown
@@ -1033,7 +1052,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             <div className="settings-row settings-row-actions">
             </div>
           </div>
-        </div>
+          </div>
 
         {/* Footer */}
         <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)', gap: '10px' }}>
@@ -1047,6 +1066,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           >
             Reset to Default
           </button>
+        </div>
         </div>
       </div>
 

@@ -16,6 +16,7 @@ export interface LogoProps {
 const BASE = import.meta.env.BASE_URL;
 
 export const THEME_LOGO_MAP: Record<string, string> = {
+  dark: `${BASE}assets/themes/dark.webp`,
   dark_pro: `${BASE}assets/themes/dark_pro.webp`,
   nord: `${BASE}assets/themes/nord.webp`,
   evergreen: `${BASE}assets/themes/evergreen.webp`,
@@ -28,7 +29,6 @@ export const THEME_LOGO_MAP: Record<string, string> = {
   dracula: `${BASE}assets/themes/dracula.webp`,
   kanagawa_wave: `${BASE}assets/themes/kanagawa_wave.webp`,
   monokai_pro: `${BASE}assets/themes/monokai.webp`,
-  obsidian_oled: `${BASE}assets/themes/obsidian_oled.webp`,
   rose_pine: `${BASE}assets/themes/rose_pine.webp`,
 };
 
@@ -124,8 +124,8 @@ function mapAppThemeToLogoTheme(appTheme: string): LogoThemeColors {
     case 'solarized_dark':
     case 'one_dark':
       return LOGO_THEMES.indigo;
-    case 'obsidian_oled':
     case 'dark_pro':
+    case 'dark':
     default:
       return LOGO_THEMES.obsidian;
   }
@@ -1508,7 +1508,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     const isLightTheme = activeTheme === 'light_pro';
     const fallback = isLightTheme
       ? `${BASE}assets/themes/light_pro.webp`
-      : `${BASE}assets/themes/dark_pro.webp`;
+      : `${BASE}assets/themes/dark.webp`;
     const themeLogo = THEME_LOGO_MAP[activeTheme] || fallback;
 
     // The 3D canvas mark renders the anvil silhouette at ~71.8% of widthPx (~201px wide at size=280).

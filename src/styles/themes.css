@@ -151,8 +151,8 @@
    bg-primary < bg-panel/secondary < bg-control/tertiary < bg-raised/hover < border-raised
    text-dim & text-secondary must be high-contrast light foregrounds!
    ═══════════════════════════════════════════════════════════════ */
+[data-theme="dark"],
 [data-theme="dark_pro"],
-[data-theme="obsidian_oled"],
 [data-theme="kanagawa_wave"],
 [data-theme="rose_pine"],
 [data-theme="dracula"],
@@ -547,9 +547,9 @@
 }
 
 /* ==========================================================================
-   CHILD 8: OBSIDIAN OLED (True Pitch-Black Carbon & Crisp Silver)
+   CHILD 8: DARK PRO (True Pitch-Black Carbon & Crisp Silver)
    ========================================================================== */
-[data-theme="obsidian_oled"] {
+[data-theme="dark_pro"] {
   --bg-primary: #0D0E11;
   --bg-secondary: #15171C;
   --bg-panel: #15171C;

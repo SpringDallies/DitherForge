@@ -11,8 +11,8 @@ const hexToVec3 = (hex: string): [number, number, number] => {
 
 export const THEME_ANVIL_PALETTES: Record<string, AnvilShaderPalette> = {
   light_pro:        { shadow: hexToVec3('#8A8E96'), highlight: hexToVec3('#FFFFFF') },
-  dark_pro:         { shadow: [0.34, 0.35, 0.45],   highlight: [0.96, 0.98, 1.00] },
-  obsidian_oled:    { shadow: hexToVec3('#525769'), highlight: hexToVec3('#F4F5F8') },
+  dark:         { shadow: [0.34, 0.35, 0.45],   highlight: [0.96, 0.98, 1.00] },
+  dark_pro:     { shadow: hexToVec3('#525769'), highlight: hexToVec3('#F4F5F8') },
   nord:             { shadow: hexToVec3('#5E81AC'), highlight: hexToVec3('#ECEFF4') },
   evergreen:        { shadow: hexToVec3('#4E7564'), highlight: hexToVec3('#E6F2E6') },
   gruvbox:          { shadow: hexToVec3('#D65D0E'), highlight: hexToVec3('#FBF1C7') },

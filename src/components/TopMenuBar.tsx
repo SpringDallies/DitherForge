@@ -30,8 +30,8 @@ type MenuType = 'file' | 'edit' | 'view' | null;
 
 const THEMES = [
   { id: 'light_pro', label: 'Light Pro' },
+  { id: 'dark', label: 'Dark' },
   { id: 'dark_pro', label: 'Dark Pro' },
-  { id: 'obsidian_oled', label: 'Obsidian OLED' },
   { id: 'nord', label: 'Nord' },
   { id: 'evergreen', label: 'Evergreen' },
   { id: 'gruvbox', label: 'Gruvbox' },

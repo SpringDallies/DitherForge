@@ -60,7 +60,7 @@
 }
 
 .settings-number-input:focus {
-  border-color: var(--accent-cyan);
+  border-color: var(--accent-primary);
 }
 
 .settings-status-msg {

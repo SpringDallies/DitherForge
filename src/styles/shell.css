@@ -613,13 +613,13 @@ body {
   color: var(--text-dim);
 }
 .algo-trigger-favorite-btn.starred {
-  color: var(--accent-cyan, #D8D8D8);
+  color: var(--accent-primary, #D8D8D8);
 }
 .algo-trigger-favorite-btn.starred:hover {
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
 }
 .algo-trigger-favorite-btn:focus-visible {
-  outline: 1px solid var(--accent-cyan);
+  outline: 1px solid var(--accent-primary);
   outline-offset: 1px;
 }
 .algo-listbox-panel {
@@ -1539,7 +1539,7 @@ body {
   cursor: not-allowed;
 }
 .stepper-arrow-btn:focus-visible {
-  outline: 1px solid var(--accent-cyan);
+  outline: 1px solid var(--accent-primary);
   outline-offset: -1px;
 }
 .stepper-pair-divider {
@@ -1926,7 +1926,7 @@ button .btn-icon:hover,
 .lock-button.locked {
   background-color: var(--bg-hover);
   border-color: var(--border-focus);
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
 }
 .favorite-btn {
   background: transparent;
@@ -1943,7 +1943,7 @@ button .btn-icon:hover,
   color: var(--text-main);
 }
 .favorite-btn.active {
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
 }
 /* Serpentine scanline row (Bug cleanup) */
 .serpentine-row {

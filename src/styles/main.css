@@ -90,7 +90,7 @@ input[type="number"] {
   font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: 0.5px;
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-amber));
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-amber));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -102,7 +102,7 @@ input[type="number"] {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
 }
 
 .top-nav-items {
@@ -187,7 +187,7 @@ input[type="number"] {
 
 .panel-tab.active {
   color: var(--text-main);
-  border-bottom-color: var(--accent-cyan);
+  border-bottom-color: var(--accent-primary);
   background: var(--bg-tertiary);
 }
 
@@ -242,7 +242,7 @@ input[type="number"] {
   transition: border-color 0.15s;
 }
 .search-input-box:focus {
-  border-color: var(--accent-cyan);
+  border-color: var(--accent-primary);
 }
 
 /* Algorithm Browser List */
@@ -264,9 +264,9 @@ input[type="number"] {
   cursor: pointer;
 }
 .cat-pill.active {
-  background: var(--accent-cyan);
+  background: var(--accent-primary);
   color: var(--bg-primary);
-  border-color: var(--accent-cyan);
+  border-color: var(--accent-primary);
   font-weight: 600;
 }
 
@@ -295,7 +295,7 @@ input[type="number"] {
 
 .algo-item-card.active {
   background: var(--bg-hover);
-  border-color: var(--accent-cyan);
+  border-color: var(--accent-primary);
   /* box-shadow removed for perf */
 }
 
@@ -385,7 +385,7 @@ input[type="number"] {
 
 .control-val {
   font-family: var(--font-mono);
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
 }
 
 .slider-input {
@@ -402,7 +402,7 @@ input[type="number"] {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--accent-cyan);
+  background: var(--accent-primary);
   cursor: pointer;
   transition: transform 60ms ease, background-color 60ms ease;
 }
@@ -462,7 +462,7 @@ input[type="number"] {
   font-size: 0.8rem;
 }
 .btn-icon.active {
-  background: var(--accent-cyan);
+  background: var(--accent-primary);
   color: var(--bg-primary);
   font-weight: 700;
 }
@@ -524,7 +524,7 @@ canvas#hqPresentationCanvas {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: var(--accent-cyan);
+  background: var(--accent-primary);
   /* box-shadow removed for perf */
   cursor: ew-resize;
   z-index: 20;
@@ -537,7 +537,7 @@ canvas#hqPresentationCanvas {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--accent-cyan);
+  background: var(--accent-primary);
   border: 2px solid var(--bg-primary);
   display: flex;
   align-items: center;

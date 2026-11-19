@@ -300,6 +300,9 @@ body {
 .custom-dropdown-trigger.open {
   border-color: var(--border-color);
 }
+.category-dropdown .custom-dropdown-trigger::after {
+  display: none;
+}
 .custom-dropdown-label {
   flex: 1;
   overflow: hidden;

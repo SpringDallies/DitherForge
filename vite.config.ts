@@ -32,7 +32,7 @@ export default defineConfig({
       closeBundle() {
         const distAppHtml = path.resolve(__dirname, 'dist', 'app.html');
         const distIndexHtml = path.resolve(__dirname, 'dist', 'index.html');
-        if (fs.existsSync(distAppHtml) && !fs.existsSync(distIndexHtml)) {
+        if (fs.existsSync(distAppHtml)) {
           fs.copyFileSync(distAppHtml, distIndexHtml);
         }
       }

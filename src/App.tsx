@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/shell.css';
 import './styles/logo.css';
 import './styles/loading.css';
-import { LoadingScreen } from './components/common/LoadingScreen';
 import { useAppStore } from './state/useAppStore';
 import { TopMenuBar } from './components/TopMenuBar';
 import { CenterViewport } from './components/CenterViewport';

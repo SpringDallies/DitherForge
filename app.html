@@ -5,10 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DitherForge</title>
   <meta name="description" content="DitherForge - a browser-based retro dithering tool." />
-  <link rel="icon" type="image/webp" href="/assets/ditherforgelogo.webp" />
+  <link rel="icon" type="image/webp" href="%BASE_URL%assets/ditherforgelogo.webp" />
+  <link rel="preload" href="%BASE_URL%assets/three.min.js" as="script" />
+  <link rel="preload" href="%BASE_URL%assets/boot-anvil.js" as="script" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet"
+    media="print"
+    onload="this.media='all'"
+  >
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  </noscript>
   <style>
     :root {
       --bg: #333333;
@@ -83,8 +93,8 @@
   <div id="boot-loader" class="boot-loader">
     <canvas id="boot-anvil-3d" width="128" height="128"></canvas>
   </div>
-  <script src="/assets/three.min.js"></script>
-  <script src="/assets/boot-anvil.js"></script>
+  <script src="%BASE_URL%assets/three.min.js"></script>
+  <script src="%BASE_URL%assets/boot-anvil.js"></script>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
 </body>

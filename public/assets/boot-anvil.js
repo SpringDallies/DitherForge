@@ -2,6 +2,8 @@
   const canvas = document.getElementById('boot-anvil-3d');
   if (!canvas) return;
 
+  window.__DF_BOOT_STATE__ = { status: 'pending' };
+
   const storedTheme = (function() {
     try { return localStorage.getItem('ditherforge_theme') || 'dark_pro'; } catch(e) { return 'dark_pro'; }
   })();
@@ -34,7 +36,10 @@
   if (canUseWorker) {
     try {
       const offscreen = canvas.transferControlToOffscreen();
-      const worker = new Worker('/assets/boot-anvil-worker.js');
+      const bootScriptUrl =
+        (document.currentScript && document.currentScript.src) || window.location.href;
+      const workerUrl = new URL('./boot-anvil-worker.js', bootScriptUrl).href;
+      const worker = new Worker(workerUrl);
 
       worker.postMessage({
         type: 'init',
@@ -129,10 +134,17 @@
       });
     
       renderer.setPixelRatio(1);
-    
+
       renderer.setSize(128, 128, false);
-    
+
       renderer.setClearColor(0x000000, 0);
+
+      const gl = renderer.getContext();
+      if (!gl || gl.isContextLost()) {
+        window.__DF_BOOT_STATE__ = { status: 'failed', reason: 'WebGL context unavailable or lost' };
+        console.error('[BootAnvil] WebGL context unavailable or lost');
+        return;
+      }
     
     
     
@@ -2057,6 +2069,7 @@
     
     
     
+      let bootFirstFrameReported = false;
       function frame() {
     
         if (contextLost || document.hidden) return;
@@ -2083,6 +2096,17 @@
     
         renderer.render(scene, camera);
     
+        if (!bootFirstFrameReported) {
+          bootFirstFrameReported = true;
+          const glErr = gl.getError();
+          if (glErr !== gl.NO_ERROR) {
+            window.__DF_BOOT_STATE__ = { status: 'failed', reason: `WebGL error 0x${glErr.toString(16)}` };
+            console.error('[BootAnvil]', window.__DF_BOOT_STATE__.reason);
+          } else {
+            window.__DF_BOOT_STATE__ = { status: 'first-frame' };
+          }
+        }
+
         rafId = requestAnimationFrame(frame);
     
       }

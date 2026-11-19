@@ -667,7 +667,7 @@ export async function exportAnimatedVideoFfmpeg(
   const rawName = customFilename || imageFileName || 'ditherforge_export';
   const baseName = rawName.replace(/\.[^/.]+$/, '');
   const timestamp = Date.now();
-  const tempPath = `/tmp/df_export_${timestamp}.${ext}`;
+  const tempPath = `df_export_${timestamp}.${ext}`;
 
   let offscreenVid: HTMLVideoElement | null = null;
   let vidExtractCanvas: HTMLCanvasElement | null = null;

@@ -27,6 +27,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const [filename, setFilename] = useState<string>('ditherforge_export');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const addToast = useAppStore((state) => state.addToast);
 
   // Text tab state
   const [charSet, setCharSet] = useState<CharSetType>('ascii');
@@ -231,9 +232,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         ...useAppStore.getState(),
         imageFileName: filename.trim() || useAppStore.getState().imageFileName || 'ditherforge_export'
       };
-      downloadAnimatedGif(stateSnapshot).catch((err) => {
-        console.error('GIF export failed:', err);
-      });
+      downloadAnimatedGif(stateSnapshot)
+        .then(() => addToast('Exported to Downloads folder', 'success'))
+        .catch((err) => {
+          console.error('GIF export failed:', err);
+          addToast('GIF export failed', 'error');
+        });
       onClose();
       return;
     }
@@ -256,6 +260,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
       // Storage error ignored
     }
 
+    addToast(`Exported to Downloads folder`, 'success');
     onClose();
   };
 
@@ -264,6 +269,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     const canvas = getSourceCanvas();
     if (!canvas) return;
     exportCharacterGrid(canvas, charSet, Math.max(1, cellWidth), Math.max(1, cellHeight));
+    addToast('Exported to Downloads folder', 'success');
     onClose();
   };
 
@@ -272,6 +278,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     const canvas = getSourceCanvas();
     if (!canvas) return;
     exportSvgContours(canvas);
+    addToast('Exported to Downloads folder', 'success');
     onClose();
   };
 

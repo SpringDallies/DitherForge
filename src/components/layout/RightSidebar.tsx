@@ -789,6 +789,7 @@ export const RightSidebar: React.FC = () => {
   const [exportFormat, setExportFormat] = useState<string>(getInitialExportFormat);
   const [videoExportFormat, setVideoExportFormat] = useState<'GIF' | 'MP4' | 'MOV' | 'WEBM'>('GIF');
   const [isExportingAnim, setIsExportingAnim] = useState<boolean>(false);
+  const addToast = useAppStore((state) => state.addToast);
 
   useEffect(() => {
     const handleSettingsChanged = (e: Event) => {
@@ -1647,8 +1648,10 @@ export const RightSidebar: React.FC = () => {
                   setIsExportingAnim(true);
                   if (ext === 'gif') {
                     downloadAnimatedGif(useAppStore.getState())
+                      .then(() => addToast('Exported to Downloads folder', 'success'))
                       .catch((err) => {
                         console.error('GIF export failed:', err);
+                        addToast('GIF export failed', 'error');
                       })
                       .finally(() => {
                         setIsExportingAnim(false);
@@ -1658,8 +1661,10 @@ export const RightSidebar: React.FC = () => {
                       useAppStore.getState(),
                       ext as 'mp4' | 'mov' | 'webm'
                     )
+                      .then(() => addToast('Exported to Downloads folder', 'success'))
                       .catch((err) => {
                         console.error('Video export failed:', err);
+                        addToast('Video export failed', 'error');
                       })
                       .finally(() => {
                         setIsExportingAnim(false);
@@ -1672,6 +1677,7 @@ export const RightSidebar: React.FC = () => {
                 const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
                 const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
                 exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
+                addToast('Exported to Downloads folder', 'success');
               }}
             >
               {isExportingAnim ? 'Exporting…' : (appMode === 'animation' ? 'Export Video' : 'Export Image')}

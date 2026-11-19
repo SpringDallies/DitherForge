@@ -18,6 +18,7 @@ export const App: React.FC = () => {
   const activeTheme = useAppStore((state) => state.activeTheme);
   const isFullScreen = useAppStore((state) => state.isFullScreen);
   const toggleFullScreen = useAppStore((state) => state.toggleFullScreen);
+  const toasts = useAppStore((state) => state.toasts);
   const isManualOpen = useAppStore((state) => state.isManualOpen);
   const setIsManualOpen = useAppStore((state) => state.setIsManualOpen);
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
@@ -319,6 +320,99 @@ export const App: React.FC = () => {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenManual={() => setIsManualOpen(true)}
       />
+
+      {/* Export / notification toasts */}
+      <div
+        className="toast-container"
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          zIndex: 50,
+          pointerEvents: 'none'
+        }}
+      >
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            role="alert"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 16px',
+              borderRadius: 8,
+              background:
+                t.type === 'error'
+                  ? 'rgba(34, 16, 16, 0.92)'
+                  : t.type === 'success'
+                    ? 'rgba(16, 64, 34, 0.92)'
+                    : 'rgba(24, 28, 38, 0.92)',
+              color: 'var(--text-main)',
+              border: `1px solid ${
+                t.type === 'error'
+                  ? 'rgba(239, 68, 68, 0.5)'
+                  : t.type === 'success'
+                    ? 'rgba(34, 197, 94, 0.5)'
+                    : 'rgba(148, 163, 184, 0.5)'
+              }`,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+              fontSize: '0.82rem',
+              fontWeight: 500,
+              minWidth: 260,
+              maxWidth: 420,
+              animation: 'toastSlideIn 220ms ease-out',
+              pointerEvents: 'auto',
+              cursor: 'pointer'
+            }}
+            onClick={() => {
+              const { removeToast } = useAppStore.getState();
+              removeToast(t.id);
+            }}
+          >
+            {t.type === 'success' && (
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: 50,
+                  background: 'var(--accent-amber, #f59e0b)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#000',
+                  fontSize: '0.7rem',
+                  fontWeight: 800
+                }}
+              >
+                ✔
+              </span>
+            )}
+            {t.type === 'error' && (
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: 50,
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fca5a5',
+                  fontSize: '0.7rem',
+                  fontWeight: 800
+                }}
+              >
+                ✖
+              </span>
+            )}
+            <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>{t.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

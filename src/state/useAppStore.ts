@@ -475,6 +475,11 @@ interface AppState {
   undo: () => void;
   redo: () => void;
   clearHistory: () => void;
+
+  // Toast / notification system for export & status messages
+  toasts: Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>;
+  addToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number) => void;
+  removeToast: (id: string) => void;
 }
 
 const STORAGE_KEY_SIDEBAR_WIDTH = 'ditherforge_sidebar_width';
@@ -1137,7 +1142,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   canRedo: false,
   undo: () => historyManager.undo(),
   redo: () => historyManager.redo(),
-  clearHistory: () => historyManager.clearHistory()
+  clearHistory: () => historyManager.clearHistory(),
+
+  // Toast / notification system for export & status messages
+  toasts: [],
+  addToast: (message, type = 'info', durationMs = 3500) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+    if (durationMs > 0) {
+      setTimeout(() => {
+        set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+      }, durationMs);
+    }
+  },
+  removeToast: (id) => {
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+  },
 }));
 
 historyManager.init(useAppStore);

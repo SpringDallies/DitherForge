@@ -14,7 +14,7 @@ export type ViewportUpdateMode = 'live' | 'debounce';
 export type AppMode = 'still' | 'animation';
 export type VideoPlaybackMode = 'standard' | 'looped';
 export type VideoRenderMode = 'quick' | 'rendered';
-export type UpdateMode = 'precise' | 'live' | 'settle';
+export type UpdateMode = 'live' | 'debounce';
 export type AnimationCategory = 'adjustments' | 'style' | 'effects' | 'palette';
 export type EasingMode = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'pulse' | 'step';
 
@@ -1015,10 +1015,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     selectedTrackId: state.selectedTrackId === id ? null : state.selectedTrackId
   })),
 
-  updateMode: 'precise',
+  updateMode: 'live',
   setUpdateMode: (updateMode) => set({
     updateMode,
-    viewportUpdateMode: updateMode === 'settle' ? 'debounce' : 'live'
+    viewportUpdateMode: updateMode
   }),
   isDraggingSlider: false,
   setIsDraggingSlider: (isDraggingSlider) => set({ isDraggingSlider }),

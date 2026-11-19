@@ -14,7 +14,7 @@ export type LogoMode = '3d' | '2d';
 export type LogoCursorReact = 'direct' | 'sidebar' | 'global' | 'off';
 
 export interface DitherForgeSettings {
-  defaultUpdateMode: 'precise' | 'live' | 'settle';
+  defaultUpdateMode: 'live' | 'debounce';
   language: string;
   defaultExportFormat: 'png' | 'jpg' | 'webp' | 'svg';
   exportFolder?: string;
@@ -45,7 +45,7 @@ export interface DitherForgeSettings {
 }
 
 export const DEFAULT_SETTINGS: DitherForgeSettings = {
-  defaultUpdateMode: 'precise',
+  defaultUpdateMode: 'live',
   language: 'en',
   defaultExportFormat: 'png',
   recentFilesLimit: 8,
@@ -262,11 +262,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <Dropdown
                 width={130}
                 value={settings.defaultUpdateMode}
-                onChange={(val) => updateSetting('defaultUpdateMode', val as 'precise' | 'live' | 'settle')}
+                onChange={(val) => updateSetting('defaultUpdateMode', val as 'live' | 'debounce')}
                 items={[
-                  { id: 'precise', label: 'Precise' },
                   { id: 'live', label: 'Live' },
-                  { id: 'settle', label: 'Settle' }
+                  { id: 'debounce', label: 'Debounce' }
                 ]}
               />
             </div>

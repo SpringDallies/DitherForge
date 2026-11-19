@@ -139,6 +139,7 @@ export interface AnvilLogo3DProps {
   sharpness?: 'pixelated' | 'crisp' | 'smooth';
   themeOverride?: string;
   onFirstFrame?: () => void;
+  onError?: (reason: string) => void;
 }
 
 export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
@@ -147,11 +148,14 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
   interactive = true,
   sharpness = 'pixelated',
   themeOverride,
-  onFirstFrame
+  onFirstFrame,
+  onError
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onFirstFrameRef = useRef(onFirstFrame);
   onFirstFrameRef.current = onFirstFrame;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   const activeTheme = useAppStore((s) => s.activeTheme);
   const effectiveTheme = themeOverride || activeTheme || 'dark_pro';
@@ -177,6 +181,19 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    let reportedError = false;
+    const reportError = (reason: string, detail?: unknown) => {
+      console.error('[AnvilLogo3D]', reason, detail ?? '');
+      if (!reportedError) {
+        reportedError = true;
+        if (onErrorRef.current) {
+          onErrorRef.current(reason);
+        } else if (onFirstFrameRef.current) {
+          onFirstFrameRef.current();
+        }
+      }
+    };
+
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -189,9 +206,33 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
         preserveDrawingBuffer: false
       });
     } catch (e) {
-      console.warn('[AnvilLogo3D] WebGL init error:', e);
-      if (onFirstFrameRef.current) onFirstFrameRef.current();
+      reportError(`WebGLRenderer initialization failed: ${e instanceof Error ? e.message : String(e)}`, e);
       return;
+    }
+
+    const gl = renderer.getContext();
+    if (!gl || gl.isContextLost()) {
+      reportError('WebGL context is unavailable or lost immediately after creation.');
+      renderer.dispose();
+      return;
+    }
+
+    renderer.debug.checkShaderErrors = true;
+    const debugAny = renderer.debug as any;
+    if (debugAny.onShaderError) {
+      debugAny.onShaderError = (
+        glCtx: WebGLRenderingContext,
+        program: WebGLProgram,
+        vs: WebGLShader,
+        fs: WebGLShader
+      ) => {
+        const progLog = glCtx.getProgramInfoLog(program) || '';
+        const vsLog = glCtx.getShaderInfoLog(vs) || '';
+        const fsLog = glCtx.getShaderInfoLog(fs) || '';
+        reportError(
+          `Shader compile/link failed: ${[progLog, vsLog, fsLog].filter(Boolean).join(' | ') || 'unknown GLSL error'}`
+        );
+      };
     }
 
     renderer.setPixelRatio(1);
@@ -303,7 +344,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
           float ndotl = max(dot(N, Ldir), 0.0) * 0.75 + 0.25;
           float bounce = ndotl / (1.0 + dist * dist * 2.1);
           float rDotL = max(dot(R, Ldir), 0.0);
-          float specRay = pow(rDotL, 7.0) / (0.55 + dist * 0.85);
+          float specRay = pow(max(rDotL, 1e-4), 7.0) / (0.55 + dist * 0.85);
           return bounce * 0.65 + specRay * 0.90;
         }
 
@@ -319,11 +360,11 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
           float darkCore    = exp(-pow((ry + 0.16) * 4.2, 2.0));
           float chrome = 0.18 + 0.64 * upperSky + 0.24 * zenithGlint + lowerBounce - 0.22 * darkCore;
           float ribbon = max(dot(R, Lk), 0.0);
-          chrome += 0.32 * pow(ribbon, 3.5);
+          chrome += 0.32 * pow(max(ribbon, 1e-4), 3.5);
           float ndotv = clamp(dot(n, V), 0.0, 1.0);
-          float fresnel = pow(1.0 - ndotv, 2.4);
+          float fresnel = pow(max(1.0 - ndotv, 1e-4), 2.4);
           chrome += 0.42 * fresnel * (0.35 + 0.65 * smoothstep(-0.3, 0.5, R.y));
-          float frontGleam = vCap * pow(max(n.z, 0.0), 1.3);
+          float frontGleam = vCap * pow(max(n.z, 1e-4), 1.3);
           chrome = mix(chrome, max(chrome, 0.66 + 0.24 * upperSky), frontGleam * 0.72);
           float rawLit = clamp(chrome * 0.94 * uGain, 0.0, 1.0);
           float lit = smoothstep(0.04, 0.96, rawLit);
@@ -342,7 +383,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
           vec3 hi  = heatHi;
           vec3 col = q < 0.42
             ? mix(lo, mid, q / 0.42)
-            : mix(mid, hi, pow((q - 0.42) / 0.58, 0.85));
+            : mix(mid, hi, pow(max((q - 0.42) / 0.58, 1e-4), 0.85));
           if (uHeat > 0.01) {
             float coreHeat = exp(-dot(vP * vec2(0.45, 0.65), vP * vec2(0.45, 0.65))) * uHeat;
             float heatQuant = clamp(floor(coreHeat * 4.0 + 0.4 + b4 * 0.35) / 4.0, 0.0, 1.0);
@@ -421,7 +462,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
           vec3 L = normalize(uLight);
           float ndotv = clamp(dot(n, V), 0.0, 1.0);
           vec3 H = normalize(L + V);
-          float spec = pow(max(dot(n, H), 0.0), 14.0);
+          float spec = pow(max(dot(n, H), 1e-4), 14.0);
           float core = smoothstep(0.10, 0.85, ndotv);
           vec3 dimRim   = vec3(0.68, 0.12, 0.32);
           vec3 dimCore  = vec3(0.88, 0.28, 0.48);
@@ -432,7 +473,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
           vec3 rimCol  = mix(dimRim, glowRim, clamp(em, 0.0, 1.0));
           vec3 bodyCol = mix(dimCore, glowCore, clamp(em, 0.0, 1.0));
           vec3 col = mix(rimCol, bodyCol, core);
-          float highlightStrength = clamp((spec * 0.9 + pow(ndotv, 3.5) * 0.65) * (0.35 + 0.85 * em), 0.0, 1.0);
+          float highlightStrength = clamp((spec * 0.9 + pow(max(ndotv, 1e-4), 3.5) * 0.65) * (0.35 + 0.85 * em), 0.0, 1.0);
           col = mix(col, hiWhite, highlightStrength);
           gl_FragColor = vec4(col, clamp(uOpacity, 0.0, 1.0));
         }`
@@ -507,7 +548,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
             vec3 midCol   = mix(vec3(1.0, 0.52, 0.12), vec3(1.0, 0.78, 0.35), uGlow);
             vec3 tailCol  = vec3(0.85, 0.14, 0.08);
             vec3 col = t < 0.45 ? mix(birthCol, midCol, t / 0.45) : mix(midCol, tailCol, (t - 0.45) / 0.55);
-            float alpha = (1.0 - pow(t, 2.2)) * (0.80 + 0.20 * uGlow);
+            float alpha = (1.0 - pow(max(t, 1e-4), 2.2)) * (0.80 + 0.20 * uGlow);
             gl_FragColor = vec4(col, alpha);
           }`
       });
@@ -708,10 +749,23 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       p.mesh.visible = true;
     }
 
+    let cachedRect: DOMRect | null = canvas.getBoundingClientRect();
+    const updateCachedRect = () => {
+      if (canvas) cachedRect = canvas.getBoundingClientRect();
+    };
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateCachedRect) : null;
+    resizeObserver?.observe(canvas);
+    window.addEventListener('resize', updateCachedRect, { passive: true });
+    window.addEventListener('scroll', updateCachedRect, { passive: true, capture: true });
+
     const onPointerMove = (e: PointerEvent) => {
       if (!canvas || !interactive) return;
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
+      if (!cachedRect || cachedRect.width <= 0 || cachedRect.height <= 0) {
+        updateCachedRect();
+      }
+      const rect = cachedRect;
+      if (!rect || rect.width <= 0 || rect.height <= 0) return;
       const cx = rect.left + rect.width * 0.5;
       const cy = rect.top + rect.height * 0.5;
       const halfW = Math.max(rect.width * 0.5, 1);
@@ -796,6 +850,26 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
     window.addEventListener('blur', handleWindowLeave);
     canvas.addEventListener('pointerdown', onPointerDown);
 
+    let contextLost = false;
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      contextLost = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      reportError('WebGL context lost.');
+    };
+    const onContextRestored = () => {
+      contextLost = false;
+      lastS = (performance.now() - start) / 1000;
+      if (!disposed && rafId === null) {
+        rafId = requestAnimationFrame(frame);
+      }
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost, false);
+    canvas.addEventListener('webglcontextrestored', onContextRestored, false);
+
     const L = {
       a: rnd(0, 6.28),
       b: rnd(0, 6.28),
@@ -809,8 +883,40 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
     let disposed = false;
     let firedFirstFrame = false;
 
+    let isDocVisible = typeof document !== 'undefined' ? !document.hidden : true;
+    let isInView = true;
+
+    const syncLoopState = () => {
+      const shouldRun = !disposed && !contextLost && isDocVisible && isInView;
+      if (shouldRun && rafId === null) {
+        lastS = (performance.now() - start) / 1000;
+        rafId = requestAnimationFrame(frame);
+      } else if (!shouldRun && rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      isDocVisible = !document.hidden;
+      syncLoopState();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    const intersectionObserver =
+      typeof IntersectionObserver !== 'undefined'
+        ? new IntersectionObserver(
+            (entries) => {
+              isInView = entries.some((entry) => entry.isIntersecting);
+              syncLoopState();
+            },
+            { threshold: 0.01 }
+          )
+        : null;
+    intersectionObserver?.observe(canvas);
+
     function frame() {
-      if (disposed) return;
+      if (disposed || contextLost) return;
       const s = (performance.now() - start) / 1000;
       const dt = Math.max(0.001, Math.min(s - lastS, 0.05));
       lastS = s;
@@ -967,11 +1073,20 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       renderer.render(scene, camera);
 
       if (!firedFirstFrame) {
-        firedFirstFrame = true;
-        if (onFirstFrameRef.current) onFirstFrameRef.current();
+        const glErr = gl.getError();
+        if (glErr !== gl.NO_ERROR) {
+          reportError(`WebGL error during initial render (code 0x${glErr.toString(16)})`);
+        } else if (!reportedError) {
+          firedFirstFrame = true;
+          if (onFirstFrameRef.current) onFirstFrameRef.current();
+        }
       }
 
-      rafId = requestAnimationFrame(frame);
+      if (!disposed && !contextLost && isDocVisible && isInView) {
+        rafId = requestAnimationFrame(frame);
+      } else {
+        rafId = null;
+      }
     }
 
     frame();
@@ -983,7 +1098,14 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       window.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('mouseleave', handleWindowLeave);
       window.removeEventListener('blur', handleWindowLeave);
+      window.removeEventListener('resize', updateCachedRect);
+      window.removeEventListener('scroll', updateCachedRect, true);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('webglcontextlost', onContextLost, false);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored, false);
+      resizeObserver?.disconnect();
+      intersectionObserver?.disconnect();
       material.dispose();
       blushMaterial.dispose();
       disposableGeos.forEach((g) => g.dispose());

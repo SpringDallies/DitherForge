@@ -2943,17 +2943,7 @@ export const RightSidebar: React.FC = () => {
                           >
                             {activeCount}
                           </span>
-                        ) : (
-                          <ChevronDown
-                            size={16}
-                            strokeWidth={2.2}
-                            className="effects-category-chevron"
-                            style={{
-                              transform: isCatCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                              transition: 'transform 150ms ease'
-                            }}
-                          />
-                        )}
+                        ) : null}
                       </div>
 
                       {!isCatCollapsed && (

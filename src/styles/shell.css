@@ -4558,10 +4558,6 @@ body {
   justify-content: center;
   flex-shrink: 0;
 }
-.effects-category-chevron {
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
 .effects-category-body {
   padding: 4px 12px 10px 12px;
   display: flex;

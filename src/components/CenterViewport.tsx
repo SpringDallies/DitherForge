@@ -1181,6 +1181,7 @@ export const CenterViewport: React.FC = () => {
   const showSlowDitherAnvilRef = useRef<boolean>(false);
   const activeDitherCountRef = useRef<number>(0);
   const queuedRenderScheduledRef = useRef<boolean>(false);
+  const firstRenderRef = useRef<boolean>(true);
 
   const appModeRef = useRef(appMode);
   appModeRef.current = appMode;
@@ -1284,6 +1285,13 @@ export const CenterViewport: React.FC = () => {
     }
 
     activeDitherCountRef.current += 1;
+
+    // Skip the fallback timer on the very first render after app boot so the
+    // anvil logo never flashes while the initial image is still loading
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
 
     if (showSlowDitherAnvilRef.current) {
       return;

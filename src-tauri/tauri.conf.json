@@ -28,8 +28,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' blob: data: tauri: http://tauri.localhost; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' asset: http://asset.localhost blob: data:; connect-src 'self' blob: data: ipc: tauri: http://ipc.localhost https://ipc.localhost http://tauri.localhost https://tauri.localhost;",
-      "devCsp": "default-src 'self' blob: data: tauri: http://tauri.localhost; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' asset: http://asset.localhost blob: data:; connect-src 'self' blob: data: ipc: tauri: http://ipc.localhost https://ipc.localhost http://tauri.localhost https://tauri.localhost ws://localhost:5173 http://localhost:5173;"
+      "csp": "default-src 'self' blob: data: tauri: http://tauri.localhost; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' asset: http://asset.localhost blob: data:; connect-src 'self' blob: data: ipc: tauri: http://ipc.localhost https://ipc.localhost http://tauri.localhost https://tauri.localhost;",
+      "devCsp": "default-src 'self' blob: data: tauri: http://tauri.localhost; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' asset: http://asset.localhost blob: data:; connect-src 'self' blob: data: ipc: tauri: http://ipc.localhost https://ipc.localhost http://tauri.localhost https://tauri.localhost ws://localhost:5173 http://localhost:5173;"
     }
   },
   "bundle": {

@@ -347,7 +347,7 @@ export const App: React.FC = () => {
               borderRadius: 9999,
               background: 'var(--bg-secondary)',
               color: 'var(--text-main)',
-              border: `1px solid var(--accent-primary)`,
+              border: `1px solid var(--border-color)`,
               boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
               fontSize: '0.82rem',
               fontWeight: 500,

@@ -809,18 +809,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <div style={{ flex: 1, paddingRight: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className="settings-label">Scroll tightness</span>
-                  <span style={{
-                    fontSize: '0.62rem',
-                    textTransform: 'uppercase',
-                    padding: '1px 5px',
-                    borderRadius: 'var(--radius-xs)',
-                    background: 'color-mix(in srgb, var(--status-warning) 15%, transparent)',
-                    color: 'var(--status-warning)',
-                    fontWeight: 600,
-                    letterSpacing: '0.04em'
-                  }}>
-                    Experimental
-                  </span>
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                   Higher values make smooth scrolling snappier and tighter
@@ -859,18 +847,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <div style={{ flex: 1, paddingRight: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className="settings-label">Scroll duration</span>
-                  <span style={{
-                    fontSize: '0.62rem',
-                    textTransform: 'uppercase',
-                    padding: '1px 5px',
-                    borderRadius: 'var(--radius-xs)',
-                    background: 'color-mix(in srgb, var(--status-warning) 15%, transparent)',
-                    color: 'var(--status-warning)',
-                    fontWeight: 600,
-                    letterSpacing: '0.04em'
-                  }}>
-                    Experimental
-                  </span>
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                   Duration in seconds for smooth wheel scrolls

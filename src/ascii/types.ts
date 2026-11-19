@@ -295,6 +295,7 @@ export interface AsciiRenderContext {
   previewScale: number;
   isExport: boolean;
   atlas?: GlyphAtlasData | null;
+  customCharsets?: AsciiCharsetDefinition[];
 }
 
 export interface AsciiRenderResult {

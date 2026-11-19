@@ -1,11 +1,20 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Download, Copy, Check } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 import { Dropdown } from '../common/Dropdown';
-// @ts-ignore
 import { exportRaster, copyCanvasToClipboard, exportCharacterGrid, exportSvgContours } from '../../dither-engine/exporters.js';
-import { downloadAnimatedGif, getExportCanvas } from '../../utils/animationExport';
+import {
+  downloadAnimatedGif,
+  getExportCanvas,
+  renderFullResolutionAsciiGrid
+} from '../../utils/animationExport';
+import {
+  copyAsciiGridText,
+  downloadAsciiGridText,
+  gridFrameToText
+} from '../../ascii/exporters';
+import type { AsciiGridFrame } from '../../ascii/types';
 import { useAppStore } from '../../state/useAppStore';
 
 interface ExportModalProps {
@@ -15,42 +24,180 @@ interface ExportModalProps {
 
 type TabType = 'image' | 'text' | 'vector';
 type ImageFormat = 'png' | 'jpg' | 'webp' | 'gif';
-type CharSetType = 'ascii' | 'blocks' | 'braille';
+type CharSetType = 'dedicated' | 'ascii' | 'blocks' | 'braille';
+
+interface DedicatedGridState {
+  grid: AsciiGridFrame | null;
+  seq: number;
+  loading: boolean;
+  error: string | null;
+}
+
+interface GridInputSnapshot {
+  renderMode: string;
+  asciiSettings: any;
+  customCharsets: any;
+  currentTime: number;
+  fps: number;
+  duration: number;
+  appMode: string;
+  animationTracks: any;
+  sourceImageData: any;
+  sourceVideoUrl: string | null;
+  videoPlaybackMode: string;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  hue: number;
+  gamma: number;
+  blur: number;
+  denoise: number;
+  highlight: number;
+  depth: number;
+  workingPalette: any;
+  previewPaletteId: string | null;
+  savedPalettes: any;
+  paletteDepth: number;
+  effects: any;
+}
+
+function captureGridInputSnapshot(state: any): GridInputSnapshot {
+  return {
+    renderMode: state.renderMode,
+    asciiSettings: state.asciiSettings,
+    customCharsets: state.customCharsets,
+    currentTime: state.currentTime,
+    fps: state.fps,
+    duration: state.duration,
+    appMode: state.appMode,
+    animationTracks: state.animationTracks,
+    sourceImageData: state.sourceImageData,
+    sourceVideoUrl: state.sourceVideoUrl,
+    videoPlaybackMode: state.videoPlaybackMode,
+    brightness: state.brightness,
+    contrast: state.contrast,
+    saturation: state.saturation,
+    hue: state.hue,
+    gamma: state.gamma,
+    blur: state.blur,
+    denoise: state.denoise,
+    highlight: state.highlight,
+    depth: state.depth,
+    workingPalette: state.workingPalette,
+    previewPaletteId: state.previewPaletteId,
+    savedPalettes: state.savedPalettes,
+    paletteDepth: state.paletteDepth,
+    effects: state.effects
+  };
+}
+
+function isSameGridInputSnapshot(a: GridInputSnapshot | null, b: GridInputSnapshot): boolean {
+  if (!a) return false;
+  return (
+    a.renderMode === b.renderMode &&
+    a.asciiSettings === b.asciiSettings &&
+    a.customCharsets === b.customCharsets &&
+    a.currentTime === b.currentTime &&
+    a.fps === b.fps &&
+    a.duration === b.duration &&
+    a.appMode === b.appMode &&
+    a.animationTracks === b.animationTracks &&
+    a.sourceImageData === b.sourceImageData &&
+    a.sourceVideoUrl === b.sourceVideoUrl &&
+    a.videoPlaybackMode === b.videoPlaybackMode &&
+    a.brightness === b.brightness &&
+    a.contrast === b.contrast &&
+    a.saturation === b.saturation &&
+    a.hue === b.hue &&
+    a.gamma === b.gamma &&
+    a.blur === b.blur &&
+    a.denoise === b.denoise &&
+    a.highlight === b.highlight &&
+    a.depth === b.depth &&
+    a.workingPalette === b.workingPalette &&
+    a.previewPaletteId === b.previewPaletteId &&
+    a.savedPalettes === b.savedPalettes &&
+    a.paletteDepth === b.paletteDepth &&
+    a.effects === b.effects
+  );
+}
 
 export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
-  // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('image');
 
-  // Image tab state
   const [format, setFormat] = useState<ImageFormat>('png');
   const [quality, setQuality] = useState<number>(0.92);
   const [filename, setFilename] = useState<string>('ditherforge_export');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [copyError, setCopyError] = useState<string | null>(null);
-  const addToast = useAppStore((state) => state.addToast);
 
-  // Text tab state
+  const addToast = useAppStore((state) => state.addToast);
+  const renderMode = useAppStore((state) => state.renderMode);
+  const asciiSettings = useAppStore((state) => state.asciiSettings);
+  const customCharsets = useAppStore((state) => state.customCharsets);
+  const currentTime = useAppStore((state) => state.currentTime);
+  const fps = useAppStore((state) => state.fps);
+  const duration = useAppStore((state) => state.duration);
+  const appMode = useAppStore((state) => state.appMode);
+  const animationTracks = useAppStore((state) => state.animationTracks);
+  const sourceImageData = useAppStore((state) => state.sourceImageData);
+  const sourceVideoUrl = useAppStore((state) => state.sourceVideoUrl);
+  const videoPlaybackMode = useAppStore((state) => state.videoPlaybackMode);
+  const brightness = useAppStore((state) => state.brightness);
+  const contrast = useAppStore((state) => state.contrast);
+  const saturation = useAppStore((state) => state.saturation);
+  const hue = useAppStore((state) => state.hue);
+  const gamma = useAppStore((state) => state.gamma);
+  const blur = useAppStore((state) => state.blur);
+  const denoise = useAppStore((state) => state.denoise);
+  const highlight = useAppStore((state) => state.highlight);
+  const depth = useAppStore((state) => state.depth);
+  const workingPalette = useAppStore((state) => state.workingPalette);
+  const previewPaletteId = useAppStore((state) => state.previewPaletteId);
+  const savedPalettes = useAppStore((state) => state.savedPalettes);
+  const paletteDepth = useAppStore((state) => state.paletteDepth);
+  const effects = useAppStore((state) => state.effects);
+
   const [charSet, setCharSet] = useState<CharSetType>('ascii');
   const [cellWidth, setCellWidth] = useState<number>(6);
   const [cellHeight, setCellHeight] = useState<number>(12);
 
-  // Canvas refs
+  const [dedicatedGridState, setDedicatedGridState] = useState<DedicatedGridState>({
+    grid: null,
+    seq: 0,
+    loading: false,
+    error: null
+  });
+  const gridRequestSeqRef = useRef<number>(0);
+  const inFlightGridRef = useRef<{
+    seq: number;
+    promise: Promise<AsciiGridFrame | null>;
+    inputSnap: GridInputSnapshot;
+  } | null>(null);
+  const settledGridRef = useRef<{
+    seq: number;
+    grid: AsciiGridFrame | null;
+    inputSnap: GridInputSnapshot | null;
+  }>({ seq: 0, grid: null, inputSnap: null });
+  const isOpenRef = useRef<boolean>(isOpen);
+  isOpenRef.current = isOpen;
+
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Get active canvas guaranteed to be full resolution
   const getSourceCanvas = (): HTMLCanvasElement | null => {
     return getExportCanvas();
   };
 
-  // Reset tab to 'image' and read settings when modal opens
   useEffect(() => {
     if (isOpen) {
       setActiveTab('image');
       setIsCopied(false);
       setCopyError(null);
 
-      // Read default format from ditherforge_settings in localStorage
-      if (useAppStore.getState().appMode === 'animation') {
+      const state = useAppStore.getState();
+      setCharSet(state.renderMode === 'ascii' ? 'dedicated' : 'ascii');
+
+      if (state.appMode === 'animation') {
         setFormat('gif');
       } else {
         try {
@@ -62,13 +209,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
             }
           }
         } catch (e) {
-          // Fallback default format is 'png'
         }
       }
     }
   }, [isOpen]);
 
-  // Handle escape key
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -80,7 +225,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Render Image Preview on Canvas
   useEffect(() => {
     if (!isOpen || activeTab !== 'image') return;
     const sourceCanvas = getSourceCanvas();
@@ -108,9 +252,160 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     ctx.drawImage(sourceCanvas, 0, 0, destW, destH);
   }, [isOpen, activeTab]);
 
-  // Generate Text Preview (first ~10 lines without triggering file download)
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'text' || renderMode !== 'ascii' || charSet !== 'dedicated') {
+      gridRequestSeqRef.current += 1;
+      inFlightGridRef.current = null;
+      settledGridRef.current = { seq: 0, grid: null, inputSnap: null };
+      setDedicatedGridState({ grid: null, seq: 0, loading: false, error: null });
+      return;
+    }
+
+    const stateNow = useAppStore.getState();
+    const inputSnap = captureGridInputSnapshot(stateNow);
+    const seq = ++gridRequestSeqRef.current;
+    let cancelled = false;
+
+    setDedicatedGridState((prev) => ({
+      grid: prev.grid,
+      seq,
+      loading: true,
+      error: null
+    }));
+
+    const promise = renderFullResolutionAsciiGrid(stateNow);
+    inFlightGridRef.current = { seq, promise, inputSnap };
+
+    promise
+      .then((grid) => {
+        if (cancelled || seq !== gridRequestSeqRef.current) return;
+        settledGridRef.current = { seq, grid, inputSnap };
+        if (inFlightGridRef.current?.seq === seq) {
+          inFlightGridRef.current = null;
+        }
+        setDedicatedGridState({ grid, seq, loading: false, error: null });
+      })
+      .catch((err: any) => {
+        if (cancelled || seq !== gridRequestSeqRef.current) return;
+        settledGridRef.current = { seq, grid: null, inputSnap: null };
+        if (inFlightGridRef.current?.seq === seq) {
+          inFlightGridRef.current = null;
+        }
+        setDedicatedGridState({
+          grid: null,
+          seq,
+          loading: false,
+          error: err?.message || 'Failed to generate ASCII text grid'
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOpen,
+    activeTab,
+    renderMode,
+    charSet,
+    asciiSettings,
+    customCharsets,
+    currentTime,
+    fps,
+    duration,
+    appMode,
+    animationTracks,
+    sourceImageData,
+    sourceVideoUrl,
+    videoPlaybackMode,
+    brightness,
+    contrast,
+    saturation,
+    hue,
+    gamma,
+    blur,
+    denoise,
+    highlight,
+    depth,
+    workingPalette,
+    previewPaletteId,
+    savedPalettes,
+    paletteDepth,
+    effects
+  ]);
+
+  const getFreshDedicatedGrid = useCallback(async (): Promise<AsciiGridFrame | null> => {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      if (!isOpenRef.current) return null;
+      const latestState = useAppStore.getState();
+      if (latestState.renderMode !== 'ascii') return null;
+      const latestSnap = captureGridInputSnapshot(latestState);
+      const activeSeq = gridRequestSeqRef.current;
+
+      const inFlight = inFlightGridRef.current;
+      if (
+        inFlight &&
+        inFlight.seq === activeSeq &&
+        isSameGridInputSnapshot(inFlight.inputSnap, latestSnap)
+      ) {
+        const grid = await inFlight.promise;
+        const postSnap = captureGridInputSnapshot(useAppStore.getState());
+        if (
+          gridRequestSeqRef.current === activeSeq &&
+          isSameGridInputSnapshot(inFlight.inputSnap, postSnap)
+        ) {
+          settledGridRef.current = { seq: activeSeq, grid, inputSnap: inFlight.inputSnap };
+          setDedicatedGridState({ grid, seq: activeSeq, loading: false, error: null });
+          return grid;
+        }
+        continue;
+      }
+
+      if (
+        settledGridRef.current.seq === activeSeq &&
+        settledGridRef.current.grid &&
+        isSameGridInputSnapshot(settledGridRef.current.inputSnap, latestSnap)
+      ) {
+        return settledGridRef.current.grid;
+      }
+
+      const seq = ++gridRequestSeqRef.current;
+      const promise = renderFullResolutionAsciiGrid(latestState);
+      inFlightGridRef.current = { seq, promise, inputSnap: latestSnap };
+      const grid = await promise;
+      const postSnap = captureGridInputSnapshot(useAppStore.getState());
+      if (inFlightGridRef.current?.seq === seq) {
+        inFlightGridRef.current = null;
+      }
+      if (
+        gridRequestSeqRef.current === seq &&
+        isSameGridInputSnapshot(latestSnap, postSnap)
+      ) {
+        settledGridRef.current = { seq, grid, inputSnap: latestSnap };
+        setDedicatedGridState({ grid, seq, loading: false, error: null });
+        return grid;
+      }
+    }
+    throw new Error('ASCII grid state kept changing during export; please retry.');
+  }, []);
+
   const textPreview = useMemo(() => {
     if (!isOpen || activeTab !== 'text') return '';
+
+    if (charSet === 'dedicated' && renderMode === 'ascii') {
+      if (dedicatedGridState.loading && !dedicatedGridState.grid) {
+        return '(Generating ASCII grid for selected frame...)';
+      }
+      if (dedicatedGridState.error) {
+        return `(${dedicatedGridState.error})`;
+      }
+      if (!dedicatedGridState.grid) {
+        return '(No active image loaded in viewport)';
+      }
+      const fullText = gridFrameToText(dedicatedGridState.grid, '\n');
+      const lines = fullText.split('\n').slice(0, 10).map((line) => line.slice(0, 80));
+      return lines.join('\n') || '(Empty output)';
+    }
+
     const sourceCanvas = getSourceCanvas();
     if (!sourceCanvas || sourceCanvas.width === 0 || sourceCanvas.height === 0) {
       return '(No active image loaded in viewport)';
@@ -190,9 +485,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     } catch (e) {
       return '(Preview generation error)';
     }
-  }, [isOpen, activeTab, charSet, cellWidth, cellHeight]);
+  }, [isOpen, activeTab, charSet, cellWidth, cellHeight, renderMode, dedicatedGridState]);
 
-  // Generate Vector SVG Header Preview
   const vectorPreview = useMemo(() => {
     if (!isOpen || activeTab !== 'vector') return '';
     const sourceCanvas = getSourceCanvas();
@@ -208,8 +502,28 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     <rect x="0" y="0" ...`;
   }, [isOpen, activeTab]);
 
-  // Handle Copy to Clipboard
   const handleCopy = async () => {
+    if (activeTab === 'text') {
+      try {
+        setCopyError(null);
+        if (charSet === 'dedicated' && renderMode === 'ascii') {
+          const grid = await getFreshDedicatedGrid();
+          if (!grid) {
+            setCopyError('No ASCII grid available to copy');
+            return;
+          }
+          await copyAsciiGridText(grid, '\n');
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(textPreview);
+        }
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 1500);
+      } catch (err: any) {
+        setCopyError(err?.message || 'Failed to copy text to clipboard');
+      }
+      return;
+    }
+
     const canvas = getSourceCanvas();
     if (!canvas) {
       setCopyError('No canvas available to copy');
@@ -225,7 +539,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  // Handle Image Export
   const handleExportImage = () => {
     if (format === 'gif') {
       const stateSnapshot = {
@@ -245,10 +558,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     const canvas = getSourceCanvas();
     if (!canvas) return;
 
-    // Trigger export
     exportRaster(canvas, format, quality, filename);
 
-    // Write back defaultExportFormat to localStorage
     try {
       const stored = localStorage.getItem('ditherforge_settings');
       const settings = stored ? JSON.parse(stored) : {};
@@ -257,23 +568,38 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         defaultExportFormat: format
       }));
     } catch (e) {
-      // Storage error ignored
     }
 
     addToast(`Exported to Downloads folder`, 'success');
     onClose();
   };
 
-  // Handle Text Export
-  const handleExportText = () => {
+  const handleExportText = async () => {
+    if (charSet === 'dedicated' && renderMode === 'ascii') {
+      try {
+        setCopyError(null);
+        const grid = await getFreshDedicatedGrid();
+        if (!grid) return;
+        downloadAsciiGridText(grid, {
+          filename: filename.trim() || 'ditherforge_ascii',
+          lineEnding: '\n'
+        });
+        addToast('Exported to Downloads folder', 'success');
+        onClose();
+      } catch (err: any) {
+        setCopyError(err?.message || 'Failed to export ASCII text');
+        addToast('ASCII text export failed', 'error');
+      }
+      return;
+    }
+
     const canvas = getSourceCanvas();
     if (!canvas) return;
-    exportCharacterGrid(canvas, charSet, Math.max(1, cellWidth), Math.max(1, cellHeight));
+    exportCharacterGrid(canvas, charSet === 'dedicated' ? 'ascii' : charSet, Math.max(1, cellWidth), Math.max(1, cellHeight));
     addToast('Exported to Downloads folder', 'success');
     onClose();
   };
 
-  // Handle Vector Export
   const handleExportVector = () => {
     const canvas = getSourceCanvas();
     if (!canvas) return;
@@ -285,12 +611,21 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   if (!isOpen) return null;
 
   const hasSourceCanvas = Boolean(getSourceCanvas());
+  const textCharsetItems = [
+    ...(renderMode === 'ascii'
+      ? [{ id: 'dedicated', label: 'Active ASCII Grid', hint: 'Exact engine output' }]
+      : []),
+    { id: 'ascii', label: 'ASCII Ramp', hint: ' .:-=+*#%@' },
+    { id: 'blocks', label: 'Unicode Blocks', hint: ' ░▒▓█' },
+    { id: 'braille', label: 'Unicode Braille', hint: '2×4 Matrix' }
+  ];
+  const disableCellInputs = charSet === 'braille' || charSet === 'dedicated';
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
-      <div 
-        className="export-dialog" 
-        onClick={(e) => e.stopPropagation()} 
+      <div
+        className="export-dialog"
+        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-dialog-title"
@@ -310,19 +645,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
         {/* Tab Navigation */}
         <div className="export-tabs">
-          <button 
+          <button
             className={`export-tab-btn ${activeTab === 'image' ? 'active' : ''}`}
             onClick={() => setActiveTab('image')}
           >
             Image
           </button>
-          <button 
+          <button
             className={`export-tab-btn ${activeTab === 'text' ? 'active' : ''}`}
             onClick={() => setActiveTab('text')}
           >
             Text
           </button>
-          <button 
+          <button
             className={`export-tab-btn ${activeTab === 'vector' ? 'active' : ''}`}
             onClick={() => setActiveTab('vector')}
           >
@@ -354,8 +689,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               </div>
 
               {format === 'jpg' && (
-                <div 
-                  className="export-transparency-hint" 
+                <div
+                  className="export-transparency-hint"
                   style={{
                     fontSize: '11px',
                     color: 'var(--text-muted, #D8D8D8)',
@@ -374,7 +709,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                 <div className="export-form-row">
                   <label className="export-form-label" htmlFor="export-image-quality">Quality</label>
                   <div className="export-form-control" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <input 
+                    <input
                       id="export-image-quality"
                       type="range"
                       className="control-slider"
@@ -383,12 +718,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                       step="0.05"
                       value={quality}
                       onChange={(e) => setQuality(parseFloat(e.target.value))}
-                      style={{ 
+                      style={{
                         flex: 1,
                         '--slider-fill': `${Math.round(((quality - 0.1) / (1.0 - 0.1)) * 100)}%`
                       } as React.CSSProperties}
                     />
-                    <div 
+                    <div
                       className="control-num-input"
                       style={{ width: '56px', textAlign: 'center', height: '28px', lineHeight: '26px', fontSize: '0.78rem' }}
                     >
@@ -401,7 +736,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               <div className="export-form-row">
                 <label className="export-form-label" htmlFor="export-image-filename">Filename</label>
                 <div className="export-form-control">
-                  <input 
+                  <input
                     id="export-image-filename"
                     type="text"
                     className="export-input"
@@ -417,8 +752,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                 <div className="export-preview-box">
                   {hasSourceCanvas ? (
                     <>
-                      <canvas 
-                        ref={previewCanvasRef} 
+                      <canvas
+                        ref={previewCanvasRef}
                         style={{ maxWidth: '100%', maxHeight: '180px', display: 'block', objectFit: 'contain' }}
                       />
                       {getSourceCanvas() && (
@@ -448,11 +783,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                     value={charSet}
                     onChange={(val) => setCharSet(val as CharSetType)}
                     width="100%"
-                    items={[
-                      { id: 'ascii', label: 'ASCII Ramp', hint: ' .:-=+*#%@' },
-                      { id: 'blocks', label: 'Unicode Blocks', hint: ' ░▒▓█' },
-                      { id: 'braille', label: 'Unicode Braille', hint: '2×4 Matrix' }
-                    ]}
+                    items={textCharsetItems}
                   />
                 </div>
               </div>
@@ -460,7 +791,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               <div className="export-form-row">
                 <label className="export-form-label" htmlFor="export-text-cellw">Cell Width</label>
                 <div className="export-form-control">
-                  <input 
+                  <input
                     id="export-text-cellw"
                     type="number"
                     min="1"
@@ -468,11 +799,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                     className="export-input"
                     value={cellWidth}
                     onChange={(e) => setCellWidth(Math.max(1, parseInt(e.target.value) || 1))}
-                    disabled={charSet === 'braille'}
+                    disabled={disableCellInputs}
                   />
                   {charSet === 'braille' && (
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       (Fixed 2×4 dot subgrid)
+                    </span>
+                  )}
+                  {charSet === 'dedicated' && (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      (Uses active ASCII layout)
                     </span>
                   )}
                 </div>
@@ -481,7 +817,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               <div className="export-form-row">
                 <label className="export-form-label" htmlFor="export-text-cellh">Cell Height</label>
                 <div className="export-form-control">
-                  <input 
+                  <input
                     id="export-text-cellh"
                     type="number"
                     min="1"
@@ -489,11 +825,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                     className="export-input"
                     value={cellHeight}
                     onChange={(e) => setCellHeight(Math.max(1, parseInt(e.target.value) || 1))}
-                    disabled={charSet === 'braille'}
+                    disabled={disableCellInputs}
                   />
                   {charSet === 'braille' && (
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       (Fixed 2×4 dot subgrid)
+                    </span>
+                  )}
+                  {charSet === 'dedicated' && (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      (Uses active ASCII layout)
                     </span>
                   )}
                 </div>
@@ -514,7 +855,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               <div className="export-form-row">
                 <label className="export-form-label">Format</label>
                 <div className="export-form-control">
-                  <input 
+                  <input
                     type="text"
                     className="export-input"
                     value="SVG Vector Contours (1px Crisp Rects)"
@@ -542,8 +883,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
         {/* Modal Footer */}
         <div className="export-footer-actions">
-          {activeTab === 'image' && (
-            <button 
+          {(activeTab === 'image' || activeTab === 'text') && (
+            <button
               type="button"
               className="action-btn"
               onClick={handleCopy}
@@ -564,20 +905,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
             </button>
           )}
 
-          <button 
+          <button
             type="button"
             className="action-btn primary"
             disabled={!hasSourceCanvas}
             onClick={() => {
               if (activeTab === 'image') handleExportImage();
-              else if (activeTab === 'text') handleExportText();
+              else if (activeTab === 'text') void handleExportText();
               else if (activeTab === 'vector') handleExportVector();
             }}
-            style={{ 
-              background: 'var(--accent-primary)', 
+            style={{
+              background: 'var(--accent-primary)',
               color: 'var(--text-on-accent)',
-              borderRadius: '10px', 
-              fontWeight: 600, 
+              borderRadius: '10px',
+              fontWeight: 600,
               border: 'none',
               minWidth: '100px'
             }}
@@ -591,3 +932,4 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     document.body
   );
 };
+

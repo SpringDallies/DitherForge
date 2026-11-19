@@ -354,16 +354,19 @@ export function renderAsciiFrame(
   outRgba?: Uint8ClampedArray
 ): AsciiRenderResult {
   const { width, height } = ctx;
-  const charsetDef = findCharsetById(settings.charsetId);
-  const chars = resolveActiveChars({
-    charsetId: settings.charsetId,
-    customCharsetChars: settings.customCharsetChars,
-    injectedChars: settings.injectedChars,
-    injectMode: settings.injectMode,
-    reverseCharset: settings.reverseCharset,
-    characterDepth: settings.characterDepth,
-    characterOffset: settings.characterOffset
-  });
+  const charsetDef = findCharsetById(settings.charsetId, ctx.customCharsets);
+  const chars = resolveActiveChars(
+    {
+      charsetId: settings.charsetId,
+      customCharsetChars: settings.customCharsetChars,
+      injectedChars: settings.injectedChars,
+      injectMode: settings.injectMode,
+      reverseCharset: settings.reverseCharset,
+      characterDepth: settings.characterDepth,
+      characterOffset: settings.characterOffset
+    },
+    ctx.customCharsets
+  );
 
   const { cols, rows, cellW, cellH, strideX, strideY } = computeGridLayout(width, height, settings);
   const atlas =

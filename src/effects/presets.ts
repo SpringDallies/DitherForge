@@ -11,6 +11,7 @@ export const EFFECT_ALIASES: Record<string, string> = {
   chromatic_aberration: 'lens_aberration',
   crt_lines: 'scanlines',
   duotone: 'gradient_map',
+  asciiRender: 'ascii_render',
 
   // Agent B Phase 4-6 snake_case to canonical camelCase aliases
   risograph_misregistration: 'risoMisreg',
@@ -78,7 +79,9 @@ export const CANONICAL_EFFECT_MAP: Record<string, string> = {
   // Legacy mappings
   chromatic_aberration: 'lens_aberration',
   crt_lines: 'scanlines',
-  duotone: 'gradient_map'
+  duotone: 'gradient_map',
+  asciiRender: 'ascii_render',
+  ascii_render: 'ascii_render'
 };
 
 /**
@@ -106,6 +109,8 @@ export const CANONICAL_TO_DESCRIPTOR_MAP: Record<string, string> = {
   solarize: 'solarize',
 
   // Phase 1-3 camelCase to descriptor IDs
+  asciiRender: 'ascii_render',
+  ascii_render: 'ascii_render',
   phosphorMask: 'phosphor_mask',
   vhsTracking: 'vhs_tracking',
   screenCurvature: 'screen_curvature',

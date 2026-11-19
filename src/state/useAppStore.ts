@@ -8,7 +8,16 @@ import { AVAILABLE_EFFECT_TYPES } from '../dither-engine/effect-stack.js';
 import { ALL_EFFECTS, getAllEffects, getEffectDescriptor, resolveEffectId, BlendMode } from '../effects';
 import { createCalibrationPattern } from '../utils/samplePattern';
 import { historyManager } from './historyManager';
+import {
+  DEFAULT_ASCII_SETTINGS,
+  createDefaultAsciiEffect,
+  type AsciiAlgorithmId,
+  type AsciiCharsetDefinition,
+  type AsciiEffectId,
+  type AsciiSettings
+} from '../ascii';
 
+export type RenderMode = 'dither' | 'ascii';
 export type PreviewQuality = 'low' | 'mid' | 'full';
 export type ViewportUpdateMode = 'live' | 'debounce';
 export type AppMode = 'still' | 'animation';
@@ -144,6 +153,11 @@ const buildEffectsAnimatableProps = (): AnimatablePropDef[] => {
       else if (key === 'angle') { min = 0; max = 360; step = 1; defaultFrom = 0; defaultTo = 180; }
       else if (key === 'offsetX' || key === 'offsetY') { min = 0; max = 20; step = 1; defaultFrom = 0; defaultTo = 12; }
       else if (key === 'gamma') { min = 0.1; max = 3.0; step = 0.05; defaultFrom = 0.8; defaultTo = 2.0; }
+      else if (key === 'characterDepth') { min = 2; max = 64; step = 1; defaultFrom = 4; defaultTo = 32; }
+      else if (key === 'cellWidth') { min = 4; max = 32; step = 1; defaultFrom = 6; defaultTo = 16; }
+      else if (key === 'cellHeight') { min = 4; max = 48; step = 1; defaultFrom = 8; defaultTo = 24; }
+      else if (key === 'aspectRatio') { min = 0.4; max = 2.0; step = 0.05; defaultFrom = 0.7; defaultTo = 1.4; }
+      else if (key === 'contrast') { min = -1.0; max = 1.0; step = 0.05; defaultFrom = -0.5; defaultTo = 0.5; }
       else if (key === 'amount') { min = -1.0; max = 1.0; step = 0.05; defaultFrom = -0.5; defaultTo = 0.5; }
       const prettyParam = key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
       list.push({
@@ -163,7 +177,34 @@ const buildEffectsAnimatableProps = (): AnimatablePropDef[] => {
 };
 
 // Dynamically build animatable Style properties for the active algorithm + always include Noise Amount!
-export const getDynamicStyleAnimatableProps = (algorithmId: string): AnimatablePropDef[] => {
+export const ASCII_STYLE_ANIMATABLE_PROPS: AnimatablePropDef[] = [
+  { id: 'ascii.characterDepth', label: 'ASCII: Character Depth', min: 2, max: 64, step: 1, defaultFrom: 4, defaultTo: 32 },
+  { id: 'ascii.characterOffset', label: 'ASCII: Character Offset', min: -32, max: 32, step: 1, defaultFrom: 0, defaultTo: 16 },
+  { id: 'ascii.cellWidth', label: 'ASCII: Cell Width', min: 4, max: 32, step: 1, defaultFrom: 6, defaultTo: 16 },
+  { id: 'ascii.cellHeight', label: 'ASCII: Cell Height', min: 4, max: 48, step: 1, defaultFrom: 8, defaultTo: 24 },
+  { id: 'ascii.cellSpacing', label: 'ASCII: Cell Spacing', min: 0, max: 12, step: 1, defaultFrom: 0, defaultTo: 4 },
+  { id: 'ascii.aspectRatio', label: 'ASCII: Aspect Ratio', min: 0.3, max: 2.0, step: 0.05, defaultFrom: 0.7, defaultTo: 1.4 },
+  { id: 'ascii.glyphScale', label: 'ASCII: Glyph Scale', min: 0.5, max: 1.5, step: 0.05, defaultFrom: 0.75, defaultTo: 1.25 },
+  { id: 'ascii.brightness', label: 'ASCII: Brightness', min: -1.0, max: 1.0, step: 0.05, defaultFrom: -0.4, defaultTo: 0.4 },
+  { id: 'ascii.contrast', label: 'ASCII: Contrast', min: -1.0, max: 1.0, step: 0.05, defaultFrom: -0.4, defaultTo: 0.6 },
+  { id: 'ascii.gamma', label: 'ASCII: Gamma', min: 0.2, max: 3.0, step: 0.05, defaultFrom: 0.6, defaultTo: 1.8 },
+  { id: 'ascii.exposure', label: 'ASCII: Exposure', min: -2.0, max: 2.0, step: 0.1, defaultFrom: -1.0, defaultTo: 1.0 },
+  { id: 'ascii.edgeSensitivity', label: 'ASCII: Edge Sensitivity', min: 0.0, max: 2.0, step: 0.05, defaultFrom: 0.1, defaultTo: 1.5 },
+  { id: 'ascii.detailPreservation', label: 'ASCII: Detail Preservation', min: 0.0, max: 1.0, step: 0.05, defaultFrom: 0.2, defaultTo: 1.0 },
+  { id: 'ascii.smoothing', label: 'ASCII: Smoothing', min: 0, max: 3, step: 0.1, defaultFrom: 0, defaultTo: 2 },
+  { id: 'ascii.sharpening', label: 'ASCII: Sharpening', min: 0, max: 2, step: 0.1, defaultFrom: 0, defaultTo: 1.5 },
+  { id: 'ascii.foregroundOpacity', label: 'ASCII: Foreground Opacity', min: 0, max: 1, step: 0.05, defaultFrom: 0.2, defaultTo: 1.0 },
+  { id: 'ascii.backgroundOpacity', label: 'ASCII: Background Opacity', min: 0, max: 1, step: 0.05, defaultFrom: 0.2, defaultTo: 1.0 }
+];
+
+export const getDynamicStyleAnimatableProps = (
+  algorithmId: string,
+  renderMode?: RenderMode
+): AnimatablePropDef[] => {
+  const activeMode = renderMode ?? (typeof useAppStore !== 'undefined' ? useAppStore.getState?.()?.renderMode : 'dither');
+  if (activeMode === 'ascii') {
+    return ASCII_STYLE_ANIMATABLE_PROPS;
+  }
   const norm = (algorithmId || '').replace(/_/g, '-');
   const algo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId || a.id === norm);
   if (!algo || norm === 'none') {
@@ -307,6 +348,24 @@ interface AppState {
   loadVideoSource: (videoUrl: string, firstFrame: ImageData, durationSec: number, name: string) => void;
   loadSampleImage: () => void;
   clearImage: () => void;
+
+  renderMode: RenderMode;
+  setRenderMode: (mode: RenderMode) => void;
+  asciiSettings: AsciiSettings;
+  setAsciiSetting: <K extends keyof AsciiSettings>(key: K, value: AsciiSettings[K]) => void;
+  patchAsciiSettings: (patch: Partial<AsciiSettings>) => void;
+  setAsciiAlgorithmId: (id: AsciiAlgorithmId) => void;
+  updateAsciiAlgoParam: (key: string, value: number | boolean | string) => void;
+  addAsciiEffect: (id: AsciiEffectId) => void;
+  removeAsciiEffect: (id: AsciiEffectId) => void;
+  toggleAsciiEffect: (id: AsciiEffectId) => void;
+  updateAsciiEffectParam: (id: AsciiEffectId, key: string, value: number | string | boolean) => void;
+  resetAsciiSettings: () => void;
+
+  customCharsets: AsciiCharsetDefinition[];
+  addCustomCharset: (name: string, chars: string) => AsciiCharsetDefinition | null;
+  updateCustomCharset: (id: string, patch: { name?: string; chars?: string }) => void;
+  deleteCustomCharset: (id: string) => void;
 
   algorithmId: string;
   algoParams: Record<string, AlgoParams>;
@@ -487,6 +546,7 @@ const STORAGE_KEY_SIDEBAR_COLLAPSED = 'ditherforge_sidebar_collapsed';
 const STORAGE_KEY_THEME = 'ditherforge_theme';
 const STORAGE_KEY_FAVORITES = 'ditherforge_favorites';
 const STORAGE_KEY_CUSTOM_PALETTES = 'ditherforge_custom_palettes';
+const STORAGE_KEY_CUSTOM_CHARSETS = 'ditherforge_custom_charsets';
 
 const getStoredSidebarWidth = (): number => {
   try {
@@ -519,6 +579,35 @@ const getStoredCustomPalettes = () => {
     return [];
   }
 };
+
+const getStoredCustomCharsets = (): AsciiCharsetDefinition[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_CHARSETS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item: any) =>
+        item &&
+        typeof item.id === 'string' &&
+        typeof item.name === 'string' &&
+        typeof item.chars === 'string' &&
+        item.chars.length > 0
+    );
+  } catch {
+    return [];
+  }
+};
+
+const cloneDefaultAsciiSettings = (): AsciiSettings => ({
+  ...DEFAULT_ASCII_SETTINGS,
+  injectedChars: [...DEFAULT_ASCII_SETTINGS.injectedChars],
+  algoParams: { ...DEFAULT_ASCII_SETTINGS.algoParams },
+  asciiEffects: DEFAULT_ASCII_SETTINGS.asciiEffects.map((e) => ({
+    ...e,
+    params: { ...e.params }
+  }))
+});
 
 let cachedCalibrationPattern: ImageData | null = null;
 function getInitialCalibrationPattern(): ImageData | null {
@@ -677,6 +766,160 @@ export const useAppStore = create<AppState>((set, get) => ({
     brightness: 0, contrast: 0, saturation: 0, hue: 0, gamma: 1.0,
     blur: 0, denoise: 0, highlight: 0, depth: 8
   }),
+
+  renderMode: 'dither',
+  setRenderMode: (renderMode) => set({ renderMode: renderMode === 'ascii' ? 'ascii' : 'dither' }),
+
+  asciiSettings: cloneDefaultAsciiSettings(),
+  setAsciiSetting: (key, value) =>
+    set((state) => ({
+      asciiSettings: {
+        ...state.asciiSettings,
+        [key]: value
+      }
+    })),
+  patchAsciiSettings: (patch) =>
+    set((state) => ({
+      asciiSettings: {
+        ...state.asciiSettings,
+        ...patch,
+        injectedChars: patch.injectedChars
+          ? patch.injectedChars.slice(0, 10)
+          : state.asciiSettings.injectedChars,
+        algoParams: patch.algoParams
+          ? { ...patch.algoParams }
+          : state.asciiSettings.algoParams,
+        asciiEffects: patch.asciiEffects
+          ? patch.asciiEffects.map((e) => ({ ...e, params: { ...e.params } }))
+          : state.asciiSettings.asciiEffects
+      }
+    })),
+  setAsciiAlgorithmId: (algorithmId) =>
+    set((state) => ({
+      asciiSettings: {
+        ...state.asciiSettings,
+        algorithmId,
+        algoParams: {}
+      }
+    })),
+  updateAsciiAlgoParam: (key, value) =>
+    set((state) => ({
+      asciiSettings: {
+        ...state.asciiSettings,
+        algoParams: {
+          ...state.asciiSettings.algoParams,
+          [key]: value
+        }
+      }
+    })),
+  addAsciiEffect: (id) =>
+    set((state) => {
+      const existing = state.asciiSettings.asciiEffects.find((e) => e.id === id);
+      if (existing) {
+        return {
+          asciiSettings: {
+            ...state.asciiSettings,
+            asciiEffects: state.asciiSettings.asciiEffects.map((e) =>
+              e.id === id ? { ...e, enabled: true } : e
+            )
+          }
+        };
+      }
+      return {
+        asciiSettings: {
+          ...state.asciiSettings,
+          asciiEffects: [...state.asciiSettings.asciiEffects, createDefaultAsciiEffect(id)]
+        }
+      };
+    }),
+  removeAsciiEffect: (id) =>
+    set((state) => ({
+      asciiSettings: {
+        ...state.asciiSettings,
+        asciiEffects: state.asciiSettings.asciiEffects.filter((e) => e.id !== id)
+      }
+    })),
+  toggleAsciiEffect: (id) =>
+    set((state) => {
+      const exists = state.asciiSettings.asciiEffects.some((e) => e.id === id);
+      if (!exists) {
+        return {
+          asciiSettings: {
+            ...state.asciiSettings,
+            asciiEffects: [...state.asciiSettings.asciiEffects, createDefaultAsciiEffect(id)]
+          }
+        };
+      }
+      return {
+        asciiSettings: {
+          ...state.asciiSettings,
+          asciiEffects: state.asciiSettings.asciiEffects.map((e) =>
+            e.id === id ? { ...e, enabled: !e.enabled } : e
+          )
+        }
+      };
+    }),
+  updateAsciiEffectParam: (id, key, value) =>
+    set((state) => ({
+      asciiSettings: {
+        ...state.asciiSettings,
+        asciiEffects: state.asciiSettings.asciiEffects.map((e) =>
+          e.id === id ? { ...e, params: { ...e.params, [key]: value } } : e
+        )
+      }
+    })),
+  resetAsciiSettings: () => set({ asciiSettings: cloneDefaultAsciiSettings() }),
+
+  customCharsets: getStoredCustomCharsets(),
+  addCustomCharset: (name, chars) => {
+    const cleanChars = chars || '';
+    if (cleanChars.length < 2) return null;
+    const cleanName = (name || '').trim() || `Custom Charset ${get().customCharsets.length + 1}`;
+    const created: AsciiCharsetDefinition = {
+      id: `custom_charset_${Date.now()}`,
+      name: cleanName,
+      category: 'custom',
+      chars: cleanChars,
+      ordering: 'sparse-to-dense',
+      description: 'User-defined custom ASCII character ramp.',
+      compatibilityNotes: 'Custom user charset',
+      builtin: false
+    };
+    const next = [...get().customCharsets, created];
+    try { localStorage.setItem(STORAGE_KEY_CUSTOM_CHARSETS, JSON.stringify(next)); } catch {}
+    set((state) => ({
+      customCharsets: next,
+      asciiSettings: {
+        ...state.asciiSettings,
+        charsetId: created.id,
+        customCharsetChars: ''
+      }
+    }));
+    return created;
+  },
+  updateCustomCharset: (id, patch) => {
+    const next = get().customCharsets.map((cs) => {
+      if (cs.id !== id) return cs;
+      return {
+        ...cs,
+        name: patch.name !== undefined ? patch.name.trim() || cs.name : cs.name,
+        chars: patch.chars !== undefined && patch.chars.length >= 2 ? patch.chars : cs.chars
+      };
+    });
+    try { localStorage.setItem(STORAGE_KEY_CUSTOM_CHARSETS, JSON.stringify(next)); } catch {}
+    set({ customCharsets: next });
+  },
+  deleteCustomCharset: (id) => {
+    const next = get().customCharsets.filter((cs) => cs.id !== id);
+    try { localStorage.setItem(STORAGE_KEY_CUSTOM_CHARSETS, JSON.stringify(next)); } catch {}
+    set((state) => ({
+      customCharsets: next,
+      asciiSettings:
+        state.asciiSettings.charsetId === id
+          ? { ...state.asciiSettings, charsetId: DEFAULT_ASCII_SETTINGS.charsetId }
+          : state.asciiSettings
+    }));
+  },
 
   algorithmId: 'floyd-steinberg',
   algoParams: buildInitialAlgoParamsMap(),
@@ -1129,6 +1372,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...state.algoParams,
       [state.algorithmId]: getInitialAlgoParams(state.algorithmId)
     },
+    asciiSettings: cloneDefaultAsciiSettings(),
     zoom: 100,
     panX: 0,
     panY: 0,

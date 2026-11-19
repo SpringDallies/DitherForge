@@ -11,6 +11,15 @@ import { applyTweaksFast, rotateHueHsvBuffer, rotateHueHsvPixel } from './fastTw
 import { useAppStore } from '../state/useAppStore';
 import { ffmpegService } from '../services/ffmpegService';
 import { invoke } from '@tauri-apps/api/core';
+import {
+  DEFAULT_ASCII_SETTINGS,
+  renderAsciiFrame,
+  type AsciiGridFrame,
+  type AsciiSettings,
+  type GlyphAtlasData
+} from '../ascii';
+import { buildAtlasForAsciiSettings } from '../ascii/workerAtlasSync';
+import { ASCII_RENDER_EFFECT_ID, effectParamsToAsciiSettings } from '../effects/texture/asciiRender';
 
 export interface ExportGifOptions {
   onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void;
@@ -180,6 +189,12 @@ interface AdjustmentCacheHooks {
   setCachedAdjusted: (sig: string, buf: Uint8ClampedArray) => void;
 }
 
+export interface AsciiGridOutputRef {
+  grid: AsciiGridFrame | null;
+}
+
+let exportAsciiOutScratch: Uint8ClampedArray | null = null;
+
 /**
  * Evaluates all animation tracks at timestamp `t` and renders the dithered + post-processed
  * frame into `workBuffer` / `frameImageData`.
@@ -194,9 +209,13 @@ export function renderDeterministicAnimationFrame(
   workBuffer: Uint8ClampedArray,
   frameImageData: ImageData,
   cacheHooks?: AdjustmentCacheHooks,
-  isStaticSource = true
+  isStaticSource = true,
+  outGridRef?: AsciiGridOutputRef
 ): void {
   const {
+    renderMode = 'dither',
+    asciiSettings = DEFAULT_ASCII_SETTINGS,
+    customCharsets = [],
     animationTracks = [],
     brightness = 0,
     contrast = 0,
@@ -216,6 +235,8 @@ export function renderDeterministicAnimationFrame(
     currentParams,
     effects = []
   } = storeState;
+
+  const isDedicatedAscii = renderMode === 'ascii';
 
   const resolvedBaseParams =
     currentParams && Object.keys(currentParams).length > 0
@@ -239,6 +260,20 @@ export function renderDeterministicAnimationFrame(
   const effEffects = effects.map((e: any) => ({ ...e, params: { ...e.params } }));
   let animatedNoiseActive = false;
 
+  const effAsciiSettings: AsciiSettings = isDedicatedAscii
+    ? {
+        ...DEFAULT_ASCII_SETTINGS,
+        ...asciiSettings,
+        injectedChars: Array.isArray(asciiSettings?.injectedChars)
+          ? asciiSettings.injectedChars.slice()
+          : [],
+        algoParams: asciiSettings?.algoParams ? { ...asciiSettings.algoParams } : {},
+        asciiEffects: Array.isArray(asciiSettings?.asciiEffects)
+          ? asciiSettings.asciiEffects.map((e: any) => ({ ...e, params: { ...e.params } }))
+          : []
+      }
+    : asciiSettings;
+
   if (storeState.appMode === 'animation' || storeState.appMode === undefined) {
     for (const track of animationTracks) {
       if (!track.category || !track.property) continue;
@@ -259,7 +294,20 @@ export function renderDeterministicAnimationFrame(
           else if (track.property === 'highlight') effHighlight = val;
           else if (track.property === 'depth') effDepth = Math.round(val);
         } else if (track.category === 'style') {
-          if (track.property === 'depth') {
+          if (isDedicatedAscii && track.property.startsWith('ascii.')) {
+            const propKey = track.property.slice('ascii.'.length);
+            if (
+              propKey === 'characterDepth' ||
+              propKey === 'characterOffset' ||
+              propKey === 'cellWidth' ||
+              propKey === 'cellHeight' ||
+              propKey === 'cellSpacing'
+            ) {
+              (effAsciiSettings as any)[propKey] = Math.round(val);
+            } else if (propKey in effAsciiSettings) {
+              (effAsciiSettings as any)[propKey] = val;
+            }
+          } else if (track.property === 'depth') {
             effDepth = Math.round(val);
           } else {
             effAlgoParams[track.property] = val;
@@ -325,7 +373,7 @@ export function renderDeterministicAnimationFrame(
 
   // 5. Temporal noise (exact deterministic parity with CenterViewport)
   const activeNoiseVal = Number(effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0);
-  if ((animatedNoiseActive || activeNoiseVal > 0) && activeNoiseVal > 0) {
+  if (!isDedicatedAscii && (animatedNoiseActive || activeNoiseVal > 0) && activeNoiseVal > 0) {
     const seedOffset = animatedNoiseActive ? frameIdx * 1337 : 42;
     const amp = activeNoiseVal * 110;
     for (let i = 0; i < byteLen; i += 4) {
@@ -365,48 +413,101 @@ export function renderDeterministicAnimationFrame(
     });
   }
 
-  // 7. Dither algorithm application
-  const effNoise = effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0;
-  const mappedControls = {
-    ...effAlgoParams,
-    bleed: (effAlgoParams.bleedFraction ?? 0) / 100,
-    smoothing: effAlgoParams.smoothingFactor,
-    scale: effAlgoParams.scale ?? 1.0,
-    noise: effNoise,
-    noiseAmount: effNoise,
-    randomVal: effNoise,
-    errorStrength: effAlgoParams.diffusionStrength ?? 1.0,
-    strength: effAlgoParams.diffusionStrength ?? 1.0
-  };
+  const resolvedFps = storeState.fps || 30;
 
-  if (frameImageData.data !== workBuffer) {
-    frameImageData.data.set(workBuffer);
+  if (isDedicatedAscii) {
+    const dedicatedAtlas = buildAtlasForAsciiSettings(
+      effAsciiSettings,
+      width,
+      height,
+      customCharsets
+    );
+    if (!exportAsciiOutScratch || exportAsciiOutScratch.length !== byteLen) {
+      exportAsciiOutScratch = new Uint8ClampedArray(byteLen);
+    }
+    const asciiRes = renderAsciiFrame(
+      workBuffer,
+      effAsciiSettings,
+      {
+        width,
+        height,
+        frameIndex: frameIdx,
+        time: t,
+        fps: resolvedFps,
+        palette: slicedPalette,
+        previewScale: 1,
+        isExport: true,
+        atlas: dedicatedAtlas,
+        customCharsets
+      },
+      exportAsciiOutScratch
+    );
+    frameImageData.data.set(exportAsciiOutScratch);
+    if (outGridRef) {
+      outGridRef.grid = asciiRes.grid;
+    }
+  } else {
+    if (outGridRef) {
+      outGridRef.grid = null;
+    }
+    const effNoise = effAlgoParams.noiseAmount ?? effAlgoParams.noise ?? 0;
+    const mappedControls = {
+      ...effAlgoParams,
+      bleed: effAlgoParams.bleed ?? (effAlgoParams.bleedFraction ?? 0) / 100,
+      smoothing: effAlgoParams.smoothing ?? effAlgoParams.smoothingFactor ?? effAlgoParams.smoothness,
+      scale: effAlgoParams.scale ?? 1.0,
+      noise: effNoise,
+      noiseAmount: effNoise,
+      randomVal: effNoise,
+      errorStrength: effAlgoParams.diffusionStrength ?? 1.0,
+      strength: effAlgoParams.diffusionStrength ?? 1.0
+    };
+
+    if (frameImageData.data !== workBuffer) {
+      frameImageData.data.set(workBuffer);
+    }
+
+    applyDitherAlgorithm(frameImageData, {
+      algorithmId,
+      palette: slicedPalette,
+      ...mappedControls,
+      controls: mappedControls,
+      threshold: effAlgoParams.threshold ?? 0.5,
+      scale: mappedControls.scale,
+      bleed: mappedControls.bleed,
+      smoothing: mappedControls.smoothing,
+      diffusionStrength: effAlgoParams.diffusionStrength ?? 1.0,
+      serpentine: effAlgoParams.serpentine ?? false,
+      noiseAmount: effNoise,
+      noise: effNoise,
+      depth: effDepth,
+      temporalSeed: animatedNoiseActive ? frameIdx : 0,
+      offsetX: effAlgoParams.offsetX ?? 0,
+      offsetY: effAlgoParams.offsetY ?? 0
+    });
   }
 
-  applyDitherAlgorithm(frameImageData, {
-    algorithmId,
-    palette: slicedPalette,
-    ...mappedControls,
-    controls: mappedControls,
-    threshold: effAlgoParams.threshold ?? 0.5,
-    scale: mappedControls.scale,
-    bleed: mappedControls.bleed,
-    smoothing: mappedControls.smoothing,
-    diffusionStrength: effAlgoParams.diffusionStrength ?? 1.0,
-    serpentine: effAlgoParams.serpentine ?? false,
-    noiseAmount: effNoise,
-    noise: effNoise,
-    depth: effDepth,
-    temporalSeed: animatedNoiseActive ? frameIdx : 0,
-    offsetX: effAlgoParams.offsetX ?? 0,
-    offsetY: effAlgoParams.offsetY ?? 0
-  });
+  const asciiAtlases: Record<string, GlyphAtlasData> = {};
+  const asciiEffectAtlasKeys: Record<string, string> = {};
+  for (let i = 0; i < effEffects.length; i++) {
+    const item = effEffects[i];
+    if (!item || !item.enabled) continue;
+    const effId = item.type || item.id;
+    if (effId !== ASCII_RENDER_EFFECT_ID && effId !== 'asciiRender') continue;
+    const effSettings = effectParamsToAsciiSettings(item.params);
+    const effAtlas = buildAtlasForAsciiSettings(effSettings, width, height, customCharsets);
+    asciiAtlases[effAtlas.key] = effAtlas;
+    asciiEffectAtlasKeys[item.id || ASCII_RENDER_EFFECT_ID] = effAtlas.key;
+  }
 
-  // 8. Post-effects pipeline
   applyEffectPipeline(frameImageData, effEffects, {
     frameIndex: frameIdx,
     time: t,
-    fps: storeState.fps || 30
+    fps: resolvedFps,
+    palette: slicedPalette,
+    asciiAtlases,
+    asciiEffectAtlasKeys,
+    customCharsets
   });
 }
 
@@ -478,6 +579,242 @@ export function renderFullResolutionExportCanvas(storeState: any): HTMLCanvasEle
   ctx.putImageData(exportFrameImageData, 0, 0);
   return exportOffscreenCanvas;
 }
+
+const VIDEO_SEEK_TIMEOUT_MS = 5000;
+const VIDEO_READY_AFTER_SEEK_TIMEOUT_MS = 1000;
+
+async function extractVideoFramePixelsAtTime(
+  sourceVideoUrl: string,
+  targetTimeSec: number,
+  width: number,
+  height: number,
+  fallbackDuration: number,
+  playbackMode?: string
+): Promise<Uint8ClampedArray> {
+  if (typeof document === 'undefined') {
+    throw new Error('Cannot extract video frame without a DOM document.');
+  }
+
+  const offscreenVid = document.createElement('video');
+  offscreenVid.muted = true;
+  offscreenVid.playsInline = true;
+  offscreenVid.crossOrigin = 'anonymous';
+  offscreenVid.preload = 'auto';
+
+  const extractCanvas = document.createElement('canvas');
+  extractCanvas.width = width;
+  extractCanvas.height = height;
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        offscreenVid.removeEventListener('loadeddata', onReady);
+        offscreenVid.removeEventListener('canplay', onReady);
+        offscreenVid.removeEventListener('error', onError);
+        clearTimeout(timer);
+      };
+      const onReady = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error('Failed to load video for ASCII text export.'));
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error('Timed out waiting for video data during ASCII text export.'));
+      }, VIDEO_SEEK_TIMEOUT_MS);
+
+      offscreenVid.addEventListener('loadeddata', onReady);
+      offscreenVid.addEventListener('canplay', onReady);
+      offscreenVid.addEventListener('error', onError);
+      offscreenVid.src = sourceVideoUrl;
+      if (offscreenVid.readyState >= 2) {
+        onReady();
+      }
+    });
+
+    const rawDur =
+      Number.isFinite(offscreenVid.duration) && offscreenVid.duration > 0
+        ? offscreenVid.duration
+        : Math.max(0.001, fallbackDuration || 1);
+    const clampedT = Math.max(0, Number.isFinite(targetTimeSec) ? targetTimeSec : 0);
+    const targetVidTime =
+      playbackMode === 'looped'
+        ? clampedT % rawDur
+        : clampedT >= rawDur
+        ? Math.max(0, rawDur - 0.001)
+        : clampedT;
+
+    if (Math.abs(offscreenVid.currentTime - targetVidTime) > 0.002) {
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          offscreenVid.removeEventListener('seeked', onSeeked);
+          offscreenVid.removeEventListener('error', onError);
+          clearTimeout(timer);
+        };
+        const onSeeked = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve();
+        };
+        const onError = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error(`Failed to seek video to ${targetVidTime.toFixed(3)}s.`));
+        };
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error(`Timed out seeking video to ${targetVidTime.toFixed(3)}s.`));
+        }, VIDEO_SEEK_TIMEOUT_MS);
+
+        offscreenVid.addEventListener('seeked', onSeeked);
+        offscreenVid.addEventListener('error', onError);
+        offscreenVid.currentTime = targetVidTime;
+      });
+    }
+
+    // WebKitGTK safety: require decoded frame data (readyState >= 2) after seeked fires.
+    // Never continue extraction if readiness times out without a decoded frame.
+    if (offscreenVid.readyState < 2) {
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          offscreenVid.removeEventListener('canplay', onReady);
+          offscreenVid.removeEventListener('loadeddata', onReady);
+          offscreenVid.removeEventListener('error', onError);
+          clearTimeout(timer);
+        };
+        const onReady = () => {
+          if (settled || offscreenVid.readyState < 2) return;
+          settled = true;
+          cleanup();
+          resolve();
+        };
+        const onError = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(
+            new Error(
+              `Video error while waiting for decoded frame readiness at ${targetVidTime.toFixed(3)}s.`
+            )
+          );
+        };
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (offscreenVid.readyState >= 2) {
+            resolve();
+            return;
+          }
+          reject(
+            new Error(
+              `Timed out waiting for decoded video frame readiness at ${targetVidTime.toFixed(3)}s (readyState=${offscreenVid.readyState}).`
+            )
+          );
+        }, VIDEO_READY_AFTER_SEEK_TIMEOUT_MS);
+
+        offscreenVid.addEventListener('canplay', onReady);
+        offscreenVid.addEventListener('loadeddata', onReady);
+        offscreenVid.addEventListener('error', onError);
+        if (offscreenVid.readyState >= 2) {
+          onReady();
+        }
+      });
+    }
+
+    if (offscreenVid.readyState < 2) {
+      throw new Error(
+        `Decoded video frame is not ready for extraction at ${targetVidTime.toFixed(3)}s (readyState=${offscreenVid.readyState}).`
+      );
+    }
+
+    const extractCtx = extractCanvas.getContext('2d', { willReadFrequently: true });
+    if (!extractCtx) {
+      throw new Error('Failed to create 2D context for video frame extraction.');
+    }
+    extractCtx.clearRect(0, 0, width, height);
+    extractCtx.drawImage(offscreenVid, 0, 0, width, height);
+    return extractCtx.getImageData(0, 0, width, height).data;
+  } finally {
+    offscreenVid.pause();
+    offscreenVid.src = '';
+    try {
+      offscreenVid.load();
+    } catch {}
+    extractCanvas.width = 0;
+    extractCanvas.height = 0;
+  }
+}
+
+export async function renderFullResolutionAsciiGrid(
+  storeState: any
+): Promise<AsciiGridFrame | null> {
+  if (storeState.renderMode !== 'ascii') return null;
+  const sourceImageData = storeState.sourceImageData;
+  if (!sourceImageData) return null;
+
+  const width = sourceImageData.width;
+  const height = sourceImageData.height;
+  const byteLen = width * height * 4;
+  const t = storeState.currentTime || 0;
+  const frameIdx = Math.round(t * (storeState.fps || 30));
+
+  let basePixels: Uint8ClampedArray = sourceImageData.data;
+  let isStaticSource = true;
+  if (storeState.sourceVideoUrl) {
+    basePixels = await extractVideoFramePixelsAtTime(
+      storeState.sourceVideoUrl,
+      t,
+      width,
+      height,
+      storeState.duration || 1,
+      storeState.videoPlaybackMode
+    );
+    isStaticSource = false;
+  }
+
+  if (!exportWorkBuffer || exportWorkBuffer.length !== byteLen) {
+    exportWorkBuffer = new Uint8ClampedArray(byteLen);
+  }
+  const frameImageData: ImageData =
+    typeof ImageData !== 'undefined'
+      ? new ImageData(exportWorkBuffer as any, width, height)
+      : ({ width, height, data: exportWorkBuffer } as ImageData);
+  const outGridRef: AsciiGridOutputRef = { grid: null };
+
+  renderDeterministicAnimationFrame(
+    storeState,
+    basePixels,
+    width,
+    height,
+    t,
+    frameIdx,
+    exportWorkBuffer,
+    frameImageData,
+    undefined,
+    isStaticSource,
+    outGridRef
+  );
+
+  return outGridRef.grid;
+}
+
 
 /**
  * Returns a canvas guaranteed to contain the full-resolution, pristine dithered frame.

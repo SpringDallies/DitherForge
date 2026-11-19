@@ -44,6 +44,12 @@ for (const eff of ALL_EFFECTS) {
   if (desc) REGISTRY_MAP.set(desc, eff);
 }
 
+// Legacy lookup alias only (never exposed as a second entry in ALL_EFFECTS)
+const canonicalAsciiRender = REGISTRY_MAP.get('ascii_render');
+if (canonicalAsciiRender) {
+  REGISTRY_MAP.set('asciiRender', canonicalAsciiRender);
+}
+
 /**
  * Retrieve an effect descriptor by canonical id, descriptor id, or legacy alias.
  */

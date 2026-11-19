@@ -12,6 +12,112 @@
  * movements form a single undo step, while discrete actions commit immediately.
  */
 
+import { DEFAULT_ASCII_SETTINGS, type AsciiSettings } from '../ascii/types';
+
+function cloneAsciiSettings(src?: AsciiSettings | null): AsciiSettings {
+  const s = src || DEFAULT_ASCII_SETTINGS;
+  return {
+    ...s,
+    injectedChars: Array.isArray(s.injectedChars) ? s.injectedChars.slice() : [],
+    algoParams: s.algoParams ? { ...s.algoParams } : {},
+    asciiEffects: Array.isArray(s.asciiEffects)
+      ? s.asciiEffects.map((e) => ({
+          ...e,
+          params: e.params ? { ...e.params } : {}
+        }))
+      : []
+  };
+}
+
+function shallowRecordEqual(
+  a: Record<string, any> | undefined,
+  b: Record<string, any> | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (let i = 0; i < keysA.length; i++) {
+    const k = keysA[i];
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+function areAsciiSettingsEqual(a: AsciiSettings, b: AsciiSettings): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  if (
+    a.algorithmId !== b.algorithmId ||
+    a.charsetId !== b.charsetId ||
+    a.customCharsetChars !== b.customCharsetChars ||
+    a.characterDepth !== b.characterDepth ||
+    a.characterOffset !== b.characterOffset ||
+    a.injectMode !== b.injectMode ||
+    a.reverseCharset !== b.reverseCharset ||
+    a.autoCalibrateOrder !== b.autoCalibrateOrder ||
+    a.fontFamily !== b.fontFamily ||
+    a.fontWeight !== b.fontWeight ||
+    a.cellWidth !== b.cellWidth ||
+    a.cellHeight !== b.cellHeight ||
+    a.cellSpacing !== b.cellSpacing ||
+    a.aspectRatio !== b.aspectRatio ||
+    a.glyphScale !== b.glyphScale ||
+    a.glyphAlign !== b.glyphAlign ||
+    a.brightness !== b.brightness ||
+    a.contrast !== b.contrast ||
+    a.gamma !== b.gamma ||
+    a.exposure !== b.exposure ||
+    a.blackPoint !== b.blackPoint ||
+    a.whitePoint !== b.whitePoint ||
+    a.invert !== b.invert ||
+    a.luminanceMode !== b.luminanceMode ||
+    a.edgeSensitivity !== b.edgeSensitivity ||
+    a.detailPreservation !== b.detailPreservation ||
+    a.samplingQuality !== b.samplingQuality ||
+    a.smoothing !== b.smoothing ||
+    a.sharpening !== b.sharpening ||
+    a.colorMode !== b.colorMode ||
+    a.foregroundColor !== b.foregroundColor ||
+    a.foregroundOpacity !== b.foregroundOpacity ||
+    a.colorQuantization !== b.colorQuantization ||
+    a.preserveAlpha !== b.preserveAlpha ||
+    a.backgroundMode !== b.backgroundMode ||
+    a.backgroundColor !== b.backgroundColor ||
+    a.backgroundOpacity !== b.backgroundOpacity ||
+    a.densityCalibration !== b.densityCalibration ||
+    a.clipping !== b.clipping
+  ) {
+    return false;
+  }
+
+  if (a.injectedChars.length !== b.injectedChars.length) return false;
+  for (let i = 0; i < a.injectedChars.length; i++) {
+    if (a.injectedChars[i] !== b.injectedChars[i]) return false;
+  }
+
+  if (!shallowRecordEqual(a.algoParams, b.algoParams)) return false;
+
+  if (a.asciiEffects.length !== b.asciiEffects.length) return false;
+  for (let i = 0; i < a.asciiEffects.length; i++) {
+    const ea = a.asciiEffects[i];
+    const eb = b.asciiEffects[i];
+    if (ea === eb) continue;
+    if (
+      ea.id !== eb.id ||
+      ea.enabled !== eb.enabled ||
+      ea.stage !== eb.stage ||
+      !shallowRecordEqual(ea.params, eb.params)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export interface EditorSnapshot {
   algorithmId: string;
   algoParams: Record<string, any>;
@@ -34,6 +140,8 @@ export interface EditorSnapshot {
   animationTracks: any[];
   fps: number;
   duration: number;
+  renderMode: 'dither' | 'ascii';
+  asciiSettings: AsciiSettings;
 }
 
 export function cloneSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
@@ -61,7 +169,9 @@ export function cloneSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
     })),
     animationTracks: (snapshot.animationTracks || []).map((tr) => ({ ...tr })),
     fps: snapshot.fps,
-    duration: snapshot.duration
+    duration: snapshot.duration,
+    renderMode: snapshot.renderMode === 'ascii' ? 'ascii' : 'dither',
+    asciiSettings: cloneAsciiSettings(snapshot.asciiSettings)
   };
 }
 
@@ -87,7 +197,9 @@ export function captureSnapshot(state: any): EditorSnapshot {
     effects: state.effects || [],
     animationTracks: state.animationTracks || [],
     fps: state.fps ?? 30,
-    duration: state.duration ?? 15.0
+    duration: state.duration ?? 15.0,
+    renderMode: state.renderMode === 'ascii' ? 'ascii' : 'dither',
+    asciiSettings: cloneAsciiSettings(state.asciiSettings)
   });
 }
 
@@ -117,6 +229,8 @@ export function areSnapshotsEqual(a: EditorSnapshot | null, b: EditorSnapshot | 
   ) {
     return false;
   }
+  if (a.renderMode !== b.renderMode) return false;
+  if (!areAsciiSettingsEqual(a.asciiSettings, b.asciiSettings)) return false;
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -143,7 +257,9 @@ export function applySnapshotToStore(store: any, snapshot: EditorSnapshot): void
     effects: cloned.effects,
     animationTracks: cloned.animationTracks,
     fps: cloned.fps,
-    duration: cloned.duration
+    duration: cloned.duration,
+    renderMode: cloned.renderMode === 'ascii' ? 'ascii' : 'dither',
+    asciiSettings: cloneAsciiSettings(cloned.asciiSettings)
   });
 }
 
@@ -228,7 +344,9 @@ export class HistoryManager {
       state.paletteInverted === this.currentSnapshot.paletteInverted &&
       state.paletteFlipped === this.currentSnapshot.paletteFlipped &&
       state.fps === this.currentSnapshot.fps &&
-      state.duration === this.currentSnapshot.duration
+      state.duration === this.currentSnapshot.duration &&
+      state.renderMode === this.currentSnapshot.renderMode &&
+      state.asciiSettings === this.currentSnapshot.asciiSettings
     ) {
       return;
     }

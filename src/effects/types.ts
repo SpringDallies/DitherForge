@@ -1,4 +1,5 @@
 // DitherForge Post-Effects Pipeline Type Definitions (v2)
+import type { AsciiCharsetDefinition, AsciiSettings, GlyphAtlasData } from '../ascii/types';
 
 export type BlendMode =
   | 'normal'
@@ -62,6 +63,12 @@ export interface EffectContext {
   frameIndex?: number;
   time?: number;
   fps?: number;
+  palette?: number[][];
+  asciiAtlases?: Record<string, GlyphAtlasData>;
+  asciiEffectAtlasKeys?: Record<string, string>;
+  effectItemId?: string;
+  customCharsets?: AsciiCharsetDefinition[];
+  shared?: any;
 }
 
 export interface EffectDescriptor<P = any> {
@@ -119,6 +126,8 @@ export interface PresetV2 {
   id: string;
   name: string;
   description?: string;
+  renderMode?: 'dither' | 'ascii';
+  asciiSettings?: Partial<AsciiSettings>;
   algorithmId?: string;
   paletteId?: string;
   palette?: any[];

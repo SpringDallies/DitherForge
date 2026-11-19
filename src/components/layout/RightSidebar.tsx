@@ -19,6 +19,8 @@ import { downloadAnimatedGif, downloadAnimatedVideo, getExportCanvas } from '../
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { getEffectDescriptor, getEffectParamsMeta, getAllEffects, mergePresetEffects, BlendMode, EffectCategory } from '../../effects';
 import { loadUserPresetsV2, saveUserPresetsV2, type PresetV2 } from '../../effects/presets';
+import { AsciiControlsPanel } from '../ascii/AsciiControlsPanel';
+import { DEFAULT_ASCII_SETTINGS, type AsciiAlgorithmId } from '../../ascii';
 import { 
   X,
   ChevronLeft,
@@ -473,6 +475,10 @@ export const RightSidebar: React.FC = () => {
   // App store selectors
   const algorithmId = useAppStore((state) => state.algorithmId);
   const setAlgorithmId = useAppStore((state) => state.setAlgorithmId);
+  const renderMode = useAppStore((state) => state.renderMode);
+  const setRenderMode = useAppStore((state) => state.setRenderMode);
+  const asciiSettings = useAppStore((state) => state.asciiSettings);
+  const patchAsciiSettings = useAppStore((state) => state.patchAsciiSettings);
   const algoParams = useAppStore((state) => state.algoParams);
   const updateCurrentAlgoParam = useAppStore((state) => state.updateCurrentAlgoParam);
   const resetCurrentAlgoParams = useAppStore((state) => state.resetCurrentAlgoParams);
@@ -1735,8 +1741,32 @@ export const RightSidebar: React.FC = () => {
 
             {!collapsedSections.style && (
               <div className="section-content section-card">
-                {/* Category Row */}
-                <div className="picker-row-inline" style={{ zIndex: activeDropdownId === 'style-category-dropdown' ? 100 : 10 }}>
+                {/* Mode Selector */}
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                  <button
+                    type="button"
+                    className={`action-btn ${renderMode === 'dither' ? 'primary' : ''}`}
+                    style={{ flex: 1 }}
+                    onClick={() => setRenderMode('dither')}
+                  >
+                    Dither
+                  </button>
+                  <button
+                    type="button"
+                    className={`action-btn ${renderMode === 'ascii' ? 'primary' : ''}`}
+                    style={{ flex: 1 }}
+                    onClick={() => setRenderMode('ascii')}
+                  >
+                    ASCII
+                  </button>
+                </div>
+
+                {renderMode === 'ascii' ? (
+                  <AsciiControlsPanel />
+                ) : (
+                  <>
+                    {/* Category Row */}
+                    <div className="picker-row-inline" style={{ zIndex: activeDropdownId === 'style-category-dropdown' ? 100 : 10 }}>
                   <span className="picker-label-inline">Category</span>
                   <div className="picker-box-with-steppers">
                     <Dropdown
@@ -2188,6 +2218,8 @@ export const RightSidebar: React.FC = () => {
                       </div>
                     );
                   })}
+                  </>
+                )}
             </div>
           )}
         </div>
@@ -3431,7 +3463,26 @@ export const RightSidebar: React.FC = () => {
                           className="replica-preset-item"
                           onClick={() => {
                             if (!preset) return;
-                            if (preset.algorithmId) setAlgorithmId(preset.algorithmId);
+                            if (preset.renderMode === 'ascii') {
+                              setRenderMode('ascii');
+                              patchAsciiSettings({ ...DEFAULT_ASCII_SETTINGS, ...(preset.asciiSettings || {}) });
+                            } else if (
+                              preset.renderMode === undefined &&
+                              typeof preset.algorithmId === 'string' &&
+                              preset.algorithmId.startsWith('ascii-')
+                            ) {
+                              setRenderMode('ascii');
+                              patchAsciiSettings({
+                                ...DEFAULT_ASCII_SETTINGS,
+                                ...(preset.asciiSettings || {}),
+                                algorithmId: preset.algorithmId as AsciiAlgorithmId
+                              });
+                            } else {
+                              setRenderMode('dither');
+                              if (preset.algorithmId) {
+                                setAlgorithmId(preset.algorithmId);
+                              }
+                            }
                             if (preset.paletteId) setActivePaletteId(preset.paletteId);
                             if (preset.palette && Array.isArray(preset.palette) && preset.palette.length > 0) {
                               useAppStore.setState({ workingPalette: preset.palette.map((c: any) => [...c]) });
@@ -3517,6 +3568,13 @@ export const RightSidebar: React.FC = () => {
                           version: 2,
                           id: `user_${Date.now()}`,
                           name: trimmed,
+                          renderMode,
+                          asciiSettings: {
+                            ...asciiSettings,
+                            injectedChars: asciiSettings.injectedChars.slice(),
+                            algoParams: { ...asciiSettings.algoParams },
+                            asciiEffects: asciiSettings.asciiEffects.map((e) => ({ ...e, params: { ...e.params } }))
+                          },
                           algorithmId,
                           paletteId: activePaletteId,
                           brightness: brightness / 100,
@@ -3559,6 +3617,13 @@ export const RightSidebar: React.FC = () => {
                         version: 2,
                         id: `user_${Date.now()}`,
                         name: trimmed,
+                        renderMode,
+                        asciiSettings: {
+                          ...asciiSettings,
+                          injectedChars: asciiSettings.injectedChars.slice(),
+                          algoParams: { ...asciiSettings.algoParams },
+                          asciiEffects: asciiSettings.asciiEffects.map((e) => ({ ...e, params: { ...e.params } }))
+                        },
                         algorithmId,
                         paletteId: activePaletteId,
                         brightness: brightness / 100,

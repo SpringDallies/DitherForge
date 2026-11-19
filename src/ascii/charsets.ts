@@ -639,16 +639,19 @@ export function findCharsetById(id: string, customSets?: AsciiCharsetDefinition[
  * 4. Character depth decimation (evenly samples `depth` stops preserving endpoints)
  * 5. Circular character offset
  */
-export function resolveActiveChars(options: {
-  charsetId: string;
-  customCharsetChars?: string;
-  injectedChars?: string[];
-  injectMode?: AsciiInjectMode;
-  reverseCharset?: boolean;
-  characterDepth?: number;
-  characterOffset?: number;
-  customSets?: AsciiCharsetDefinition[];
-}): string[] {
+export function resolveActiveChars(
+  options: {
+    charsetId: string;
+    customCharsetChars?: string;
+    injectedChars?: string[];
+    injectMode?: AsciiInjectMode;
+    reverseCharset?: boolean;
+    characterDepth?: number;
+    characterOffset?: number;
+    customSets?: AsciiCharsetDefinition[];
+  },
+  customSetsFallback?: AsciiCharsetDefinition[]
+): string[] {
   const {
     charsetId,
     customCharsetChars = '',
@@ -657,7 +660,7 @@ export function resolveActiveChars(options: {
     reverseCharset = false,
     characterDepth = 16,
     characterOffset = 0,
-    customSets
+    customSets = customSetsFallback
   } = options;
 
   let baseChars: string[];

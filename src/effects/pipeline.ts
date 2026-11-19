@@ -83,6 +83,7 @@ export const DEFAULT_PIPELINE_ORDER: string[] = [
   'dust_scratches',
   'blur_sharpen',
   'pixelate',
+  'ascii_render',
   'jpeg_artifacts',
 
   // 8. Vignette falloff
@@ -247,6 +248,8 @@ export function applyEffectPipeline(
       pipelineLayerBuffer.set(data);
       targetBuffer = pipelineLayerBuffer;
     }
+
+    const enrichedContext: EffectContext = { ...context, effectItemId: item.id, shared };
 
     // Apply the effect onto the target buffer
     try {

@@ -225,6 +225,24 @@ assert.strictEqual(shouldHandleGlobalUndo({ tagName: 'TEXTAREA' }), false, 'Text
 assert.strictEqual(shouldHandleGlobalUndo({ tagName: 'DIV', isContentEditable: true }), false, 'ContentEditable should preserve native text undo');
 console.log('  PASS: Keyboard shortcut target filtering accurately distinguishes sliders/buttons from text inputs');
 
+
+// 13. ASCII Render Mode and ASCII Settings Undo & Redo
+assert.strictEqual(useAppStore.getState().renderMode, 'dither');
+useAppStore.getState().setRenderMode('ascii');
+assert.strictEqual(useAppStore.getState().renderMode, 'ascii');
+useAppStore.getState().undo();
+assert.strictEqual(useAppStore.getState().renderMode, 'dither', 'renderMode should revert to dither on undo');
+useAppStore.getState().redo();
+assert.strictEqual(useAppStore.getState().renderMode, 'ascii', 'renderMode should restore to ascii on redo');
+
+useAppStore.getState().setAsciiSetting('cellWidth', 14);
+assert.strictEqual(useAppStore.getState().asciiSettings.cellWidth, 14);
+useAppStore.getState().undo();
+assert.strictEqual(useAppStore.getState().asciiSettings.cellWidth, 8, 'cellWidth should revert to default on undo');
+useAppStore.getState().redo();
+assert.strictEqual(useAppStore.getState().asciiSettings.cellWidth, 14, 'cellWidth should restore to 14 on redo');
+console.log('  PASS: ASCII renderMode and asciiSettings undo & redo verified');
+
 console.log('==================================================================');
 console.log('✅ ALL APPLICATION-LEVEL UNDO / REDO TESTS PASSED                ');
 console.log('==================================================================');

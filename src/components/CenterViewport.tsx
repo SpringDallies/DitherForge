@@ -16,7 +16,6 @@ import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { EngineBridge } from '../services/EngineBridge';
 import { ditherWorkerClient } from '../workers/ditherWorkerClient';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
-import { applyEffectPipeline } from '../effects';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import {
@@ -381,6 +380,9 @@ export const CenterViewport: React.FC = () => {
 
   const algorithmId = useAppStore((state) => state.algorithmId);
   const algoParams = useAppStore((state) => state.algoParams);
+  const renderMode = useAppStore((state) => state.renderMode);
+  const asciiSettings = useAppStore((state) => state.asciiSettings);
+  const customCharsets = useAppStore((state) => state.customCharsets);
 
   const brightness = useAppStore((state) => state.brightness);
   const contrast = useAppStore((state) => state.contrast);
@@ -1451,6 +1453,19 @@ export const CenterViewport: React.FC = () => {
     const effEffects = effects.map((e) => ({ ...e, params: { ...e.params } }));
     let animatedNoiseActive = false;
 
+    const effAsciiSettings =
+      renderMode === 'ascii'
+        ? {
+            ...asciiSettings,
+            injectedChars: asciiSettings.injectedChars.slice(),
+            algoParams: { ...asciiSettings.algoParams },
+            asciiEffects: asciiSettings.asciiEffects.map((e) => ({
+              ...e,
+              params: { ...e.params }
+            }))
+          }
+        : asciiSettings;
+
     if (appMode === 'animation') {
       for (const track of animationTracks) {
         if (!track.category || !track.property) continue;
@@ -1460,7 +1475,20 @@ export const CenterViewport: React.FC = () => {
           const eased = applyEasing(rawProgress, track.easing);
           const val = track.fromValue + (track.toValue - track.fromValue) * eased;
 
-          if (track.category === 'adjustments') {
+          if (track.category === 'style' && track.property.startsWith('ascii.') && renderMode === 'ascii') {
+            const propKey = track.property.slice('ascii.'.length);
+            if (
+              propKey === 'characterDepth' ||
+              propKey === 'characterOffset' ||
+              propKey === 'cellWidth' ||
+              propKey === 'cellHeight' ||
+              propKey === 'cellSpacing'
+            ) {
+              (effAsciiSettings as any)[propKey] = Math.round(val);
+            } else if (propKey in effAsciiSettings) {
+              (effAsciiSettings as any)[propKey] = val;
+            }
+          } else if (track.category === 'adjustments') {
             if (track.property === 'brightness') effBrightness = val;
             else if (track.property === 'contrast') effContrast = val;
             else if (track.property === 'saturation') effSaturation = val;
@@ -1534,7 +1562,9 @@ export const CenterViewport: React.FC = () => {
       sourceVideoUrl ? Math.round(activeTime * 30) : '',
       appMode === 'animation'
         ? frameIndex
-        : ''
+        : '',
+      renderMode,
+      renderMode === 'ascii' ? JSON.stringify(effAsciiSettings) + ':' + (customCharsets?.length || 0) : ''
     ].join('::');
 
     if (renderSig === lastRenderSignatureRef.current) {
@@ -1696,7 +1726,15 @@ export const CenterViewport: React.FC = () => {
       // Note: pre-adjustments and noise were already applied to workingData above;
       // pass frameIndex via params.temporalSeed so effects in worker/Rust stay deterministic
       // without double-applying temporal grain.
-      temporal: undefined
+      temporal: undefined,
+      renderMode,
+      asciiSettings: renderMode === 'ascii' ? effAsciiSettings : undefined,
+      customCharsets,
+      frameIndex,
+      time: activeTime,
+      fps,
+      previewScale: fullWidth > 0 ? width / fullWidth : 1,
+      isExport: false
     });
 
     if (workerResponse.success && workerResponse.buffer) {
@@ -1890,6 +1928,9 @@ export const CenterViewport: React.FC = () => {
     algorithmId,
     currentParams,
     effects,
+    renderMode,
+    asciiSettings,
+    customCharsets,
     setLastRenderMs,
     startDitherTimer,
     finishDitherTimer,

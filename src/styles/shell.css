@@ -257,6 +257,7 @@ body {
 }
 .custom-dropdown-trigger {
   width: 100%;
+  min-width: 130px;
   height: 36px;
   background-color: var(--bg-control);
   color: var(--text-dim);

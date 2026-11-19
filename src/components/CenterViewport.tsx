@@ -1345,12 +1345,6 @@ export const CenterViewport: React.FC = () => {
       addDevLog('info', 'render', `Execute render pipeline ${w}x${h} preRender=${preRender} mode=${appMode} quality=${previewQuality}`);
     }
 
-    // Yield one animation frame so the browser can paint the overlay if the
-    // timer triggers before heavy JS work blocks the main thread.
-    if (EngineBridge.getLastBackend() !== "rust") {
-      await new Promise((r) => setTimeout(r, 0));
-    }
-
     const currentNonce = ++renderNonceRef.current;
     let didStartTimer = false;
     try {
@@ -1699,14 +1693,10 @@ export const CenterViewport: React.FC = () => {
         gamma: effAlgoParams.gamma ?? 1
       },
       effects: effEffects,
-      temporal: animatedNoiseActive && appMode === 'animation'
-        ? {
-          patternId: 'grain',
-          frameIndex,
-          intensity: effNoise,
-          speed: 1
-        }
-        : undefined
+      // Note: pre-adjustments and noise were already applied to workingData above;
+      // pass frameIndex via params.temporalSeed so effects in worker/Rust stay deterministic
+      // without double-applying temporal grain.
+      temporal: undefined
     });
 
     if (workerResponse.success && workerResponse.buffer) {
@@ -1732,11 +1722,8 @@ export const CenterViewport: React.FC = () => {
       }
     }
 
-    applyEffectPipeline(ditherImageData, effEffects, {
-      frameIndex,
-      time: activeTime,
-      fps
-    });
+    // Effects are already executed once inside dither.worker.ts (browser) or Rust / fallback
+    // inside ditherWorkerClient.runRustPipeline (Tauri). Do not re-apply on main thread.
 
     const elapsedMs = performance.now() - t0;
     const nowWall = performance.now();
@@ -1811,7 +1798,6 @@ export const CenterViewport: React.FC = () => {
           offCtx.putImageData(imgData, 0, 0);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
-          lastRenderedFullImageRef.current = ctx.getImageData(0, 0, fullWidth, fullHeight);
         }
       }
     };
@@ -1946,7 +1932,6 @@ export const CenterViewport: React.FC = () => {
           offCtx.putImageData(imgData, 0, 0);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(offscreen, 0, 0, fullWidth, fullHeight);
-          lastRenderedFullImageRef.current = ctx.getImageData(0, 0, fullWidth, fullHeight);
         }
       }
     };
@@ -2023,6 +2008,7 @@ export const CenterViewport: React.FC = () => {
     executeRenderPipeline();
   }, [
     sourceImageData,
+    currentTime,
     viewportUpdateMode,
     isDraggingSlider,
     isPlaying,

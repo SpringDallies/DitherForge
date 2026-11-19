@@ -1816,7 +1816,6 @@ export const RightSidebar: React.FC = () => {
                             <span className="algo-dropdown-category-title">
                               {activeCategory === 'all' ? 'All' : (categoryDropdownItems.find(c => c.id === activeCategory)?.label?.split(' (')[0] || 'All')}
                             </span>
-                            <ChevronDown size={16} strokeWidth={2.4} className="algo-dropdown-category-chevron" />
                           </div>
 
                           {/* Scrollable Items List Box Card */}

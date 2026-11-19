@@ -714,10 +714,6 @@ body {
   color: var(--text-dim);
   letter-spacing: -0.01em;
 }
-.algo-dropdown-category-chevron {
-  color: var(--text-dim);
-  transition: transform 150ms ease;
-}
 .algo-listbox-card {
   border: 1.5px solid var(--border-color);
   border-radius: 14px;

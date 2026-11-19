@@ -302,6 +302,9 @@ body {
   border-color: var(--border-color);
 }
 .custom-dropdown-trigger::after {
+  display: inline-block;
+}
+.category-dropdown .custom-dropdown-trigger::after {
   display: none;
 }
 .custom-dropdown-label {

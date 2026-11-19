@@ -343,22 +343,11 @@ export const App: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              padding: '10px 16px',
-              borderRadius: 8,
-              background:
-                t.type === 'error'
-                  ? 'rgba(34, 16, 16, 0.92)'
-                  : t.type === 'success'
-                    ? 'rgba(16, 64, 34, 0.92)'
-                    : 'rgba(24, 28, 38, 0.92)',
+              padding: '9px 16px',
+              borderRadius: 9999,
+              background: 'var(--bg-secondary)',
               color: 'var(--text-main)',
-              border: `1px solid ${
-                t.type === 'error'
-                  ? 'rgba(239, 68, 68, 0.5)'
-                  : t.type === 'success'
-                    ? 'rgba(34, 197, 94, 0.5)'
-                    : 'rgba(148, 163, 184, 0.5)'
-              }`,
+              border: `1px solid ${t.type === 'error' ? 'var(--status-error)' : 'var(--accent-cyan)'}`,
               boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
               fontSize: '0.82rem',
               fontWeight: 500,
@@ -366,49 +355,15 @@ export const App: React.FC = () => {
               maxWidth: 420,
               animation: 'toastSlideIn 220ms ease-out',
               pointerEvents: 'auto',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)'
             }}
             onClick={() => {
               const { removeToast } = useAppStore.getState();
               removeToast(t.id);
             }}
           >
-            {t.type === 'success' && (
-              <span
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: 50,
-                  background: 'var(--accent-amber, #f59e0b)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#000',
-                  fontSize: '0.7rem',
-                  fontWeight: 800
-                }}
-              >
-                ✔
-              </span>
-            )}
-            {t.type === 'error' && (
-              <span
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: 50,
-                  background: 'rgba(239, 68, 68, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fca5a5',
-                  fontSize: '0.7rem',
-                  fontWeight: 800
-                }}
-              >
-                ✖
-              </span>
-            )}
             <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>{t.message}</span>
           </div>
         ))}

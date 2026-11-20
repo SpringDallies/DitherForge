@@ -236,7 +236,7 @@ export function renderDeterministicAnimationFrame(
     effects = []
   } = storeState;
 
-  const isDedicatedAscii = renderMode === 'ascii';
+  const isDedicatedAscii = renderMode === 'ascii' || (typeof algorithmId === 'string' && algorithmId.startsWith('ascii-'));
 
   const resolvedBaseParams =
     currentParams && Object.keys(currentParams).length > 0
@@ -765,7 +765,8 @@ async function extractVideoFramePixelsAtTime(
 export async function renderFullResolutionAsciiGrid(
   storeState: any
 ): Promise<AsciiGridFrame | null> {
-  if (storeState.renderMode !== 'ascii') return null;
+  const isAscii = storeState.renderMode === 'ascii' || (typeof storeState.algorithmId === 'string' && storeState.algorithmId.startsWith('ascii-'));
+  if (!isAscii) return null;
   const sourceImageData = storeState.sourceImageData;
   if (!sourceImageData) return null;
 

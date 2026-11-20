@@ -61,6 +61,7 @@ export interface WorkerDitherResponse {
   atlasResyncRequired?: boolean;
   missingAtlasKeys?: string[];
   error?: string;
+  asciiGrid?: any;
 }
 
 const workerAtlasCache = new WorkerAtlasLruCache(DEFAULT_WORKER_ATLAS_CACHE_LIMIT);
@@ -126,6 +127,7 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
     // Guarantee: never render an ASCII frame with missing or substituted glyphs.
     const missingAtlasKeys: string[] = [];
     let dedicatedAtlas: GlyphAtlasData | null = null;
+    let dedicatedGridFrame: any = null;
     if (isDedicatedAscii) {
       if (!dedicatedAtlasKey) {
         const missingKeyError: WorkerDitherResponse = {
@@ -235,7 +237,7 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
           asciiOutScratch = new Uint8ClampedArray(workingData.length);
         }
 
-        renderAsciiFrame(
+        const asciiRes = renderAsciiFrame(
           workingData,
           asciiSettings,
           {
@@ -253,6 +255,7 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
           asciiOutScratch
         );
 
+        dedicatedGridFrame = asciiRes.grid;
         workingData.set(asciiOutScratch);
       } else {
         const effNoise = params?.noiseAmount ?? params?.noise ?? 0;
@@ -309,7 +312,8 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
       buffer: workingData.buffer,
       width,
       height,
-      elapsedMs
+      elapsedMs,
+      asciiGrid: dedicatedGridFrame
     };
 
     (self as any).postMessage(response, [workingData.buffer]);

@@ -60,6 +60,7 @@ export interface ParamMeta {
 }
 
 export interface EffectContext {
+  renderMode?: string;
   frameIndex?: number;
   time?: number;
   fps?: number;

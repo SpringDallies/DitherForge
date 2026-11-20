@@ -174,6 +174,8 @@ export function applyAsciiRenderEffect(
   context?: EffectContext
 ): void {
   if (width <= 0 || height <= 0) return;
+  // Guard: Avoid duplicate ASCII rendering if the dedicated ASCII algorithm pipeline is active
+  if ((context as any)?.renderMode === 'ascii') return;
 
   if (!asciiScratchIn || asciiScratchIn.length !== data.length) {
     asciiScratchIn = new Uint8ClampedArray(data.length);

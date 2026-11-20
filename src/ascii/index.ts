@@ -1,3 +1,4 @@
+export * from './vectorCanvas';
 export * from './types';
 export * from './charsets';
 export * from './fallbackFont';

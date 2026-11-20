@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { RotateCcw, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
+import { ColorPicker } from '../common/ColorPicker';
 import { useAppStore } from '../../state/useAppStore';
 import * as AsciiEngine from '../../ascii';
 import {
@@ -28,10 +29,10 @@ const FALLBACK_ASCII_ALGORITHMS: AsciiAlgorithmDescriptor[] = [
   { id: 'ascii-atkinson', name: 'Atkinson', category: 'ascii', family: 'dithering', description: '', complexity: 'moderate', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
   { id: 'ascii-stochastic', name: 'Stochastic', category: 'ascii', family: 'dithering', description: '', complexity: 'simple', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
   { id: 'ascii-blue-noise', name: 'Blue Noise', category: 'ascii', family: 'dithering', description: '', complexity: 'moderate', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
-  { id: 'ascii-error-diffusion-braille', name: 'Error Diffusion Braille', category: 'ascii', family: 'dithering', description: '', complexity: 'complex', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
-  { id: 'ascii-braille-2x4', name: 'Braille 2x4', category: 'ascii', family: 'geometry', description: '', complexity: 'moderate', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
-  { id: 'ascii-half-block', name: 'Half Block', category: 'ascii', family: 'geometry', description: '', complexity: 'simple', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
-  { id: 'ascii-quadrant-blocks', name: 'Quadrant Blocks', category: 'ascii', family: 'geometry', description: '', complexity: 'moderate', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
+  { id: 'ascii-error-diffusion-braille', name: 'Error-Diffusion Braille', category: 'ascii', family: 'dithering', description: '', complexity: 'moderate', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
+  { id: 'ascii-braille-2x4', name: 'Braille 2x4 Sub-pixel', category: 'ascii', family: 'geometry', description: '', complexity: 'simple', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
+  { id: 'ascii-half-block', name: 'Half-Block (Top/Bottom)', category: 'ascii', family: 'geometry', description: '', complexity: 'simple', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
+  { id: 'ascii-quadrant-blocks', name: 'Quadrant Blocks 2x2', category: 'ascii', family: 'geometry', description: '', complexity: 'moderate', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
   { id: 'ascii-sextant-octant', name: 'Sextant / Octant', category: 'ascii', family: 'geometry', description: '', complexity: 'complex', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
   { id: 'ascii-geometric-glyphs', name: 'Geometric Glyphs', category: 'ascii', family: 'geometry', description: '', complexity: 'complex', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
   { id: 'ascii-directional-glyphs', name: 'Directional Glyphs', category: 'ascii', family: 'geometry', description: '', complexity: 'moderate', features: { supportsColorPalettes: true, supportsColorDepth: true, supportsDpiScale: true, supportsLuminanceThreshold: true, isDeterministic: true, requiresMultiPass: false }, controls: [] },
@@ -71,101 +72,129 @@ function getBuiltinAsciiCharsets(): AsciiCharsetDefinition[] {
   return Array.isArray(list) && list.length > 0 ? list : FALLBACK_ASCII_CHARSETS;
 }
 
-interface SliderRowProps {
+const getSliderFill = (val: number, min: number, max: number): React.CSSProperties => {
+  const pct = Math.max(0, Math.min(100, ((val - min) / Math.max(0.0001, max - min)) * 100));
+  return { '--slider-fill': `${pct.toFixed(1)}%` } as React.CSSProperties;
+};
+
+interface SliderControlProps {
   label: string;
   value: number;
   min: number;
   max: number;
   step: number;
   unit?: string;
+  tooltip?: string;
+  onDoubleClickReset?: () => void;
+  sliderPointerProps?: any;
   onChange: (val: number) => void;
-  onDragChange: (dragging: boolean) => void;
 }
 
-const AsciiSliderRow: React.FC<SliderRowProps> = ({
+const AsciiSliderControl: React.FC<SliderControlProps> = ({
   label,
   value,
   min,
   max,
   step,
-  unit,
-  onChange,
-  onDragChange
+  tooltip,
+  onDoubleClickReset,
+  sliderPointerProps,
+  onChange
 }) => {
-  const pct = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
-  const display = Number.isInteger(step) ? String(Math.round(value)) : value.toFixed(2);
+  const tooltipText = tooltip || `${label} (${min} to ${max})`;
   return (
-    <div style={{ marginBottom: '10px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.76rem', color: 'var(--text-dim)' }}>
-        <span>{label}</span>
-        <span style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-          {display}{unit ? ` ${unit}` : ''}
-        </span>
+    <div className="slider-control-block">
+      <div className="slider-label-above">
+        <Tooltip text={tooltipText}>
+          <span
+            onDoubleClick={onDoubleClickReset}
+            style={onDoubleClickReset ? { cursor: 'pointer' } : undefined}
+          >
+            {label}
+          </span>
+        </Tooltip>
       </div>
-      <input
-        type="range"
-        className="control-slider"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onPointerDown={() => onDragChange(true)}
-        onPointerUp={() => onDragChange(false)}
-        onBlur={() => onDragChange(false)}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{ width: '100%', '--slider-fill': `${pct}%` } as React.CSSProperties}
-      />
+      <div className="slider-track-input-row">
+        <Tooltip text={tooltipText} style={{ flex: 1, display: 'flex' }}>
+          <input
+            type="range"
+            className="control-slider"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            style={getSliderFill(value, min, max)}
+            {...(sliderPointerProps || {})}
+            onDoubleClick={onDoubleClickReset}
+            onChange={(e) => onChange(parseFloat(e.target.value))}
+          />
+        </Tooltip>
+        <input
+          type="number"
+          className="control-num-input"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        />
+      </div>
     </div>
   );
 };
 
-interface ToggleRowProps {
+interface ToggleControlProps {
+  id: string;
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }
 
-const AsciiToggleRow: React.FC<ToggleRowProps> = ({ label, checked, onChange }) => (
-  <label
-    style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '8px',
-      fontSize: '0.76rem',
-      color: 'var(--text-dim)',
-      cursor: 'pointer'
-    }}
-  >
-    <span>{label}</span>
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-    />
-  </label>
+const AsciiToggleControl: React.FC<ToggleControlProps> = ({ id, label, checked, onChange }) => (
+  <div className="serpentine-row param-toggle-row">
+    <button
+      type="button"
+      id={`toggle-${id}`}
+      className={`toggle-square-btn ${checked ? 'enabled' : ''}`}
+      onClick={() => onChange(!checked)}
+      aria-label={`Toggle ${label}`}
+    >
+      <span className={`toggle-square ${checked ? 'enabled' : ''}`} />
+    </button>
+    <label
+      htmlFor={`toggle-${id}`}
+      className="serpentine-label"
+      style={{ cursor: 'pointer' }}
+      onClick={() => onChange(!checked)}
+    >
+      {label}
+    </label>
+  </div>
 );
 
-export const AsciiControlsPanel: React.FC = () => {
+interface AsciiControlsPanelProps {
+  sliderPointerProps?: any;
+}
+
+export const AsciiControlsPanel: React.FC<AsciiControlsPanelProps> = ({ sliderPointerProps }) => {
   const asciiSettings = useAppStore((state) => state.asciiSettings);
   const setAsciiSetting = useAppStore((state) => state.setAsciiSetting);
-  const setAsciiAlgorithmId = useAppStore((state) => state.setAsciiAlgorithmId);
   const updateAsciiAlgoParam = useAppStore((state) => state.updateAsciiAlgoParam);
   const toggleAsciiEffect = useAppStore((state) => state.toggleAsciiEffect);
   const updateAsciiEffectParam = useAppStore((state) => state.updateAsciiEffectParam);
-  const resetAsciiSettings = useAppStore((state) => state.resetAsciiSettings);
   const customCharsets = useAppStore((state) => state.customCharsets);
   const addCustomCharset = useAppStore((state) => state.addCustomCharset);
   const deleteCustomCharset = useAppStore((state) => state.deleteCustomCharset);
-  const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
   const addToast = useAppStore((state) => state.addToast);
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+  const [expandedEffectId, setExpandedEffectId] = useState<string | null>(null);
+  const [collapsedSubsections, setCollapsedSubsections] = useState<Record<string, boolean>>({
     grid: true,
-    tone: false,
-    color: false,
+    tone: true,
+    color: true,
     asciiEffects: false
   });
+
   const [newCharsetName, setNewCharsetName] = useState('');
   const [newCharsetChars, setNewCharsetChars] = useState('');
   const [showCustomForm, setShowCustomForm] = useState(false);
@@ -176,16 +205,6 @@ export const AsciiControlsPanel: React.FC = () => {
   const selectedAlgo = useMemo(
     () => algorithms.find((a) => a.id === asciiSettings.algorithmId) || algorithms[0],
     [algorithms, asciiSettings.algorithmId]
-  );
-
-  const algorithmDropdownItems = useMemo(
-    () =>
-      algorithms.map((a) => ({
-        id: a.id,
-        label: a.name,
-        hint: a.family
-      })),
-    [algorithms]
   );
 
   const charsetDropdownItems = useMemo(() => {
@@ -211,8 +230,8 @@ export const AsciiControlsPanel: React.FC = () => {
     return items;
   }, [builtinCharsets, customCharsets, deleteCustomCharset]);
 
-  const toggleGroup = (key: string) =>
-    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleSubsection = (key: string) =>
+    setCollapsedSubsections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const handleSaveCustomCharset = () => {
     if (newCharsetChars.length < 2) {
@@ -228,61 +247,11 @@ export const AsciiControlsPanel: React.FC = () => {
     }
   };
 
-  const renderGroupHeader = (key: string, title: string) => (
-    <button
-      type="button"
-      onClick={() => toggleGroup(key)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        padding: '6px 0',
-        marginTop: '8px',
-        marginBottom: '6px',
-        background: 'transparent',
-        border: 'none',
-        borderTop: '1px solid var(--border-color)',
-        color: 'var(--text-primary)',
-        fontSize: '0.76rem',
-        fontWeight: 600,
-        cursor: 'pointer'
-      }}
-    >
-      <span>{title}</span>
-      {openGroups[key] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-    </button>
-  );
-
   return (
-    <div className="ascii-controls-panel">
-      {/* Algorithm & Reset */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <span style={{ fontSize: '0.76rem', color: 'var(--text-dim)' }}>ASCII Algorithm</span>
-        <Tooltip text="Reset ASCII settings">
-          <button
-            type="button"
-            className="tool-icon-btn"
-            onClick={resetAsciiSettings}
-            aria-label="Reset ASCII settings"
-          >
-            <RotateCcw size={13} />
-          </button>
-        </Tooltip>
-      </div>
-      <div style={{ marginBottom: '10px' }}>
-        <Dropdown
-          id="ascii-algorithm-select"
-          value={asciiSettings.algorithmId}
-          onChange={(val) => setAsciiAlgorithmId(val as AsciiAlgorithmId)}
-          width="100%"
-          items={algorithmDropdownItems}
-        />
-      </div>
-
-      {/* Algorithm-specific dynamic controls */}
+    <div className="ascii-controls-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {/* 1. Algorithm-specific dynamic controls */}
       {selectedAlgo?.controls && selectedAlgo.controls.length > 0 && (
-        <div style={{ marginBottom: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {selectedAlgo.controls.map((ctrl) => {
             const curVal =
               asciiSettings.algoParams[ctrl.id] !== undefined
@@ -290,23 +259,25 @@ export const AsciiControlsPanel: React.FC = () => {
                 : ctrl.defaultValue;
             if (ctrl.type === 'slider') {
               return (
-                <AsciiSliderRow
+                <AsciiSliderControl
                   key={ctrl.id}
                   label={ctrl.label}
                   value={Number(curVal)}
                   min={ctrl.min ?? 0}
                   max={ctrl.max ?? 1}
                   step={ctrl.step ?? 0.05}
-                  unit={ctrl.unit}
-                  onDragChange={setIsDraggingSlider}
+                  unit={(ctrl as any).unit}
+                  sliderPointerProps={sliderPointerProps}
+                  onDoubleClickReset={() => updateAsciiAlgoParam(ctrl.id, ctrl.defaultValue)}
                   onChange={(v) => updateAsciiAlgoParam(ctrl.id, v)}
                 />
               );
             }
             if (ctrl.type === 'toggle') {
               return (
-                <AsciiToggleRow
+                <AsciiToggleControl
                   key={ctrl.id}
+                  id={`algo-${ctrl.id}`}
                   label={ctrl.label}
                   checked={Boolean(curVal)}
                   onChange={(v) => updateAsciiAlgoParam(ctrl.id, v)}
@@ -315,10 +286,8 @@ export const AsciiControlsPanel: React.FC = () => {
             }
             if (ctrl.type === 'dropdown' && ctrl.options) {
               return (
-                <div key={ctrl.id} style={{ marginBottom: '8px' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                    {ctrl.label}
-                  </div>
+                <div key={ctrl.id} className="picker-row">
+                  <span className="picker-label">{ctrl.label}</span>
                   <Dropdown
                     id={`ascii-algo-ctrl-${ctrl.id}`}
                     value={String(curVal)}
@@ -330,10 +299,8 @@ export const AsciiControlsPanel: React.FC = () => {
               );
             }
             return (
-              <div key={ctrl.id} style={{ marginBottom: '8px' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                  {ctrl.label}
-                </div>
+              <div key={ctrl.id} className="picker-row">
+                <span className="picker-label">{ctrl.label}</span>
                 <input
                   type="text"
                   className="export-input"
@@ -346,21 +313,22 @@ export const AsciiControlsPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Charset Selector + Custom Charset CRUD */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-        <span style={{ fontSize: '0.76rem', color: 'var(--text-dim)' }}>Character Set</span>
-        <Tooltip text="Save custom character set">
-          <button
-            type="button"
-            className="tool-icon-btn"
-            onClick={() => setShowCustomForm((v) => !v)}
-            aria-label="New custom character set"
-          >
-            <Plus size={13} />
-          </button>
-        </Tooltip>
-      </div>
-      <div style={{ marginBottom: '8px' }}>
+      {/* 2. Character Set & Ramp Overrides */}
+      <div className="picker-row" style={{ marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+          <span className="picker-label" style={{ margin: 0 }}>Character Set</span>
+          <Tooltip text="Create custom character set">
+            <button
+              type="button"
+              className="card-reset-icon-btn"
+              onClick={() => setShowCustomForm((v) => !v)}
+              aria-label="New custom character set"
+              style={{ width: '22px', height: '22px' }}
+            >
+              <Plus size={14} strokeWidth={2.2} />
+            </button>
+          </Tooltip>
+        </div>
         <Dropdown
           id="ascii-charset-select"
           value={asciiSettings.charsetId}
@@ -373,10 +341,14 @@ export const AsciiControlsPanel: React.FC = () => {
       {showCustomForm && (
         <div
           style={{
-            padding: '8px',
-            marginBottom: '10px',
+            padding: '10px',
+            marginBottom: '6px',
+            background: 'var(--bg-raised)',
             border: '1px solid var(--border-color)',
-            borderRadius: 'var(--radius-sm)'
+            borderRadius: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
           }}
         >
           <input
@@ -385,7 +357,7 @@ export const AsciiControlsPanel: React.FC = () => {
             placeholder="Charset name"
             value={newCharsetName}
             onChange={(e) => setNewCharsetName(e.target.value)}
-            style={{ marginBottom: '6px', width: '100%' }}
+            style={{ width: '100%' }}
           />
           <input
             type="text"
@@ -393,23 +365,21 @@ export const AsciiControlsPanel: React.FC = () => {
             placeholder="Characters (sparse to dense, e.g.  .:-=+*#%@)"
             value={newCharsetChars}
             onChange={(e) => setNewCharsetChars(e.target.value)}
-            style={{ marginBottom: '6px', width: '100%', fontFamily: 'monospace' }}
+            style={{ width: '100%', fontFamily: 'monospace' }}
           />
           <button
             type="button"
-            className="action-btn"
+            className="replica-preset-create-btn"
             onClick={handleSaveCustomCharset}
-            style={{ width: '100%' }}
+            style={{ width: '100%', height: '32px' }}
           >
             Save Charset
           </button>
         </div>
       )}
 
-      <div style={{ marginBottom: '8px' }}>
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-          Custom Ramp Override
-        </div>
+      <div className="picker-row" style={{ marginBottom: '8px' }}>
+        <span className="picker-label">Custom Ramp Override</span>
         <input
           type="text"
           className="export-input"
@@ -420,28 +390,30 @@ export const AsciiControlsPanel: React.FC = () => {
         />
       </div>
 
-      <AsciiSliderRow
+      <AsciiSliderControl
         label="Character Depth"
         value={asciiSettings.characterDepth}
         min={2}
         max={64}
         step={1}
-        onDragChange={setIsDraggingSlider}
+        sliderPointerProps={sliderPointerProps}
+        onDoubleClickReset={() => setAsciiSetting('characterDepth', 16)}
         onChange={(v) => setAsciiSetting('characterDepth', Math.round(v))}
       />
-      <AsciiSliderRow
+
+      <AsciiSliderControl
         label="Character Offset"
         value={asciiSettings.characterOffset}
         min={-32}
         max={32}
         step={1}
-        onDragChange={setIsDraggingSlider}
+        sliderPointerProps={sliderPointerProps}
+        onDoubleClickReset={() => setAsciiSetting('characterOffset', 0)}
         onChange={(v) => setAsciiSetting('characterOffset', Math.round(v))}
       />
-      <div style={{ marginBottom: '8px' }}>
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-          Inject Mode
-        </div>
+
+      <div className="picker-row" style={{ marginBottom: '8px' }}>
+        <span className="picker-label">Inject Mode</span>
         <Dropdown
           id="ascii-inject-mode"
           value={asciiSettings.injectMode}
@@ -455,351 +427,500 @@ export const AsciiControlsPanel: React.FC = () => {
           ]}
         />
       </div>
-      <AsciiToggleRow
+
+      <AsciiToggleControl
+        id="reverseCharset"
         label="Reverse Charset"
         checked={asciiSettings.reverseCharset}
         onChange={(v) => setAsciiSetting('reverseCharset', v)}
       />
-      <AsciiToggleRow
+
+      <AsciiToggleControl
+        id="autoCalibrateOrder"
         label="Auto-Calibrate Ink Order"
         checked={asciiSettings.autoCalibrateOrder}
         onChange={(v) => setAsciiSetting('autoCalibrateOrder', v)}
       />
 
-      {/* Typography & Grid */}
-      {renderGroupHeader('grid', 'Typography & Grid')}
-      {openGroups.grid && (
-        <div>
-          <div style={{ marginBottom: '8px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-              Font Family
-            </div>
-            <Dropdown
-              id="ascii-font-family"
-              value={asciiSettings.fontFamily}
-              onChange={(val) => setAsciiSetting('fontFamily', val)}
-              width="100%"
-              items={FONT_STACK_ITEMS}
-            />
+      {/* 3. Typography & Grid Accordion */}
+      <div className={`effects-category-accordion ${collapsedSubsections.grid ? 'is-collapsed' : ''}`} style={{ marginTop: '4px' }}>
+        <div
+          className={`effects-category-header ${collapsedSubsections.grid ? 'is-collapsed' : ''}`}
+          onClick={() => toggleSubsection('grid')}
+        >
+          <div className="effects-category-title-group">
+            <span className="effects-category-title">Typography & Grid</span>
           </div>
-          <AsciiSliderRow
-            label="Cell Width"
-            value={asciiSettings.cellWidth}
-            min={4}
-            max={32}
-            step={1}
-            unit="px"
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('cellWidth', Math.round(v))}
-          />
-          <AsciiSliderRow
-            label="Cell Height"
-            value={asciiSettings.cellHeight}
-            min={4}
-            max={48}
-            step={1}
-            unit="px"
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('cellHeight', Math.round(v))}
-          />
-          <AsciiSliderRow
-            label="Cell Spacing"
-            value={asciiSettings.cellSpacing}
-            min={0}
-            max={12}
-            step={1}
-            unit="px"
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('cellSpacing', Math.round(v))}
-          />
-          <AsciiSliderRow
-            label="Aspect Ratio"
-            value={asciiSettings.aspectRatio}
-            min={0.3}
-            max={2.0}
-            step={0.05}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('aspectRatio', v)}
-          />
-          <AsciiSliderRow
-            label="Glyph Scale"
-            value={asciiSettings.glyphScale}
-            min={0.5}
-            max={1.5}
-            step={0.05}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('glyphScale', v)}
-          />
-          <AsciiSliderRow
-            label="Font Weight"
-            value={asciiSettings.fontWeight}
-            min={300}
-            max={900}
-            step={100}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('fontWeight', Math.round(v))}
+          <ChevronDown
+            size={16}
+            strokeWidth={2.2}
+            style={{
+              transform: collapsedSubsections.grid ? 'rotate(-90deg)' : 'rotate(0deg)',
+              transition: 'transform 150ms ease',
+              color: 'var(--text-secondary)'
+            }}
           />
         </div>
-      )}
 
-      {/* Tone & Sampling */}
-      {renderGroupHeader('tone', 'Tone & Sampling')}
-      {openGroups.tone && (
-        <div>
-          <AsciiSliderRow
-            label="Brightness"
-            value={asciiSettings.brightness}
-            min={-1}
-            max={1}
-            step={0.05}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('brightness', v)}
-          />
-          <AsciiSliderRow
-            label="Contrast"
-            value={asciiSettings.contrast}
-            min={-1}
-            max={1}
-            step={0.05}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('contrast', v)}
-          />
-          <AsciiSliderRow
-            label="Gamma"
-            value={asciiSettings.gamma}
-            min={0.2}
-            max={3.0}
-            step={0.05}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('gamma', v)}
-          />
-          <AsciiSliderRow
-            label="Exposure"
-            value={asciiSettings.exposure}
-            min={-2}
-            max={2}
-            step={0.1}
-            unit="EV"
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('exposure', v)}
-          />
-          <AsciiSliderRow
-            label="Edge Sensitivity"
-            value={asciiSettings.edgeSensitivity}
-            min={0}
-            max={2}
-            step={0.05}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('edgeSensitivity', v)}
-          />
-          <AsciiSliderRow
-            label="Smoothing"
-            value={asciiSettings.smoothing}
-            min={0}
-            max={3}
-            step={0.1}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('smoothing', v)}
-          />
-          <AsciiSliderRow
-            label="Sharpening"
-            value={asciiSettings.sharpening}
-            min={0}
-            max={2}
-            step={0.1}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('sharpening', v)}
-          />
-          <div style={{ marginBottom: '8px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-              Sampling Quality
+        {!collapsedSubsections.grid && (
+          <div className="effects-category-body" style={{ gap: '8px' }}>
+            <div className="picker-row" style={{ marginTop: '4px', marginBottom: '4px' }}>
+              <span className="picker-label">Font Family</span>
+              <Dropdown
+                id="ascii-font-family"
+                value={asciiSettings.fontFamily}
+                onChange={(val) => setAsciiSetting('fontFamily', val)}
+                width="100%"
+                items={FONT_STACK_ITEMS}
+              />
             </div>
-            <Dropdown
-              id="ascii-sampling-quality"
-              value={asciiSettings.samplingQuality}
-              onChange={(val) => setAsciiSetting('samplingQuality', val as 'fast' | 'box' | 'subcell')}
-              width="100%"
-              items={[
-                { id: 'fast', label: 'Fast (Center)' },
-                { id: 'box', label: 'Box Average' },
-                { id: 'subcell', label: 'Subcell Exact' }
-              ]}
+            <AsciiSliderControl
+              label="Cell Width"
+              value={asciiSettings.cellWidth}
+              min={4}
+              max={32}
+              step={1}
+              unit="px"
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('cellWidth', 8)}
+              onChange={(v) => setAsciiSetting('cellWidth', Math.round(v))}
+            />
+            <AsciiSliderControl
+              label="Cell Height"
+              value={asciiSettings.cellHeight}
+              min={4}
+              max={48}
+              step={1}
+              unit="px"
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('cellHeight', 14)}
+              onChange={(v) => setAsciiSetting('cellHeight', Math.round(v))}
+            />
+            <AsciiSliderControl
+              label="Cell Spacing"
+              value={asciiSettings.cellSpacing}
+              min={0}
+              max={12}
+              step={1}
+              unit="px"
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('cellSpacing', 0)}
+              onChange={(v) => setAsciiSetting('cellSpacing', Math.round(v))}
+            />
+            <AsciiSliderControl
+              label="Aspect Ratio"
+              value={asciiSettings.aspectRatio}
+              min={0.3}
+              max={2.0}
+              step={0.05}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('aspectRatio', 0.55)}
+              onChange={(v) => setAsciiSetting('aspectRatio', v)}
+            />
+            <AsciiSliderControl
+              label="Glyph Scale"
+              value={asciiSettings.glyphScale}
+              min={0.5}
+              max={1.5}
+              step={0.05}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('glyphScale', 1.0)}
+              onChange={(v) => setAsciiSetting('glyphScale', v)}
+            />
+            <AsciiSliderControl
+              label="Font Weight"
+              value={asciiSettings.fontWeight}
+              min={300}
+              max={900}
+              step={100}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('fontWeight', 400)}
+              onChange={(v) => setAsciiSetting('fontWeight', Math.round(v))}
             />
           </div>
-          <AsciiToggleRow
-            label="Invert Luminance"
-            checked={asciiSettings.invert}
-            onChange={(v) => setAsciiSetting('invert', v)}
+        )}
+      </div>
+
+      {/* 4. Tone & Sampling Accordion */}
+      <div className={`effects-category-accordion ${collapsedSubsections.tone ? 'is-collapsed' : ''}`} style={{ marginTop: '4px' }}>
+        <div
+          className={`effects-category-header ${collapsedSubsections.tone ? 'is-collapsed' : ''}`}
+          onClick={() => toggleSubsection('tone')}
+        >
+          <div className="effects-category-title-group">
+            <span className="effects-category-title">Tone & Sampling</span>
+          </div>
+          <ChevronDown
+            size={16}
+            strokeWidth={2.2}
+            style={{
+              transform: collapsedSubsections.tone ? 'rotate(-90deg)' : 'rotate(0deg)',
+              transition: 'transform 150ms ease',
+              color: 'var(--text-secondary)'
+            }}
           />
         </div>
-      )}
 
-      {/* Color & Background */}
-      {renderGroupHeader('color', 'Color & Background')}
-      {openGroups.color && (
-        <div>
-          <div style={{ marginBottom: '8px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-              Color Mode
-            </div>
-            <Dropdown
-              id="ascii-color-mode"
-              value={asciiSettings.colorMode}
-              onChange={(val) => setAsciiSetting('colorMode', val as AsciiColorMode)}
-              width="100%"
-              items={[
-                { id: 'source', label: 'Source Color' },
-                { id: 'palette', label: 'Active Palette' },
-                { id: 'monochrome', label: 'Monochrome' },
-                { id: 'single', label: 'Single Color' },
-                { id: 'custom', label: 'Custom Color' }
-              ]}
+        {!collapsedSubsections.tone && (
+          <div className="effects-category-body" style={{ gap: '8px' }}>
+            <AsciiSliderControl
+              label="Brightness"
+              value={asciiSettings.brightness}
+              min={-1}
+              max={1}
+              step={0.05}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('brightness', 0)}
+              onChange={(v) => setAsciiSetting('brightness', v)}
             />
-          </div>
-          {(asciiSettings.colorMode === 'single' || asciiSettings.colorMode === 'custom') && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.76rem', color: 'var(--text-dim)' }}>
-              <span>Foreground</span>
-              <input
-                type="color"
-                value={asciiSettings.foregroundColor}
-                onChange={(e) => setAsciiSetting('foregroundColor', e.target.value)}
+            <AsciiSliderControl
+              label="Contrast"
+              value={asciiSettings.contrast}
+              min={-1}
+              max={1}
+              step={0.05}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('contrast', 0)}
+              onChange={(v) => setAsciiSetting('contrast', v)}
+            />
+            <AsciiSliderControl
+              label="Gamma"
+              value={asciiSettings.gamma}
+              min={0.2}
+              max={3.0}
+              step={0.05}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('gamma', 1.0)}
+              onChange={(v) => setAsciiSetting('gamma', v)}
+            />
+            <AsciiSliderControl
+              label="Exposure"
+              value={asciiSettings.exposure}
+              min={-2}
+              max={2}
+              step={0.1}
+              unit="EV"
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('exposure', 0)}
+              onChange={(v) => setAsciiSetting('exposure', v)}
+            />
+            <AsciiSliderControl
+              label="Edge Sensitivity"
+              value={asciiSettings.edgeSensitivity}
+              min={0}
+              max={2}
+              step={0.05}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('edgeSensitivity', 1.0)}
+              onChange={(v) => setAsciiSetting('edgeSensitivity', v)}
+            />
+            <AsciiSliderControl
+              label="Smoothing"
+              value={asciiSettings.smoothing}
+              min={0}
+              max={3}
+              step={0.1}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('smoothing', 0)}
+              onChange={(v) => setAsciiSetting('smoothing', v)}
+            />
+            <AsciiSliderControl
+              label="Sharpening"
+              value={asciiSettings.sharpening}
+              min={0}
+              max={2}
+              step={0.1}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('sharpening', 0)}
+              onChange={(v) => setAsciiSetting('sharpening', v)}
+            />
+            <div className="picker-row" style={{ marginTop: '4px', marginBottom: '4px' }}>
+              <span className="picker-label">Sampling Quality</span>
+              <Dropdown
+                id="ascii-sampling-quality"
+                value={asciiSettings.samplingQuality}
+                onChange={(val) => setAsciiSetting('samplingQuality', val as 'fast' | 'box' | 'subcell')}
+                width="100%"
+                items={[
+                  { id: 'fast', label: 'Fast (Center)' },
+                  { id: 'box', label: 'Box Average' },
+                  { id: 'subcell', label: 'Subcell Exact' }
+                ]}
               />
             </div>
-          )}
-          <AsciiSliderRow
-            label="Foreground Opacity"
-            value={asciiSettings.foregroundOpacity}
-            min={0}
-            max={1}
-            step={0.05}
-            onDragChange={setIsDraggingSlider}
-            onChange={(v) => setAsciiSetting('foregroundOpacity', v)}
+            <AsciiToggleControl
+              id="asciiInvertLuminance"
+              label="Invert Luminance"
+              checked={asciiSettings.invert}
+              onChange={(v) => setAsciiSetting('invert', v)}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 5. Color & Background Accordion */}
+      <div className={`effects-category-accordion ${collapsedSubsections.color ? 'is-collapsed' : ''}`} style={{ marginTop: '4px' }}>
+        <div
+          className={`effects-category-header ${collapsedSubsections.color ? 'is-collapsed' : ''}`}
+          onClick={() => toggleSubsection('color')}
+        >
+          <div className="effects-category-title-group">
+            <span className="effects-category-title">Color & Background</span>
+          </div>
+          <ChevronDown
+            size={16}
+            strokeWidth={2.2}
+            style={{
+              transform: collapsedSubsections.color ? 'rotate(-90deg)' : 'rotate(0deg)',
+              transition: 'transform 150ms ease',
+              color: 'var(--text-secondary)'
+            }}
           />
-          <div style={{ marginBottom: '8px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-              Background Mode
-            </div>
-            <Dropdown
-              id="ascii-bg-mode"
-              value={asciiSettings.backgroundMode}
-              onChange={(val) => setAsciiSetting('backgroundMode', val as AsciiBackgroundMode)}
-              width="100%"
-              items={[
-                { id: 'solid', label: 'Solid Color' },
-                { id: 'transparent', label: 'Transparent' },
-                { id: 'original', label: 'Original Image' },
-                { id: 'custom', label: 'Custom Color' }
-              ]}
-            />
-          </div>
-          {(asciiSettings.backgroundMode === 'solid' || asciiSettings.backgroundMode === 'custom') && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.76rem', color: 'var(--text-dim)' }}>
-              <span>Background</span>
-              <input
-                type="color"
-                value={asciiSettings.backgroundColor}
-                onChange={(e) => setAsciiSetting('backgroundColor', e.target.value)}
+        </div>
+
+        {!collapsedSubsections.color && (
+          <div className="effects-category-body" style={{ gap: '8px' }}>
+            <div className="picker-row" style={{ marginTop: '4px', marginBottom: '4px' }}>
+              <span className="picker-label">Color Mode</span>
+              <Dropdown
+                id="ascii-color-mode"
+                value={asciiSettings.colorMode}
+                onChange={(val) => setAsciiSetting('colorMode', val as AsciiColorMode)}
+                width="100%"
+                items={[
+                  { id: 'source', label: 'Source Color' },
+                  { id: 'palette', label: 'Active Palette' },
+                  { id: 'monochrome', label: 'Monochrome' },
+                  { id: 'single', label: 'Single Color' },
+                  { id: 'custom', label: 'Custom Color' }
+                ]}
               />
             </div>
-          )}
-          {asciiSettings.backgroundMode !== 'transparent' && (
-            <AsciiSliderRow
-              label="Background Opacity"
-              value={asciiSettings.backgroundOpacity}
+
+            {(asciiSettings.colorMode === 'single' || asciiSettings.colorMode === 'custom') && (
+              <div className="slider-control-block">
+                <div className="slider-label-above">
+                  <Tooltip text="ASCII Character Foreground Color. Double-click to reset.">
+                    <span
+                      onDoubleClick={() => setAsciiSetting('foregroundColor', '#FFFFFF')}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      Foreground Color
+                    </span>
+                  </Tooltip>
+                </div>
+                <ColorPicker
+                  id="ascii-foreground-color"
+                  value={asciiSettings.foregroundColor || '#FFFFFF'}
+                  defaultValue="#FFFFFF"
+                  onChange={(newHex) => setAsciiSetting('foregroundColor', newHex)}
+                />
+              </div>
+            )}
+
+            <AsciiSliderControl
+              label="Foreground Opacity"
+              value={asciiSettings.foregroundOpacity}
               min={0}
               max={1}
               step={0.05}
-              onDragChange={setIsDraggingSlider}
-              onChange={(v) => setAsciiSetting('backgroundOpacity', v)}
+              sliderPointerProps={sliderPointerProps}
+              onDoubleClickReset={() => setAsciiSetting('foregroundOpacity', 1.0)}
+              onChange={(v) => setAsciiSetting('foregroundOpacity', v)}
             />
-          )}
-          <AsciiToggleRow
-            label="Preserve Source Alpha"
-            checked={asciiSettings.preserveAlpha}
-            onChange={(v) => setAsciiSetting('preserveAlpha', v)}
-          />
-          <AsciiToggleRow
-            label="Clip Glyphs to Cells"
-            checked={asciiSettings.clipping}
-            onChange={(v) => setAsciiSetting('clipping', v)}
-          />
-        </div>
-      )}
 
-      {/* ASCII-Specific Effects */}
-      {renderGroupHeader('asciiEffects', 'ASCII Effects')}
-      {openGroups.asciiEffects && (
-        <div>
-          {ASCII_EFFECT_DESCRIPTORS.map((desc) => {
-            const active = asciiSettings.asciiEffects.find((e) => e.id === desc.id);
-            const enabled = Boolean(active?.enabled);
-            return (
-              <div
-                key={desc.id}
-                style={{
-                  marginBottom: '8px',
-                  paddingBottom: '6px',
-                  borderBottom: '1px solid var(--border-color)'
-                }}
-              >
-                <AsciiToggleRow
-                  label={desc.name}
-                  checked={enabled}
-                  onChange={() => toggleAsciiEffect(desc.id)}
+            <div className="picker-row" style={{ marginTop: '4px', marginBottom: '4px' }}>
+              <span className="picker-label">Background Mode</span>
+              <Dropdown
+                id="ascii-bg-mode"
+                value={asciiSettings.backgroundMode}
+                onChange={(val) => setAsciiSetting('backgroundMode', val as AsciiBackgroundMode)}
+                width="100%"
+                items={[
+                  { id: 'solid', label: 'Solid Color' },
+                  { id: 'transparent', label: 'Transparent' },
+                  { id: 'original', label: 'Original Image' },
+                  { id: 'custom', label: 'Custom Color' }
+                ]}
+              />
+            </div>
+
+            {(asciiSettings.backgroundMode === 'solid' || asciiSettings.backgroundMode === 'custom') && (
+              <div className="slider-control-block">
+                <div className="slider-label-above">
+                  <Tooltip text="ASCII Background Color. Double-click to reset.">
+                    <span
+                      onDoubleClick={() => setAsciiSetting('backgroundColor', '#0D0E11')}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      Background Color
+                    </span>
+                  </Tooltip>
+                </div>
+                <ColorPicker
+                  id="ascii-background-color"
+                  value={asciiSettings.backgroundColor || '#0D0E11'}
+                  defaultValue="#0D0E11"
+                  onChange={(newHex) => setAsciiSetting('backgroundColor', newHex)}
                 />
-                {enabled && active && (
-                  <div style={{ paddingLeft: '6px' }}>
-                    {desc.controls.map((ctrl) => {
-                      const val = active.params[ctrl.id] ?? ctrl.defaultValue;
-                      if (ctrl.type === 'slider') {
-                        return (
-                          <AsciiSliderRow
-                            key={ctrl.id}
-                            label={ctrl.label}
-                            value={Number(val)}
-                            min={ctrl.min ?? 0}
-                            max={ctrl.max ?? 1}
-                            step={ctrl.step ?? 0.05}
-                            onDragChange={setIsDraggingSlider}
-                            onChange={(v) => updateAsciiEffectParam(desc.id, ctrl.id, v)}
-                          />
-                        );
-                      }
-                      if (ctrl.type === 'toggle') {
-                        return (
-                          <AsciiToggleRow
-                            key={ctrl.id}
-                            label={ctrl.label}
-                            checked={Boolean(val)}
-                            onChange={(v) => updateAsciiEffectParam(desc.id, ctrl.id, v)}
-                          />
-                        );
-                      }
-                      if (ctrl.type === 'select' && ctrl.options) {
-                        return (
-                          <div key={ctrl.id} style={{ marginBottom: '6px' }}>
-                            <div style={{ fontSize: '0.73rem', color: 'var(--text-dim)', marginBottom: '3px' }}>
-                              {ctrl.label}
-                            </div>
-                            <Dropdown
-                              id={`ascii-eff-${desc.id}-${ctrl.id}`}
-                              value={String(val)}
-                              onChange={(v) => updateAsciiEffectParam(desc.id, ctrl.id, v)}
-                              width="100%"
-                              items={ctrl.options.map((o) => ({ id: o.value, label: o.label }))}
-                            />
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-                )}
               </div>
-            );
-          })}
+            )}
+
+            {asciiSettings.backgroundMode !== 'transparent' && (
+              <AsciiSliderControl
+                label="Background Opacity"
+                value={asciiSettings.backgroundOpacity}
+                min={0}
+                max={1}
+                step={0.05}
+                sliderPointerProps={sliderPointerProps}
+                onDoubleClickReset={() => setAsciiSetting('backgroundOpacity', 1.0)}
+                onChange={(v) => setAsciiSetting('backgroundOpacity', v)}
+              />
+            )}
+
+            <AsciiToggleControl
+              id="asciiPreserveAlpha"
+              label="Preserve Source Alpha"
+              checked={asciiSettings.preserveAlpha}
+              onChange={(v) => setAsciiSetting('preserveAlpha', v)}
+            />
+
+            <AsciiToggleControl
+              id="asciiClipping"
+              label="Clip Glyphs to Cells"
+              checked={asciiSettings.clipping}
+              onChange={(v) => setAsciiSetting('clipping', v)}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 6. ASCII Effects Accordion */}
+      <div className={`effects-category-accordion ${collapsedSubsections.asciiEffects ? 'is-collapsed' : ''}`} style={{ marginTop: '4px' }}>
+        <div
+          className={`effects-category-header ${collapsedSubsections.asciiEffects ? 'is-collapsed' : ''}`}
+          onClick={() => toggleSubsection('asciiEffects')}
+        >
+          <div className="effects-category-title-group">
+            <span className="effects-category-title">ASCII Effects</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {asciiSettings.asciiEffects.filter((e) => e.enabled).length > 0 && (
+              <span className="effects-category-badge">
+                {asciiSettings.asciiEffects.filter((e) => e.enabled).length}
+              </span>
+            )}
+            <ChevronDown
+              size={16}
+              strokeWidth={2.2}
+              style={{
+                transform: collapsedSubsections.asciiEffects ? 'rotate(-90deg)' : 'rotate(0deg)',
+                transition: 'transform 150ms ease',
+                color: 'var(--text-secondary)'
+              }}
+            />
+          </div>
         </div>
-      )}
+
+        {!collapsedSubsections.asciiEffects && (
+          <div className="effects-category-body" style={{ gap: '8px' }}>
+            {ASCII_EFFECT_DESCRIPTORS.map((desc) => {
+              const active = asciiSettings.asciiEffects.find((e) => e.id === desc.id) || {
+                id: desc.id,
+                enabled: false,
+                params: { ...desc.defaultParams }
+              };
+              const isRowEnabled = Boolean(active?.enabled);
+              const isExpanded = expandedEffectId === desc.id;
+
+              return (
+                <div key={desc.id} className="replica-effect-item">
+                  <div
+                    className="replica-effect-header-row"
+                    onClick={() => setExpandedEffectId(isExpanded ? null : desc.id)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <ChevronDown
+                        size={14}
+                        strokeWidth={2.2}
+                        style={{
+                          transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                          transition: 'transform 140ms ease',
+                          color: 'var(--text-secondary)'
+                        }}
+                      />
+                      <span className="replica-effect-title">{desc.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`toggle-square-btn ${isRowEnabled ? 'enabled' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleAsciiEffect(desc.id);
+                      }}
+                      aria-label={`Toggle ${desc.name}`}
+                    >
+                      <span className={`toggle-square ${isRowEnabled ? 'enabled' : ''}`} />
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="replica-effect-params-card" style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {desc.controls.map((ctrl) => {
+                        const val = active.params[ctrl.id] ?? ctrl.defaultValue;
+                        if (ctrl.type === 'slider') {
+                          return (
+                            <AsciiSliderControl
+                              key={ctrl.id}
+                              label={ctrl.label}
+                              value={Number(val)}
+                              min={ctrl.min ?? 0}
+                              max={ctrl.max ?? 1}
+                              step={ctrl.step ?? 0.05}
+                              unit={(ctrl as any).unit}
+                              sliderPointerProps={sliderPointerProps}
+                              onDoubleClickReset={() => updateAsciiEffectParam(desc.id, ctrl.id, ctrl.defaultValue)}
+                              onChange={(v) => updateAsciiEffectParam(desc.id, ctrl.id, v)}
+                            />
+                          );
+                        }
+                        if (ctrl.type === 'toggle') {
+                          return (
+                            <AsciiToggleControl
+                              key={ctrl.id}
+                              id={`eff-${desc.id}-${ctrl.id}`}
+                              label={ctrl.label}
+                              checked={Boolean(val)}
+                              onChange={(v) => updateAsciiEffectParam(desc.id, ctrl.id, v)}
+                            />
+                          );
+                        }
+                        if (ctrl.type === 'select' && ctrl.options) {
+                          return (
+                            <div key={ctrl.id} className="picker-row">
+                              <span className="picker-label">{ctrl.label}</span>
+                              <Dropdown
+                                id={`ascii-eff-${desc.id}-${ctrl.id}`}
+                                value={String(val)}
+                                onChange={(v) => updateAsciiEffectParam(desc.id, ctrl.id, v)}
+                                width="100%"
+                                items={ctrl.options.map((o) => ({ id: o.value, label: o.label }))}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

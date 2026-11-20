@@ -133,6 +133,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
   const addToast = useAppStore((state) => state.addToast);
   const renderMode = useAppStore((state) => state.renderMode);
+  const algorithmId = useAppStore((state) => state.algorithmId);
+  const isAsciiMode = renderMode === 'ascii' || (typeof algorithmId === 'string' && algorithmId.startsWith('ascii-'));
   const asciiSettings = useAppStore((state) => state.asciiSettings);
   const customCharsets = useAppStore((state) => state.customCharsets);
   const currentTime = useAppStore((state) => state.currentTime);
@@ -195,7 +197,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
       setCopyError(null);
 
       const state = useAppStore.getState();
-      setCharSet(state.renderMode === 'ascii' ? 'dedicated' : 'ascii');
+      setCharSet(isAsciiMode ? 'dedicated' : 'ascii');
 
       if (state.appMode === 'animation') {
         setFormat('gif');
@@ -253,7 +255,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   }, [isOpen, activeTab]);
 
   useEffect(() => {
-    if (!isOpen || activeTab !== 'text' || renderMode !== 'ascii' || charSet !== 'dedicated') {
+    if (!isOpen || activeTab !== 'text' || !isAsciiMode || charSet !== 'dedicated') {
       gridRequestSeqRef.current += 1;
       inFlightGridRef.current = null;
       settledGridRef.current = { seq: 0, grid: null, inputSnap: null };
@@ -337,7 +339,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     for (let attempt = 0; attempt < 16; attempt++) {
       if (!isOpenRef.current) return null;
       const latestState = useAppStore.getState();
-      if (latestState.renderMode !== 'ascii') return null;
+      const isLatestAscii = latestState.renderMode === 'ascii' || (typeof latestState.algorithmId === 'string' && latestState.algorithmId.startsWith('ascii-'));
+      if (!isLatestAscii) return null;
       const latestSnap = captureGridInputSnapshot(latestState);
       const activeSeq = gridRequestSeqRef.current;
 
@@ -391,7 +394,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const textPreview = useMemo(() => {
     if (!isOpen || activeTab !== 'text') return '';
 
-    if (charSet === 'dedicated' && renderMode === 'ascii') {
+    if (charSet === 'dedicated' && isAsciiMode) {
       if (dedicatedGridState.loading && !dedicatedGridState.grid) {
         return '(Generating ASCII grid for selected frame...)';
       }
@@ -506,7 +509,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     if (activeTab === 'text') {
       try {
         setCopyError(null);
-        if (charSet === 'dedicated' && renderMode === 'ascii') {
+        if (charSet === 'dedicated' && isAsciiMode) {
           const grid = await getFreshDedicatedGrid();
           if (!grid) {
             setCopyError('No ASCII grid available to copy');
@@ -575,7 +578,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   };
 
   const handleExportText = async () => {
-    if (charSet === 'dedicated' && renderMode === 'ascii') {
+    if (charSet === 'dedicated' && isAsciiMode) {
       try {
         setCopyError(null);
         const grid = await getFreshDedicatedGrid();
@@ -612,7 +615,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
   const hasSourceCanvas = Boolean(getSourceCanvas());
   const textCharsetItems = [
-    ...(renderMode === 'ascii'
+    ...(isAsciiMode
       ? [{ id: 'dedicated', label: 'Active ASCII Grid', hint: 'Exact engine output' }]
       : []),
     { id: 'ascii', label: 'ASCII Ramp', hint: ' .:-=+*#%@' },

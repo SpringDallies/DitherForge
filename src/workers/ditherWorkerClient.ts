@@ -408,6 +408,7 @@ export class DitherWorkerClient {
     prepared: PreparedRequestAtlases
   ): WorkerDitherResponse {
     const t0 = performance.now();
+    let fallbackAsciiGrid: any = null;
     const {
       width,
       height,
@@ -473,7 +474,7 @@ export class DitherWorkerClient {
         ) {
           this.fallbackAsciiOutScratch = new Uint8ClampedArray(workingData.length);
         }
-        renderAsciiFrame(
+        const asciiRes = renderAsciiFrame(
           workingData,
           asciiSettings,
           {
@@ -490,6 +491,7 @@ export class DitherWorkerClient {
           },
           this.fallbackAsciiOutScratch
         );
+        fallbackAsciiGrid = asciiRes.grid;
         workingData.set(this.fallbackAsciiOutScratch);
       } else {
         const effNoise = params?.noiseAmount ?? params?.noise ?? 0;
@@ -553,7 +555,8 @@ export class DitherWorkerClient {
       buffer: workingData.buffer,
       width,
       height,
-      elapsedMs: performance.now() - t0
+      elapsedMs: performance.now() - t0,
+      asciiGrid: fallbackAsciiGrid
     };
   }
 

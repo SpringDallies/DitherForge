@@ -860,14 +860,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     }),
   updateAsciiEffectParam: (id, key, value) =>
-    set((state) => ({
-      asciiSettings: {
-        ...state.asciiSettings,
-        asciiEffects: state.asciiSettings.asciiEffects.map((e) =>
-          e.id === id ? { ...e, params: { ...e.params, [key]: value } } : e
-        )
+    set((state) => {
+      const exists = state.asciiSettings.asciiEffects.some((e) => e.id === id);
+      if (!exists) {
+        const newEff = createDefaultAsciiEffect(id);
+        newEff.params[key] = value;
+        return {
+          asciiSettings: {
+            ...state.asciiSettings,
+            asciiEffects: [...state.asciiSettings.asciiEffects, newEff]
+          }
+        };
       }
-    })),
+      return {
+        asciiSettings: {
+          ...state.asciiSettings,
+          asciiEffects: state.asciiSettings.asciiEffects.map((e) =>
+            e.id === id ? { ...e, params: { ...e.params, [key]: value } } : e
+          )
+        }
+      };
+    }),
   resetAsciiSettings: () => set({ asciiSettings: cloneDefaultAsciiSettings() }),
 
   customCharsets: getStoredCustomCharsets(),
@@ -923,10 +936,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   algorithmId: 'floyd-steinberg',
   algoParams: buildInitialAlgoParamsMap(),
-  setAlgorithmId: (id: string) => set((state) => ({
-    algorithmId: id,
-    algoParams: { ...state.algoParams, [id]: state.algoParams[id] ?? getInitialAlgoParams(id) }
-  })),
+  setAlgorithmId: (id: string) => set((state) => {
+    const isAscii = id.startsWith('ascii-');
+    return {
+      algorithmId: id,
+      renderMode: isAscii ? 'ascii' : 'dither',
+      algoParams: { ...state.algoParams, [id]: state.algoParams[id] ?? getInitialAlgoParams(id) },
+      asciiSettings: isAscii ? { ...state.asciiSettings, algorithmId: id as any } : state.asciiSettings
+    };
+  }),
   updateCurrentAlgoParam: (key, value) => set((state) => {
     const currentId = state.algorithmId;
     const currentParams = state.algoParams[currentId] ?? getInitialAlgoParams(currentId);

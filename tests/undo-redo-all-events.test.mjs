@@ -228,8 +228,9 @@ console.log('  PASS: Keyboard shortcut target filtering accurately distinguishes
 
 // 13. ASCII Render Mode and ASCII Settings Undo & Redo
 assert.strictEqual(useAppStore.getState().renderMode, 'dither');
-useAppStore.getState().setRenderMode('ascii');
-assert.strictEqual(useAppStore.getState().renderMode, 'ascii');
+useAppStore.getState().setAlgorithmId('ascii-classic-ramp');
+assert.strictEqual(useAppStore.getState().renderMode, 'ascii', 'Selecting ASCII algorithm sets renderMode to ascii');
+assert.strictEqual(useAppStore.getState().algorithmId, 'ascii-classic-ramp');
 useAppStore.getState().undo();
 assert.strictEqual(useAppStore.getState().renderMode, 'dither', 'renderMode should revert to dither on undo');
 useAppStore.getState().redo();

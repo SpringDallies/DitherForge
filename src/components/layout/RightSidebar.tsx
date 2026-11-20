@@ -9,18 +9,21 @@ import { areAnimationsEnabled, getStoredSettings, saveStoredSettings, type Dithe
 // Import frozen registries UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
+import { ASCII_ALGORITHM_REGISTRY, isAsciiAlgorithmId, DEFAULT_ASCII_SETTINGS, downloadAsciiGridText, type AsciiAlgorithmId } from '../../ascii';
+
+const ALL_ALGORITHMS: any[] = [...ALGORITHM_REGISTRY, ...ASCII_ALGORITHM_REGISTRY];
+
 // @ts-ignore
 import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToRgba, rgbaToHex } from '../../dither-engine/palettes.js';
 // @ts-ignore
 import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 // @ts-ignore
 import { exportRaster } from '../../dither-engine/exporters.js';
-import { downloadAnimatedGif, downloadAnimatedVideo, getExportCanvas } from '../../utils/animationExport';
+import { downloadAnimatedGif, downloadAnimatedVideo, getExportCanvas, renderFullResolutionAsciiGrid } from '../../utils/animationExport';
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { getEffectDescriptor, getEffectParamsMeta, getAllEffects, mergePresetEffects, BlendMode, EffectCategory } from '../../effects';
 import { loadUserPresetsV2, saveUserPresetsV2, type PresetV2 } from '../../effects/presets';
 import { AsciiControlsPanel } from '../ascii/AsciiControlsPanel';
-import { DEFAULT_ASCII_SETTINGS, type AsciiAlgorithmId } from '../../ascii';
 import { 
   X,
   ChevronLeft,
@@ -41,7 +44,8 @@ const CATEGORY_KEYS = [
   'ordered',
   'patterned',
   'polygon',
-  'special_effects'
+  'special_effects',
+  'ascii'
 ];
 
 const getSliderFill = (val: number, min: number, max: number): React.CSSProperties => {
@@ -443,10 +447,10 @@ export const RightSidebar: React.FC = () => {
     if (typeof window !== 'undefined') {
       const sec = new URLSearchParams(window.location.search).get('section');
       if (sec === 'adjustments') {
-        return { style: false, adjustments: false, palette: true, effects: true, presets: true };
+        return { style: false, adjustments: false, ascii: false, palette: true, effects: true, presets: true };
       }
       if (sec === 'palette') {
-        return { style: true, adjustments: true, palette: false, effects: true, presets: true };
+        return { style: true, adjustments: true, ascii: false, palette: false, effects: true, presets: true };
       }
       try {
         const saved = localStorage.getItem('ditherforge_collapsed_sections');
@@ -456,6 +460,7 @@ export const RightSidebar: React.FC = () => {
     return {
       style: false,
       adjustments: false,
+      ascii: false,
       palette: false,
       effects: false,
       presets: false
@@ -479,9 +484,11 @@ export const RightSidebar: React.FC = () => {
   const setRenderMode = useAppStore((state) => state.setRenderMode);
   const asciiSettings = useAppStore((state) => state.asciiSettings);
   const patchAsciiSettings = useAppStore((state) => state.patchAsciiSettings);
+  const setAsciiSetting = useAppStore((state) => state.setAsciiSetting);
   const algoParams = useAppStore((state) => state.algoParams);
   const updateCurrentAlgoParam = useAppStore((state) => state.updateCurrentAlgoParam);
   const resetCurrentAlgoParams = useAppStore((state) => state.resetCurrentAlgoParams);
+  const resetAsciiSettings = useAppStore((state) => state.resetAsciiSettings);
   const resetAlgoParamToDefault = useAppStore((state) => state.resetAlgoParamToDefault);
 
   const setIsDraggingSlider = useAppStore((state) => state.setIsDraggingSlider);
@@ -825,18 +832,19 @@ export const RightSidebar: React.FC = () => {
 
   const categoryDropdownItems = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const algo of ALGORITHM_REGISTRY) {
+    for (const algo of ALL_ALGORITHMS) {
       counts[algo.category] = (counts[algo.category] || 0) + 1;
     }
     const labelMap: Record<string, string> = {
-      all: `All (${ALGORITHM_REGISTRY.length})`,
+      all: `All (${ALL_ALGORITHMS.length})`,
       basic: `Basic (${counts['basic'] || 0})`,
       error_diffusion: `Error Diffusion (${counts['error_diffusion'] || 0})`,
       ordered: `Ordered (${counts['ordered'] || 0})`,
       patterned: `Patterned (${counts['patterned'] || 0})`,
       polygon: `Polygon (${counts['polygon'] || 0})`,
       glitch_effects: `Glitch Effects (${counts['glitch_effects'] || 0})`,
-      special_effects: `Special Effects (${counts['special_effects'] || 0})`
+      special_effects: `Special Effects (${counts['special_effects'] || 0})`,
+      ascii: `ASCII (${counts['ascii'] || 0})`
     };
     return CATEGORY_KEYS.map((cat) => ({
       id: cat,
@@ -852,7 +860,7 @@ export const RightSidebar: React.FC = () => {
   });
 
   // Filtered algorithms
-  const filteredAlgos = ALGORITHM_REGISTRY.filter((a: any) => {
+  const filteredAlgos = ALL_ALGORITHMS.filter((a: any) => {
     return activeCategory === 'all' || a.category === activeCategory;
   });
 
@@ -866,14 +874,21 @@ export const RightSidebar: React.FC = () => {
     );
   }, [filteredAlgos, searchQuery]);
 
-  const currentAlgo = ALGORITHM_REGISTRY.find((a: any) => a.id === algorithmId) || ALGORITHM_REGISTRY[0];
+  const currentAlgo = ALL_ALGORITHMS.find((a: any) => a.id === algorithmId) || ALL_ALGORITHMS[0];
   const currentIndex = filteredAlgos.findIndex((a: any) => a.id === algorithmId);
 
   const handlePrevAlgo = useCallback(() => {
     if (filteredAlgos.length === 0) return;
     const prevIdx = (currentIndex - 1 + filteredAlgos.length) % filteredAlgos.length;
-    setAlgorithmId(filteredAlgos[prevIdx].id);
-  }, [filteredAlgos, currentIndex, setAlgorithmId]);
+    const targetId = filteredAlgos[prevIdx].id;
+    setAlgorithmId(targetId);
+    if (targetId.startsWith('ascii-')) {
+      setRenderMode('ascii');
+      setAsciiSetting('algorithmId', targetId as AsciiAlgorithmId);
+    } else {
+      setRenderMode('dither');
+    }
+  }, [filteredAlgos, currentIndex, setAlgorithmId, setRenderMode, setAsciiSetting]);
 
   // Custom listbox state for Algorithm picker (Bug 1 quality fix)
   const activeDropdownId = useAppStore((state) => state.activeDropdownId);
@@ -1062,7 +1077,14 @@ export const RightSidebar: React.FC = () => {
       if (isAlgoListboxOpen) {
         e.preventDefault();
         if (focusedAlgoIndex >= 0 && focusedAlgoIndex < searchFilteredAlgos.length) {
-          setAlgorithmId(searchFilteredAlgos[focusedAlgoIndex].id);
+          const chosenId = searchFilteredAlgos[focusedAlgoIndex].id;
+      setAlgorithmId(chosenId);
+      if (chosenId.startsWith('ascii-')) {
+        setRenderMode('ascii');
+        setAsciiSetting('algorithmId', chosenId as AsciiAlgorithmId);
+      } else {
+        setRenderMode('dither');
+      }
           closeAlgoListbox();
         }
       } else if (e.key === 'Enter') {
@@ -1079,8 +1101,15 @@ export const RightSidebar: React.FC = () => {
   const handleNextAlgo = useCallback(() => {
     if (filteredAlgos.length === 0) return;
     const nextIdx = (currentIndex + 1) % filteredAlgos.length;
-    setAlgorithmId(filteredAlgos[nextIdx].id);
-  }, [filteredAlgos, currentIndex, setAlgorithmId]);
+    const targetId = filteredAlgos[nextIdx].id;
+    setAlgorithmId(targetId);
+    if (targetId.startsWith('ascii-')) {
+      setRenderMode('ascii');
+      setAsciiSetting('algorithmId', targetId as AsciiAlgorithmId);
+    } else {
+      setRenderMode('dither');
+    }
+  }, [filteredAlgos, currentIndex, setAlgorithmId, setRenderMode, setAsciiSetting]);
 
 
 
@@ -1450,13 +1479,13 @@ export const RightSidebar: React.FC = () => {
 
   const getVisibleParams = (id: string) => {
     const norm = (id || '').replace(/_/g, '-');
-    const algo = ALGORITHM_REGISTRY.find((a: any) => a.id === id || a.id === norm);
+    const algo = ALL_ALGORITHMS.find((a: any) => a.id === id || a.id === norm);
     if (!algo) {
       return { threshold: true, scale: true, diffusionStrength: true, serpentine: true, noiseAmount: false };
     }
 
-    if (norm === 'none') {
-      return { threshold: false, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: false };
+    if (norm === 'none' || norm.startsWith('ascii-')) {
+      return { threshold: false, scale: false, diffusionStrength: false, serpentine: false, noiseAmount: false, colorDepth: false };
     }
 
     // Hide global Pattern Scale if the algorithm already provides its own dedicated size/spacing/frequency slider
@@ -1525,13 +1554,14 @@ export const RightSidebar: React.FC = () => {
 
   const visibleParams = getVisibleParams(currentAlgo.id);
   const hasAnyVisibleStyles =
-    visibleParams.threshold ||
-    visibleParams.scale ||
-    visibleParams.diffusionStrength ||
-    visibleParams.serpentine ||
-    visibleParams.noiseAmount ||
-    visibleParams.colorDepth ||
-    Boolean(currentAlgo.controls && currentAlgo.controls.length > 0);
+    !isAsciiAlgorithmId(algorithmId) &&
+    (visibleParams.threshold ||
+      visibleParams.scale ||
+      visibleParams.diffusionStrength ||
+      visibleParams.serpentine ||
+      visibleParams.noiseAmount ||
+      visibleParams.colorDepth ||
+      Boolean(currentAlgo.controls && currentAlgo.controls.length > 0));
 
   // Per-algorithm parameters
   const currentParams = algoParams[algorithmId] ?? {
@@ -1678,9 +1708,29 @@ export const RightSidebar: React.FC = () => {
                   }
                   return;
                 }
+                const isAsciiActive = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
+                const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
+                if (isAsciiActive && exportFormat === 'TXT') {
+                  renderFullResolutionAsciiGrid(useAppStore.getState())
+                    .then((grid) => {
+                      if (!grid) {
+                        addToast('ASCII grid not available for export', 'error');
+                        return;
+                      }
+                      downloadAsciiGridText(grid, {
+                        filename: `${baseName}_ascii.txt`,
+                        lineEnding: '\n'
+                      });
+                      addToast('Exported TXT to Downloads folder', 'success');
+                    })
+                    .catch((err) => {
+                      console.error('TXT export failed:', err);
+                      addToast('TXT export failed', 'error');
+                    });
+                  return;
+                }
                 const canvas = getExportCanvas();
                 if (!canvas) return;
-                const baseName = (imageFileName || 'ditherforge_export').replace(/\.[^/.]+$/, '');
                 const fmt = exportFormat.toLowerCase() === 'jpeg' ? 'jpg' : exportFormat.toLowerCase();
                 exportRaster(canvas, fmt, 0.92, `${baseName}_dithered.${fmt}`);
                 addToast('Exported to Downloads folder', 'success');
@@ -1700,15 +1750,20 @@ export const RightSidebar: React.FC = () => {
                   const idx = vOrder.findIndex((f) => f === videoExportFormat);
                   setVideoExportFormat(vOrder[(idx + 1) % vOrder.length]);
                 } else {
-                  const order = ['PNG', 'JPEG', 'WEBP'] as const;
+                  const isAsciiActive = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
+                  const order = isAsciiActive
+                    ? (['PNG', 'JPEG', 'WEBP', 'TXT'] as const)
+                    : (['PNG', 'JPEG', 'WEBP'] as const);
                   const idx = order.findIndex((f) => f === exportFormat);
                   const nextFormat = order[(idx + 1) % order.length];
                   setExportFormat(nextFormat);
-                  try {
-                    const current = getStoredSettings();
-                    const mapped = nextFormat === 'JPEG' ? 'jpg' : (nextFormat.toLowerCase() as 'png' | 'webp');
-                    saveStoredSettings({ ...current, defaultExportFormat: mapped });
-                  } catch {}
+                  if (nextFormat !== 'TXT') {
+                    try {
+                      const current = getStoredSettings();
+                      const mapped = nextFormat === 'JPEG' ? 'jpg' : (nextFormat.toLowerCase() as 'png' | 'webp');
+                      saveStoredSettings({ ...current, defaultExportFormat: mapped });
+                    } catch {}
+                  }
                 }
               }}
             >
@@ -1733,7 +1788,7 @@ export const RightSidebar: React.FC = () => {
                 className="card-reset-icon-btn"
                 title="Reset styles"
                 aria-label="Reset styles"
-                onClick={() => { resetCurrentAlgoParams(); setActiveCategory('all'); }}
+                onClick={() => { resetCurrentAlgoParams(); resetAsciiSettings(); setActiveCategory('all'); }}
               >
                 <RotateCcw size={17} strokeWidth={2.2} />
               </button>
@@ -1741,30 +1796,7 @@ export const RightSidebar: React.FC = () => {
 
             {!collapsedSections.style && (
               <div className="section-content section-card">
-                {/* Mode Selector */}
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-                  <button
-                    type="button"
-                    className={`action-btn ${renderMode === 'dither' ? 'primary' : ''}`}
-                    style={{ flex: 1 }}
-                    onClick={() => setRenderMode('dither')}
-                  >
-                    Dither
-                  </button>
-                  <button
-                    type="button"
-                    className={`action-btn ${renderMode === 'ascii' ? 'primary' : ''}`}
-                    style={{ flex: 1 }}
-                    onClick={() => setRenderMode('ascii')}
-                  >
-                    ASCII
-                  </button>
-                </div>
-
-                {renderMode === 'ascii' ? (
-                  <AsciiControlsPanel />
-                ) : (
-                  <>
+                {/* Category Row */}
                     {/* Category Row */}
                     <div className="picker-row-inline" style={{ zIndex: activeDropdownId === 'style-category-dropdown' ? 100 : 10 }}>
                   <span className="picker-label-inline">Category</span>
@@ -1827,7 +1859,7 @@ export const RightSidebar: React.FC = () => {
                               ref={searchInputRef}
                               type="text"
                               className="algo-search-input"
-                              placeholder={`Search ${ALGORITHM_REGISTRY.length} Algorithms`}
+                              placeholder={`Search ${ALL_ALGORITHMS.length} Algorithms`}
                               value={searchQuery}
                               onChange={(e) => setSearchQuery(e.target.value)}
                               onKeyDown={handleSearchKeyDown}
@@ -1861,6 +1893,12 @@ export const RightSidebar: React.FC = () => {
                                     className="algo-listbox-item"
                                     onClick={() => {
                                       setAlgorithmId(a.id);
+                                      if (a.id.startsWith('ascii-')) {
+                                        setRenderMode('ascii');
+                                        setAsciiSetting('algorithmId', a.id as AsciiAlgorithmId);
+                                      } else {
+                                        setRenderMode('dither');
+                                      }
                                       closeAlgoListbox();
                                     }}
                                   >
@@ -2123,8 +2161,8 @@ export const RightSidebar: React.FC = () => {
                   </div>
                 )}
 
-                {/* Algorithm-Specific Custom Controls (excludes duplicates of global progressive controls) */}
-                {currentAlgo.controls && Array.isArray(currentAlgo.controls) && currentAlgo.controls
+                {/* Algorithm-Specific Custom Controls (excludes duplicates of global progressive controls and ASCII algorithms which have their own category) */}
+                {!isAsciiAlgorithmId(algorithmId) && currentAlgo.controls && Array.isArray(currentAlgo.controls) && currentAlgo.controls
                   .filter((ctrl: any) => ![
                     'threshold',
                     'scale',
@@ -2218,12 +2256,42 @@ export const RightSidebar: React.FC = () => {
                       </div>
                     );
                   })}
-                  </>
-                )}
             </div>
           )}
         </div>
-        {/* 2. ADJUSTMENTS SECTION */}
+        {/* ASCII SECTION (Appears only when an ASCII algorithm is selected) */}
+          {isAsciiAlgorithmId(algorithmId) && (
+            <div className="section-block">
+              <div 
+                className="section-header section-header-clickable"
+                onClick={() => toggleSection('ascii')}
+              >
+                <span className="section-title-text">ASCII</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="card-reset-icon-btn"
+                    title="Reset ASCII settings"
+                    aria-label="Reset ASCII settings"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetAsciiSettings();
+                    }}
+                  >
+                    <RotateCcw size={17} strokeWidth={2.2} />
+                  </button>
+                </div>
+              </div>
+
+              {!collapsedSections.ascii && (
+                <div className="section-content section-card">
+                  <AsciiControlsPanel sliderPointerProps={sliderPointerProps} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. ADJUSTMENTS SECTION */}
           <div className="section-block">
             <div className="section-header">
               <span className="section-title-text">Adjustments</span>
@@ -3463,19 +3531,15 @@ export const RightSidebar: React.FC = () => {
                           className="replica-preset-item"
                           onClick={() => {
                             if (!preset) return;
-                            if (preset.renderMode === 'ascii') {
+                            const isPresetAscii = preset.renderMode === 'ascii' || (typeof preset.algorithmId === 'string' && preset.algorithmId.startsWith('ascii-'));
+                            if (isPresetAscii) {
+                              const asciiAlgo = (preset.algorithmId && preset.algorithmId.startsWith('ascii-')) ? (preset.algorithmId as AsciiAlgorithmId) : 'ascii-classic-ramp';
                               setRenderMode('ascii');
-                              patchAsciiSettings({ ...DEFAULT_ASCII_SETTINGS, ...(preset.asciiSettings || {}) });
-                            } else if (
-                              preset.renderMode === undefined &&
-                              typeof preset.algorithmId === 'string' &&
-                              preset.algorithmId.startsWith('ascii-')
-                            ) {
-                              setRenderMode('ascii');
+                              setAlgorithmId(asciiAlgo);
                               patchAsciiSettings({
                                 ...DEFAULT_ASCII_SETTINGS,
                                 ...(preset.asciiSettings || {}),
-                                algorithmId: preset.algorithmId as AsciiAlgorithmId
+                                algorithmId: asciiAlgo
                               });
                             } else {
                               setRenderMode('dither');
@@ -3568,7 +3632,7 @@ export const RightSidebar: React.FC = () => {
                           version: 2,
                           id: `user_${Date.now()}`,
                           name: trimmed,
-                          renderMode,
+                          renderMode: algorithmId.startsWith('ascii-') ? 'ascii' : 'dither',
                           asciiSettings: {
                             ...asciiSettings,
                             injectedChars: asciiSettings.injectedChars.slice(),
@@ -3617,7 +3681,7 @@ export const RightSidebar: React.FC = () => {
                         version: 2,
                         id: `user_${Date.now()}`,
                         name: trimmed,
-                        renderMode,
+                        renderMode: algorithmId.startsWith('ascii-') ? 'ascii' : 'dither',
                         asciiSettings: {
                           ...asciiSettings,
                           injectedChars: asciiSettings.injectedChars.slice(),

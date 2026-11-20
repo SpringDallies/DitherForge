@@ -15,6 +15,7 @@ import { downsampleAreaGamma } from '../utils/areaDownsample';
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
 import { EngineBridge } from '../services/EngineBridge';
 import { ditherWorkerClient } from '../workers/ditherWorkerClient';
+import { renderAsciiVectorToCanvas } from '../ascii/vectorCanvas';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
@@ -1167,6 +1168,7 @@ export const CenterViewport: React.FC = () => {
   const proxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const proxyCacheRef = useRef<{ source: ImageData; low: ImageData; mid: ImageData } | null>(null);
   const lastDitheredImageRef = useRef<ImageData | null>(null);
+  const lastAsciiGridRef = useRef<any>(null);
   const renderNonceRef = useRef<number>(0);
   const isRenderingRef = useRef<boolean>(false);
   const pendingRenderRef = useRef<boolean>(false);
@@ -1354,9 +1356,15 @@ export const CenterViewport: React.FC = () => {
     const fullWidth = sourceImageData.width;
     const fullHeight = sourceImageData.height;
 
-    if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
-      canvas.width = fullWidth;
-      canvas.height = fullHeight;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const isAsciiActiveEarly = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
+    const asciiResolutionScale = isAsciiActiveEarly ? Math.max(1, Math.min(8, Math.round((zoom / 100) * dpr))) : 1;
+    const targetCanvasW = Math.round(fullWidth * asciiResolutionScale);
+    const targetCanvasH = Math.round(fullHeight * asciiResolutionScale);
+
+    if (canvas.width !== targetCanvasW || canvas.height !== targetCanvasH) {
+      canvas.width = targetCanvasW;
+      canvas.height = targetCanvasH;
     }
 
     const activeTime = typeof overrideTime === 'number' ? overrideTime : useAppStore.getState().currentTime;
@@ -1418,7 +1426,11 @@ export const CenterViewport: React.FC = () => {
     // Quick mode renders at full resolution, just-in-time — no downsampling, no quality loss
     // Rendered mode uses full resolution (effectiveQuality = 'full')
     // Proxy quality reduction only applies to still-image preview (low/mid), not animation playback
-    const isQuickPlayback = appMode === 'animation' && isPlaying;
+    const isAsciiActive = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
+    const isQuickPlayback = (appMode === 'animation' && isPlaying) || isAsciiActive;
+    if (isAsciiActive) {
+      effectiveQuality = 'full';
+    }
     if (!sourceVideoUrl && !isQuickPlayback) {
       if (!proxyCacheRef.current || proxyCacheRef.current.source !== activeBaseImage) {
         const lowScale = Math.min(0.25, 640 / Math.max(fullWidth, fullHeight));
@@ -1563,7 +1575,7 @@ export const CenterViewport: React.FC = () => {
       appMode === 'animation'
         ? frameIndex
         : '',
-      renderMode,
+      (algorithmId.startsWith('ascii-') || renderMode === 'ascii') ? 'ascii' : 'dither',
       renderMode === 'ascii' ? JSON.stringify(effAsciiSettings) + ':' + (customCharsets?.length || 0) : ''
     ].join('::');
 
@@ -1728,7 +1740,7 @@ export const CenterViewport: React.FC = () => {
       // without double-applying temporal grain.
       temporal: undefined,
       renderMode,
-      asciiSettings: renderMode === 'ascii' ? effAsciiSettings : undefined,
+      asciiSettings: (algorithmId.startsWith('ascii-') || renderMode === 'ascii') ? effAsciiSettings : undefined,
       customCharsets,
       frameIndex,
       time: activeTime,
@@ -1739,6 +1751,11 @@ export const CenterViewport: React.FC = () => {
 
     if (workerResponse.success && workerResponse.buffer) {
       ditherImageData.data.set(new Uint8ClampedArray(workerResponse.buffer));
+      if (workerResponse.asciiGrid) {
+        lastAsciiGridRef.current = workerResponse.asciiGrid;
+      } else if (!isAsciiActive) {
+        lastAsciiGridRef.current = null;
+      }
     }
 
     const bridgeResult = {
@@ -1821,7 +1838,22 @@ export const CenterViewport: React.FC = () => {
     const drawToCanvas = (imgData: ImageData) => {
       if (width === fullWidth && height === fullHeight) {
         lastRenderedFullImageRef.current = imgData;
-        ctx.putImageData(imgData, 0, 0);
+        if (isAsciiActive && lastAsciiGridRef.current && !isOriginalView) {
+          renderAsciiVectorToCanvas(
+            lastAsciiGridRef.current,
+            effAsciiSettings,
+            canvas,
+            asciiResolutionScale,
+            videoCanvasRef.current || proxyCanvasRef.current,
+            showBeforeAfter ? splitRatio : undefined
+          );
+        } else {
+          if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
+            canvas.width = fullWidth;
+            canvas.height = fullHeight;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
       } else {
         if (!proxyCanvasRef.current) {
           proxyCanvasRef.current = document.createElement('canvas');
@@ -1931,6 +1963,7 @@ export const CenterViewport: React.FC = () => {
     renderMode,
     asciiSettings,
     customCharsets,
+    zoom,
     setLastRenderMs,
     startDitherTimer,
     finishDitherTimer,
@@ -1955,10 +1988,32 @@ export const CenterViewport: React.FC = () => {
     const height = dithered.height;
     const len = width * height * 4;
 
+    const isAsciiActive = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
     const drawToCanvas = (imgData: ImageData) => {
       if (width === fullWidth && height === fullHeight) {
         lastRenderedFullImageRef.current = imgData;
-        ctx.putImageData(imgData, 0, 0);
+        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const asciiResScale = isAsciiActive ? Math.max(1, Math.min(8, Math.round((zoom / 100) * dpr))) : 1;
+        if (isAsciiActive && lastAsciiGridRef.current && !isOriginalView) {
+          if (canvas.width !== Math.round(fullWidth * asciiResScale) || canvas.height !== Math.round(fullHeight * asciiResScale)) {
+            canvas.width = Math.round(fullWidth * asciiResScale);
+            canvas.height = Math.round(fullHeight * asciiResScale);
+          }
+          renderAsciiVectorToCanvas(
+            lastAsciiGridRef.current,
+            asciiSettings,
+            canvas,
+            asciiResScale,
+            videoCanvasRef.current || proxyCanvasRef.current,
+            showBeforeAfter ? splitRatio : undefined
+          );
+        } else {
+          if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
+            canvas.width = fullWidth;
+            canvas.height = fullHeight;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
       } else {
         if (!proxyCanvasRef.current) {
           proxyCanvasRef.current = document.createElement('canvas');
@@ -2001,7 +2056,7 @@ export const CenterViewport: React.FC = () => {
     } else {
       drawToCanvas(dithered);
     }
-  }, [showBeforeAfter, splitRatio, isOriginalView, sourceImageData]);
+  }, [showBeforeAfter, splitRatio, isOriginalView, sourceImageData, zoom, algorithmId, renderMode, asciiSettings]);
 
   // Clean up slow dither & dwell timers on unmount
   useEffect(() => {
@@ -2336,7 +2391,9 @@ export const CenterViewport: React.FC = () => {
               onDragStart={(e) => e.preventDefault()}
               style={{
                 display: showSlowDitherAnvil ? 'none' : 'block',
-                imageRendering: isSmoothDownscale ? 'auto' : 'pixelated'
+                width: sourceImageData ? `${sourceImageData.width}px` : undefined,
+                height: sourceImageData ? `${sourceImageData.height}px` : undefined,
+                imageRendering: isSmoothDownscale || algorithmId.startsWith('ascii-') || renderMode === 'ascii' ? 'auto' : 'pixelated'
               }}
             />
             {showSlowDitherAnvil && (

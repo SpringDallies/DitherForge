@@ -49,6 +49,7 @@ export interface WorkerDitherRequest {
   isExport?: boolean;
   skipTweaks?: boolean;
   skipDither?: boolean;
+  coalesce?: boolean;
 }
 
 export interface WorkerDitherResponse {
@@ -58,6 +59,7 @@ export interface WorkerDitherResponse {
   width?: number;
   height?: number;
   elapsedMs?: number;
+  dropped?: boolean;
   atlasResyncRequired?: boolean;
   missingAtlasKeys?: string[];
   error?: string;
@@ -316,7 +318,26 @@ self.onmessage = (e: MessageEvent<WorkerDitherRequest>) => {
       asciiGrid: dedicatedGridFrame
     };
 
-    (self as any).postMessage(response, [workingData.buffer]);
+    const transferSet = new Set<ArrayBuffer>([workingData.buffer]);
+    if (dedicatedGridFrame) {
+      const maybeViews = [
+        dedicatedGridFrame.charIndices,
+        dedicatedGridFrame.fgRgba,
+        dedicatedGridFrame.bgRgba,
+        dedicatedGridFrame.luminance,
+        dedicatedGridFrame.offsetX,
+        dedicatedGridFrame.offsetY,
+        dedicatedGridFrame.highlight
+      ];
+      for (let i = 0; i < maybeViews.length; i++) {
+        const v = maybeViews[i];
+        if (v && v.buffer instanceof ArrayBuffer) {
+          transferSet.add(v.buffer);
+        }
+      }
+    }
+
+    (self as any).postMessage(response, Array.from(transferSet));
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('Error in dither worker thread:', err);

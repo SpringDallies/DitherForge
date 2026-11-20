@@ -50,6 +50,39 @@ export interface NativeVideoExportRequest {
   audio_sync?: boolean;
 }
 
+const textEncoder = new TextEncoder();
+let streamPacketScratch = new Uint8Array(0);
+
+/**
+ * Packs a stream frame into a raw binary IPC packet:
+ * [u32 LE sessionIdByteLen][UTF-8 sessionId][raw RGBA bytes]
+ * Avoids Array.from() and multi-megabyte JSON serialization overhead per frame.
+ */
+export function packFfmpegStreamFramePacket(
+  sessionId: string,
+  frameBytes: Uint8Array | Uint8ClampedArray
+): Uint8Array {
+  const idBytes = textEncoder.encode(sessionId);
+  const idLen = idBytes.byteLength;
+  const totalLen = 4 + idLen + frameBytes.byteLength;
+
+  if (streamPacketScratch.byteLength < totalLen) {
+    streamPacketScratch = new Uint8Array(totalLen);
+  }
+
+  streamPacketScratch[0] = idLen & 0xff;
+  streamPacketScratch[1] = (idLen >>> 8) & 0xff;
+  streamPacketScratch[2] = (idLen >>> 16) & 0xff;
+  streamPacketScratch[3] = (idLen >>> 24) & 0xff;
+  streamPacketScratch.set(idBytes, 4);
+  streamPacketScratch.set(
+    new Uint8Array(frameBytes.buffer, frameBytes.byteOffset, frameBytes.byteLength),
+    4 + idLen
+  );
+
+  return streamPacketScratch.subarray(0, totalLen);
+}
+
 class FfmpegService {
   private cachedStatus: FfmpegStatus | null = null;
   private checkingStatus: Promise<FfmpegStatus> | null = null;
@@ -132,7 +165,6 @@ class FfmpegService {
       throw new Error('In-app FFmpeg installation is only available in the desktop application.');
     }
     const res = await invoke<InstallResult>('install_ffmpeg_system');
-    // Invalidate cached status to force re-detection
     this.cachedStatus = null;
     await this.getStatus(true);
     return res;
@@ -147,6 +179,7 @@ class FfmpegService {
 
   /**
    * Extracts a single RGBA frame at timestamp `timestampSec` from a local video file.
+   * Receives a raw binary Response (ArrayBuffer) from Tauri with zero JSON array overhead.
    */
   public async extractFrame(
     videoPath: string,
@@ -154,12 +187,14 @@ class FfmpegService {
     targetWidth?: number,
     targetHeight?: number
   ): Promise<Uint8Array> {
-    const raw = await invoke<number[]>('extract_video_frame_native', {
+    const raw = await invoke<ArrayBuffer | Uint8Array | number[]>('extract_video_frame_native', {
       videoPath,
       timestampSec,
       width: targetWidth,
       height: targetHeight
     });
+    if (raw instanceof Uint8Array) return raw;
+    if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
     return new Uint8Array(raw);
   }
 
@@ -194,28 +229,38 @@ class FfmpegService {
   }
 
   /**
-   * Writes a raw RGBA frame to an active stream session.
+   * Writes a raw RGBA frame to an active stream session using InvokeBody::Raw binary IPC.
    */
   public async writeStreamFrame(sessionId: string, frameBytes: Uint8Array | Uint8ClampedArray): Promise<void> {
-    // Pass raw array buffer or numbers
-    await invoke('write_ffmpeg_stream_frame', {
-      sessionId,
-      frameBytes: Array.from(frameBytes)
-    });
+    const packet = packFfmpegStreamFramePacket(sessionId, frameBytes);
+    await invoke('write_ffmpeg_stream_frame', packet);
   }
 
   /**
    * Finishes an active streaming session and closes FFmpeg stdin.
    */
   public async finishStream(sessionId: string): Promise<VideoExportResult> {
-    return await invoke<VideoExportResult>('finish_ffmpeg_stream', { sessionId });
+    try {
+      return await invoke<VideoExportResult>('finish_ffmpeg_stream', { sessionId });
+    } finally {
+      // Release large stream scratch buffer once export session ends
+      if (streamPacketScratch.byteLength > 1024 * 1024) {
+        streamPacketScratch = new Uint8Array(0);
+      }
+    }
   }
 
   /**
    * Cancels and kills an active streaming session.
    */
   public async cancelStream(sessionId: string): Promise<void> {
-    await invoke('cancel_ffmpeg_stream', { sessionId });
+    try {
+      await invoke('cancel_ffmpeg_stream', { sessionId });
+    } finally {
+      if (streamPacketScratch.byteLength > 1024 * 1024) {
+        streamPacketScratch = new Uint8Array(0);
+      }
+    }
   }
 }
 

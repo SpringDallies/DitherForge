@@ -551,7 +551,7 @@ export const CenterViewport: React.FC = () => {
 
   const lastRenderSignatureRef = useRef<string>('');
   // Pre-rendered frame cache for Video: "Rendered" mode (bounded by MAX_RENDERED_CACHE_BYTES)
-  const renderedFramesCacheRef = useRef<Map<number, ImageData>>(new Map());
+  const renderedFramesCacheRef = useRef<Map<number, { imageData: ImageData; asciiGrid?: any; bytes: number }>>(new Map());
   const renderedCacheBytesRef = useRef<number>(0);
   // Cached pre-dither adjustments buffer to avoid full-resolution recomputation when only algorithm/style params animate
   const adjustedBaseBufferRef = useRef<Uint8ClampedArray | null>(null);
@@ -574,8 +574,12 @@ export const CenterViewport: React.FC = () => {
     lastRenderSignatureRef.current = '';
   }, [
     sourceImageData,
+    sourceVideoUrl,
     algorithmId,
     algoParams,
+    renderMode,
+    asciiSettings,
+    customCharsets,
     brightness,
     contrast,
     saturation,
@@ -589,6 +593,8 @@ export const CenterViewport: React.FC = () => {
     previewPaletteId,
     savedPalettes,
     paletteDepth,
+    paletteFlipped,
+    paletteInverted,
     effects,
     previewQuality,
     animationTracks,
@@ -628,6 +634,11 @@ export const CenterViewport: React.FC = () => {
       vid.removeEventListener('seeked', handleSeeked);
       vid.pause();
       vid.src = '';
+      try { vid.load(); } catch {}
+      if (videoCanvasRef.current) {
+        videoCanvasRef.current.width = 0;
+        videoCanvasRef.current.height = 0;
+      }
     };
   }, [sourceVideoUrl]);
 
@@ -638,6 +649,14 @@ export const CenterViewport: React.FC = () => {
     serpentine: false,
     noiseAmount: 0.0
   };
+
+  // Precompute steady-state signatures so 30-60 FPS playback avoids per-frame JSON.stringify churn
+  const baseAlgoParamsSig = useMemo(() => JSON.stringify(currentParams), [currentParams]);
+  const baseEffectsSig = useMemo(() => JSON.stringify(effects), [effects]);
+  const baseAsciiSig = useMemo(
+    () => (renderMode === 'ascii' ? JSON.stringify(asciiSettings) + ':' + (customCharsets?.length || 0) : ''),
+    [renderMode, asciiSettings, customCharsets]
+  );
 
   const dynamicStyleProps = useMemo(
     () => getDynamicStyleAnimatableProps(algorithmId),
@@ -697,22 +716,63 @@ export const CenterViewport: React.FC = () => {
     };
   }, [isSpeedMenuOpen]);
 
-  // Time-based Playback Clock with Frame-Quantized Direct Render & Throttled Zustand Updates
+  // Playback Clock: uses continuous HTML5 video decode (requestVideoFrameCallback with rAF fallback)
+  // when a video source is active, eliminating 30fps keyframe-seek stalls on i3-3240T / WebKitGTK.
   useEffect(() => {
     if (appMode !== 'animation' || !isPlaying) return;
     let lastTs = performance.now();
     let localTime = useAppStore.getState().currentTime;
     let lastStoreTime = localTime;
     let lastFrameIdx = Math.round(localTime * (useAppStore.getState().fps || 30));
-    let animId: number;
+    let animId: number | null = null;
+    let rvfcId: number | null = null;
+    let stopped = false;
+
+    const vid = sourceVideoUrl ? videoElRef.current : null;
+    const supportsRvfc = Boolean(vid && typeof (vid as any).requestVideoFrameCallback === 'function');
+
+    if (vid) {
+      const initState = useAppStore.getState();
+      const vidDur = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : (initState.duration || 1);
+      const targetStart = initState.videoPlaybackMode === 'looped'
+        ? localTime % vidDur
+        : Math.min(localTime, Math.max(0, vidDur - 0.001));
+      vid.loop = initState.videoPlaybackMode === 'looped';
+      vid.playbackRate = Math.max(0.1, initState.playbackSpeed || 1);
+      if (Math.abs(vid.currentTime - targetStart) > 0.08) {
+        try { vid.currentTime = targetStart; } catch {}
+      }
+      vid.play().catch(() => {});
+    }
+
+    const scheduleNext = () => {
+      if (stopped) return;
+      if (vid && supportsRvfc) {
+        rvfcId = (vid as any).requestVideoFrameCallback((now: number) => {
+          void tick(now);
+        });
+      } else {
+        animId = requestAnimationFrame((now) => {
+          void tick(now);
+        });
+      }
+    };
 
     const tick = async (now: number) => {
+      if (stopped) return;
       const state = useAppStore.getState();
       if (!state.isPlaying || state.appMode !== 'animation') return;
 
       // If external action (e.g., Home/End/Scrub) changed currentTime, resync local clock
       if (Math.abs(state.currentTime - lastStoreTime) > 0.0005) {
         localTime = state.currentTime;
+        if (vid) {
+          const vidDur = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : (state.duration || 1);
+          const seekT = state.videoPlaybackMode === 'looped' ? localTime % vidDur : Math.min(localTime, Math.max(0, vidDur - 0.001));
+          if (Math.abs(vid.currentTime - seekT) > 0.08) {
+            try { vid.currentTime = seekT; } catch {}
+          }
+        }
       }
 
       // Clamp single-frame dt to 0.25s max so slow frames or background tabs don't jump wildly
@@ -723,9 +783,18 @@ export const CenterViewport: React.FC = () => {
       const speed = state.playbackSpeed || 1;
       const dur = Math.max(0.1, state.duration || 15);
       const activeFps = Math.max(1, state.fps || 30);
-      let nextTime = localTime + dt * speed;
+      let nextTime: number;
+      if (vid && !vid.paused && !vid.ended && Number.isFinite(vid.currentTime)) {
+        if (Math.abs(vid.playbackRate - speed) > 0.01) {
+          vid.playbackRate = Math.max(0.1, speed);
+        }
+        vid.loop = state.videoPlaybackMode === 'looped';
+        nextTime = vid.currentTime;
+      } else {
+        nextTime = localTime + dt * speed;
+      }
 
-      if (nextTime >= dur) {
+      if (nextTime >= dur || (vid && vid.ended && state.videoPlaybackMode !== 'looped')) {
         if (state.videoPlaybackMode === 'looped') {
           nextTime = nextTime % dur;
           localTime = nextTime;
@@ -738,8 +807,9 @@ export const CenterViewport: React.FC = () => {
             timecodeCurrentRef.current.textContent = formatTimecode(nextTime);
           }
           state.setCurrentTime(lastStoreTime);
-          animId = requestAnimationFrame(tick);
+          scheduleNext();
         } else {
+          if (vid) vid.pause();
           localTime = dur;
           lastStoreTime = dur;
           if (playheadDomRef.current) {
@@ -769,7 +839,7 @@ export const CenterViewport: React.FC = () => {
       if (nextFrameIdx !== lastFrameIdx) {
         lastFrameIdx = nextFrameIdx;
 
-        // Guard against IPC pileup: if previous frame is still processing in Rust, skip frame tick
+        // Guard against IPC/worker pileup: skip tick if previous frame is still processing
         if (!isRenderingFrameRef.current) {
           isRenderingFrameRef.current = true;
           try {
@@ -786,16 +856,23 @@ export const CenterViewport: React.FC = () => {
         }
       }
 
-      animId = requestAnimationFrame(tick);
+      scheduleNext();
     };
 
-    animId = requestAnimationFrame(tick);
+    scheduleNext();
     return () => {
-      cancelAnimationFrame(animId);
+      stopped = true;
+      if (animId !== null) cancelAnimationFrame(animId);
+      if (vid && rvfcId !== null && typeof (vid as any).cancelVideoFrameCallback === 'function') {
+        (vid as any).cancelVideoFrameCallback(rvfcId);
+      }
+      if (vid) {
+        vid.pause();
+      }
       // Sync exact final time on pause
       useAppStore.getState().setCurrentTime(Number(localTime.toFixed(4)));
     };
-  }, [appMode, isPlaying, videoPlaybackMode]);
+  }, [appMode, isPlaying, videoPlaybackMode, sourceVideoUrl]);
 
   // Full Timeline Keyboard Controls (Space/K for Play/Pause, Arrows/J/L for Frames, Home/End, Up/Down for Tracks, T for Add Track)
   useEffect(() => {
@@ -1358,7 +1435,11 @@ export const CenterViewport: React.FC = () => {
 
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const isAsciiActiveEarly = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
-    const asciiResolutionScale = isAsciiActiveEarly ? Math.max(1, Math.min(8, Math.round((zoom / 100) * dpr))) : 1;
+    // Cap vector ASCII backing scale during active playback to keep HD 2500 fill-rate fast and RAM bounded
+    const maxAsciiScale = isPlaying ? 2 : 4;
+    const asciiResolutionScale = isAsciiActiveEarly
+      ? Math.max(1, Math.min(maxAsciiScale, Math.round((zoom / 100) * dpr)))
+      : 1;
     const targetCanvasW = Math.round(fullWidth * asciiResolutionScale);
     const targetCanvasH = Math.round(fullHeight * asciiResolutionScale);
 
@@ -1372,15 +1453,31 @@ export const CenterViewport: React.FC = () => {
     // Video: frames are cached on-demand at full resolution with LRU byte eviction
     // First render of a frame is stored; subsequent loops/scrubs hit the cache instantly
     const frameIndex = appMode === 'animation' ? Math.round(activeTime * fps) : 0;
-    if (appMode === 'animation' && !showBeforeAfter && !isOriginalView && !sourceVideoUrl) {
+    if (appMode === 'animation' && !showBeforeAfter && !isOriginalView) {
       const cache = renderedFramesCacheRef.current;
       const cachedFrame = cache.get(frameIndex);
-      if (cachedFrame && cachedFrame.width === fullWidth && cachedFrame.height === fullHeight) {
+      if (
+        cachedFrame &&
+        cachedFrame.imageData.width === fullWidth &&
+        cachedFrame.imageData.height === fullHeight
+      ) {
         // Refresh LRU order
         cache.delete(frameIndex);
         cache.set(frameIndex, cachedFrame);
-        ctx.putImageData(cachedFrame, 0, 0);
-        lastRenderedFullImageRef.current = cachedFrame;
+        if (isAsciiActiveEarly && cachedFrame.asciiGrid) {
+          lastAsciiGridRef.current = cachedFrame.asciiGrid;
+          renderAsciiVectorToCanvas(
+            cachedFrame.asciiGrid,
+            asciiSettings,
+            canvas,
+            asciiResolutionScale,
+            videoCanvasRef.current || proxyCanvasRef.current,
+            undefined
+          );
+        } else {
+          ctx.putImageData(cachedFrame.imageData, 0, 0);
+        }
+        lastRenderedFullImageRef.current = cachedFrame.imageData;
         return;
       }
     }
@@ -1392,7 +1489,8 @@ export const CenterViewport: React.FC = () => {
     if (sourceVideoUrl && videoElRef.current && videoElRef.current.readyState >= 2) {
       const vid = videoElRef.current;
       const targetVidTime = activeTime % (vid.duration || duration || 1);
-      if (!vid.seeking && Math.abs(vid.currentTime - targetVidTime) > 0.04) {
+      // Only issue a seek when paused/scrubbing; active playback decodes sequentially via vid.play()
+      if (!isPlaying && !vid.seeking && Math.abs(vid.currentTime - targetVidTime) > 0.04) {
         vid.currentTime = targetVidTime;
       }
       if (!videoCanvasRef.current) {
@@ -1569,14 +1667,18 @@ export const CenterViewport: React.FC = () => {
       effHighlight.toFixed(2),
       effDepth,
       paletteSig,
-      JSON.stringify(effAlgoParams),
-      JSON.stringify(effEffects),
-      sourceVideoUrl ? Math.round(activeTime * 30) : '',
+      appMode === 'animation' && animationTracks.length > 0 ? JSON.stringify(effAlgoParams) : baseAlgoParamsSig,
+      appMode === 'animation' && animationTracks.length > 0 ? JSON.stringify(effEffects) : baseEffectsSig,
+      sourceVideoUrl ? frameIndex : '',
       appMode === 'animation'
         ? frameIndex
         : '',
       (algorithmId.startsWith('ascii-') || renderMode === 'ascii') ? 'ascii' : 'dither',
-      renderMode === 'ascii' ? JSON.stringify(effAsciiSettings) + ':' + (customCharsets?.length || 0) : ''
+      renderMode === 'ascii'
+        ? (appMode === 'animation' && animationTracks.length > 0
+            ? JSON.stringify(effAsciiSettings) + ':' + (customCharsets?.length || 0)
+            : baseAsciiSig)
+        : ''
     ].join('::');
 
     if (renderSig === lastRenderSignatureRef.current) {
@@ -1589,10 +1691,12 @@ export const CenterViewport: React.FC = () => {
     startDitherTimer();
     didStartTimer = true;
 
-    // Yield a macrotask so the timer & UI frame can paint before heavy work begins
-    await new Promise((r) => setTimeout(r, 0));
-    if (currentNonce !== renderNonceRef.current) {
-      return;
+    // Skip 4-15ms setTimeout(0) stall during animation playback/scrubbing
+    if (appMode !== 'animation' && !isPlaying && !isScrubbingTimeline) {
+      await new Promise((r) => setTimeout(r, 0));
+      if (currentNonce !== renderNonceRef.current) {
+        return;
+      }
     }
 
     const width = renderSource.width;
@@ -1746,11 +1850,18 @@ export const CenterViewport: React.FC = () => {
       time: activeTime,
       fps,
       previewScale: fullWidth > 0 ? width / fullWidth : 1,
-      isExport: false
+      isExport: false,
+      coalesce: isPlaying || isScrubbingTimeline || isDraggingSlider
     });
 
+    if (workerResponse.dropped) {
+      return;
+    }
+
+    let finalImageData = ditherImageData;
     if (workerResponse.success && workerResponse.buffer) {
-      ditherImageData.data.set(new Uint8ClampedArray(workerResponse.buffer));
+      // Zero-copy adoption of returned worker ArrayBuffer (avoids 8.3 MB memcpy per 1080p frame)
+      finalImageData = new ImageData(new Uint8ClampedArray(workerResponse.buffer), width, height);
       if (workerResponse.asciiGrid) {
         lastAsciiGridRef.current = workerResponse.asciiGrid;
       } else if (!isAsciiActive) {
@@ -1799,15 +1910,15 @@ export const CenterViewport: React.FC = () => {
     if (
       appMode === 'animation' &&
       width === fullWidth &&
-      height === fullHeight &&
-      !sourceVideoUrl
+      height === fullHeight
     ) {
       const frameBytes = len;
       if (frameBytes <= MAX_RENDERED_CACHE_BYTES) {
         const cache = renderedFramesCacheRef.current;
         if (cache.has(frameIndex)) {
+          const old = cache.get(frameIndex);
           cache.delete(frameIndex);
-          renderedCacheBytesRef.current = Math.max(0, renderedCacheBytesRef.current - frameBytes);
+          renderedCacheBytesRef.current = Math.max(0, renderedCacheBytesRef.current - (old?.bytes ?? frameBytes));
         }
         while (
           cache.size > 0 &&
@@ -1820,19 +1931,23 @@ export const CenterViewport: React.FC = () => {
           if (evicted) {
             renderedCacheBytesRef.current = Math.max(
               0,
-              renderedCacheBytesRef.current - evicted.data.byteLength
+              renderedCacheBytesRef.current - evicted.bytes
             );
           }
         }
         cache.set(
           frameIndex,
-          new ImageData(new Uint8ClampedArray(ditherImageData.data), fullWidth, fullHeight)
+          {
+            imageData: new ImageData(new Uint8ClampedArray(finalImageData.data), fullWidth, fullHeight),
+            asciiGrid: isAsciiActive ? lastAsciiGridRef.current : undefined,
+            bytes: frameBytes
+          }
         );
         renderedCacheBytesRef.current += frameBytes;
       }
     }
 
-    lastDitheredImageRef.current = ditherImageData;
+    lastDitheredImageRef.current = finalImageData;
     lastRenderSignatureRef.current = renderSig;
 
     const drawToCanvas = (imgData: ImageData) => {
@@ -1874,15 +1989,15 @@ export const CenterViewport: React.FC = () => {
 
     if (!preRender) {
       if (width === fullWidth && height === fullHeight) {
-        lastRenderedFullImageRef.current = ditherImageData;
+        lastRenderedFullImageRef.current = finalImageData;
       }
       if (isOriginalView) {
-        drawToCanvas(new ImageData(new Uint8ClampedArray(renderSource.data), width, height));
+        drawToCanvas(renderSource);
       } else if (showBeforeAfter) {
         if (!compositeBufferRef.current || compositeBufferRef.current.length !== len) {
           compositeBufferRef.current = new Uint8ClampedArray(len);
         }
-        compositeBufferRef.current.set(workingData);
+        compositeBufferRef.current.set(finalImageData.data);
         const comp = compositeBufferRef.current;
         const splitX = Math.round(width * splitRatio);
         const originalData = renderSource.data;
@@ -1898,7 +2013,7 @@ export const CenterViewport: React.FC = () => {
         }
         drawToCanvas(new ImageData(comp as any, width, height));
       } else {
-        drawToCanvas(ditherImageData);
+        drawToCanvas(finalImageData);
       }
 
       // First real image render completed: dismiss the initial 3D anvil boot-loader overlay
@@ -1963,6 +2078,12 @@ export const CenterViewport: React.FC = () => {
     renderMode,
     asciiSettings,
     customCharsets,
+    baseAlgoParamsSig,
+    baseEffectsSig,
+    baseAsciiSig,
+    paletteFlipped,
+    paletteInverted,
+    isDraggingSlider,
     zoom,
     setLastRenderMs,
     startDitherTimer,

@@ -25,6 +25,17 @@ use tauri::ipc::{InvokeBody, Request, Response};
 /// Stores Vec<(Arc<bytes>, width, height)> so multiple resolutions (Live vs Full vs 1x1 probe)
 /// never evict each other. Arc<Vec<u8>> avoids copying 5.73 MB on every frame.
 static SOURCE_IMAGE_CACHE: Mutex<Vec<(Arc<Vec<u8>>, u32, u32)>> = Mutex::new(Vec::new());
+const MAX_SOURCE_CACHE_ENTRIES: usize = 4;
+
+fn upsert_source_cache(rgba_bytes: Vec<u8>, width: u32, height: u32) {
+    let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
+    if let Some(idx) = cache.iter().position(|(_, cw, ch)| *cw == width && *ch == height) {
+        cache.remove(idx);
+    } else if cache.len() >= MAX_SOURCE_CACHE_ENTRIES {
+        cache.remove(0);
+    }
+    cache.push((Arc::new(rgba_bytes), width, height));
+}
 
 #[derive(serde::Serialize)]
 struct AlgorithmInfo {
@@ -137,15 +148,7 @@ fn decode_and_cache_source(bytes: &[u8]) -> Result<(), String> {
         }
     };
 
-    let mut cache = SOURCE_IMAGE_CACHE.lock().unwrap();
-    // Replace entry for this resolution if it exists (1x1 probe must never
-    // evict a real 400x300 image, but adjusted pixels for the same resolution
-    // must overwrite the stale entry).
-    if let Some(idx) = cache.iter().position(|(_, cw, ch)| *cw == width && *ch == height) {
-        cache[idx] = (Arc::new(rgba_bytes), width, height);
-    } else {
-        cache.push((Arc::new(rgba_bytes), width, height));
-    }
+    upsert_source_cache(rgba_bytes, width, height);
     Ok(())
 }
 
@@ -199,6 +202,12 @@ fn parse_and_exec_raw(raw_bytes: &[u8]) -> Result<Response, String> {
     let header: BinaryProcessHeader = serde_json::from_slice(&raw_bytes[4..4 + header_len])
         .map_err(|e| format!("Failed to parse metadata header: {}", e))?;
     let pixel_data = &raw_bytes[4 + header_len..];
+    let expected_len = (header.width as usize)
+        .saturating_mul(header.height as usize)
+        .saturating_mul(4);
+    if header.width > 0 && header.height > 0 && pixel_data.len() == expected_len {
+        upsert_source_cache(pixel_data.to_vec(), header.width, header.height);
+    }
     let out_bytes = execute_binary_frame(&header, pixel_data)?;
     Ok(Response::new(out_bytes))
 }
@@ -643,14 +652,18 @@ fn probe_video_native(video_path: String) -> Result<ffmpeg::VideoInfo, String> {
 }
 
 #[tauri::command]
-fn extract_video_frame_native(
+async fn extract_video_frame_native(
     video_path: String,
     timestamp_sec: f64,
     width: Option<u32>,
     height: Option<u32>,
-) -> Result<Vec<u8>, String> {
-    let (_, _, raw) = ffmpeg::extract_single_frame(&video_path, timestamp_sec, width, height)?;
-    Ok(raw)
+) -> Result<Response, String> {
+    let raw = tauri::async_runtime::spawn_blocking(move || {
+        ffmpeg::extract_single_frame(&video_path, timestamp_sec, width, height).map(|(_, _, b)| b)
+    })
+    .await
+    .map_err(|e| format!("Video frame extraction task panicked: {}", e))??;
+    Ok(Response::new(raw))
 }
 
 #[tauri::command]
@@ -666,7 +679,7 @@ async fn export_video_native_ffmpeg(
 }
 
 #[tauri::command]
-fn start_ffmpeg_stream(
+async fn start_ffmpeg_stream(
     output_path: String,
     format: String,
     width: u32,
@@ -675,17 +688,57 @@ fn start_ffmpeg_stream(
     has_audio: bool,
     input_audio_path: Option<String>,
 ) -> Result<String, String> {
-    ffmpeg::start_ffmpeg_stream(output_path, format, width, height, fps, has_audio, input_audio_path)
+    tauri::async_runtime::spawn_blocking(move || {
+        ffmpeg::start_ffmpeg_stream(output_path, format, width, height, fps, has_audio, input_audio_path)
+    })
+    .await
+    .map_err(|e| format!("start_ffmpeg_stream task panicked: {}", e))?
 }
 
 #[tauri::command]
-fn write_ffmpeg_stream_frame(session_id: String, frame_bytes: Vec<u8>) -> Result<(), String> {
-    ffmpeg::write_ffmpeg_stream_frame(&session_id, &frame_bytes)
+async fn write_ffmpeg_stream_frame(request: Request<'_>) -> Result<(), String> {
+    match request.body() {
+        InvokeBody::Raw(bytes) => {
+            if bytes.len() < 4 {
+                return Err("Stream frame payload too short: missing session_id length".to_string());
+            }
+            let id_len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+            if bytes.len() < 4 + id_len {
+                return Err("Stream frame payload truncated in session_id".to_string());
+            }
+            let session_id = std::str::from_utf8(&bytes[4..4 + id_len])
+                .map_err(|e| format!("Invalid UTF-8 session_id: {}", e))?
+                .to_string();
+            let frame_owned = bytes[4 + id_len..].to_vec();
+            tauri::async_runtime::spawn_blocking(move || {
+                ffmpeg::write_ffmpeg_stream_frame(&session_id, &frame_owned)
+            })
+            .await
+            .map_err(|e| format!("write_ffmpeg_stream_frame task panicked: {}", e))?
+        }
+        InvokeBody::Json(val) => {
+            #[derive(serde::Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct JsonStreamFrame {
+                session_id: String,
+                frame_bytes: Vec<u8>,
+            }
+            let parsed: JsonStreamFrame = serde_json::from_value(val.clone())
+                .map_err(|e| format!("Invalid JSON stream frame payload: {}", e))?;
+            tauri::async_runtime::spawn_blocking(move || {
+                ffmpeg::write_ffmpeg_stream_frame(&parsed.session_id, &parsed.frame_bytes)
+            })
+            .await
+            .map_err(|e| format!("write_ffmpeg_stream_frame task panicked: {}", e))?
+        }
+    }
 }
 
 #[tauri::command]
-fn finish_ffmpeg_stream(session_id: String) -> Result<ffmpeg::VideoExportResult, String> {
-    ffmpeg::finish_ffmpeg_stream(&session_id)
+async fn finish_ffmpeg_stream(session_id: String) -> Result<ffmpeg::VideoExportResult, String> {
+    tauri::async_runtime::spawn_blocking(move || ffmpeg::finish_ffmpeg_stream(&session_id))
+        .await
+        .map_err(|e| format!("finish_ffmpeg_stream task panicked: {}", e))?
 }
 
 #[tauri::command]

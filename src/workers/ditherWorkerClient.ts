@@ -80,6 +80,14 @@ export class DitherWorkerClient {
     resolve: (res: WorkerDitherResponse) => void;
     reject: (err: Error) => void;
   } | null = null;
+  private workerCoalesceInFlight: boolean = false;
+  private latestQueuedWorker: {
+    request: Omit<WorkerDitherRequest, 'requestId'>;
+    requestId: number;
+    timeoutMs?: number;
+    resolve: (res: WorkerDitherResponse) => void;
+    reject: (err: Error) => void;
+  } | null = null;
 
   constructor(
     workerFactory?: () => Worker,
@@ -190,6 +198,11 @@ export class DitherWorkerClient {
   public terminate(): void {
     this.atlasSyncTracker.reset();
     this.rejectAllPending(new Error('Worker terminated by client'));
+    if (this.latestQueuedWorker) {
+      const q = this.latestQueuedWorker;
+      this.latestQueuedWorker = null;
+      q.reject(new Error('Worker terminated by client'));
+    }
     if (this.worker) {
       try {
         this.worker.terminate();
@@ -280,6 +293,7 @@ export class DitherWorkerClient {
           this.latestQueuedRust.resolve({
             requestId: this.latestQueuedRust.requestId,
             success: true,
+            dropped: true,
             buffer: this.latestQueuedRust.request.buffer,
             width: this.latestQueuedRust.request.width,
             height: this.latestQueuedRust.request.height,
@@ -294,7 +308,49 @@ export class DitherWorkerClient {
       return this.runRustPipeline(request, requestId);
     }
 
+    // Latest-wins backpressure for live video playback & slider scrubbing on JS Worker
+    if (request.coalesce) {
+      if (this.workerCoalesceInFlight) {
+        if (this.latestQueuedWorker) {
+          this.latestQueuedWorker.resolve({
+            requestId: this.latestQueuedWorker.requestId,
+            success: true,
+            dropped: true,
+            buffer: this.latestQueuedWorker.request.buffer,
+            width: this.latestQueuedWorker.request.width,
+            height: this.latestQueuedWorker.request.height,
+            elapsedMs: 0
+          });
+        }
+        return new Promise<WorkerDitherResponse>((resolve, reject) => {
+          this.latestQueuedWorker = { request, requestId, timeoutMs, resolve, reject };
+        });
+      }
+      return this.runCoalescedWorkerDispatch(request, requestId, timeoutMs);
+    }
+
     return this.dispatchToWorkerOrFallback(request, requestId, timeoutMs, 0);
+  }
+
+  private async runCoalescedWorkerDispatch(
+    request: Omit<WorkerDitherRequest, 'requestId'>,
+    requestId: number,
+    timeoutMs?: number
+  ): Promise<WorkerDitherResponse> {
+    this.workerCoalesceInFlight = true;
+    try {
+      return await this.dispatchToWorkerOrFallback(request, requestId, timeoutMs, 0);
+    } finally {
+      this.workerCoalesceInFlight = false;
+      if (this.latestQueuedWorker) {
+        const next = this.latestQueuedWorker;
+        this.latestQueuedWorker = null;
+        this.runCoalescedWorkerDispatch(next.request, next.requestId, next.timeoutMs).then(
+          next.resolve,
+          next.reject
+        );
+      }
+    }
   }
 
   private async dispatchToWorkerOrFallback(

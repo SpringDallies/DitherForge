@@ -1,8 +1,8 @@
 /**
  * Fast Pre-Adjustment LUT for DitherForge
  * Computes brightness, contrast, saturation, and gamma pre-dithering adjustments
- * using precomputed 256-entry lookup tables to eliminate per-pixel floating-point
- * Math.pow operations across millions of pixels per frame.
+ * using cached preallocated 256-entry lookup tables to eliminate per-frame
+ * allocations and per-pixel Math.pow calls across 30-60 FPS video playback.
  */
 
 export interface Tweaks {
@@ -12,6 +12,19 @@ export interface Tweaks {
   gamma: number;
   hue?: number;
 }
+
+// Module-level reusable LUT buffers + parameter cache (zero per-frame allocations)
+const cachedToneLut = new Uint8Array(256);
+let lastToneB = Number.NaN;
+let lastToneC = Number.NaN;
+let lastToneG = Number.NaN;
+
+const cachedCbLut = new Float32Array(256);
+let lastCbB = Number.NaN;
+let lastCbC = Number.NaN;
+
+const cachedGammaLut = new Uint8Array(256);
+let lastGammaVal = Number.NaN;
 
 /**
  * Fast, linear HSV hue rotation on a single RGB pixel triplet.
@@ -156,43 +169,51 @@ export function applyTweaksFast(
   const bOffset = brightness * 128;
   const cFactor = contrast >= 0 ? 1 + contrast * 2 : 1 + contrast * 0.8;
   const sFactor = 1 + saturation;
-  const invGamma = 1 / Math.max(0.01, gamma || 1.0);
+  const safeGamma = Math.max(0.01, gamma || 1.0);
+  const invGamma = 1 / safeGamma;
   const len = width * height * 4;
 
   if (saturation === 0) {
-    // Fast path: Precompute combined tone LUT (contrast + brightness + gamma)
-    const toneLut = new Uint8Array(256);
-    for (let v = 0; v < 256; v++) {
-      let val = (v - 128) * cFactor + 128 + bOffset;
-      val = Math.max(0, Math.min(255, val));
-      if (invGamma !== 1.0) {
-        val = 255 * Math.pow(val / 255, invGamma);
+    // Fast path: Reuse cached combined tone LUT (contrast + brightness + gamma)
+    if (lastToneB !== bOffset || lastToneC !== cFactor || lastToneG !== invGamma) {
+      for (let v = 0; v < 256; v++) {
+        let val = (v - 128) * cFactor + 128 + bOffset;
+        val = val < 0 ? 0 : val > 255 ? 255 : val;
+        if (invGamma !== 1.0) {
+          val = 255 * Math.pow(val / 255, invGamma);
+        }
+        cachedToneLut[v] = val <= 0 ? 0 : val >= 255 ? 255 : Math.round(val);
       }
-      toneLut[v] = Math.max(0, Math.min(255, Math.round(val)));
+      lastToneB = bOffset;
+      lastToneC = cFactor;
+      lastToneG = invGamma;
     }
 
-    // Tight integer loop with zero per-pixel floating-point operations
+    const lut = cachedToneLut;
     for (let i = 0; i < len; i += 4) {
-      data[i] = toneLut[data[i]];
-      data[i + 1] = toneLut[data[i + 1]];
-      data[i + 2] = toneLut[data[i + 2]];
+      data[i] = lut[data[i]];
+      data[i + 1] = lut[data[i + 1]];
+      data[i + 2] = lut[data[i + 2]];
     }
   } else {
-    // Saturation active: Precompute contrast/brightness LUT and gamma output LUT
-    const cbLut = new Float32Array(256);
-    for (let v = 0; v < 256; v++) {
-      cbLut[v] = (v - 128) * cFactor + 128 + bOffset;
-    }
-
-    const gammaLut = new Uint8Array(256);
-    for (let v = 0; v < 256; v++) {
-      let val = v;
-      if (invGamma !== 1.0) {
-        val = 255 * Math.pow(v / 255, invGamma);
+    if (lastCbB !== bOffset || lastCbC !== cFactor) {
+      for (let v = 0; v < 256; v++) {
+        cachedCbLut[v] = (v - 128) * cFactor + 128 + bOffset;
       }
-      gammaLut[v] = Math.max(0, Math.min(255, Math.round(val)));
+      lastCbB = bOffset;
+      lastCbC = cFactor;
     }
 
+    if (lastGammaVal !== invGamma) {
+      for (let v = 0; v < 256; v++) {
+        const val = invGamma !== 1.0 ? 255 * Math.pow(v / 255, invGamma) : v;
+        cachedGammaLut[v] = val <= 0 ? 0 : val >= 255 ? 255 : Math.round(val);
+      }
+      lastGammaVal = invGamma;
+    }
+
+    const cbLut = cachedCbLut;
+    const gammaLut = cachedGammaLut;
     for (let i = 0; i < len; i += 4) {
       let r = cbLut[data[i]];
       let g = cbLut[data[i + 1]];

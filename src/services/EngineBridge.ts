@@ -287,11 +287,39 @@ export const MIGRATED_ALGORITHMS = new Set<string>([
   'temporal_kinetic'
 ]);
 
+export interface FrameFingerprint {
+  width: number;
+  height: number;
+  s0: number;
+  s1: number;
+  s2: number;
+  s3: number;
+  s4: number;
+}
+
+export function computeFrameFingerprint(rawData: Uint8ClampedArray, width: number, height: number): FrameFingerprint {
+  const pxCount = Math.max(1, rawData.length >>> 2);
+  const readPx = (pxIdx: number): number => {
+    const b = Math.min(pxCount - 1, Math.max(0, pxIdx)) * 4;
+    return (rawData[b] | (rawData[b + 1] << 8) | (rawData[b + 2] << 16) | (rawData[b + 3] << 24)) | 0;
+  };
+  return {
+    width,
+    height,
+    s0: readPx(0),
+    s1: readPx(pxCount >>> 2),
+    s2: readPx(pxCount >>> 1),
+    s3: readPx((pxCount * 3) >>> 2),
+    s4: readPx(pxCount - 1)
+  };
+}
+
 class EngineBridgeService {
   private rustAvailable: boolean | null = null;
   private checkingRust: Promise<boolean> | null = null;
   private lastBackend: 'rust' | 'js' | 'js-fallback' = 'js';
-  private lastCachedDimensions: { width: number; height: number; head: number; tail: number } | null = null;
+  private lastCachedDimensions: FrameFingerprint | null = null;
+  private rawBinaryIpcAllowed: boolean = true;
 
   /**
    * Returns the backend that executed the most recent image processing operation.
@@ -439,37 +467,18 @@ class EngineBridgeService {
     // Upload source pixels to Rust when dimensions or content change.
     // Reuse head/tail tracking to skip redundant re-uploads on animation frames
     // at the same resolution with the same pixel content.
-    const head = rawData[0] | (rawData[1] << 8) | (rawData[2] << 16) | (rawData[3] << 24);
-    const tailIdx = rawData.length - 4;
-    const tail = rawData[tailIdx] | (rawData[tailIdx + 1] << 8) | (rawData[tailIdx + 2] << 16) | (rawData[tailIdx + 3] << 24);
+    // 5-point pixel fingerprint prevents false cache hits on letterboxed video frames.
+    const fp = computeFrameFingerprint(rawData, width, height);
+    const prev = this.lastCachedDimensions;
     const needsUpload =
-      !this.lastCachedDimensions ||
-      this.lastCachedDimensions.width !== width ||
-      this.lastCachedDimensions.height !== height ||
-      this.lastCachedDimensions.head !== head ||
-      this.lastCachedDimensions.tail !== tail;
-
-    let uploadMs = 0;
-    if (needsUpload) {
-      const base64 = this.arrayBufferToBase64(
-        rawData.buffer,
-        rawData.byteOffset,
-        rawData.byteLength
-      );
-      try {
-        await invoke('set_source_image', { imageBase64: base64, width, height });
-      } catch (err: any) {
-        console.warn(
-          `[EngineBridge] set_source_image failed for ${width}x${height}, falling back to JS:`,
-          err
-        );
-        addDevLog('error', 'ipc', `set_source_image failed ${width}x${height}: ${err?.message ?? String(err)}`);
-        throw err;
-      }
-      this.lastCachedDimensions = { width, height, head, tail };
-      uploadMs = performance.now() - tUpload0;
-      addDevLog('info', 'ipc', `set_source_image uploaded ${width}x${height} (${rawData.byteLength} bytes)`, uploadMs);
-    }
+      !prev ||
+      prev.width !== fp.width ||
+      prev.height !== fp.height ||
+      prev.s0 !== fp.s0 ||
+      prev.s1 !== fp.s1 ||
+      prev.s2 !== fp.s2 ||
+      prev.s3 !== fp.s3 ||
+      prev.s4 !== fp.s4;
 
     const rustAlgo = this.canonicalizeId(settings.algorithmId);
     const palette = this.normalizePalette(settings.palette);
@@ -580,15 +589,44 @@ class EngineBridgeService {
         }))
     };
 
-    // Send header-only JSON — pixels are cached in Rust via set_source_image.
-    // On Linux WebKitGTK, InvokeBody::Raw is unreliable (JSON-serialized as 5.7M-element array),
-    // so we send ~300 bytes of header JSON and look up pixels from the Rust cache.
-    // The processed pixel buffer returned by Rust must be copied back into imageData.data
-    // so the caller sees the result (JS engine modifies imageData in place).
     let resultBuffer: ArrayBuffer | null = null;
     const tRust0 = performance.now();
     try {
-      resultBuffer = await invoke<ArrayBuffer>('process_image_binary', header);
+      if (needsUpload && this.rawBinaryIpcAllowed) {
+        // Single-round-trip raw binary IPC (InvokeBody::Raw) — also refreshes Rust SOURCE_IMAGE_CACHE.
+        // Eliminates base64 encoding + second IPC hop on every video frame.
+        try {
+          const binaryPayload = packBinaryPayload(header as Record<string, unknown>, rawData);
+          resultBuffer = await invoke<ArrayBuffer>('process_image_binary', binaryPayload);
+          this.lastCachedDimensions = fp;
+        } catch (rawErr: any) {
+          const rawMsg = typeof rawErr === 'string' ? rawErr : (rawErr?.message ?? String(rawErr));
+          if (
+            rawMsg.includes('Expected raw binary payload') ||
+            rawMsg.includes('Failed to parse metadata header') ||
+            rawMsg.includes('Payload too short')
+          ) {
+            this.rawBinaryIpcAllowed = false;
+            addDevLog('warn', 'ipc', `Raw binary IPC unsupported (${rawMsg}); falling back to cached upload`);
+          } else {
+            throw rawErr;
+          }
+        }
+      }
+
+      if (!resultBuffer) {
+        if (needsUpload) {
+          const base64 = this.arrayBufferToBase64(
+            rawData.buffer,
+            rawData.byteOffset,
+            rawData.byteLength
+          );
+          await invoke('set_source_image', { imageBase64: base64, width, height });
+          this.lastCachedDimensions = fp;
+        }
+        resultBuffer = await invoke<ArrayBuffer>('process_image_binary', header);
+      }
+
       const rustMs = performance.now() - tRust0;
       addDevLog('info', 'rust', `process_image_binary algo=${rustAlgo} ${width}x${height}`, rustMs);
     } catch (raw: any) {

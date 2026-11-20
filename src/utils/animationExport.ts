@@ -967,6 +967,81 @@ export async function downloadAnimatedGif(
   URL.revokeObjectURL(url);
 }
 
+
+
+async function seekExportVideoToTime(vid: HTMLVideoElement, targetVidTime: number): Promise<void> {
+  if (Math.abs(vid.currentTime - targetVidTime) > 0.005) {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        vid.removeEventListener('seeked', onSeeked);
+        vid.removeEventListener('error', onError);
+        clearTimeout(timer);
+      };
+      const onSeeked = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error(`Video seek failed at ${targetVidTime.toFixed(3)}s`));
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error(`Video seek timed out at ${targetVidTime.toFixed(3)}s`));
+      }, VIDEO_SEEK_TIMEOUT_MS);
+
+      vid.addEventListener('seeked', onSeeked);
+      vid.addEventListener('error', onError);
+      vid.currentTime = targetVidTime;
+    });
+  }
+
+  if (vid.readyState < 2) {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        vid.removeEventListener('canplay', onReady);
+        vid.removeEventListener('loadeddata', onReady);
+        vid.removeEventListener('error', onError);
+        clearTimeout(timer);
+      };
+      const onReady = () => {
+        if (settled || vid.readyState < 2) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error(`Video frame readiness error at ${targetVidTime.toFixed(3)}s`));
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (vid.readyState >= 2) {
+          resolve();
+          return;
+        }
+        reject(new Error(`Timed out waiting for decoded video frame readiness at ${targetVidTime.toFixed(3)}s`));
+      }, VIDEO_READY_AFTER_SEEK_TIMEOUT_MS);
+
+      vid.addEventListener('canplay', onReady);
+      vid.addEventListener('loadeddata', onReady);
+      vid.addEventListener('error', onError);
+    });
+  }
+}
+
 /**
  * Native FFmpeg streaming video export (MP4 / WebM / MOV).
  * Streams rendered RGBA frames directly into an FFmpeg encoder process with bounded
@@ -1069,6 +1144,7 @@ export async function exportAnimatedVideoFfmpeg(
   };
 
   try {
+    let lastYieldWall = performance.now();
     for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
       const t = Math.min(duration, frameIdx * timelineStep);
 
@@ -1076,18 +1152,13 @@ export async function exportAnimatedVideoFfmpeg(
       const isStaticSource = !(offscreenVid && vidExtractCtx);
       if (offscreenVid && vidExtractCtx) {
         const vidDur = offscreenVid.duration || duration || 1;
-        const targetVidTime = t % vidDur;
-        if (Math.abs(offscreenVid.currentTime - targetVidTime) > 0.005) {
-          await new Promise<void>((resolve) => {
-            if (!offscreenVid) return resolve();
-            const onSeeked = () => {
-              offscreenVid?.removeEventListener('seeked', onSeeked);
-              resolve();
-            };
-            offscreenVid.addEventListener('seeked', onSeeked);
-            offscreenVid.currentTime = targetVidTime;
-          });
-        }
+        const targetVidTime =
+          storeState.videoPlaybackMode === 'looped'
+            ? t % vidDur
+            : t >= vidDur
+            ? Math.max(0, vidDur - 0.001)
+            : t;
+        await seekExportVideoToTime(offscreenVid, targetVidTime);
         vidExtractCtx.clearRect(0, 0, width, height);
         vidExtractCtx.drawImage(offscreenVid, 0, 0, width, height);
         frameBasePixels = vidExtractCtx.getImageData(0, 0, width, height).data;
@@ -1113,9 +1184,11 @@ export async function exportAnimatedVideoFfmpeg(
         onProgress((frameIdx + 1) / totalFrames, frameIdx + 1, totalFrames);
       }
 
-      // Non-blocking UI yield every 3 frames
-      if (frameIdx % 3 === 0 && totalFrames > 3) {
+      // Wall-clock UI yield (>= 32ms) avoids unnecessary 4-15ms timer stalls on fast frames
+      const nowWall = performance.now();
+      if (nowWall - lastYieldWall >= 32) {
         await new Promise((resolve) => setTimeout(resolve, 0));
+        lastYieldWall = performance.now();
       }
     }
 
@@ -1149,6 +1222,10 @@ export async function exportAnimatedVideoFfmpeg(
       offscreenVid.pause();
       offscreenVid.src = '';
       offscreenVid.load();
+    }
+    if (vidExtractCanvas) {
+      vidExtractCanvas.width = 0;
+      vidExtractCanvas.height = 0;
     }
   }
 }
@@ -1319,18 +1396,13 @@ export async function downloadAnimatedVideo(
       const isStaticSource = !(offscreenVid && vidExtractCtx);
       if (offscreenVid && vidExtractCtx) {
         const vidDur = offscreenVid.duration || duration || 1;
-        const targetVidTime = t % vidDur;
-        if (Math.abs(offscreenVid.currentTime - targetVidTime) > 0.005) {
-          await new Promise<void>((resolve) => {
-            if (!offscreenVid) return resolve();
-            const onSeeked = () => {
-              offscreenVid?.removeEventListener('seeked', onSeeked);
-              resolve();
-            };
-            offscreenVid.addEventListener('seeked', onSeeked);
-            offscreenVid.currentTime = targetVidTime;
-          });
-        }
+        const targetVidTime =
+          storeState.videoPlaybackMode === 'looped'
+            ? t % vidDur
+            : t >= vidDur
+            ? Math.max(0, vidDur - 0.001)
+            : t;
+        await seekExportVideoToTime(offscreenVid, targetVidTime);
         vidExtractCtx.clearRect(0, 0, width, height);
         vidExtractCtx.drawImage(offscreenVid, 0, 0, width, height);
         frameBasePixels = vidExtractCtx.getImageData(0, 0, width, height).data;
@@ -1390,6 +1462,10 @@ export async function downloadAnimatedVideo(
       offscreenVid.pause();
       offscreenVid.src = '';
       offscreenVid.load();
+    }
+    if (vidExtractCanvas) {
+      vidExtractCanvas.width = 0;
+      vidExtractCanvas.height = 0;
     }
     if (stream) {
       const tracks = stream.getTracks();

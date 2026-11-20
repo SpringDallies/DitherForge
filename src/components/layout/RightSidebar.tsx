@@ -38,14 +38,14 @@ import {
 
 const CATEGORY_KEYS = [
   'all',
+  'ascii',
   'basic',
   'error_diffusion',
   'glitch_effects',
   'ordered',
   'patterned',
   'polygon',
-  'special_effects',
-  'ascii'
+  'special_effects'
 ];
 
 const getSliderFill = (val: number, min: number, max: number): React.CSSProperties => {
@@ -774,17 +774,33 @@ export const RightSidebar: React.FC = () => {
     onPointerUp: handleSliderPointerUp
   };
 
+  // Category selection handler with automatic algorithm selection for ASCII
+  const handleSelectCategory = useCallback((catId: string) => {
+    setActiveCategory(catId);
+    if (catId === 'ascii') {
+      const currentIsAscii = typeof algorithmId === 'string' && algorithmId.startsWith('ascii-');
+      if (!currentIsAscii) {
+        const targetAsciiAlgo = (asciiSettings?.algorithmId && isAsciiAlgorithmId(asciiSettings.algorithmId))
+          ? asciiSettings.algorithmId
+          : 'ascii-classic-ramp';
+        setAlgorithmId(targetAsciiAlgo);
+        setRenderMode('ascii');
+        setAsciiSetting('algorithmId', targetAsciiAlgo as AsciiAlgorithmId);
+      }
+    }
+  }, [algorithmId, asciiSettings?.algorithmId, setAlgorithmId, setRenderMode, setAsciiSetting]);
+
   // Category stepping
   const handlePrevCategory = () => {
     const idx = CATEGORY_KEYS.indexOf(activeCategory);
     const prev = (idx - 1 + CATEGORY_KEYS.length) % CATEGORY_KEYS.length;
-    setActiveCategory(CATEGORY_KEYS[prev]);
+    handleSelectCategory(CATEGORY_KEYS[prev]);
   };
 
   const handleNextCategory = () => {
     const idx = CATEGORY_KEYS.indexOf(activeCategory);
     const next = (idx + 1) % CATEGORY_KEYS.length;
-    setActiveCategory(CATEGORY_KEYS[next]);
+    handleSelectCategory(CATEGORY_KEYS[next]);
   };
 
   const getInitialExportFormat = (): string => {
@@ -1806,7 +1822,7 @@ export const RightSidebar: React.FC = () => {
                       className="category-dropdown borderless-dropdown"
                       width="100%"
                       value={activeCategory}
-                      onChange={(catId) => setActiveCategory(catId)}
+                      onChange={(catId) => handleSelectCategory(catId)}
                       items={categoryDropdownItems}
                     />
                     <div className="inline-stepper-cluster">

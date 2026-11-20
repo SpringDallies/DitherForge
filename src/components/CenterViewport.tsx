@@ -1437,11 +1437,17 @@ export const CenterViewport: React.FC = () => {
     const isAsciiActiveEarly = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
     // Cap vector ASCII backing scale during active playback to keep HD 2500 fill-rate fast and RAM bounded
     const maxAsciiScale = isPlaying ? 2 : 4;
+    // Cap canvas dimensions so huge zoom levels (up to 3200%) never exceed GPU/browser canvas limits (16384px) or cause memory allocation failure
+    const maxDimensionScale = Math.min(
+      maxAsciiScale,
+      Math.floor(16384 / Math.max(fullWidth, 1)),
+      Math.floor(16384 / Math.max(fullHeight, 1))
+    );
     const asciiResolutionScale = isAsciiActiveEarly
-      ? Math.max(1, Math.min(maxAsciiScale, Math.round((zoom / 100) * dpr)))
+      ? Math.max(1, Math.min(Math.max(1, maxDimensionScale), Math.round((zoom / 100) * dpr)))
       : 1;
-    const targetCanvasW = Math.round(fullWidth * asciiResolutionScale);
-    const targetCanvasH = Math.round(fullHeight * asciiResolutionScale);
+    const targetCanvasW = isAsciiActiveEarly ? Math.round(fullWidth * asciiResolutionScale) : fullWidth;
+    const targetCanvasH = isAsciiActiveEarly ? Math.round(fullHeight * asciiResolutionScale) : fullHeight;
 
     if (canvas.width !== targetCanvasW || canvas.height !== targetCanvasH) {
       canvas.width = targetCanvasW;
@@ -1954,6 +1960,10 @@ export const CenterViewport: React.FC = () => {
       if (width === fullWidth && height === fullHeight) {
         lastRenderedFullImageRef.current = imgData;
         if (isAsciiActive && lastAsciiGridRef.current && !isOriginalView) {
+          if (canvas.width !== targetCanvasW || canvas.height !== targetCanvasH) {
+            canvas.width = targetCanvasW;
+            canvas.height = targetCanvasH;
+          }
           renderAsciiVectorToCanvas(
             lastAsciiGridRef.current,
             effAsciiSettings,
@@ -1970,6 +1980,10 @@ export const CenterViewport: React.FC = () => {
           ctx.putImageData(imgData, 0, 0);
         }
       } else {
+        if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
+          canvas.width = fullWidth;
+          canvas.height = fullHeight;
+        }
         if (!proxyCanvasRef.current) {
           proxyCanvasRef.current = document.createElement('canvas');
         }
@@ -2114,11 +2128,21 @@ export const CenterViewport: React.FC = () => {
       if (width === fullWidth && height === fullHeight) {
         lastRenderedFullImageRef.current = imgData;
         const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-        const asciiResScale = isAsciiActive ? Math.max(1, Math.min(8, Math.round((zoom / 100) * dpr))) : 1;
+        const maxAsciiScale = isPlaying ? 2 : 4;
+        const maxDimensionScale = Math.min(
+          maxAsciiScale,
+          Math.floor(16384 / Math.max(fullWidth, 1)),
+          Math.floor(16384 / Math.max(fullHeight, 1))
+        );
+        const asciiResScale = isAsciiActive
+          ? Math.max(1, Math.min(Math.max(1, maxDimensionScale), Math.round((zoom / 100) * dpr)))
+          : 1;
         if (isAsciiActive && lastAsciiGridRef.current && !isOriginalView) {
-          if (canvas.width !== Math.round(fullWidth * asciiResScale) || canvas.height !== Math.round(fullHeight * asciiResScale)) {
-            canvas.width = Math.round(fullWidth * asciiResScale);
-            canvas.height = Math.round(fullHeight * asciiResScale);
+          const targetW = Math.round(fullWidth * asciiResScale);
+          const targetH = Math.round(fullHeight * asciiResScale);
+          if (canvas.width !== targetW || canvas.height !== targetH) {
+            canvas.width = targetW;
+            canvas.height = targetH;
           }
           renderAsciiVectorToCanvas(
             lastAsciiGridRef.current,
@@ -2136,6 +2160,10 @@ export const CenterViewport: React.FC = () => {
           ctx.putImageData(imgData, 0, 0);
         }
       } else {
+        if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
+          canvas.width = fullWidth;
+          canvas.height = fullHeight;
+        }
         if (!proxyCanvasRef.current) {
           proxyCanvasRef.current = document.createElement('canvas');
         }

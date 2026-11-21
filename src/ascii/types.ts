@@ -63,7 +63,6 @@ export type AsciiColorMode =
   | 'monochrome'
   | 'source'
   | 'palette'
-  | 'single'
   | 'custom';
 
 export type AsciiBackgroundMode =
@@ -71,6 +70,19 @@ export type AsciiBackgroundMode =
   | 'solid'
   | 'original'
   | 'custom';
+
+export type AsciiBlendMode =
+  | 'normal'
+  | 'screen'
+  | 'multiply'
+  | 'overlay'
+  | 'soft-light'
+  | 'add'
+  | 'subtract'
+  | 'bleed'
+  | 'difference'
+  | 'darken'
+  | 'lighten';
 
 export type AsciiInjectMode = 'append' | 'prepend' | 'interleave' | 'replace';
 
@@ -128,6 +140,14 @@ export interface AsciiAlgorithmDescriptor {
   controls: AsciiAlgorithmControlMeta[];
 }
 
+export type AsciiSamplingMethod =
+  | 'average'
+  | 'center_weighted'
+  | 'edge_aware'
+  | 'local_contrast'
+  | 'adaptive'
+  | 'hybrid';
+
 export interface AsciiSettings {
   algorithmId: AsciiAlgorithmId;
   // Character controls
@@ -158,11 +178,13 @@ export interface AsciiSettings {
   luminanceMode: 'global' | 'local';
   edgeSensitivity: number;         // 0.0..2.0
   detailPreservation: number;      // 0.0..1.0
+  samplingMethod: AsciiSamplingMethod;
   samplingQuality: 'fast' | 'box' | 'subcell';
   smoothing: number;               // 0..3
   sharpening: number;              // 0..2
   // Color controls
   colorMode: AsciiColorMode;
+  blendMode?: AsciiBlendMode;      // Blend mode for ASCII characters over background/image ('normal' | 'screen' | 'multiply' | 'overlay' | 'add' | 'subtract' | 'bleed' | etc.)
   foregroundColor: string;         // hex #RRGGBB
   foregroundOpacity: number;       // 0..1
   colorQuantization: number;       // 0 (off) or 2..32
@@ -171,6 +193,7 @@ export interface AsciiSettings {
   backgroundMode: AsciiBackgroundMode;
   backgroundColor: string;         // hex #RRGGBB
   backgroundOpacity: number;       // 0..1
+  backgroundBlur?: number;         // 0..30 (blur radius for background image)
   // Advanced controls
   densityCalibration: boolean;
   clipping: boolean;
@@ -190,7 +213,7 @@ export const DEFAULT_ASCII_SETTINGS: AsciiSettings = {
   injectMode: 'interleave',
   reverseCharset: false,
   autoCalibrateOrder: false,
-  fontFamily: '"JetBrains Mono", "Fira Code", "DejaVu Sans Mono", Consolas, monospace',
+  fontFamily: '"JetBrains Mono Variable", "JetBrains Mono", "Fira Code", monospace',
   fontWeight: 500,
   cellWidth: 8,
   cellHeight: 14,
@@ -208,19 +231,22 @@ export const DEFAULT_ASCII_SETTINGS: AsciiSettings = {
   luminanceMode: 'global',
   edgeSensitivity: 0.5,
   detailPreservation: 0.5,
+  samplingMethod: 'average',
   samplingQuality: 'box',
   smoothing: 0,
   sharpening: 0,
-  colorMode: 'source',
+  colorMode: 'monochrome',
+  blendMode: 'bleed',
   foregroundColor: '#e6edf3',
   foregroundOpacity: 1.0,
   colorQuantization: 0,
   preserveAlpha: true,
-  backgroundMode: 'solid',
+  backgroundMode: 'original',
   backgroundColor: '#0d0e11',
   backgroundOpacity: 1.0,
+  backgroundBlur: 10,
   densityCalibration: true,
-  clipping: true,
+  clipping: false,
   algoParams: {},
   asciiEffects: []
 };

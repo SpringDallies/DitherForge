@@ -277,7 +277,7 @@ export function mapDualColorRgb(
     const m = palLut.findNearest(r, g, b);
     return [m[0], m[1], m[2]];
   }
-  if (colorMode === 'single' || colorMode === 'custom') {
+  if (colorMode === 'custom' || (colorMode as string) === 'single') {
     const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     return [
       Math.round(singleRgb[0] * lum),

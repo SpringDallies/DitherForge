@@ -1,4 +1,5 @@
 import type { AsciiCharsetCategory, AsciiCharsetDefinition, AsciiInjectMode } from './types';
+import { calibrateCharacters } from './calibration';
 
 export const ASCII_CHARSET_CATEGORIES: Array<{ id: AsciiCharsetCategory; label: string }> = [
   { id: 'classic_ascii', label: 'Classic ASCII' },
@@ -648,6 +649,11 @@ export function resolveActiveChars(
     reverseCharset?: boolean;
     characterDepth?: number;
     characterOffset?: number;
+    autoCalibrateOrder?: boolean;
+    fontFamily?: string;
+    fontWeight?: number;
+    glyphScale?: number;
+    forceTextPresentation?: boolean;
     customSets?: AsciiCharsetDefinition[];
   },
   customSetsFallback?: AsciiCharsetDefinition[]
@@ -660,15 +666,25 @@ export function resolveActiveChars(
     reverseCharset = false,
     characterDepth = 16,
     characterOffset = 0,
+    autoCalibrateOrder = false,
+    fontFamily = 'monospace',
+    fontWeight = 400,
+    glyphScale = 1.0,
+    forceTextPresentation,
     customSets = customSetsFallback
   } = options;
 
   let baseChars: string[];
-  if (charsetId === 'custom_inline' && Array.from(customCharsetChars).length >= 2) {
+  let forceText = forceTextPresentation;
+  const inlineChars = (customCharsetChars || '').trim();
+  if (inlineChars.length >= 2 || (charsetId === 'custom_inline' && Array.from(customCharsetChars).length >= 2)) {
     baseChars = Array.from(customCharsetChars);
   } else {
     const def = findCharsetById(charsetId, customSets);
     baseChars = Array.from(def.chars);
+    if (forceText === undefined) {
+      forceText = def.forceTextPresentation;
+    }
   }
 
   // Up to 10 injected custom characters (sanitized to single codepoints)
@@ -703,6 +719,12 @@ export function resolveActiveChars(
     }
   }
 
+  // Optional auto-calibrate density ordering before decimation and reversal
+  if (autoCalibrateOrder && combined.length > 2) {
+    const calibrated = calibrateCharacters(combined, fontFamily, fontWeight, glyphScale, forceText);
+    combined = calibrated.map((c) => c.char);
+  }
+
   if (reverseCharset) {
     combined.reverse();
   }
@@ -728,3 +750,210 @@ export function resolveActiveChars(
 
   return combined.length >= 2 ? combined : [' ', '@'];
 }
+
+// ============================================================================
+// Phase 2: Custom Charset Validation, Normalization, & JSON Serialization
+// ============================================================================
+
+export interface CharsetImportExportItem {
+  id?: string;
+  name: string;
+  chars: string;
+  ordering?: 'sparse-to-dense' | 'structural' | 'bitmask' | 'directional' | 'calibrated';
+  description?: string;
+  category?: AsciiCharsetCategory;
+}
+
+export interface CharsetImportExportPayload {
+  version: 1;
+  generator: 'DitherForge';
+  charsets: CharsetImportExportItem[];
+}
+
+/**
+ * Normalizes Unicode string by stripping control characters and lone surrogates,
+ * returning clean Unicode graphemes/codepoints.
+ */
+export function sanitizeUnicodeChars(input: string): string {
+  if (typeof input !== 'string') return '';
+  // Normalize to Canonical Decomposition followed by Canonical Composition
+  const normalized = input.normalize('NFC');
+  // Strip C0/C1 control characters (except space), unassigned surrogates, BOM
+  return normalized
+    .replace(/[\u0000-\u001F\u007F-\u009F\uFEFF\uFFF0-\uFFFF]/g, '')
+    .trim();
+}
+
+/**
+ * Normalized content key for duplicate detection (order-invariant or sequence-based)
+ */
+export function normalizeCharsKey(chars: string): string {
+  return Array.from(chars).join('');
+}
+
+/**
+ * Validates a single custom charset object before creation or import.
+ * Returns null if valid, or an error description string if invalid.
+ */
+export function validateCustomCharsetDefinition(
+  item: unknown
+): { valid: true; sanitized: { name: string; chars: string; description: string; ordering: 'sparse-to-dense' | 'structural' | 'bitmask' | 'directional' | 'calibrated' } } | { valid: false; error: string } {
+  if (!item || typeof item !== 'object') {
+    return { valid: false, error: 'Charset item must be an object' };
+  }
+  const obj = item as Record<string, unknown>;
+
+  if (typeof obj.name !== 'string' || obj.name.trim().length === 0) {
+    return { valid: false, error: 'Charset name must be a non-empty string' };
+  }
+  const cleanName = obj.name.trim();
+  if (cleanName.length > 64) {
+    return { valid: false, error: 'Charset name exceeds maximum length of 64 characters' };
+  }
+
+  if (typeof obj.chars !== 'string') {
+    return { valid: false, error: 'Charset chars must be a string' };
+  }
+  const cleanChars = sanitizeUnicodeChars(obj.chars);
+  const glyphCount = Array.from(cleanChars).length;
+  if (glyphCount < 2) {
+    return { valid: false, error: 'Charset must contain at least 2 valid Unicode glyphs' };
+  }
+  if (glyphCount > 256) {
+    return { valid: false, error: 'Charset exceeds maximum depth of 256 glyphs' };
+  }
+
+  const cleanDesc = typeof obj.description === 'string' ? obj.description.trim().slice(0, 200) : 'Custom user charset';
+  const ordering =
+    obj.ordering === 'structural' || obj.ordering === 'bitmask' || obj.ordering === 'directional' || obj.ordering === 'calibrated'
+      ? obj.ordering
+      : 'sparse-to-dense';
+
+  return {
+    valid: true,
+    sanitized: {
+      name: cleanName,
+      chars: cleanChars,
+      description: cleanDesc,
+      ordering
+    }
+  };
+}
+
+/**
+ * Validates and parses a full JSON payload for custom character sets.
+ * Atomic: if any validation rule fails, returns an error without modifying data.
+ */
+export function parseAndValidateCharsetImport(
+  jsonString: string,
+  existingSets: AsciiCharsetDefinition[] = []
+): { success: true; validatedSets: AsciiCharsetDefinition[]; skippedCount: number } | { success: false; error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonString);
+  } catch (err: any) {
+    return { success: false, error: `Invalid JSON syntax: ${err?.message || 'Parse error'}` };
+  }
+
+  let rawList: unknown[];
+  if (Array.isArray(parsed)) {
+    rawList = parsed;
+  } else if (
+    parsed &&
+    typeof parsed === 'object' &&
+    Array.isArray((parsed as Record<string, unknown>).charsets)
+  ) {
+    rawList = (parsed as Record<string, unknown>).charsets as unknown[];
+  } else if (parsed && typeof parsed === 'object') {
+    // Single charset object
+    rawList = [parsed];
+  } else {
+    return { success: false, error: 'Import payload must be an array of charsets or contain a "charsets" array' };
+  }
+
+  if (rawList.length === 0) {
+    return { success: false, error: 'Import payload contains no character sets' };
+  }
+
+  const existingIds = new Set(existingSets.map((s) => s.id));
+  const existingNames = new Set(existingSets.map((s) => s.name.trim().toLowerCase()));
+  const existingContents = new Set(existingSets.map((s) => normalizeCharsKey(s.chars)));
+
+  const stagedSets: AsciiCharsetDefinition[] = [];
+  const stagedNames = new Set<string>();
+  const stagedContents = new Set<string>();
+  let skippedCount = 0;
+
+  for (let i = 0; i < rawList.length; i++) {
+    const candidate = rawList[i];
+    const valRes = validateCustomCharsetDefinition(candidate);
+    if (!valRes.valid) {
+      return { success: false, error: `Item #${i + 1} validation failed: ${valRes.error}` };
+    }
+
+    const { name, chars, description, ordering } = valRes.sanitized;
+    const normName = name.toLowerCase();
+    const normContent = normalizeCharsKey(chars);
+
+    // 1. Detect duplicate normalized character content:
+    // If exact same sequence of normalized characters already exists in installed or staged sets,
+    // skip it as a content duplicate regardless of whether the name matches.
+    if (existingContents.has(normContent) || stagedContents.has(normContent)) {
+      skippedCount++;
+      continue;
+    }
+
+    // 2. Resolve name collisions if the name exists but characters are distinct
+    let finalName = name;
+    let suffix = 2;
+    while (existingNames.has(finalName.toLowerCase()) || stagedNames.has(finalName.toLowerCase())) {
+      finalName = `${name} (${suffix++})`;
+    }
+
+    // 3. Resolve ID
+    let finalId =
+      typeof (candidate as any).id === 'string' &&
+      (candidate as any).id.trim().length > 0 &&
+      !(candidate as any).id.startsWith('classic_') &&
+      !existingIds.has((candidate as any).id)
+        ? (candidate as any).id.trim()
+        : `custom_charset_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    stagedNames.add(finalName.toLowerCase());
+    stagedContents.add(normContent);
+    existingIds.add(finalId);
+
+    stagedSets.push({
+      id: finalId,
+      name: finalName,
+      category: 'custom',
+      chars,
+      ordering,
+      description,
+      compatibilityNotes: 'Imported custom user charset',
+      builtin: false
+    });
+  }
+
+  return { success: true, validatedSets: stagedSets, skippedCount };
+}
+
+/**
+ * Serializes custom character sets to a standardized DitherForge JSON payload.
+ */
+export function serializeCustomCharsetsToJson(sets: AsciiCharsetDefinition[]): string {
+  const payload: CharsetImportExportPayload = {
+    version: 1,
+    generator: 'DitherForge',
+    charsets: sets.map((s) => ({
+      id: s.id,
+      name: s.name,
+      chars: s.chars,
+      ordering: s.ordering,
+      description: s.description,
+      category: 'custom'
+    }))
+  };
+  return JSON.stringify(payload, null, 2);
+}
+

@@ -14,6 +14,7 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   DEFAULT_ASCII_SETTINGS,
   renderAsciiFrame,
+  renderAsciiVectorToCanvas,
   type AsciiGridFrame,
   type AsciiSettings,
   type GlyphAtlasData
@@ -513,6 +514,7 @@ export function renderDeterministicAnimationFrame(
 
 // Reusable offscreen canvas & buffers for full-resolution exports
 let exportOffscreenCanvas: HTMLCanvasElement | null = null;
+let exportSourceCanvas: HTMLCanvasElement | null = null;
 let exportWorkBuffer: Uint8ClampedArray | null = null;
 let exportFrameImageData: ImageData | null = null;
 
@@ -539,6 +541,15 @@ export function renderFullResolutionExportCanvas(storeState: any): HTMLCanvasEle
   const ctx = exportOffscreenCanvas.getContext('2d');
   if (!ctx) return null;
 
+  if (!exportSourceCanvas) {
+    exportSourceCanvas = document.createElement('canvas');
+  }
+  if (exportSourceCanvas.width !== width || exportSourceCanvas.height !== height) {
+    exportSourceCanvas.width = width;
+    exportSourceCanvas.height = height;
+  }
+  const srcCtx = exportSourceCanvas.getContext('2d');
+
   if (!exportWorkBuffer || exportWorkBuffer.length !== byteLen) {
     exportWorkBuffer = new Uint8ClampedArray(byteLen);
   }
@@ -551,9 +562,15 @@ export function renderFullResolutionExportCanvas(storeState: any): HTMLCanvasEle
   }
 
   let basePixels = sourceImageData.data;
+  if (srcCtx) {
+    srcCtx.putImageData(sourceImageData, 0, 0);
+  }
   if (storeState.sourceVideoUrl) {
     const vid = document.querySelector('video') as HTMLVideoElement | null;
     if (vid && vid.readyState >= 2) {
+      if (srcCtx) {
+        srcCtx.drawImage(vid, 0, 0, width, height);
+      }
       ctx.drawImage(vid, 0, 0, width, height);
       basePixels = ctx.getImageData(0, 0, width, height).data;
     }
@@ -561,6 +578,11 @@ export function renderFullResolutionExportCanvas(storeState: any): HTMLCanvasEle
 
   const t = storeState.currentTime || 0;
   const frameIdx = Math.round(t * (storeState.fps || 30));
+
+  const isAscii =
+    storeState.renderMode === 'ascii' ||
+    (typeof storeState.algorithmId === 'string' && storeState.algorithmId.startsWith('ascii-'));
+  const outGridRef: AsciiGridOutputRef = { grid: null };
 
   renderDeterministicAnimationFrame(
     storeState,
@@ -572,11 +594,25 @@ export function renderFullResolutionExportCanvas(storeState: any): HTMLCanvasEle
     exportWorkBuffer,
     exportFrameImageData,
     undefined,
-    !storeState.sourceVideoUrl
+    !storeState.sourceVideoUrl,
+    outGridRef
   );
 
-  ctx.clearRect(0, 0, width, height);
-  ctx.putImageData(exportFrameImageData, 0, 0);
+  if (isAscii && outGridRef.grid) {
+    renderAsciiVectorToCanvas(
+      outGridRef.grid,
+      storeState.asciiSettings || DEFAULT_ASCII_SETTINGS,
+      exportOffscreenCanvas,
+      1,
+      exportSourceCanvas,
+      undefined,
+      storeState.effects,
+      { frameIndex: frameIdx, time: t, fps: storeState.fps || 30 }
+    );
+  } else {
+    ctx.clearRect(0, 0, width, height);
+    ctx.putImageData(exportFrameImageData, 0, 0);
+  }
   return exportOffscreenCanvas;
 }
 

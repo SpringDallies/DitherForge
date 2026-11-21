@@ -61,7 +61,9 @@ export function effectParamsToAsciiSettings(params?: Partial<AsciiRenderEffectPa
     characterDepth: Number(p.characterDepth ?? 16),
     characterOffset: Number(p.characterOffset ?? 0),
     colorMode: (p.colorMode as AsciiColorMode) || 'source',
+    blendMode: 'normal',
     backgroundMode: (p.backgroundMode as AsciiBackgroundMode) || 'solid',
+    backgroundBlur: 0,
     foregroundColor: p.foregroundColor || '#e6edf3',
     backgroundColor: p.backgroundColor || '#0d0e11',
     invert: Boolean(p.invert)

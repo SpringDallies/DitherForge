@@ -109,8 +109,8 @@ export function computeGridLayout(
   const spacing = Math.max(0, Math.min(12, Math.round(settings.cellSpacing)));
   const strideX = cellW + spacing;
   const strideY = cellH + spacing;
-  const cols = Math.max(1, Math.floor(width / strideX));
-  const rows = Math.max(1, Math.floor(height / strideY));
+  const cols = Math.max(1, Math.ceil(width / strideX));
+  const rows = Math.max(1, Math.ceil(height / strideY));
   return { cols, rows, cellW, cellH, strideX, strideY };
 }
 
@@ -173,31 +173,94 @@ export function sampleAndPreprocessCells(
         rgba[rgbaIdx + 3] = av;
         luma[cellIdx] = preprocessLuma((0.2126 * rv + 0.7152 * gv + 0.0722 * bv) / 255);
       } else {
-        let rSum = 0, gSum = 0, bSum = 0, aSum = 0, cnt = 0;
+        const method = settings.samplingMethod || 'average';
+        let rSum = 0, gSum = 0, bSum = 0, aSum = 0, totalWeight = 0;
+        let lumaSum = 0, lumaSqSum = 0;
+        let minLuma = 1.0, maxLuma = 0.0;
         const stepX = settings.samplingQuality === 'box' && cellW > 8 ? 2 : 1;
         const stepY = settings.samplingQuality === 'box' && cellH > 12 ? 2 : 1;
 
+        const midX = (x0 + x1) * 0.5;
+        const midY = (y0 + y1) * 0.5;
+        const halfW = Math.max(1, (x1 - x0) * 0.5);
+        const halfH = Math.max(1, (y1 - y0) * 0.5);
+
         for (let py = y0; py < y1; py += stepY) {
           const pRow = py * width * 4;
+          const dy = (py - midY) / halfH;
+          const dySq = dy * dy;
+
           for (let px = x0; px < x1; px += stepX) {
             const sIdx = pRow + px * 4;
-            rSum += sourceRgba[sIdx];
-            gSum += sourceRgba[sIdx + 1];
-            bSum += sourceRgba[sIdx + 2];
-            aSum += sourceRgba[sIdx + 3];
-            cnt++;
+            const pr = sourceRgba[sIdx];
+            const pg = sourceRgba[sIdx + 1];
+            const pb = sourceRgba[sIdx + 2];
+            const pa = sourceRgba[sIdx + 3];
+
+            const pLuma = (0.2126 * pr + 0.7152 * pg + 0.0722 * pb) / 255;
+            if (pLuma < minLuma) minLuma = pLuma;
+            if (pLuma > maxLuma) maxLuma = pLuma;
+
+            let w = 1.0;
+            if (method === 'center_weighted') {
+              const dx = (px - midX) / halfW;
+              const distSq = dx * dx + dySq;
+              w = Math.max(0.05, 1.0 - distSq * 0.65);
+            }
+
+            rSum += pr * w;
+            gSum += pg * w;
+            bSum += pb * w;
+            aSum += pa * w;
+            lumaSum += pLuma * w;
+            lumaSqSum += pLuma * pLuma * w;
+            totalWeight += w;
           }
         }
-        const invC = cnt > 0 ? 1 / cnt : 0;
-        const mr = Math.round(rSum * invC);
-        const mg = Math.round(gSum * invC);
-        const mb = Math.round(bSum * invC);
-        const ma = Math.round(aSum * invC);
+        const invW = totalWeight > 0 ? 1 / totalWeight : 0;
+        const mr = Math.round(rSum * invW);
+        const mg = Math.round(gSum * invW);
+        const mb = Math.round(bSum * invW);
+        const ma = Math.round(aSum * invW);
         rgba[rgbaIdx] = mr;
         rgba[rgbaIdx + 1] = mg;
         rgba[rgbaIdx + 2] = mb;
         rgba[rgbaIdx + 3] = ma;
-        luma[cellIdx] = preprocessLuma((0.2126 * mr + 0.7152 * mg + 0.0722 * mb) / 255);
+
+        let cellRawLuma = lumaSum * invW;
+
+        if (method === 'edge_aware') {
+          // Account for intra-cell contrast/range: high contrast edges push prominence towards ink
+          const dynamicRange = Math.max(0, maxLuma - minLuma);
+          const edgeSens = settings.edgeSensitivity !== undefined ? settings.edgeSensitivity : 0.5;
+          const edgeBias = dynamicRange * edgeSens * 0.35;
+          cellRawLuma = cellRawLuma > 0.5 ? Math.min(1.0, cellRawLuma + edgeBias) : Math.max(0.0, cellRawLuma - edgeBias);
+        } else if (method === 'local_contrast') {
+          // Standard deviation of luminance inside the cell
+          const variance = Math.max(0, (lumaSqSum * invW) - (cellRawLuma * cellRawLuma));
+          const stdDev = Math.sqrt(variance);
+          const contrastSign = cellRawLuma >= 0.5 ? 1 : -1;
+          cellRawLuma = Math.max(0, Math.min(1.0, cellRawLuma + contrastSign * stdDev * 0.45));
+        } else if (method === 'adaptive') {
+          // Adaptive: blends center weighting on flat regions and preserves contrast on detailed regions
+          const dynamicRange = Math.max(0, maxLuma - minLuma);
+          const detailPreserve = settings.detailPreservation !== undefined ? settings.detailPreservation : 0.5;
+          const curve = 1.0 + (dynamicRange - 0.25) * detailPreserve;
+          cellRawLuma = Math.pow(Math.max(0, Math.min(1.0, cellRawLuma)), Math.max(0.4, Math.min(2.5, curve)));
+        } else if (method === 'hybrid') {
+          // Hybrid: combines center weight, edge sensitivity, and dynamic range
+          const dynamicRange = Math.max(0, maxLuma - minLuma);
+          const edgeSens = settings.edgeSensitivity !== undefined ? settings.edgeSensitivity : 0.5;
+          const detailPreserve = settings.detailPreservation !== undefined ? settings.detailPreservation : 0.5;
+          const contrastSign = cellRawLuma >= 0.5 ? 1 : -1;
+          const edgeShift = contrastSign * dynamicRange * edgeSens * 0.25;
+          cellRawLuma = Math.max(0, Math.min(1.0, cellRawLuma + edgeShift));
+          if (detailPreserve > 0) {
+            cellRawLuma = cellRawLuma * (1 - detailPreserve * 0.2) + (maxLuma * 0.5 + minLuma * 0.5) * (detailPreserve * 0.2);
+          }
+        }
+
+        luma[cellIdx] = preprocessLuma(cellRawLuma);
 
         if (sub6) {
           const base6 = cellIdx * 6;
@@ -304,7 +367,7 @@ export function assignGridColors(
       if (settings.colorMode === 'monochrome') {
         const lum = Math.round(grid.luminance[i] * 255);
         fr = lum; fg = lum; fb = lum;
-      } else if (settings.colorMode === 'single' || settings.colorMode === 'custom') {
+      } else if (settings.colorMode === 'custom' || (settings.colorMode as string) === 'single') {
         fr = fgFixed[0]; fg = fgFixed[1]; fb = fgFixed[2];
       } else if (settings.colorMode === 'palette' && palLut) {
         const m = palLut.findNearest(sr, sg, sb);
@@ -363,7 +426,12 @@ export function renderAsciiFrame(
       injectMode: settings.injectMode,
       reverseCharset: settings.reverseCharset,
       characterDepth: settings.characterDepth,
-      characterOffset: settings.characterOffset
+      characterOffset: settings.characterOffset,
+      autoCalibrateOrder: settings.autoCalibrateOrder,
+      fontFamily: settings.fontFamily,
+      fontWeight: settings.fontWeight,
+      glyphScale: settings.glyphScale,
+      forceTextPresentation: charsetDef.forceTextPresentation
     },
     ctx.customCharsets
   );

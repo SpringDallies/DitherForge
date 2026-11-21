@@ -32,7 +32,12 @@ export function buildAtlasForAsciiSettings(
       injectMode: settings.injectMode,
       reverseCharset: settings.reverseCharset,
       characterDepth: settings.characterDepth,
-      characterOffset: settings.characterOffset
+      characterOffset: settings.characterOffset,
+      autoCalibrateOrder: settings.autoCalibrateOrder,
+      fontFamily: settings.fontFamily,
+      fontWeight: settings.fontWeight,
+      glyphScale: settings.glyphScale,
+      forceTextPresentation: charsetDef.forceTextPresentation
     },
     customCharsets
   );

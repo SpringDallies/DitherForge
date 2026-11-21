@@ -4,6 +4,49 @@ import { renderProceduralGlyph } from './fallbackFont';
 const MAX_ATLAS_CACHE_BYTES = 16 * 1024 * 1024; // 16 MB hard budget
 const MAX_ATLAS_CACHE_ENTRIES = 24;
 
+// Dedicated LRU cache for measured glyph ink coverage:
+// key: `${fontFamily}|${fontWeight}|${glyphScale}|${forceTextPresentation ? 1 : 0}|${char}`
+const MAX_GLYPH_DENSITY_CACHE_ENTRIES = 2048;
+const glyphDensityCache = new Map<string, number>();
+
+export function getCachedGlyphDensity(
+  char: string,
+  fontFamily: string,
+  fontWeight: number,
+  glyphScale: number = 1.0,
+  forceTextPresentation: boolean = false
+): number | undefined {
+  const key = `${fontFamily}|${fontWeight}|${glyphScale.toFixed(2)}|${forceTextPresentation ? '1' : '0'}|${char}`;
+  const hit = glyphDensityCache.get(key);
+  if (hit !== undefined) {
+    // refresh LRU
+    glyphDensityCache.delete(key);
+    glyphDensityCache.set(key, hit);
+    return hit;
+  }
+  return undefined;
+}
+
+export function setCachedGlyphDensity(
+  char: string,
+  fontFamily: string,
+  fontWeight: number,
+  glyphScale: number,
+  forceTextPresentation: boolean,
+  density: number
+): void {
+  const key = `${fontFamily}|${fontWeight}|${glyphScale.toFixed(2)}|${forceTextPresentation ? '1' : '0'}|${char}`;
+  if (glyphDensityCache.size >= MAX_GLYPH_DENSITY_CACHE_ENTRIES) {
+    const oldestKey = glyphDensityCache.keys().next().value;
+    if (oldestKey !== undefined) glyphDensityCache.delete(oldestKey);
+  }
+  glyphDensityCache.set(key, density);
+}
+
+export function clearGlyphDensityCache(): void {
+  glyphDensityCache.clear();
+}
+
 class GlyphAtlasCache {
   private map = new Map<string, GlyphAtlasData>();
   private totalBytes = 0;
@@ -272,7 +315,9 @@ export function buildOrGetGlyphAtlas(options: {
         renderProceduralGlyph(ch, cellW, cellH, alphaBitmaps, off);
       }
 
-      coverages[i] = measureBitmapStats(alphaBitmaps, off, cellW, cellH, zones, i * 6);
+      const cov = measureBitmapStats(alphaBitmaps, off, cellW, cellH, zones, i * 6);
+      coverages[i] = cov;
+      setCachedGlyphDensity(ch, options.fontFamily, options.fontWeight, glyphScale, forceTextPresentation, cov);
     }
   }
 
@@ -283,7 +328,13 @@ export function buildOrGetGlyphAtlas(options: {
 
   if (autoCalibrateOrder && count > 2) {
     const order = Array.from({ length: count }, (_, idx) => idx);
-    order.sort((a, b) => coverages[a] - coverages[b] || a - b);
+    // Sort sparse-to-dense by measured ink coverage.
+    // For glyphs with identical ink coverage, preserve stable order by initial index or char codepoint.
+    order.sort((a, b) => {
+      const diff = coverages[a] - coverages[b];
+      if (Math.abs(diff) > 0.0001) return diff;
+      return a - b;
+    });
 
     finalChars = new Array(count);
     finalBitmaps = new Uint8Array(count * glyphPixels);
@@ -316,4 +367,101 @@ export function buildOrGetGlyphAtlas(options: {
 
   glyphAtlasCache.set(key, atlas);
   return atlas;
+}
+
+/**
+ * Measures the ink coverage of a single glyph under the given font settings.
+ * Uses cached density if available, otherwise renders to an offscreen scratch canvas.
+ */
+export function measureGlyphInkCoverage(
+  char: string,
+  fontFamily: string,
+  fontWeight: number,
+  glyphScale: number = 1.0,
+  forceTextPresentation: boolean = false
+): number {
+  if (char === ' ') return 0;
+  const cached = getCachedGlyphDensity(char, fontFamily, fontWeight, glyphScale, forceTextPresentation);
+  if (cached !== undefined) return cached;
+
+  const cellW = 16;
+  const cellH = 24;
+  const glyphPixels = cellW * cellH;
+  const alpha = new Uint8Array(glyphPixels);
+  const zones = new Float32Array(6);
+  const code = char.codePointAt(0) ?? 32;
+
+  // Procedural forms
+  if ((code >= 0x2800 && code <= 0x28ff) || (code >= 0x2580 && code <= 0x259f) || (code >= 0x1fb00 && code <= 0x1fb3b)) {
+    renderProceduralGlyph(char, cellW, cellH, alpha, 0);
+    const cov = measureBitmapStats(alpha, 0, cellW, cellH, zones, 0);
+    setCachedGlyphDensity(char, fontFamily, fontWeight, glyphScale, forceTextPresentation, cov);
+    return cov;
+  }
+
+  const surface = createScratch2D(cellW, cellH);
+  if (!surface) {
+    renderProceduralGlyph(char, cellW, cellH, alpha, 0);
+    const cov = measureBitmapStats(alpha, 0, cellW, cellH, zones, 0);
+    setCachedGlyphDensity(char, fontFamily, fontWeight, glyphScale, forceTextPresentation, cov);
+    return cov;
+  }
+
+  const { ctx } = surface;
+  const fontPx = Math.max(4, Math.round(cellH * 0.88 * glyphScale));
+  ctx.font = `${fontWeight} ${fontPx}px ${fontFamily}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffffff';
+
+  const drawStr = forceTextPresentation && code > 0x00ff ? `${char}\uFE0E` : char;
+  ctx.clearRect(0, 0, cellW, cellH);
+  const metrics = ctx.measureText(drawStr);
+  const adv = metrics.width || cellW;
+
+  ctx.save();
+  if (adv > cellW * 1.08) {
+    const scaleX = cellW / adv;
+    ctx.translate(cellW * 0.5, cellH * 0.52);
+    ctx.scale(scaleX, 1);
+    ctx.fillText(drawStr, 0, 0);
+  } else {
+    ctx.fillText(drawStr, cellW * 0.5, cellH * 0.52);
+  }
+  ctx.restore();
+
+  const img = ctx.getImageData(0, 0, cellW, cellH).data;
+  for (let p = 0; p < glyphPixels; p++) {
+    alpha[p] = img[p * 4 + 3];
+  }
+
+  const cov = measureBitmapStats(alpha, 0, cellW, cellH, zones, 0);
+  setCachedGlyphDensity(char, fontFamily, fontWeight, glyphScale, forceTextPresentation, cov);
+  return cov;
+}
+
+/**
+ * Calibrates an array of characters in sparse-to-dense order based on measured ink coverage.
+ * Glyphs with equal coverage maintain stable deterministic order.
+ */
+export function calibrateCharacters(
+  chars: string[],
+  fontFamily: string,
+  fontWeight: number,
+  glyphScale: number = 1.0,
+  forceTextPresentation: boolean = false
+): Array<{ char: string; density: number }> {
+  const measured = chars.map((ch, idx) => ({
+    char: ch,
+    density: measureGlyphInkCoverage(ch, fontFamily, fontWeight, glyphScale, forceTextPresentation),
+    originalIndex: idx
+  }));
+
+  measured.sort((a, b) => {
+    const diff = a.density - b.density;
+    if (Math.abs(diff) > 0.0001) return diff;
+    return a.originalIndex - b.originalIndex;
+  });
+
+  return measured.map((m) => ({ char: m.char, density: m.density }));
 }

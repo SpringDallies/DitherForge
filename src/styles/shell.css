@@ -1368,6 +1368,22 @@ body {
   background: transparent;
   transform: rotate(-25deg);
 }
+.card-action-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-disabled);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 140ms ease, background 140ms ease;
+}
+.card-action-icon-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
 .section-header.section-header-clickable {
   cursor: pointer;
   user-select: none;

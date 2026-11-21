@@ -11,6 +11,9 @@ import { historyManager } from './historyManager';
 import {
   DEFAULT_ASCII_SETTINGS,
   createDefaultAsciiEffect,
+  parseAndValidateCharsetImport,
+  serializeCustomCharsetsToJson,
+  sanitizeUnicodeChars,
   type AsciiAlgorithmId,
   type AsciiCharsetDefinition,
   type AsciiEffectId,
@@ -366,6 +369,9 @@ interface AppState {
   addCustomCharset: (name: string, chars: string) => AsciiCharsetDefinition | null;
   updateCustomCharset: (id: string, patch: { name?: string; chars?: string }) => void;
   deleteCustomCharset: (id: string) => void;
+  duplicateCustomCharset: (id: string) => AsciiCharsetDefinition | null;
+  exportCustomCharsetsJson: (singleId?: string) => string;
+  importCustomCharsetsJson: (jsonString: string) => { success: boolean; importedCount: number; skippedCount: number; error?: string };
 
   algorithmId: string;
   algoParams: Record<string, AlgoParams>;
@@ -885,8 +891,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   customCharsets: getStoredCustomCharsets(),
   addCustomCharset: (name, chars) => {
-    const cleanChars = chars || '';
-    if (cleanChars.length < 2) return null;
+    const cleanChars = sanitizeUnicodeChars(chars || '');
+    if (Array.from(cleanChars).length < 2) return null;
     const cleanName = (name || '').trim() || `Custom Charset ${get().customCharsets.length + 1}`;
     const created: AsciiCharsetDefinition = {
       id: `custom_charset_${Date.now()}`,
@@ -913,10 +919,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateCustomCharset: (id, patch) => {
     const next = get().customCharsets.map((cs) => {
       if (cs.id !== id) return cs;
+      const cleanChars = patch.chars !== undefined ? sanitizeUnicodeChars(patch.chars) : cs.chars;
       return {
         ...cs,
         name: patch.name !== undefined ? patch.name.trim() || cs.name : cs.name,
-        chars: patch.chars !== undefined && patch.chars.length >= 2 ? patch.chars : cs.chars
+        chars: Array.from(cleanChars).length >= 2 ? cleanChars : cs.chars
       };
     });
     try { localStorage.setItem(STORAGE_KEY_CUSTOM_CHARSETS, JSON.stringify(next)); } catch {}
@@ -932,6 +939,58 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? { ...state.asciiSettings, charsetId: DEFAULT_ASCII_SETTINGS.charsetId }
           : state.asciiSettings
     }));
+  },
+  duplicateCustomCharset: (id) => {
+    const target = get().customCharsets.find((cs) => cs.id === id);
+    if (!target) return null;
+    let baseName = target.name.replace(/\s*\(\d+\)$/, '').trim();
+    let copyName = `${baseName} (Copy)`;
+    let counter = 2;
+    const existingNames = new Set(get().customCharsets.map((c) => c.name.toLowerCase()));
+    while (existingNames.has(copyName.toLowerCase())) {
+      copyName = `${baseName} (Copy ${counter++})`;
+    }
+
+    const duplicated: AsciiCharsetDefinition = {
+      ...target,
+      id: `custom_charset_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name: copyName,
+      builtin: false
+    };
+    const next = [...get().customCharsets, duplicated];
+    try { localStorage.setItem(STORAGE_KEY_CUSTOM_CHARSETS, JSON.stringify(next)); } catch {}
+    set((state) => ({
+      customCharsets: next,
+      asciiSettings: {
+        ...state.asciiSettings,
+        charsetId: duplicated.id,
+        customCharsetChars: ''
+      }
+    }));
+    return duplicated;
+  },
+  exportCustomCharsetsJson: (singleId?: string) => {
+    const all = get().customCharsets;
+    const exportList = singleId ? all.filter((c) => c.id === singleId) : all;
+    return serializeCustomCharsetsToJson(exportList);
+  },
+  importCustomCharsetsJson: (jsonString: string) => {
+    const current = get().customCharsets;
+    const res = parseAndValidateCharsetImport(jsonString, current);
+    if (!res.success) {
+      return { success: false, importedCount: 0, skippedCount: 0, error: res.error };
+    }
+    const next = [...current, ...res.validatedSets];
+    try { localStorage.setItem(STORAGE_KEY_CUSTOM_CHARSETS, JSON.stringify(next)); } catch {}
+    set((state) => ({
+      customCharsets: next,
+      asciiSettings: res.validatedSets.length > 0 ? {
+        ...state.asciiSettings,
+        charsetId: res.validatedSets[0].id,
+        customCharsetChars: ''
+      } : state.asciiSettings
+    }));
+    return { success: true, importedCount: res.validatedSets.length, skippedCount: res.skippedCount };
   },
 
   algorithmId: 'floyd-steinberg',

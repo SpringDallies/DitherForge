@@ -23,7 +23,13 @@ import { downloadAnimatedGif, downloadAnimatedVideo, getExportCanvas, renderFull
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { getEffectDescriptor, getEffectParamsMeta, getAllEffects, mergePresetEffects, BlendMode, EffectCategory } from '../../effects';
 import { loadUserPresetsV2, saveUserPresetsV2, type PresetV2 } from '../../effects/presets';
-import { AsciiControlsPanel } from '../ascii/AsciiControlsPanel';
+import {
+  AsciiBaseControls,
+  AsciiTypographyGridControls,
+  AsciiToneSamplingControls,
+  AsciiColorBackgroundControls,
+  AsciiEffectsControls
+} from '../ascii/AsciiControlsPanel';
 import { 
   X,
   ChevronLeft,
@@ -461,6 +467,10 @@ export const RightSidebar: React.FC = () => {
       style: false,
       adjustments: false,
       ascii: false,
+      asciiTypographyGrid: false,
+      asciiToneSampling: false,
+      asciiColorBackground: false,
+      asciiEffectsSection: false,
       palette: false,
       effects: false,
       presets: false
@@ -2275,36 +2285,192 @@ export const RightSidebar: React.FC = () => {
             </div>
           )}
         </div>
-        {/* ASCII SECTION (Appears only when an ASCII algorithm is selected) */}
+        {/* ASCII SECTIONS (Independent top-level sections, appear only when an ASCII algorithm is selected) */}
           {isAsciiAlgorithmId(algorithmId) && (
-            <div className="section-block">
-              <div 
-                className="section-header section-header-clickable"
-                onClick={() => toggleSection('ascii')}
-              >
-                <span className="section-title-text">ASCII</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="card-reset-icon-btn"
-                    title="Reset ASCII settings"
-                    aria-label="Reset ASCII settings"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      resetAsciiSettings();
-                    }}
-                  >
-                    <RotateCcw size={17} strokeWidth={2.2} />
-                  </button>
+            <>
+              {/* 1. ASCII Base */}
+              <div className="section-block">
+                <div 
+                  className="section-header section-header-clickable"
+                  onClick={() => toggleSection('ascii')}
+                >
+                  <span className="section-title-text">ASCII</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="card-reset-icon-btn"
+                      title="Reset ASCII settings"
+                      aria-label="Reset ASCII settings"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetAsciiSettings();
+                      }}
+                    >
+                      <RotateCcw size={17} strokeWidth={2.2} />
+                    </button>
+                  </div>
                 </div>
+
+                {!collapsedSections.ascii && (
+                  <div className="section-content section-card">
+                    <AsciiBaseControls sliderPointerProps={sliderPointerProps} />
+                  </div>
+                )}
               </div>
 
-              {!collapsedSections.ascii && (
-                <div className="section-content section-card">
-                  <AsciiControlsPanel sliderPointerProps={sliderPointerProps} />
+              {/* 2. Typography & Grid */}
+              <div className="section-block">
+                <div 
+                  className="section-header section-header-clickable"
+                  onClick={() => toggleSection('asciiTypographyGrid')}
+                >
+                  <span className="section-title-text">Typography & Grid</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="card-reset-icon-btn"
+                      title="Reset Typography & Grid settings"
+                      aria-label="Reset Typography & Grid settings"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        patchAsciiSettings({
+                          fontFamily: DEFAULT_ASCII_SETTINGS.fontFamily,
+                          fontWeight: DEFAULT_ASCII_SETTINGS.fontWeight,
+                          cellWidth: DEFAULT_ASCII_SETTINGS.cellWidth,
+                          cellHeight: DEFAULT_ASCII_SETTINGS.cellHeight,
+                          cellSpacing: DEFAULT_ASCII_SETTINGS.cellSpacing,
+                          aspectRatio: DEFAULT_ASCII_SETTINGS.aspectRatio,
+                          glyphScale: DEFAULT_ASCII_SETTINGS.glyphScale,
+                          glyphAlign: DEFAULT_ASCII_SETTINGS.glyphAlign
+                        });
+                      }}
+                    >
+                      <RotateCcw size={17} strokeWidth={2.2} />
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {!collapsedSections.asciiTypographyGrid && (
+                  <div className="section-content section-card">
+                    <AsciiTypographyGridControls sliderPointerProps={sliderPointerProps} />
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Tone & Sampling */}
+              <div className="section-block">
+                <div 
+                  className="section-header section-header-clickable"
+                  onClick={() => toggleSection('asciiToneSampling')}
+                >
+                  <span className="section-title-text">Tone & Sampling</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="card-reset-icon-btn"
+                      title="Reset Tone & Sampling settings"
+                      aria-label="Reset Tone & Sampling settings"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        patchAsciiSettings({
+                          brightness: DEFAULT_ASCII_SETTINGS.brightness,
+                          contrast: DEFAULT_ASCII_SETTINGS.contrast,
+                          gamma: DEFAULT_ASCII_SETTINGS.gamma,
+                          exposure: DEFAULT_ASCII_SETTINGS.exposure,
+                          edgeSensitivity: DEFAULT_ASCII_SETTINGS.edgeSensitivity,
+                          smoothing: DEFAULT_ASCII_SETTINGS.smoothing,
+                          sharpening: DEFAULT_ASCII_SETTINGS.sharpening,
+                          samplingQuality: DEFAULT_ASCII_SETTINGS.samplingQuality,
+                          invert: DEFAULT_ASCII_SETTINGS.invert
+                        });
+                      }}
+                    >
+                      <RotateCcw size={17} strokeWidth={2.2} />
+                    </button>
+                  </div>
+                </div>
+
+                {!collapsedSections.asciiToneSampling && (
+                  <div className="section-content section-card">
+                    <AsciiToneSamplingControls sliderPointerProps={sliderPointerProps} />
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Color & Background */}
+              <div className="section-block">
+                <div 
+                  className="section-header section-header-clickable"
+                  onClick={() => toggleSection('asciiColorBackground')}
+                >
+                  <span className="section-title-text">Color & Background</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="card-reset-icon-btn"
+                      title="Reset Color & Background settings"
+                      aria-label="Reset Color & Background settings"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        patchAsciiSettings({
+                          colorMode: DEFAULT_ASCII_SETTINGS.colorMode,
+                          foregroundColor: DEFAULT_ASCII_SETTINGS.foregroundColor,
+                          foregroundOpacity: DEFAULT_ASCII_SETTINGS.foregroundOpacity,
+                          backgroundMode: DEFAULT_ASCII_SETTINGS.backgroundMode,
+                          backgroundColor: DEFAULT_ASCII_SETTINGS.backgroundColor,
+                          backgroundOpacity: DEFAULT_ASCII_SETTINGS.backgroundOpacity,
+                          preserveAlpha: DEFAULT_ASCII_SETTINGS.preserveAlpha,
+                          clipping: DEFAULT_ASCII_SETTINGS.clipping
+                        });
+                      }}
+                    >
+                      <RotateCcw size={17} strokeWidth={2.2} />
+                    </button>
+                  </div>
+                </div>
+
+                {!collapsedSections.asciiColorBackground && (
+                  <div className="section-content section-card">
+                    <AsciiColorBackgroundControls sliderPointerProps={sliderPointerProps} />
+                  </div>
+                )}
+              </div>
+
+              {/* 5. ASCII Effects */}
+              <div className="section-block">
+                <div 
+                  className="section-header section-header-clickable"
+                  onClick={() => toggleSection('asciiEffectsSection')}
+                >
+                  <span className="section-title-text">ASCII Effects</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="card-reset-icon-btn"
+                      title="Reset ASCII effects"
+                      aria-label="Reset ASCII effects"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        patchAsciiSettings({
+                          asciiEffects: DEFAULT_ASCII_SETTINGS.asciiEffects.map((eff) => ({
+                            ...eff,
+                            params: { ...eff.params }
+                          }))
+                        });
+                      }}
+                    >
+                      <RotateCcw size={17} strokeWidth={2.2} />
+                    </button>
+                  </div>
+                </div>
+
+                {!collapsedSections.asciiEffectsSection && (
+                  <div className="section-content section-card">
+                    <AsciiEffectsControls sliderPointerProps={sliderPointerProps} />
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           {/* 2. ADJUSTMENTS SECTION */}

@@ -54,6 +54,11 @@ export function prepareAtlasForSettings(
     reverseCharset: settings.reverseCharset,
     characterDepth: settings.characterDepth,
     characterOffset: settings.characterOffset,
+    autoCalibrateOrder: settings.autoCalibrateOrder,
+    fontFamily: settings.fontFamily,
+    fontWeight: settings.fontWeight,
+    glyphScale: settings.glyphScale,
+    forceTextPresentation: charsetDef.forceTextPresentation,
     customSets: customCharsets
   });
   const { cellW, cellH } = computeGridLayout(width, height, settings);
@@ -285,15 +290,19 @@ export function sanitizeAsciiSettings(raw: unknown): AsciiSettings {
     smoothing: num(r.smoothing, 0, 0, 3),
     sharpening: num(r.sharpening, 0, 0, 2),
     colorMode: ['monochrome', 'source', 'palette', 'single', 'custom'].includes(r.colorMode) ? r.colorMode : 'source',
+    blendMode: ['normal', 'screen', 'multiply', 'overlay', 'soft-light', 'add', 'subtract', 'bleed', 'difference', 'darken', 'lighten'].includes(r.blendMode)
+      ? r.blendMode
+      : DEFAULT_ASCII_SETTINGS.blendMode,
     foregroundColor: typeof r.foregroundColor === 'string' ? r.foregroundColor : DEFAULT_ASCII_SETTINGS.foregroundColor,
     foregroundOpacity: num(r.foregroundOpacity, 1, 0, 1),
     colorQuantization: Math.round(num(r.colorQuantization, 0, 0, 32)),
     preserveAlpha: r.preserveAlpha !== false,
-    backgroundMode: ['transparent', 'solid', 'original', 'custom'].includes(r.backgroundMode) ? r.backgroundMode : 'solid',
+    backgroundMode: ['transparent', 'solid', 'original', 'custom'].includes(r.backgroundMode) ? r.backgroundMode : DEFAULT_ASCII_SETTINGS.backgroundMode,
     backgroundColor: typeof r.backgroundColor === 'string' ? r.backgroundColor : DEFAULT_ASCII_SETTINGS.backgroundColor,
     backgroundOpacity: num(r.backgroundOpacity, 1, 0, 1),
+    backgroundBlur: num(r.backgroundBlur, DEFAULT_ASCII_SETTINGS.backgroundBlur ?? 10, 0, 30),
     densityCalibration: r.densityCalibration !== false,
-    clipping: r.clipping !== false,
+    clipping: Boolean(r.clipping),
     algoParams: r.algoParams && typeof r.algoParams === 'object' ? { ...r.algoParams } : {},
     asciiEffects: Array.isArray(r.asciiEffects)
       ? r.asciiEffects

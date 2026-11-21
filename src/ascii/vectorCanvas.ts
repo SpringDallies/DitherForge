@@ -1,5 +1,8 @@
 import type { AsciiGridFrame, AsciiSettings } from './types';
 import { parseHex } from './algorithms/shared';
+import { applyAsciiPixelEffects } from './effects';
+import { applyEffectPipeline } from '../effects/pipeline';
+import type { EffectItem } from '../effects/types';
 
 /**
  * Procedural fallback for Braille, Block, Box, and Sextant glyphs directly using Canvas vector paths
@@ -118,7 +121,9 @@ export function renderAsciiVectorToCanvas(
   canvas: HTMLCanvasElement,
   scale: number = 1.0,
   sourceCanvas?: HTMLCanvasElement | null,
-  splitRatio?: number
+  splitRatio?: number,
+  effects?: EffectItem[],
+  context?: { frameIndex?: number; time?: number; fps?: number; palette?: number[][] }
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -136,6 +141,10 @@ export function renderAsciiVectorToCanvas(
     ctx.clearRect(0, 0, w, h);
     ctx.save();
     ctx.globalAlpha = bgOp;
+    const bgBlur = settings.backgroundBlur ?? 0;
+    if (bgBlur > 0) {
+      ctx.filter = `blur(${bgBlur * scale}px)`;
+    }
     ctx.drawImage(sourceCanvas, 0, 0, w, h);
     ctx.restore();
   } else {
@@ -163,7 +172,55 @@ export function renderAsciiVectorToCanvas(
 
   const splitPixel = splitRatio !== undefined ? Math.round(w * splitRatio) : w;
 
-  // Render cells
+  // Set composite operation for ASCII characters over background/image
+  const blendMode = settings.blendMode || 'normal';
+  const blendToComposite: Record<string, GlobalCompositeOperation> = {
+    'normal': 'source-over',
+    'screen': 'screen',
+    'multiply': 'multiply',
+    'overlay': 'overlay',
+    'soft-light': 'soft-light',
+    'add': 'lighter',
+    'subtract': 'difference', // approximation in 2D canvas context
+    'bleed': 'color-dodge',
+    'difference': 'difference',
+    'darken': 'darken',
+    'lighten': 'lighten'
+  };
+  ctx.globalCompositeOperation = blendToComposite[blendMode] || 'source-over';
+  const clipCells = Boolean(settings.clipping);
+
+  // Pass 1: Render per-cell background fills first.
+  // Rendering backgrounds in a dedicated first pass ensures that displaced glyphs from adjacent cells
+  // are never painted over or clipped by a neighboring cell's background fillRect.
+  // When backgroundMode is 'original' or 'transparent', skip per-cell background fills so the underlying
+  // canvas (or original image) is completely preserved without opaque block interference.
+  if (settings.backgroundMode !== 'transparent' && settings.backgroundMode !== 'original') {
+    for (let r = 0; r < rows; r++) {
+      const baseY = r * strideY;
+      const rowOff = r * cols;
+
+      for (let c = 0; c < cols; c++) {
+        const baseX = c * strideX;
+        if (baseX >= splitPixel) continue;
+
+        const cellIdx = rowOff + c;
+        const cIdx4 = cellIdx * 4;
+
+        const cellBgA = grid.bgRgba[cIdx4 + 3];
+        if (cellBgA > 0) {
+          const cbr = grid.bgRgba[cIdx4];
+          const cbg = grid.bgRgba[cIdx4 + 1];
+          const cbb = grid.bgRgba[cIdx4 + 2];
+          const aNorm = cellBgA / 255;
+          ctx.fillStyle = `rgba(${cbr}, ${cbg}, ${cbb}, ${aNorm})`;
+          ctx.fillRect(baseX, baseY, Math.min(cellW, splitPixel - baseX), cellH);
+        }
+      }
+    }
+  }
+
+  // Pass 2: Render all glyphs (procedural & font text)
   for (let r = 0; r < rows; r++) {
     const baseY = r * strideY;
     const rowOff = r * cols;
@@ -174,17 +231,6 @@ export function renderAsciiVectorToCanvas(
 
       const cellIdx = rowOff + c;
       const cIdx4 = cellIdx * 4;
-
-      // Per-cell background (dual-color cells)
-      const cellBgA = grid.bgRgba[cIdx4 + 3];
-      if (cellBgA > 0 && settings.backgroundMode !== 'transparent') {
-        const cbr = grid.bgRgba[cIdx4];
-        const cbg = grid.bgRgba[cIdx4 + 1];
-        const cbb = grid.bgRgba[cIdx4 + 2];
-        const aNorm = cellBgA / 255;
-        ctx.fillStyle = `rgba(${cbr}, ${cbg}, ${cbb}, ${aNorm})`;
-        ctx.fillRect(baseX, baseY, Math.min(cellW, splitPixel - baseX), cellH);
-      }
 
       const fgA = grid.fgRgba[cIdx4 + 3];
       if (fgA === 0) continue;
@@ -220,6 +266,14 @@ export function renderAsciiVectorToCanvas(
       const offY = grid.offsetY[cellIdx] * scale;
 
       const fa = fgA / 255;
+
+      if (clipCells) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(baseX, baseY, Math.min(cellW, splitPixel - baseX), cellH);
+        ctx.clip();
+      }
+
       const handled = drawVectorProceduralGlyph(
         ctx,
         ch,
@@ -237,7 +291,48 @@ export function renderAsciiVectorToCanvas(
         ctx.fillStyle = `rgba(${fr}, ${fg}, ${fb}, ${fa})`;
         ctx.fillText(ch, baseX + drawXOffset + offX, baseY + drawYOffset + offY);
       }
+
+      if (clipCells) {
+        ctx.restore();
+      }
     }
+  }
+
+  // Restore default composition
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Apply pixel-stage ASCII effects (e.g. Glyph Glow, ASCII Scanlines, Glyph Chromatic Split)
+  if (settings.asciiEffects?.some((e) => e.enabled && e.stage !== 'grid')) {
+    const imgData = ctx.getImageData(0, 0, w, h);
+    applyAsciiPixelEffects(
+      imgData.data,
+      w,
+      h,
+      grid,
+      settings,
+      {
+        width: w,
+        height: h,
+        frameIndex: context?.frameIndex ?? 0,
+        time: context?.time ?? 0,
+        fps: context?.fps ?? 30,
+        previewScale: scale,
+        isExport: false
+      } as any
+    );
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  // Apply application-level Post-Effects Stack (CRT, Glitch, Scanlines, Glow, etc.) directly on top of rendered ASCII
+  if (effects && effects.length > 0 && effects.some((e) => e && e.enabled)) {
+    const imgData = ctx.getImageData(0, 0, w, h);
+    applyEffectPipeline(imgData, effects, {
+      frameIndex: context?.frameIndex ?? 0,
+      time: context?.time ?? 0,
+      fps: context?.fps ?? 30,
+      palette: context?.palette
+    });
+    ctx.putImageData(imgData, 0, 0);
   }
 
   // If split-view comparison is active, draw original image on the right

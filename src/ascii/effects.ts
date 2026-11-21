@@ -181,12 +181,13 @@ export function createDefaultAsciiEffect(id: AsciiEffectId): AsciiEffectConfig {
   };
 }
 
-// Bounded character-grid echo history (max 6 frames, reset on dimension change or frame 0)
+// Bounded character-grid echo history (max 6 frames, reset on dimension change)
 const MAX_ECHO_HISTORY = 6;
 interface EchoEntry {
   charIndices: Uint16Array;
   fgRgba: Uint8ClampedArray;
   luminance: Float32Array;
+  directChars?: string[];
 }
 let echoHistory: EchoEntry[] = [];
 let echoCols = 0;
@@ -208,7 +209,7 @@ export function applyAsciiGridEffects(
   const n = cols * rows;
   const maxIdx = Math.max(0, chars.length - 1);
 
-  if (ctx.frameIndex === 0) {
+  if (ctx.frameIndex === 0 && ctx.time === 0 && !ctx.isExport && !ctx.fps) {
     clearAsciiEchoHistory();
   }
 
@@ -353,7 +354,8 @@ export function applyAsciiGridEffects(
         const currentSnap: EchoEntry = {
           charIndices: grid.charIndices.slice(),
           fgRgba: grid.fgRgba.slice(),
-          luminance: grid.luminance.slice()
+          luminance: grid.luminance.slice(),
+          directChars: grid.directChars ? grid.directChars.slice() : undefined
         };
 
         for (let age = 0; age < echoHistory.length; age++) {
@@ -365,6 +367,9 @@ export function applyAsciiGridEffects(
             const prevScore = prev.luminance[i] * w;
             if (prevScore > grid.luminance[i] + 0.04) {
               grid.charIndices[i] = prev.charIndices[i];
+              if (grid.directChars && prev.directChars) {
+                grid.directChars[i] = prev.directChars[i];
+              }
               grid.luminance[i] = prevScore;
               const i4 = i * 4;
               grid.fgRgba[i4] = Math.round(prev.fgRgba[i4] * w);

@@ -367,6 +367,7 @@ export const CenterViewport: React.FC = () => {
   const floatingEditorRef = useRef<HTMLDivElement | null>(null);
   const videoElRef = useRef<HTMLVideoElement | null>(null);
   const videoCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sourceImageCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const scrubRafRef = useRef<number | null>(null);
   const trackDragRafRef = useRef<number | null>(null);
   const lastRenderMsUpdateWallRef = useRef<number>(0);
@@ -601,6 +602,24 @@ export const CenterViewport: React.FC = () => {
     duration,
     fps
   ]);
+
+  // Maintain an offscreen canvas containing the current sourceImageData for backgroundMode: 'original'
+  useEffect(() => {
+    if (!sourceImageData) {
+      sourceImageCanvasRef.current = null;
+      return;
+    }
+    const can = sourceImageCanvasRef.current || document.createElement('canvas');
+    if (can.width !== sourceImageData.width || can.height !== sourceImageData.height) {
+      can.width = sourceImageData.width;
+      can.height = sourceImageData.height;
+    }
+    const cCtx = can.getContext('2d');
+    if (cCtx) {
+      cCtx.putImageData(sourceImageData, 0, 0);
+    }
+    sourceImageCanvasRef.current = can;
+  }, [sourceImageData]);
 
   // Only clear adjustedBaseBufferRef when actual source image dimensions/pixels change
   useEffect(() => {
@@ -1477,8 +1496,10 @@ export const CenterViewport: React.FC = () => {
             asciiSettings,
             canvas,
             asciiResolutionScale,
-            videoCanvasRef.current || proxyCanvasRef.current,
-            undefined
+            videoCanvasRef.current || sourceImageCanvasRef.current || proxyCanvasRef.current,
+            undefined,
+            effects,
+            { frameIndex, time: activeTime, fps }
           );
         } else {
           ctx.putImageData(cachedFrame.imageData, 0, 0);
@@ -1969,8 +1990,10 @@ export const CenterViewport: React.FC = () => {
             effAsciiSettings,
             canvas,
             asciiResolutionScale,
-            videoCanvasRef.current || proxyCanvasRef.current,
-            showBeforeAfter ? splitRatio : undefined
+            videoCanvasRef.current || sourceImageCanvasRef.current || proxyCanvasRef.current,
+            showBeforeAfter ? splitRatio : undefined,
+            effEffects,
+            { frameIndex, time: activeTime, fps, palette }
           );
         } else {
           if (canvas.width !== fullWidth || canvas.height !== fullHeight) {
@@ -2149,8 +2172,10 @@ export const CenterViewport: React.FC = () => {
             asciiSettings,
             canvas,
             asciiResScale,
-            videoCanvasRef.current || proxyCanvasRef.current,
-            showBeforeAfter ? splitRatio : undefined
+            videoCanvasRef.current || sourceImageCanvasRef.current || proxyCanvasRef.current,
+            showBeforeAfter ? splitRatio : undefined,
+            effects,
+            { frameIndex: 0, time: 0, fps: 30 }
           );
         } else {
           if (canvas.width !== fullWidth || canvas.height !== fullHeight) {

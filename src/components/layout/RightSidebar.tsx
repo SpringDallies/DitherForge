@@ -784,21 +784,22 @@ export const RightSidebar: React.FC = () => {
     onPointerUp: handleSliderPointerUp
   };
 
-  // Category selection handler with automatic algorithm selection for ASCII
+  // Category selection handler: automatically chooses the first algorithm in the category
   const handleSelectCategory = useCallback((catId: string) => {
     setActiveCategory(catId);
-    if (catId === 'ascii') {
-      const currentIsAscii = typeof algorithmId === 'string' && algorithmId.startsWith('ascii-');
-      if (!currentIsAscii) {
-        const targetAsciiAlgo = (asciiSettings?.algorithmId && isAsciiAlgorithmId(asciiSettings.algorithmId))
-          ? asciiSettings.algorithmId
-          : 'ascii-classic-ramp';
-        setAlgorithmId(targetAsciiAlgo);
+    const matchingAlgos = ALL_ALGORITHMS.filter((a: any) => catId === 'all' || a.category === catId);
+    if (matchingAlgos.length > 0) {
+      const firstAlgo = matchingAlgos[0];
+      const targetId = firstAlgo.id;
+      setAlgorithmId(targetId);
+      if (typeof targetId === 'string' && targetId.startsWith('ascii-')) {
         setRenderMode('ascii');
-        setAsciiSetting('algorithmId', targetAsciiAlgo as AsciiAlgorithmId);
+        setAsciiSetting('algorithmId', targetId as AsciiAlgorithmId);
+      } else {
+        setRenderMode('dither');
       }
     }
-  }, [algorithmId, asciiSettings?.algorithmId, setAlgorithmId, setRenderMode, setAsciiSetting]);
+  }, [setAlgorithmId, setRenderMode, setAsciiSetting]);
 
   // Category stepping
   const handlePrevCategory = () => {

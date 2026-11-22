@@ -465,7 +465,17 @@ export const AsciiBaseControls: React.FC<AsciiBaseControlsProps> = ({ sliderPoin
           <Dropdown
             id="ascii-category-filter"
             value={selectedCategory}
-            onChange={(val) => setSelectedCategory(val)}
+            onChange={(val) => {
+              setSelectedCategory(val);
+              // Auto-choose the first character set in the selected category
+              const firstMatch =
+                (val === 'all' || val === 'custom') && customCharsets.length > 0
+                  ? customCharsets[0]
+                  : builtinCharsets.find((cs) => val === 'all' || cs.category === val);
+              if (firstMatch) {
+                setAsciiSetting('charsetId', firstMatch.id);
+              }
+            }}
             width="100%"
             items={charsetCategories}
           />

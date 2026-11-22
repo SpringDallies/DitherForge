@@ -150,12 +150,14 @@ export const ASCII_EFFECT_DESCRIPTORS: AsciiEffectDescriptorMeta[] = [
     name: 'Density Pulse',
     stage: 'grid',
     description: 'Modulates glyph density harmonically across the grid.',
-    defaultParams: { amplitude: 0.35, frequency: 0.3, speed: 1.5, shape: 1.0, radial: true },
+    defaultParams: { amplitude: 0.35, frequency: 0.3, speed: 1.5, shape: 1.0, offsetX: 0, offsetY: 0, radial: true },
     controls: [
       { id: 'amplitude', label: 'Pulse Amplitude', type: 'slider', min: 0, max: 1, step: 0.05, defaultValue: 0.35 },
       { id: 'frequency', label: 'Spatial Freq', type: 'slider', min: 0.05, max: 1.5, step: 0.05, defaultValue: 0.3 },
       { id: 'speed', label: 'Pulse Speed', type: 'slider', min: 0, max: 5, step: 0.1, defaultValue: 1.5 },
       { id: 'shape', label: 'Shape', type: 'slider', min: 0.2, max: 3.0, step: 0.05, defaultValue: 1.0 },
+      { id: 'offsetX', label: 'Offset X', type: 'slider', min: -1, max: 1, step: 0.02, defaultValue: 0 },
+      { id: 'offsetY', label: 'Offset Y', type: 'slider', min: -1, max: 1, step: 0.02, defaultValue: 0 },
       { id: 'radial', label: 'Radial Wave', type: 'toggle', defaultValue: true }
     ]
   },
@@ -393,9 +395,11 @@ export function applyAsciiGridEffects(
         const freq = numParam(p, 'frequency', 0.3);
         const speed = numParam(p, 'speed', 1.5);
         const shape = Math.max(0.01, numParam(p, 'shape', 1.0));
+        const offsetX = numParam(p, 'offsetX', numParam(p, 'offset', 0));
+        const offsetY = numParam(p, 'offsetY', 0);
         const radial = p.radial !== false;
-        const cx = cols * 0.5;
-        const cy = rows * 0.5;
+        const cx = cols * (0.5 + offsetX * 0.5);
+        const cy = rows * (0.5 + offsetY * 0.5);
         const phase = ctx.time * speed * Math.PI * 2;
 
         // When shape = 1.0, scale vertical cell coordinate by the cell aspect ratio (strideY / strideX)

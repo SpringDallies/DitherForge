@@ -1,7 +1,7 @@
 import type { AsciiGridFrame, AsciiSettings } from './types';
 import { parseHex } from './algorithms/shared';
 import { applyAsciiPixelEffects } from './effects';
-import { applyEffectPipeline } from '../effects/pipeline';
+import { applyEffectPipeline } from '../effects';
 import type { EffectItem } from '../effects/types';
 
 /**

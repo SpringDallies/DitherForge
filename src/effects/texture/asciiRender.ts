@@ -70,101 +70,103 @@ export function effectParamsToAsciiSettings(params?: Partial<AsciiRenderEffectPa
   };
 }
 
-const asciiEffectParamsMeta: ParamMeta[] = [
-  {
-    id: 'algorithmId',
-    label: 'ASCII Algorithm',
-    type: 'select',
-    defaultValue: 'ascii-classic-ramp',
-    options: ASCII_ALGORITHM_REGISTRY.map((a) => ({ value: a.id, label: a.name }))
-  },
-  {
-    id: 'charsetId',
-    label: 'Character Set',
-    type: 'select',
-    defaultValue: 'classic_standard',
-    options: BUILTIN_ASCII_CHARSETS.map((c) => ({ value: c.id, label: c.name }))
-  },
-  {
-    id: 'cellWidth',
-    label: 'Cell Width',
-    type: 'number',
-    min: 4,
-    max: 32,
-    step: 1,
-    defaultValue: 8,
-    unit: 'px'
-  },
-  {
-    id: 'cellHeight',
-    label: 'Cell Height',
-    type: 'number',
-    min: 4,
-    max: 48,
-    step: 1,
-    defaultValue: 14,
-    unit: 'px'
-  },
-  {
-    id: 'characterDepth',
-    label: 'Character Depth',
-    type: 'number',
-    min: 2,
-    max: 64,
-    step: 1,
-    defaultValue: 16
-  },
-  {
-    id: 'characterOffset',
-    label: 'Character Offset',
-    type: 'number',
-    min: -32,
-    max: 32,
-    step: 1,
-    defaultValue: 0
-  },
-  {
-    id: 'colorMode',
-    label: 'Color Mode',
-    type: 'select',
-    defaultValue: 'source',
-    options: [
-      { value: 'source', label: 'Source Colors' },
-      { value: 'monochrome', label: 'Monochrome' },
-      { value: 'palette', label: 'Active Palette' },
-      { value: 'single', label: 'Single Tint' }
-    ]
-  },
-  {
-    id: 'backgroundMode',
-    label: 'Background',
-    type: 'select',
-    defaultValue: 'solid',
-    options: [
-      { value: 'solid', label: 'Solid Color' },
-      { value: 'transparent', label: 'Transparent' },
-      { value: 'original', label: 'Original Image' }
-    ]
-  },
-  {
-    id: 'foregroundColor',
-    label: 'Foreground Color',
-    type: 'color',
-    defaultValue: '#e6edf3'
-  },
-  {
-    id: 'backgroundColor',
-    label: 'Background Color',
-    type: 'color',
-    defaultValue: '#0d0e11'
-  },
-  {
-    id: 'invert',
-    label: 'Invert Density',
-    type: 'boolean',
-    defaultValue: false
-  }
-];
+function getAsciiEffectParamsMeta(): ParamMeta[] {
+  return [
+    {
+      id: 'algorithmId',
+      label: 'ASCII Algorithm',
+      type: 'select',
+      defaultValue: 'ascii-classic-ramp',
+      options: ASCII_ALGORITHM_REGISTRY.map((a) => ({ value: a.id, label: a.name }))
+    },
+    {
+      id: 'charsetId',
+      label: 'Character Set',
+      type: 'select',
+      defaultValue: 'classic_standard',
+      options: BUILTIN_ASCII_CHARSETS.map((c) => ({ value: c.id, label: c.name }))
+    },
+    {
+      id: 'cellWidth',
+      label: 'Cell Width',
+      type: 'number',
+      min: 4,
+      max: 32,
+      step: 1,
+      defaultValue: 8,
+      unit: 'px'
+    },
+    {
+      id: 'cellHeight',
+      label: 'Cell Height',
+      type: 'number',
+      min: 4,
+      max: 48,
+      step: 1,
+      defaultValue: 14,
+      unit: 'px'
+    },
+    {
+      id: 'characterDepth',
+      label: 'Character Depth',
+      type: 'number',
+      min: 2,
+      max: 64,
+      step: 1,
+      defaultValue: 16
+    },
+    {
+      id: 'characterOffset',
+      label: 'Character Offset',
+      type: 'number',
+      min: -32,
+      max: 32,
+      step: 1,
+      defaultValue: 0
+    },
+    {
+      id: 'colorMode',
+      label: 'Color Mode',
+      type: 'select',
+      defaultValue: 'source',
+      options: [
+        { value: 'source', label: 'Source Colors' },
+        { value: 'monochrome', label: 'Monochrome' },
+        { value: 'palette', label: 'Active Palette' },
+        { value: 'single', label: 'Single Tint' }
+      ]
+    },
+    {
+      id: 'backgroundMode',
+      label: 'Background',
+      type: 'select',
+      defaultValue: 'solid',
+      options: [
+        { value: 'solid', label: 'Solid Color' },
+        { value: 'transparent', label: 'Transparent' },
+        { value: 'original', label: 'Original Image' }
+      ]
+    },
+    {
+      id: 'foregroundColor',
+      label: 'Foreground Color',
+      type: 'color',
+      defaultValue: '#e6edf3'
+    },
+    {
+      id: 'backgroundColor',
+      label: 'Background Color',
+      type: 'color',
+      defaultValue: '#0d0e11'
+    },
+    {
+      id: 'invert',
+      label: 'Invert Density',
+      type: 'boolean',
+      defaultValue: false
+    }
+  ];
+}
 
 let asciiScratchIn: Uint8ClampedArray | null = null;
 
@@ -222,7 +224,9 @@ export const asciiRenderEffect: EffectDescriptor<AsciiRenderEffectParams> = {
   defaultBlendMode: 'normal',
   mutatesAlpha: false,
   canOperateInPlace: false,
-  paramsMeta: asciiEffectParamsMeta,
+  get paramsMeta() {
+    return getAsciiEffectParamsMeta();
+  },
   apply: (data, width, height, params, context) =>
     applyAsciiRenderEffect(data, width, height, params || {}, context)
 };

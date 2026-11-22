@@ -1,5 +1,5 @@
 // DitherForge Photographic Dust & Scratches Effect
-// Physical emulsion defects: random dust specks, lint fibers, and vertical film negative scratches
+// Physical emulsion defects: random dust specks, lint fibers/hairs, and organic film negative scratches
 
 import type { EffectDescriptor, ParamMeta, EffectContext } from '../types';
 
@@ -57,9 +57,9 @@ const paramsMeta: ParamMeta[] = [
     label: 'Scratch Streak Length',
     type: 'range',
     min: 10,
-    max: 150,
+    max: 300,
     step: 5,
-    defaultValue: 45,
+    defaultValue: 60,
     unit: 'px'
   },
   {
@@ -96,13 +96,13 @@ export const dustScratchesEffect: EffectDescriptor<DustScratchesParams> = {
   id: 'dust_scratches',
   name: 'Dust & Scratches',
   category: 'film',
-  description: 'Photographic film stock physical damage: random dust particles, lint fibers, and vertical emulsion scratches.',
+  description: 'Photographic film stock physical damage: organic dust particles, curved lint fibers, and vertical emulsion scratches.',
   defaultParams: {
     density: 0.2,
     minSize: 1,
     maxSize: 3,
     scratchProbability: 0.3,
-    streakLength: 45,
+    streakLength: 60,
     colorMode: 'mixed',
     temporal: true
   },
@@ -135,7 +135,7 @@ export const dustScratchesEffect: EffectDescriptor<DustScratchesParams> = {
       minSize = 1,
       maxSize = 3,
       scratchProbability = 0.3,
-      streakLength = 45,
+      streakLength = 60,
       colorMode = 'mixed',
       temporal = true
     } = params;
@@ -145,59 +145,105 @@ export const dustScratchesEffect: EffectDescriptor<DustScratchesParams> = {
     const frameIdx = temporal ? (context.frameIndex || 0) : 0;
     const rng = createPRNG((frameIdx * 7919 + 1337) >>> 0);
 
-    // 1. Dust Specks
+    const blendPixel = (px: number, py: number, targetVal: number, alpha: number) => {
+      if (px < 0 || px >= w || py < 0 || py >= h || alpha <= 0.001) return;
+      const idx = (py * w + px) * 4;
+      const a = Math.min(1, alpha);
+      const invA = 1 - a;
+      data[idx] = (data[idx] * invA + targetVal * a) | 0;
+      data[idx + 1] = (data[idx + 1] * invA + targetVal * a) | 0;
+      data[idx + 2] = (data[idx + 2] * invA + targetVal * a) | 0;
+    };
+
     const area = w * h;
-    const baseCount = Math.round((area / 1200) * density);
     const minS = Math.max(1, Math.min(minSize, maxSize));
     const maxS = Math.max(minS, maxSize);
 
-    for (let i = 0; i < baseCount; i++) {
-      const cx = Math.floor(rng() * w);
-      const cy = Math.floor(rng() * h);
-      const radius = minS + rng() * (maxS - minS);
-      const isWhite = colorMode === 'white' ? true : colorMode === 'black' ? false : rng() > 0.45;
-      const val = isWhite ? 245 : 15;
-      const opacity = 0.7 + rng() * 0.3;
+    // 1. Organic Dust Particles & Lint Fibers
+    if (density > 0.001) {
+      const baseCount = Math.round((area / 1000) * density);
 
-      const rCeil = Math.ceil(radius);
-      for (let dy = -rCeil; dy <= rCeil; dy++) {
-        const py = cy + dy;
-        if (py < 0 || py >= h) continue;
-        for (let dx = -rCeil; dx <= rCeil; dx++) {
-          const px = cx + dx;
-          if (px < 0 || px >= w) continue;
-          const d2 = dx * dx + dy * dy;
-          if (d2 <= radius * radius) {
-            const idx = (py * w + px) * 4;
-            data[idx] = Math.round(data[idx] * (1 - opacity) + val * opacity);
-            data[idx + 1] = Math.round(data[idx + 1] * (1 - opacity) + val * opacity);
-            data[idx + 2] = Math.round(data[idx + 2] * (1 - opacity) + val * opacity);
+      for (let i = 0; i < baseCount; i++) {
+        const cx = rng() * w;
+        const cy = rng() * h;
+        const isWhite = colorMode === 'white' ? true : colorMode === 'black' ? false : rng() > 0.45;
+        const val = isWhite ? 240 + Math.floor(rng() * 15) : 10 + Math.floor(rng() * 15);
+        const opacity = 0.55 + rng() * 0.45;
+
+        // 15% chance of curved hair / lint fiber defect
+        if (rng() < 0.15) {
+          const fiberLen = 4 + rng() * 14;
+          let angle = rng() * Math.PI * 2;
+          const curveRate = (rng() - 0.5) * 0.4;
+          let fx = cx;
+          let fy = cy;
+          for (let step = 0; step < fiberLen; step++) {
+            blendPixel(Math.floor(fx), Math.floor(fy), val, opacity * (0.8 + rng() * 0.2));
+            fx += Math.cos(angle);
+            fy += Math.sin(angle);
+            angle += curveRate;
+          }
+          continue;
+        }
+
+        // Irregular dust speck with soft radial anti-aliased falloff and slight eccentricity
+        const radius = minS + rng() * (maxS - minS);
+        const stretchX = 0.7 + rng() * 0.6;
+        const stretchY = 0.7 + rng() * 0.6;
+        const rCeil = Math.ceil(radius * 1.5);
+
+        for (let dy = -rCeil; dy <= rCeil; dy++) {
+          const py = Math.floor(cy + dy);
+          if (py < 0 || py >= h) continue;
+          for (let dx = -rCeil; dx <= rCeil; dx++) {
+            const px = Math.floor(cx + dx);
+            if (px < 0 || px >= w) continue;
+            const normDist = Math.hypot(dx / stretchX, dy / stretchY);
+            if (normDist <= radius) {
+              // Soft falloff from core to perimeter
+              const edgeAlpha = Math.max(0, 1 - Math.max(0, normDist - radius * 0.5) / (radius * 0.5 + 0.01));
+              blendPixel(px, py, val, opacity * edgeAlpha);
+            }
           }
         }
       }
     }
 
-    // 2. Vertical Scratches
-    if (rng() < scratchProbability) {
-      const scratchCount = 1 + Math.floor(rng() * 3);
-      for (let s = 0; s < scratchCount; s++) {
-        const scratchX = Math.floor(rng() * w);
-        const startY = Math.floor(rng() * (h - 10));
-        const len = Math.min(h - startY, Math.round(streakLength * (0.6 + rng() * 0.8)));
-        const isWhite = colorMode === 'white' ? true : colorMode === 'black' ? false : rng() > 0.5;
-        const val = isWhite ? 240 : 20;
+    // 2. Continuous Vertical Negative & Projector Scratches
+    if (scratchProbability > 0.001) {
+      // Calculate how many scratches could appear
+      const numScratches = Math.floor(scratchProbability * 3.5) + (rng() < (scratchProbability % 1) ? 1 : 0);
 
-        let currentX = scratchX;
-        for (let y = startY; y < startY + len; y++) {
-          // Slight mechanical weave
-          if (rng() < 0.2) currentX += rng() > 0.5 ? 1 : -1;
-          const px = Math.max(0, Math.min(w - 1, currentX));
-          const idx = (y * w + px) * 4;
-          const op = 0.65 + rng() * 0.25;
+      for (let s = 0; s < numScratches; s++) {
+        const scratchBaseX = rng() * w;
+        const isWhite = colorMode === 'white' ? true : colorMode === 'black' ? false : rng() > 0.4;
+        const val = isWhite ? 230 + Math.floor(rng() * 25) : 15 + Math.floor(rng() * 15);
+        const baseAlpha = 0.45 + rng() * 0.4;
 
-          data[idx] = Math.round(data[idx] * (1 - op) + val * op);
-          data[idx + 1] = Math.round(data[idx + 1] * (1 - op) + val * op);
-          data[idx + 2] = Math.round(data[idx + 2] * (1 - op) + val * op);
+        // Long continuous streak or full-height film run
+        const isContinuous = rng() < 0.45;
+        const startY = isContinuous ? 0 : Math.floor(rng() * (h * 0.6));
+        const maxLen = isContinuous ? h : Math.min(h - startY, Math.round(streakLength * (1.0 + rng() * 2.0)));
+
+        let currentX = scratchBaseX;
+        let wanderSpeed = 0;
+
+        for (let y = startY; y < startY + maxLen; y++) {
+          // Subtle film gate weaving jitter
+          wanderSpeed += (rng() - 0.5) * 0.15;
+          wanderSpeed = Math.max(-0.4, Math.min(0.4, wanderSpeed));
+          currentX += wanderSpeed;
+
+          // Occasional micro-skip / gap in emulsion scratch
+          if (rng() < 0.04) continue;
+
+          const ix = Math.floor(currentX);
+          const fracX = currentX - ix;
+          const localAlpha = baseAlpha * (0.8 + rng() * 0.3);
+
+          // Subpixel anti-aliased scratch stroke
+          blendPixel(ix, y, val, localAlpha * (1 - fracX));
+          blendPixel(ix + 1, y, val, localAlpha * fracX);
         }
       }
     }

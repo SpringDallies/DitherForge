@@ -190,6 +190,12 @@ export function renderAsciiVectorToCanvas(
   ctx.globalCompositeOperation = blendToComposite[blendMode] || 'source-over';
   const clipCells = Boolean(settings.clipping);
 
+  // Clip the entire canvas boundary so displaced or scaled glyphs never bleed beyond the canvas edges
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, w, h);
+  ctx.clip();
+
   // Pass 1: Render per-cell background fills first.
   // Rendering backgrounds in a dedicated first pass ensures that displaced glyphs from adjacent cells
   // are never painted over or clipped by a neighboring cell's background fillRect.
@@ -297,6 +303,9 @@ export function renderAsciiVectorToCanvas(
       }
     }
   }
+
+  // Restore canvas clipping state
+  ctx.restore();
 
   // Restore default composition
   ctx.globalCompositeOperation = 'source-over';

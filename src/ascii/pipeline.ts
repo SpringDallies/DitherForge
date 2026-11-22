@@ -109,8 +109,9 @@ export function computeGridLayout(
   const spacing = Math.max(0, Math.min(12, Math.round(settings.cellSpacing)));
   const strideX = cellW + spacing;
   const strideY = cellH + spacing;
-  const cols = Math.max(1, Math.ceil(width / strideX));
-  const rows = Math.max(1, Math.ceil(height / strideY));
+  // Floor ensures every cell fits fully inside the image boundaries without clipping or overflowing
+  const cols = Math.max(1, Math.floor((width + spacing) / strideX));
+  const rows = Math.max(1, Math.floor((height + spacing) / strideY));
   return { cols, rows, cellW, cellH, strideX, strideY };
 }
 

@@ -87,9 +87,11 @@ export const screenCurvatureEffect: EffectDescriptor<ScreenCurvatureParams> = {
     const invHalfW = 1.0 / halfW;
     const invHalfH = 1.0 / halfH;
 
-    const cornerRadius = Math.max(0.001, cornerRounding);
-    const cornerBoxX = 1.0 - cornerRadius;
-    const cornerBoxY = 1.0 - cornerRadius;
+    const cornerRadiusNorm = Math.max(0.001, cornerRounding);
+    // Bezel corner radius in physical screen pixels
+    const rPx = cornerRadiusNorm * Math.min(halfW, halfH);
+    const boxW = halfW - rPx;
+    const boxH = halfH - rPx;
 
     for (let y = 0; y < h; y++) {
       const v = (y - halfH) * invHalfH;
@@ -106,24 +108,21 @@ export const screenCurvatureEffect: EffectDescriptor<ScreenCurvatureParams> = {
         const srcU = u * factor;
         const srcV = v * factor;
 
-        // Check rounded bezel corners
+        // Smooth subpixel signed distance to rounded screen boundary in pixel units
         const absU = Math.abs(srcU);
         const absV = Math.abs(srcV);
+        const xPx = absU * halfW;
+        const yPx = absV * halfH;
+        const dx = xPx - boxW;
+        const dy = yPx - boxH;
+        const signedDist = Math.hypot(Math.max(0, dx), Math.max(0, dy)) + Math.min(0, Math.max(dx, dy)) - rPx;
 
-        let isOutsideBezel = false;
-        if (absU > 1.0 || absV > 1.0) {
-          isOutsideBezel = true;
-        } else if (absU > cornerBoxX && absV > cornerBoxY) {
-          const cdx = absU - cornerBoxX;
-          const cdy = absV - cornerBoxY;
-          if (cdx * cdx + cdy * cdy > cornerRadius * cornerRadius) {
-            isOutsideBezel = true;
-          }
-        }
+        // Smooth anti-aliased edge factor (1.0 = fully inside screen, 0.0 = outside bezel border)
+        const edgeAlpha = Math.max(0.0, Math.min(1.0, 0.5 - signedDist));
 
         const idx = rowOffset + x * 4;
 
-        if (isOutsideBezel && edgeSampling === 'black') {
+        if (edgeAlpha <= 0.001 && edgeSampling === 'black') {
           data[idx] = 0;
           data[idx + 1] = 0;
           data[idx + 2] = 0;
@@ -146,7 +145,7 @@ export const screenCurvatureEffect: EffectDescriptor<ScreenCurvatureParams> = {
           py = Math.max(0, Math.min(h - 1, py));
         } else {
           // 'black' edge sampling
-          if (px < 0 || px >= w - 1 || py < 0 || py >= h - 1) {
+          if (px < -1 || px >= w || py < -1 || py >= h) {
             data[idx] = 0;
             data[idx + 1] = 0;
             data[idx + 2] = 0;
@@ -155,13 +154,13 @@ export const screenCurvatureEffect: EffectDescriptor<ScreenCurvatureParams> = {
         }
 
         // Bilinear interpolation for crystal sharp anti-aliased geometry
-        const x0 = Math.floor(px);
-        const y0 = Math.floor(py);
+        const x0 = Math.max(0, Math.min(w - 1, Math.floor(px)));
+        const y0 = Math.max(0, Math.min(h - 1, Math.floor(py)));
         const x1 = Math.min(w - 1, x0 + 1);
         const y1 = Math.min(h - 1, y0 + 1);
 
-        const fx = px - x0;
-        const fy = py - y0;
+        const fx = Math.max(0, Math.min(1, px - Math.floor(px)));
+        const fy = Math.max(0, Math.min(1, py - Math.floor(py)));
         const fx1 = 1.0 - fx;
         const fy1 = 1.0 - fy;
 
@@ -175,9 +174,19 @@ export const screenCurvatureEffect: EffectDescriptor<ScreenCurvatureParams> = {
         const i01 = (y1 * w + x0) * 4;
         const i11 = (y1 * w + x1) * 4;
 
-        data[idx] = Math.round(src[i00] * w00 + src[i10] * w10 + src[i01] * w01 + src[i11] * w11);
-        data[idx + 1] = Math.round(src[i00 + 1] * w00 + src[i10 + 1] * w10 + src[i01 + 1] * w01 + src[i11 + 1] * w11);
-        data[idx + 2] = Math.round(src[i00 + 2] * w00 + src[i10 + 2] * w10 + src[i01 + 2] * w01 + src[i11 + 2] * w11);
+        const rSample = src[i00] * w00 + src[i10] * w10 + src[i01] * w01 + src[i11] * w11;
+        const gSample = src[i00 + 1] * w00 + src[i10 + 1] * w10 + src[i01 + 1] * w01 + src[i11 + 1] * w11;
+        const bSample = src[i00 + 2] * w00 + src[i10 + 2] * w10 + src[i01 + 2] * w01 + src[i11 + 2] * w11;
+
+        if (edgeSampling === 'black' && edgeAlpha < 1.0) {
+          data[idx] = Math.round(rSample * edgeAlpha);
+          data[idx + 1] = Math.round(gSample * edgeAlpha);
+          data[idx + 2] = Math.round(bSample * edgeAlpha);
+        } else {
+          data[idx] = Math.round(rSample);
+          data[idx + 1] = Math.round(gSample);
+          data[idx + 2] = Math.round(bSample);
+        }
       }
     }
   }

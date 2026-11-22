@@ -150,11 +150,12 @@ export const ASCII_EFFECT_DESCRIPTORS: AsciiEffectDescriptorMeta[] = [
     name: 'Density Pulse',
     stage: 'grid',
     description: 'Modulates glyph density harmonically across the grid.',
-    defaultParams: { amplitude: 0.35, frequency: 0.3, speed: 1.5, radial: true },
+    defaultParams: { amplitude: 0.35, frequency: 0.3, speed: 1.5, shape: 1.0, radial: true },
     controls: [
       { id: 'amplitude', label: 'Pulse Amplitude', type: 'slider', min: 0, max: 1, step: 0.05, defaultValue: 0.35 },
       { id: 'frequency', label: 'Spatial Freq', type: 'slider', min: 0.05, max: 1.5, step: 0.05, defaultValue: 0.3 },
       { id: 'speed', label: 'Pulse Speed', type: 'slider', min: 0, max: 5, step: 0.1, defaultValue: 1.5 },
+      { id: 'shape', label: 'Shape', type: 'slider', min: 0.2, max: 3.0, step: 0.05, defaultValue: 1.0 },
       { id: 'radial', label: 'Radial Wave', type: 'toggle', defaultValue: true }
     ]
   },
@@ -391,16 +392,26 @@ export function applyAsciiGridEffects(
         const amp = clamp01(numParam(p, 'amplitude', 0.35));
         const freq = numParam(p, 'frequency', 0.3);
         const speed = numParam(p, 'speed', 1.5);
+        const shape = Math.max(0.01, numParam(p, 'shape', 1.0));
         const radial = p.radial !== false;
         const cx = cols * 0.5;
         const cy = rows * 0.5;
         const phase = ctx.time * speed * Math.PI * 2;
 
+        // When shape = 1.0, scale vertical cell coordinate by the cell aspect ratio (strideY / strideX)
+        // so that Euclidean distance in pixel space is isotropic, producing a true geometric circle.
+        const strideX = Math.max(1, (grid.cellWidth || 8) + (grid.cellSpacing || 0));
+        const strideY = Math.max(1, (grid.cellHeight || 14) + (grid.cellSpacing || 0));
+        const cellAspect = strideY / strideX;
+        const aspectScale = cellAspect * shape;
+
         for (let r = 0; r < rows; r++) {
           const rowOff = r * cols;
+          const dy = (r - cy) * aspectScale;
           for (let c = 0; c < cols; c++) {
             const idx = rowOff + c;
-            const d = radial ? Math.hypot(c - cx, r - cy) : c + r;
+            const dx = c - cx;
+            const d = radial ? Math.hypot(dx, dy) : c + r;
             const wave = Math.sin(d * freq - phase) * amp;
             const shifted = clamp01(grid.charIndices[idx] / Math.max(1, maxIdx) + wave * 0.5);
             grid.charIndices[idx] = Math.min(maxIdx, Math.max(0, Math.round(shifted * maxIdx)));

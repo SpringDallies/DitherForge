@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import './styles/shell.css';
 import './styles/logo.css';
 import './styles/loading.css';
@@ -32,9 +33,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (EngineBridge.isTauri()) {
-      import('@tauri-apps/api/core')
-        .then(({ invoke }) => invoke('show_main_window'))
-        .catch(() => {});
+      invoke('show_main_window').catch(() => {});
     }
 
     if (EngineBridge.isTauri()) {

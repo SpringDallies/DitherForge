@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   animations: true,
   highQualityZoom: true,
   // Default Logo Settings matching user specification
-  logoMode: '2d',
+  logoMode: '3d',
   logoDitherStyle: 'none',
   logoSharpness: 'smooth',
   logoResolution: 256,

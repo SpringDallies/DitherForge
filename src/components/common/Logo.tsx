@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useLayoutEffect, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useAppStore } from '../../state/useAppStore';
 import {
@@ -142,7 +142,277 @@ function mapDitherStyleToInt(style: LogoDitherStyle | undefined): number {
   }
 }
 
+function smoothWalls(g: THREE.BufferGeometry) {
+  const p = g.attributes.position;
+  const out = new Float32Array(p.count * 3);
+  const key = (i: number) =>
+    p.getX(i).toFixed(3) + ',' + p.getY(i).toFixed(3) + ',' + p.getZ(i).toFixed(3);
+  const A = new THREE.Vector3();
+  const B = new THREE.Vector3();
+  const C = new THREE.Vector3();
+  const acc = new Map<string, THREE.Vector3>();
+  const tris: { f: THREE.Vector3; cap: boolean }[] = [];
+
+  for (let i = 0; i < p.count; i += 3) {
+    A.fromBufferAttribute(p, i);
+    B.fromBufferAttribute(p, i + 1);
+    C.fromBufferAttribute(p, i + 2);
+    const f = new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(C, A)).normalize();
+    const cap = Math.abs(f.z) > 0.85;
+    tris.push({ f, cap });
+    if (!cap) {
+      for (const k of [key(i), key(i + 1), key(i + 2)]) {
+        if (!acc.has(k)) acc.set(k, new THREE.Vector3());
+        acc.get(k)!.add(f);
+      }
+    }
+  }
+
+  for (let i = 0; i < p.count; i++) {
+    const tri = tris[Math.floor(i / 3)];
+    let n: THREE.Vector3;
+    if (tri.cap) {
+      n = tri.f;
+    } else {
+      n = acc.get(key(i)) || tri.f;
+      n = n.length() > 1e-9 ? n.normalize() : new THREE.Vector3(0, 0, 1);
+    }
+    out[i * 3] = n.x;
+    out[i * 3 + 1] = n.y;
+    out[i * 3 + 2] = n.z;
+  }
+  g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+}
+
+/* Module-level precomputed geometry: built once at module evaluation so component mount is 0ms */
+const SHARED_ANVIL_GEO: THREE.BufferGeometry = (() => {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < OUTLINE.length; i += 2) {
+    if (i === 0) shape.moveTo(OUTLINE[i], OUTLINE[i + 1]);
+    else shape.lineTo(OUTLINE[i], OUTLINE[i + 1]);
+  }
+  shape.closePath();
+
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: DEPTH,
+    curveSegments: 1,
+    steps: 1,
+    bevelEnabled: true,
+    bevelThickness: 0.19,
+    bevelSize: 0.0,
+    bevelSegments: 4
+  });
+  geo.center();
+  smoothWalls(geo);
+  return geo;
+})();
+
+/* Module-level constant shader sources */
+const MAIN_VERTEX_SHADER = `
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec3 vViewPos;
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    vec4 vp = modelViewMatrix * vec4(position, 1.0);
+    vViewPos = vp.xyz;
+    gl_Position = projectionMatrix * vp;
+  }
+`;
+
+const MAIN_FRAGMENT_SHADER = `
+  uniform vec3  uShadow;
+  uniform vec3  uHighlight;
+  uniform float uLightMode;
+  uniform int   uDitherMode;
+  uniform float uSteps;
+  uniform float uDitherStrength;
+  uniform vec3  uLight;
+  uniform float uShine;
+  uniform float uShineW;
+  uniform vec2  uAxis;
+  uniform float uShinePos;
+  uniform float uShine2Pos;
+  uniform float uSparkTime;
+  uniform vec3  uSparkPos;
+  uniform float uBlush;
+  uniform float uSteamTime;
+
+  varying vec3  vNormal;
+  varying vec3  vWorldPos;
+  varying vec3  vViewPos;
+
+  float bayer4(vec2 p) {
+    ivec2 ip = ivec2(mod(p, 4.0));
+    int idx = ip.x + ip.y * 4;
+    if (idx == 0) return 0.0 / 16.0;
+    if (idx == 1) return 8.0 / 16.0;
+    if (idx == 2) return 2.0 / 16.0;
+    if (idx == 3) return 10.0 / 16.0;
+    if (idx == 4) return 12.0 / 16.0;
+    if (idx == 5) return 4.0 / 16.0;
+    if (idx == 6) return 14.0 / 16.0;
+    if (idx == 7) return 6.0 / 16.0;
+    if (idx == 8) return 3.0 / 16.0;
+    if (idx == 9) return 11.0 / 16.0;
+    if (idx == 10) return 1.0 / 16.0;
+    if (idx == 11) return 9.0 / 16.0;
+    if (idx == 12) return 15.0 / 16.0;
+    if (idx == 13) return 7.0 / 16.0;
+    if (idx == 14) return 13.0 / 16.0;
+    return 5.0 / 16.0;
+  }
+
+  float bayer2(vec2 p) {
+    ivec2 ip = ivec2(mod(p, 2.0));
+    int idx = ip.x + ip.y * 2;
+    if (idx == 0) return 0.0 / 4.0;
+    if (idx == 1) return 2.0 / 4.0;
+    if (idx == 2) return 3.0 / 4.0;
+    return 1.0 / 4.0;
+  }
+
+  float bayer8(vec2 p) {
+    return (bayer4(p) * 4.0 + bayer2(floor(p / 4.0))) / 16.0;
+  }
+
+  float halftoneDither(vec2 p) {
+    vec2 c = fract(p / 4.0) - 0.5;
+    return clamp(length(c) * 1.6, 0.0, 1.0);
+  }
+
+  float scanlineDither(vec2 p) {
+    return mod(floor(p.y), 2.0) == 0.0 ? 0.25 : 0.75;
+  }
+
+  float checkerDither(vec2 p) {
+    ivec2 ip = ivec2(mod(p, 2.0));
+    return float(ip.x ^ ip.y);
+  }
+
+  float getDitherThreshold(vec2 fragCoord) {
+    if (uDitherMode == 0) return 0.5;
+    if (uDitherMode == 1) return bayer2(fragCoord);
+    if (uDitherMode == 2) return bayer4(fragCoord);
+    if (uDitherMode == 3) return bayer8(fragCoord);
+    if (uDitherMode == 4) return halftoneDither(fragCoord);
+    if (uDitherMode == 5) return scanlineDither(fragCoord);
+    if (uDitherMode == 6) return checkerDither(fragCoord);
+    return bayer4(fragCoord);
+  }
+
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 L = normalize(uLight);
+    vec3 V = normalize(-vViewPos);
+
+    float diff = max(dot(N, L), 0.0);
+    float hemi = N.y * 0.16 + 0.84;
+    float baseLight = mix(diff * 0.82 + 0.18, diff * 0.7 + 0.3 * hemi, 0.4);
+
+    vec3 R = reflect(-L, N);
+    float spec = pow(max(dot(R, V), 0.0), 32.0);
+
+    float d = dot(vWorldPos.xy, uAxis);
+    float s1 = smoothstep(uShineW, 0.0, abs(d - uShinePos));
+    float s2 = smoothstep(uShineW * 0.55, 0.0, abs(d - uShine2Pos)) * 0.75;
+    float shineTotal = (s1 + s2) * uShine;
+
+    float dSpk = length(vWorldPos - uSparkPos);
+    float spk = 0.0;
+    if (uSparkTime >= 0.0 && uSparkTime < 0.6) {
+      float fade = 1.0 - uSparkTime / 0.6;
+      float pulse = sin(uSparkTime * 20.0) * 0.5 + 0.5;
+      spk = smoothstep(0.9, 0.0, dSpk) * fade * pulse * 2.2;
+    }
+
+    float lit = baseLight + spec * 0.45 + shineTotal * 0.85 + spk;
+
+    vec3 col;
+    if (uDitherMode == 0) {
+      float quant = floor(lit * uSteps) / (uSteps - 1.0);
+      col = mix(uShadow, uHighlight, clamp(quant, 0.0, 1.0));
+    } else {
+      float thr = getDitherThreshold(gl_FragCoord.xy) - 0.5;
+      float stepped = (lit + thr * (uDitherStrength / uSteps)) * uSteps;
+      float q = clamp(floor(stepped) / (uSteps - 1.0), 0.0, 1.0);
+      col = mix(uShadow, uHighlight, q);
+    }
+
+    if (uBlush > 0.001) {
+      float b1 = smoothstep(0.42, 0.0, length(vWorldPos.xy - vec2( 0.7, -0.15)));
+      float b2 = smoothstep(0.42, 0.0, length(vWorldPos.xy - vec2(-0.7, -0.15)));
+      vec3 blushCol = vec3(1.0, 0.32, 0.52);
+      col = mix(col, blushCol, (b1 + b2) * uBlush * 0.75);
+    }
+
+    if (shineTotal > 0.01) {
+      vec3 glint = mix(vec3(1.0), uHighlight, 0.3);
+      col = mix(col, glint, shineTotal * 0.65);
+    }
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+const BLUSH_VERTEX_SHADER = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const BLUSH_FRAGMENT_SHADER = `
+  uniform float uAlpha;
+  uniform vec3  uColor;
+  varying vec2  vUv;
+  void main() {
+    float pattern = step(0.3, fract((vUv.x + vUv.y) * 4.0));
+    float edgeFade = smoothstep(0.0, 0.15, vUv.x) * smoothstep(1.0, 0.85, vUv.x)
+                   * smoothstep(0.0, 0.2,  vUv.y) * smoothstep(1.0, 0.8,  vUv.y);
+    float a = pattern * edgeFade * uAlpha;
+    gl_FragColor = vec4(uColor, a);
+  }
+`;
+
+const SPARK_VERTEX_SHADER = `
+  void main() {
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const SPARK_FRAGMENT_SHADER = `
+  uniform float uAlpha;
+  uniform vec3  uColor;
+  void main() {
+    gl_FragColor = vec4(uColor, uAlpha);
+  }
+`;
+
+const STEAM_VERTEX_SHADER = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const STEAM_FRAGMENT_SHADER = `
+  uniform float uAlpha;
+  uniform vec3  uColor;
+  varying vec2  vUv;
+  void main() {
+    float dist = length(vUv - 0.5);
+    float a = smoothstep(0.48, 0.05, dist) * uAlpha * 0.42;
+    gl_FragColor = vec4(uColor, a);
+  }
+`;
+
 export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
+  const tMount = performance.now();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const activeTheme = useAppStore((state) => state.activeTheme);
   const [logoCfg, setLogoCfg] = useState<DitherForgeSettings>(() => getStoredSettings());
@@ -151,7 +421,6 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
 
   const targetColorsRef = useRef<LogoThemeColors>(mapAppThemeToLogoTheme(activeTheme));
   const triggerThemeShineRef = useRef<(() => void) | null>(null);
-  const [is3DReady, setIs3DReady] = useState(false);
 
   useEffect(() => {
     targetColorsRef.current = mapAppThemeToLogoTheme(activeTheme);
@@ -177,14 +446,12 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
   const is2DMode = logoCfg.logoMode === '2d';
   const useAntialias = (logoCfg.logoSharpness ?? 'smooth') === 'smooth';
 
-  useEffect(() => {
-    if (is2DMode) {
-      setIs3DReady(false);
-      return;
-    }
+  useLayoutEffect(() => {
+    if (is2DMode) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const tLayoutStart = performance.now();
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -199,8 +466,8 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     } catch {
       return;
     }
+    const tRendererInit = performance.now();
 
-    // Compact 16:9 aspect ratio so the horizontal anvil fills the box without vertical dead space
     const ASPECT = 1.55;
     const initialResH = settingsRef.current.logoResolution || 256;
     const initialResW = Math.round(initialResH * ASPECT);
@@ -217,66 +484,9 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     const rootGroup = new THREE.Group();
     scene.add(rootGroup);
 
-    const shape = new THREE.Shape();
-    for (let i = 0; i < OUTLINE.length; i += 2) {
-      if (i === 0) shape.moveTo(OUTLINE[i], OUTLINE[i + 1]);
-      else shape.lineTo(OUTLINE[i], OUTLINE[i + 1]);
-    }
-    shape.closePath();
-
-    const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: DEPTH,
-      curveSegments: 1,
-      steps: 1,
-      bevelEnabled: true,
-      bevelThickness: 0.19,
-      bevelSize: 0.0,
-      bevelSegments: 4
-    });
-    geo.center();
-
-    /* Smooth the normals on the sides and bevels while keeping front/back caps crisp */
-    (function smoothWalls(g: THREE.BufferGeometry) {
-      const p = g.attributes.position;
-      const out = new Float32Array(p.count * 3);
-      const key = (i: number) =>
-        p.getX(i).toFixed(3) + ',' + p.getY(i).toFixed(3) + ',' + p.getZ(i).toFixed(3);
-      const A = new THREE.Vector3();
-      const B = new THREE.Vector3();
-      const C = new THREE.Vector3();
-      const acc = new Map<string, THREE.Vector3>();
-      const tris: { f: THREE.Vector3; cap: boolean }[] = [];
-
-      for (let i = 0; i < p.count; i += 3) {
-        A.fromBufferAttribute(p, i);
-        B.fromBufferAttribute(p, i + 1);
-        C.fromBufferAttribute(p, i + 2);
-        const f = new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(C, A)).normalize();
-        const cap = Math.abs(f.z) > 0.85;
-        tris.push({ f, cap });
-        if (!cap) {
-          for (const k of [key(i), key(i + 1), key(i + 2)]) {
-            if (!acc.has(k)) acc.set(k, new THREE.Vector3());
-            acc.get(k)!.add(f);
-          }
-        }
-      }
-
-      for (let i = 0; i < p.count; i++) {
-        const tri = tris[Math.floor(i / 3)];
-        let n: THREE.Vector3;
-        if (tri.cap) {
-          n = tri.f;
-        } else {
-          n = acc.get(key(i)) || tri.f;
-          n = n.length() > 1e-9 ? n.normalize() : new THREE.Vector3(0, 0, 1);
-        }
-        out[i * 3] = n.x;
-        out[i * 3 + 1] = n.y;
-        out[i * 3 + 2] = n.z;
-      }
-      g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
-    })(geo);
+    /* Reuse module-level precomputed geometry (0ms mount overhead) */
+    const geo = SHARED_ANVIL_GEO;
+    const tGeomInit = performance.now();
 
     const material = new THREE.ShaderMaterial({
       uniforms: {
@@ -297,159 +507,15 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
         uBlush:          { value: 0.0 },
         uSteamTime:      { value: -100.0 }
       },
-      vertexShader: `
-        varying vec3 vNormal;
-        varying vec3 vWorldPos;
-        varying vec3 vViewPos;
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          vec4 wp = modelMatrix * vec4(position, 1.0);
-          vWorldPos = wp.xyz;
-          vec4 vp = modelViewMatrix * vec4(position, 1.0);
-          vViewPos = vp.xyz;
-          gl_Position = projectionMatrix * vp;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3  uShadow;
-        uniform vec3  uHighlight;
-        uniform float uLightMode;
-        uniform int   uDitherMode;
-        uniform float uSteps;
-        uniform float uDitherStrength;
-        uniform vec3  uLight;
-        uniform float uShine;
-        uniform float uShineW;
-        uniform vec2  uAxis;
-        uniform float uShinePos;
-        uniform float uShine2Pos;
-        uniform float uSparkTime;
-        uniform vec3  uSparkPos;
-        uniform float uBlush;
-        uniform float uSteamTime;
-
-        varying vec3  vNormal;
-        varying vec3  vWorldPos;
-        varying vec3  vViewPos;
-
-        float bayer4(vec2 p) {
-          ivec2 ip = ivec2(mod(p, 4.0));
-          int idx = ip.x + ip.y * 4;
-          if (idx == 0) return 0.0 / 16.0;
-          if (idx == 1) return 8.0 / 16.0;
-          if (idx == 2) return 2.0 / 16.0;
-          if (idx == 3) return 10.0 / 16.0;
-          if (idx == 4) return 12.0 / 16.0;
-          if (idx == 5) return 4.0 / 16.0;
-          if (idx == 6) return 14.0 / 16.0;
-          if (idx == 7) return 6.0 / 16.0;
-          if (idx == 8) return 3.0 / 16.0;
-          if (idx == 9) return 11.0 / 16.0;
-          if (idx == 10) return 1.0 / 16.0;
-          if (idx == 11) return 9.0 / 16.0;
-          if (idx == 12) return 15.0 / 16.0;
-          if (idx == 13) return 7.0 / 16.0;
-          if (idx == 14) return 13.0 / 16.0;
-          return 5.0 / 16.0;
-        }
-
-        float bayer2(vec2 p) {
-          ivec2 ip = ivec2(mod(p, 2.0));
-          int idx = ip.x + ip.y * 2;
-          if (idx == 0) return 0.0 / 4.0;
-          if (idx == 1) return 2.0 / 4.0;
-          if (idx == 2) return 3.0 / 4.0;
-          return 1.0 / 4.0;
-        }
-
-        float bayer8(vec2 p) {
-          return (bayer4(p) * 4.0 + bayer2(floor(p / 4.0))) / 16.0;
-        }
-
-        float halftoneDither(vec2 p) {
-          vec2 c = fract(p / 4.0) - 0.5;
-          return clamp(length(c) * 1.6, 0.0, 1.0);
-        }
-
-        float scanlineDither(vec2 p) {
-          return mod(floor(p.y), 2.0) == 0.0 ? 0.25 : 0.75;
-        }
-
-        float checkerDither(vec2 p) {
-          ivec2 ip = ivec2(mod(p, 2.0));
-          return float(ip.x ^ ip.y);
-        }
-
-        float getDitherThreshold(vec2 fragCoord) {
-          if (uDitherMode == 0) return 0.5;
-          if (uDitherMode == 1) return bayer2(fragCoord);
-          if (uDitherMode == 2) return bayer4(fragCoord);
-          if (uDitherMode == 3) return bayer8(fragCoord);
-          if (uDitherMode == 4) return halftoneDither(fragCoord);
-          if (uDitherMode == 5) return scanlineDither(fragCoord);
-          if (uDitherMode == 6) return checkerDither(fragCoord);
-          return bayer4(fragCoord);
-        }
-
-        void main() {
-          vec3 N = normalize(vNormal);
-          vec3 L = normalize(uLight);
-          vec3 V = normalize(-vViewPos);
-
-          float diff = max(dot(N, L), 0.0);
-          float hemi = N.y * 0.16 + 0.84;
-          float baseLight = mix(diff * 0.82 + 0.18, diff * 0.7 + 0.3 * hemi, 0.4);
-
-          vec3 R = reflect(-L, N);
-          float spec = pow(max(dot(R, V), 0.0), 32.0);
-
-          float d = dot(vWorldPos.xy, uAxis);
-          float s1 = smoothstep(uShineW, 0.0, abs(d - uShinePos));
-          float s2 = smoothstep(uShineW * 0.55, 0.0, abs(d - uShine2Pos)) * 0.75;
-          float shineTotal = (s1 + s2) * uShine;
-
-          float dSpk = length(vWorldPos - uSparkPos);
-          float spk = 0.0;
-          if (uSparkTime >= 0.0 && uSparkTime < 0.6) {
-            float fade = 1.0 - uSparkTime / 0.6;
-            float pulse = sin(uSparkTime * 20.0) * 0.5 + 0.5;
-            spk = smoothstep(0.9, 0.0, dSpk) * fade * pulse * 2.2;
-          }
-
-          float lit = baseLight + spec * 0.45 + shineTotal * 0.85 + spk;
-
-          vec3 col;
-          if (uDitherMode == 0) {
-            float quant = floor(lit * uSteps) / (uSteps - 1.0);
-            col = mix(uShadow, uHighlight, clamp(quant, 0.0, 1.0));
-          } else {
-            float thr = getDitherThreshold(gl_FragCoord.xy) - 0.5;
-            float stepped = (lit + thr * (uDitherStrength / uSteps)) * uSteps;
-            float q = clamp(floor(stepped) / (uSteps - 1.0), 0.0, 1.0);
-            col = mix(uShadow, uHighlight, q);
-          }
-
-          if (uBlush > 0.001) {
-            float b1 = smoothstep(0.42, 0.0, length(vWorldPos.xy - vec2( 0.7, -0.15)));
-            float b2 = smoothstep(0.42, 0.0, length(vWorldPos.xy - vec2(-0.7, -0.15)));
-            vec3 blushCol = vec3(1.0, 0.32, 0.52);
-            col = mix(col, blushCol, (b1 + b2) * uBlush * 0.75);
-          }
-
-          if (shineTotal > 0.01) {
-            vec3 glint = mix(vec3(1.0), uHighlight, 0.3);
-            col = mix(col, glint, shineTotal * 0.65);
-          }
-
-          gl_FragColor = vec4(col, 1.0);
-        }
-      `
+      vertexShader: MAIN_VERTEX_SHADER,
+      fragmentShader: MAIN_FRAGMENT_SHADER
     });
 
     const mesh = new THREE.Mesh(geo, material);
     rootGroup.add(mesh);
+    const tMatInit = performance.now();
 
-    /* Blush overlay geometry (diagonal hash bars when tickled / active click) */
+    /* Blush overlay geometry */
     const blushGroup = new THREE.Group();
     rootGroup.add(blushGroup);
 
@@ -461,25 +527,8 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
         uColor:    { value: new THREE.Vector3(1.0, 0.38, 0.55) },
         uLight:    { value: new THREE.Vector3(0.4, 0.75, 0.6) }
       },
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uAlpha;
-        uniform vec3  uColor;
-        varying vec2  vUv;
-        void main() {
-          float pattern = step(0.3, fract((vUv.x + vUv.y) * 4.0));
-          float edgeFade = smoothstep(0.0, 0.15, vUv.x) * smoothstep(1.0, 0.85, vUv.x)
-                         * smoothstep(0.0, 0.2,  vUv.y) * smoothstep(1.0, 0.8,  vUv.y);
-          float a = pattern * edgeFade * uAlpha;
-          gl_FragColor = vec4(uColor, a);
-        }
-      `
+      vertexShader: BLUSH_VERTEX_SHADER,
+      fragmentShader: BLUSH_FRAGMENT_SHADER
     });
 
     const leftCheekAnchor = new THREE.Vector2(-0.48, 0.32);
@@ -505,12 +554,12 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     makeCheekPair(leftCheekAnchor.x, leftCheekAnchor.y, false);
     makeCheekPair(rightCheekAnchor.x, rightCheekAnchor.y, true);
 
-    /* Click Spark particle pool */
+    /* Click Spark particle pool: deferred until first click */
     const SPARK_MAX = 20;
     const sparkGroup = new THREE.Group();
     scene.add(sparkGroup);
 
-    const sparkGeo = new THREE.OctahedronGeometry(0.08, 0);
+    let sparkGeo: THREE.OctahedronGeometry | null = null;
     interface SparkParticle {
       alive: boolean;
       p: THREE.Vector3;
@@ -521,50 +570,40 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     }
     const SPARK_POOL: SparkParticle[] = [];
 
-    function createSparkMaterial(): THREE.ShaderMaterial {
-      return new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        uniforms: {
-          uAlpha: { value: 1.0 },
-          uColor: { value: new THREE.Vector3(1.0, 0.94, 0.55) }
-        },
-        vertexShader: `
-          void main() {
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform float uAlpha;
-          uniform vec3  uColor;
-          void main() {
-            gl_FragColor = vec4(uColor, uAlpha);
-          }
-        `
-      });
+    function initSparkPool() {
+      if (SPARK_POOL.length > 0) return;
+      sparkGeo = new THREE.OctahedronGeometry(0.08, 0);
+      for (let i = 0; i < SPARK_MAX; i++) {
+        const sMat = new THREE.ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          uniforms: {
+            uAlpha: { value: 1.0 },
+            uColor: { value: new THREE.Vector3(1.0, 0.94, 0.55) }
+          },
+          vertexShader: SPARK_VERTEX_SHADER,
+          fragmentShader: SPARK_FRAGMENT_SHADER
+        });
+        const sMesh = new THREE.Mesh(sparkGeo, sMat);
+        sMesh.visible = false;
+        sparkGroup.add(sMesh);
+        SPARK_POOL.push({
+          alive: false,
+          p: new THREE.Vector3(),
+          v: new THREE.Vector3(),
+          mesh: sMesh,
+          birth: 0,
+          life: 0.5
+        });
+      }
     }
 
-    for (let i = 0; i < SPARK_MAX; i++) {
-      const sMat = createSparkMaterial();
-      const sMesh = new THREE.Mesh(sparkGeo, sMat);
-      sMesh.visible = false;
-      sparkGroup.add(sMesh);
-      SPARK_POOL.push({
-        alive: false,
-        p: new THREE.Vector3(),
-        v: new THREE.Vector3(),
-        mesh: sMesh,
-        birth: 0,
-        life: 0.5
-      });
-    }
-
-    /* Steam Puffs (steam from anvil when rapid-clicked) */
+    /* Steam Puffs: deferred until first rapid-click */
     const STEAM_MAX = 12;
     const steamGroup = new THREE.Group();
     scene.add(steamGroup);
 
-    const steamPlaneGeo = new THREE.PlaneGeometry(1.45, 1.45);
+    let steamPlaneGeo: THREE.PlaneGeometry | null = null;
     interface SteamPuff {
       alive: boolean;
       p: THREE.Vector3;
@@ -577,50 +616,35 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     }
     const STEAM_PUFFS: SteamPuff[] = [];
 
-    function createSteamMaterial(): THREE.ShaderMaterial {
-      return new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        uniforms: {
-          uAlpha: { value: 1.0 },
-          uColor: { value: new THREE.Vector3(0.92, 0.95, 1.0) }
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform float uAlpha;
-          uniform vec3  uColor;
-          varying vec2  vUv;
-          void main() {
-            float dist = length(vUv - 0.5);
-            float a = smoothstep(0.48, 0.05, dist) * uAlpha * 0.42;
-            gl_FragColor = vec4(uColor, a);
-          }
-        `
-      });
-    }
-
-    for (let i = 0; i < STEAM_MAX; i++) {
-      const mat = createSteamMaterial();
-      const puff = new THREE.Mesh(steamPlaneGeo, mat);
-      puff.visible = false;
-      steamGroup.add(puff);
-      STEAM_PUFFS.push({
-        alive: false,
-        p: new THREE.Vector3(),
-        v: new THREE.Vector3(),
-        mesh: puff,
-        birth: 0,
-        life: 0.9,
-        initScale: 0.5,
-        rotSpeed: 0
-      });
+    function initSteamPool() {
+      if (STEAM_PUFFS.length > 0) return;
+      steamPlaneGeo = new THREE.PlaneGeometry(1.45, 1.45);
+      for (let i = 0; i < STEAM_MAX; i++) {
+        const mat = new THREE.ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          uniforms: {
+            uAlpha: { value: 1.0 },
+            uColor: { value: new THREE.Vector3(0.92, 0.95, 1.0) }
+          },
+          vertexShader: STEAM_VERTEX_SHADER,
+          fragmentShader: STEAM_FRAGMENT_SHADER
+        });
+        const puff = new THREE.Mesh(steamPlaneGeo, mat);
+        puff.visible = false;
+        steamGroup.add(puff);
+        STEAM_PUFFS.push({
+          alive: false,
+          p: new THREE.Vector3(),
+          v: new THREE.Vector3(),
+          mesh: puff,
+          birth: 0,
+          life: 0.9,
+          initScale: 0.5,
+          rotSpeed: 0
+        });
+      }
     }
 
     function isPointInAnvilPolygon(px: number, py: number): boolean {
@@ -660,6 +684,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     }
 
     function spawnClickSparks(localOrigin: THREE.Vector3, clickMeter: number) {
+      initSparkPool();
       const worldOrigin = localOrigin.clone().applyMatrix4(rootGroup.matrixWorld);
       const count = Math.min(SPARK_MAX, Math.floor(4 + clickMeter * 5));
       const now = (performance.now() - start) / 1000;
@@ -688,6 +713,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     }
 
     function spawnSteamPuffs(localOrigin: THREE.Vector3) {
+      initSteamPool();
       const worldOrigin = localOrigin.clone().applyMatrix4(rootGroup.matrixWorld);
       const now = (performance.now() - start) / 1000;
       let spawned = 0;
@@ -956,13 +982,9 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     let rafId: number | null = null;
     let contextLost = false;
     let disposed = false;
-    let firstFrameFired = false;
 
-    function frame() {
-      if (disposed || contextLost || document.hidden) return;
-      const wallS = (performance.now() - start) / 1000;
+    function renderCurrentFrame(wallS: number) {
       const cfg = settingsRef.current;
-
       const desiredResH = cfg.logoResolution || 256;
       if (desiredResH !== currentResH) {
         currentResH = desiredResH;
@@ -987,12 +1009,12 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
       material.uniforms.uHighlight.value.set(cur.h[0], cur.h[1], cur.h[2]);
       material.uniforms.uLightMode.value = cur.lm;
       renderer.render(scene, camera);
+    }
 
-      if (!firstFrameFired) {
-        firstFrameFired = true;
-        setIs3DReady(true);
-      }
-
+    function frame() {
+      if (disposed || contextLost || document.hidden) return;
+      const wallS = (performance.now() - start) / 1000;
+      renderCurrentFrame(wallS);
       rafId = requestAnimationFrame(frame);
     }
 
@@ -1028,7 +1050,28 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     canvas.addEventListener('webglcontextrestored', handleContextRestored);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    frame();
+    /* Render initial frame synchronously BEFORE initial browser paint */
+    renderCurrentFrame(0);
+    const tFirstRenderSync = performance.now();
+
+    /* Start requestAnimationFrame animation loop */
+    rafId = requestAnimationFrame(frame);
+
+    /* Measure visibly painted frame */
+    requestAnimationFrame(() => {
+      const tFirstPaint = performance.now();
+      (window as any).__logoPerformance = {
+        mountTime: tMount,
+        layoutEffectStart: tLayoutStart - tMount,
+        rendererInit: tRendererInit - tLayoutStart,
+        geomCreation: tGeomInit - tRendererInit,
+        matCreation: tMatInit - tGeomInit,
+        firstRenderSync: tFirstRenderSync - tMount,
+        firstPaint: tFirstPaint - tMount,
+        totalFromNav: tFirstPaint
+      };
+      console.log('[Logo Timings]', JSON.stringify((window as any).__logoPerformance));
+    });
 
     return () => {
       disposed = true;
@@ -1043,13 +1086,12 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
 
-      geo.dispose();
       material.dispose();
       blushMaterial.dispose();
       slashDisposableGeos.forEach((g) => g.dispose());
-      sparkGeo.dispose();
+      if (sparkGeo) (sparkGeo as THREE.BufferGeometry).dispose();
       SPARK_POOL.forEach((sp) => sp.mesh.material.dispose());
-      steamPlaneGeo.dispose();
+      if (steamPlaneGeo) (steamPlaneGeo as THREE.BufferGeometry).dispose();
       STEAM_PUFFS.forEach((st) => st.mesh.material.dispose());
       renderer.dispose();
     };
@@ -1117,72 +1159,23 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
   const resW = Math.round(resH * 1.55);
 
   return (
-    <div
+    <canvas
+      ref={canvasRef}
+      width={resW}
+      height={resH}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      className={`df-anvil-3d-logo sharpness-${sharpnessMode} ${className}`.trim()}
       style={{
-        position: 'relative',
         width: `${widthPx}px`,
         height: `${heightPx}px`,
-        boxSizing: 'border-box'
+        cursor: logoCfg.logoInteractiveClick !== false ? 'pointer' : 'default',
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        imageRendering: imageRenderingStyle,
+        display: 'block'
       }}
-    >
-      {/* Non-blocking 2D Fallback during 3D initialization */}
-      <div
-        className={`df-anvil-2d-logo sharpness-${sharpnessMode} ${className}`.trim()}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          pointerEvents: 'none',
-          opacity: is3DReady ? 0 : 1,
-          transition: 'opacity 0.25s ease-out',
-          zIndex: is3DReady ? 0 : 1
-        }}
-      >
-        <img
-          src={themeLogo}
-          alt="DitherForge"
-          draggable={false}
-          style={{
-            width: `${imgWidth}px`,
-            height: 'auto',
-            display: 'block',
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            pointerEvents: 'none',
-            imageRendering: imageRenderingStyle,
-            transform: `translateY(${offsetY}px)`
-          }}
-        />
-      </div>
-
-      {/* 3D WebGL Canvas */}
-      <canvas
-        ref={canvasRef}
-        width={resW}
-        height={resH}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        className={`df-anvil-3d-logo sharpness-${sharpnessMode} ${className}`.trim()}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: `${widthPx}px`,
-          height: `${heightPx}px`,
-          cursor: logoCfg.logoInteractiveClick !== false ? 'pointer' : 'default',
-          touchAction: 'none',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          imageRendering: imageRenderingStyle,
-          display: 'block',
-          opacity: is3DReady ? 1 : 0,
-          transition: 'opacity 0.25s ease-out',
-          zIndex: is3DReady ? 1 : 0
-        }}
-      />
-    </div>
+    />
   );
 };

@@ -295,7 +295,13 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         onChange={async (e) => {
           const file = e.target.files?.[0];
           if (file) {
-            await importProjectFile(file, useAppStore);
+            const res = await importProjectFile(file, useAppStore);
+            if (res.success) {
+              const projName = res.name || file.name.replace(/\.[^/.]+$/, '');
+              useAppStore.getState().addToast(`Loaded project: ${projName}`, 'info');
+            } else {
+              useAppStore.getState().addToast(res.error || 'Failed to load project', 'error');
+            }
           }
           e.target.value = '';
         }}

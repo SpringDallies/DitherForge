@@ -17,6 +17,7 @@ import { EngineBridge } from '../services/EngineBridge';
 import { ditherWorkerClient } from '../workers/ditherWorkerClient';
 import { renderAsciiVectorToCanvas } from '../ascii/vectorCanvas';
 import { applyTweaksFast, rotateHueHsvPixel } from '../utils/fastTweaks';
+import { importProjectFile } from '../utils/projectPersistence';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import {
@@ -1200,8 +1201,20 @@ export const CenterViewport: React.FC = () => {
     };
   }, [setZoom, setPan]);
 
-  // Handle Both Image and MP4/Video File Drops & Imports!
+  // Handle Both Image, Project (.ditherforge), and MP4/Video File Drops & Imports!
   const processMediaFile = useCallback((file: File) => {
+    if (file.name.endsWith('.ditherforge') || (file.type === 'application/json' && file.name.endsWith('.json'))) {
+      importProjectFile(file, useAppStore).then((res) => {
+        if (res.success) {
+          const projName = res.name || file.name.replace(/\.[^/.]+$/, '');
+          useAppStore.getState().addToast(`Loaded project: ${projName}`, 'info');
+        } else {
+          useAppStore.getState().addToast(res.error || 'Failed to load project', 'error');
+        }
+      });
+      return;
+    }
+
     if (file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
       const url = URL.createObjectURL(file);
       const vid = document.createElement('video');
@@ -2492,7 +2505,7 @@ export const CenterViewport: React.FC = () => {
       <input
         type="file"
         ref={fileInputRef}
-        accept="image/*,video/mp4,video/webm,video/quicktime,video/*"
+        accept="image/*,video/mp4,video/webm,video/quicktime,video/*,.ditherforge"
         style={{ display: 'none' }}
         onChange={(e) => {
           if (e.target.files?.[0]) processMediaFile(e.target.files[0]);

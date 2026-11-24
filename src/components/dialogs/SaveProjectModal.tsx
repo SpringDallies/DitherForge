@@ -158,14 +158,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
         >
           <button
             type="button"
-            className="btn-default"
-            onClick={onClose}
-            style={{ minWidth: '70px' }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
             className="btn-primary"
             onClick={handleSave}
             style={{

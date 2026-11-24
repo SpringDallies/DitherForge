@@ -67,28 +67,50 @@ export function exportProjectFile(storeState: any, projectName?: string): string
   };
 
   let sourceImage: DitherForgeProjectFile['sourceImage'] = undefined;
-  if (storeState.sourceImage && storeState.imageWidth && storeState.imageHeight) {
+  const sourceImageData: ImageData | null = storeState.sourceImageData;
+  const imageWidth = storeState.imageWidth || (sourceImageData ? sourceImageData.width : 0);
+  const imageHeight = storeState.imageHeight || (sourceImageData ? sourceImageData.height : 0);
+
+  if (sourceImageData && imageWidth > 0 && imageHeight > 0) {
+    try {
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = imageWidth;
+      offCanvas.height = imageHeight;
+      const ctx = offCanvas.getContext('2d');
+      if (ctx) {
+        ctx.putImageData(sourceImageData, 0, 0);
+        sourceImage = {
+          dataUrl: offCanvas.toDataURL('image/png'),
+          width: imageWidth,
+          height: imageHeight,
+          hasAlpha: storeState.hasAlpha
+        };
+      }
+    } catch (e) {
+      console.warn('[ProjectPersistence] Unable to serialize sourceImageData to data URL:', e);
+    }
+  } else if (storeState.sourceImage && imageWidth > 0 && imageHeight > 0) {
     try {
       // If sourceImage is an HTMLImageElement or CanvasImageSource, extract dataUrl via canvas
       if (storeState.sourceImage instanceof HTMLImageElement && storeState.sourceImage.src) {
         if (storeState.sourceImage.src.startsWith('data:')) {
           sourceImage = {
             dataUrl: storeState.sourceImage.src,
-            width: storeState.imageWidth,
-            height: storeState.imageHeight,
+            width: imageWidth,
+            height: imageHeight,
             hasAlpha: storeState.hasAlpha
           };
         } else {
           const offCanvas = document.createElement('canvas');
-          offCanvas.width = storeState.imageWidth;
-          offCanvas.height = storeState.imageHeight;
+          offCanvas.width = imageWidth;
+          offCanvas.height = imageHeight;
           const ctx = offCanvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(storeState.sourceImage, 0, 0);
             sourceImage = {
               dataUrl: offCanvas.toDataURL('image/png'),
-              width: storeState.imageWidth,
-              height: storeState.imageHeight,
+              width: imageWidth,
+              height: imageHeight,
               hasAlpha: storeState.hasAlpha
             };
           }
@@ -96,8 +118,8 @@ export function exportProjectFile(storeState: any, projectName?: string): string
       } else if (typeof storeState.sourceImage === 'string' && storeState.sourceImage.startsWith('data:')) {
         sourceImage = {
           dataUrl: storeState.sourceImage,
-          width: storeState.imageWidth,
-          height: storeState.imageHeight,
+          width: imageWidth,
+          height: imageHeight,
           hasAlpha: storeState.hasAlpha
         };
       }
@@ -148,17 +170,37 @@ export async function importProjectFile(
       };
     }
 
-    // 1. If project contains a source image, decode and set it first
+    // 1. If project contains a source image, decode and set it into the store
     if (data.sourceImage?.dataUrl) {
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
-          store.setState({
-            sourceImage: img,
-            imageWidth: data.sourceImage!.width || img.naturalWidth,
-            imageHeight: data.sourceImage!.height || img.naturalHeight,
-            hasAlpha: Boolean(data.sourceImage!.hasAlpha)
-          });
+          try {
+            const width = data.sourceImage!.width || img.naturalWidth;
+            const height = data.sourceImage!.height || img.naturalHeight;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const imgData = ctx.getImageData(0, 0, width, height);
+              const imgName = data.name ? `${data.name}.png` : 'project_image.png';
+              store.setState({
+                hasImage: true,
+                imageName: imgName,
+                imageFileName: imgName,
+                imageWidth: width,
+                imageHeight: height,
+                sourceImageData: imgData,
+                sourceVideoUrl: null,
+                panX: 0,
+                panY: 0
+              });
+            }
+          } catch (e) {
+            console.warn('[ProjectPersistence] Error decoding source image data:', e);
+          }
           resolve();
         };
         img.onerror = () => {
@@ -167,6 +209,14 @@ export async function importProjectFile(
         };
         img.src = data.sourceImage!.dataUrl;
       });
+    } else {
+      // If the project file did NOT contain an embedded image and the app is currently in "no image mode",
+      // load the sample calibration pattern so the project's algorithms, adjustments, effects, and palettes
+      // are immediately active and rendered on screen!
+      const currentStore = store.getState();
+      if (!currentStore.hasImage || !currentStore.sourceImageData) {
+        currentStore.loadSampleImage();
+      }
     }
 
     // 2. Restore all editor snapshot parameters with default expansion
@@ -186,7 +236,16 @@ export async function importProjectFile(
 
     applySnapshotToStore(store, fullSnapshot);
 
-    return { success: true };
+    // 3. Automatically fit image to workspace
+    try {
+      const canvasArea = document.querySelector('.canvas-area');
+      const sWidth = store.getState().sidebarWidth || 320;
+      if (canvasArea && typeof store.getState().fitToViewport === 'function') {
+        store.getState().fitToViewport(canvasArea.clientWidth - (sWidth + 14), canvasArea.clientHeight - 38);
+      }
+    } catch {}
+
+    return { success: true, name: data.name };
   } catch (err: any) {
     return {
       success: false,

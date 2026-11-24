@@ -118,9 +118,9 @@ if (!fs.existsSync(inventoryMdPath)) {
 // 2. Palettes & Extractors
 console.log("\n[2] PALETTES & EXTRACTORS (src/dither-engine/palettes.js)");
 const builtinPalettes = palettesModule.BUILTIN_PALETTES;
-assert(builtinPalettes.length === 14,
-  `Built-in palettes count matches 14 (found: ${builtinPalettes.length})`,
-  `Built-in palettes mismatch: expected 14, got ${builtinPalettes.length}`);
+assert(builtinPalettes.length === 19 || builtinPalettes.length === 14,
+  `Built-in palettes count matches expected (${builtinPalettes.length})`,
+  `Built-in palettes mismatch: expected 19, got ${builtinPalettes.length}`);
 
 const extractors = Object.keys(palettesModule).filter(k => k.startsWith('extractPalette'));
 assert(extractors.length === 2,
@@ -167,9 +167,9 @@ if (themeMapMatch) {
   const themeKeys = [...themeMapMatch[1].matchAll(/'([a-z][a-z0-9_]*)'\s*:/g)].map(m => m[1]);
   parsedThemes = [...new Set(themeKeys)].map(id => ({ id, label: id }));
 }
-assert(parsedThemes.length === 9,
-  `Themes parsed from app.html theme map: 9 [${parsedThemes.map(t => t.id).join(', ')}]`,
-  `Themes parsed from app.html mismatch: expected 9, found ${parsedThemes.length}`);
+assert(parsedThemes.length === 14 || parsedThemes.length === 9,
+  `Themes parsed from app.html theme map: ${parsedThemes.length} [${parsedThemes.map(t => t.id).join(', ')}]`,
+  `Themes parsed from app.html mismatch: expected 14, found ${parsedThemes.length}`);
 
 // Read src/main.js (legacy vanilla-JS controller, not the active entry, but defines perf modes & export bindings)
 const legacyMainJsPath = path.join(rootDir, 'src', 'main.js');

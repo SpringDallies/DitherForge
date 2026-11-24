@@ -6,8 +6,9 @@
  * @param {string} [format="png"]
  * @param {number} [quality=0.92]
  * @param {string|null} [filename=null]
+ * @param {number} [scale=1]
  */
-export function exportRaster(canvas, format = "png", quality = 0.92, filename = null) {
+export function exportRaster(canvas, format = "png", quality = 0.92, filename = null, scale = 1) {
   let mime = "image/png";
   if (format === "jpg" || format === "jpeg") mime = "image/jpeg";
   if (format === "webp") mime = "image/webp";
@@ -15,11 +16,25 @@ export function exportRaster(canvas, format = "png", quality = 0.92, filename = 
   const baseName = filename && filename.trim() ? filename.trim() : "ditherforge_export";
   const finalName = baseName.endsWith(`.${format}`) ? baseName : `${baseName}.${format}`;
 
-  if (typeof canvas.toBlob === "function") {
-    canvas.toBlob(
+  let exportCanvas = canvas;
+  if (scale && scale > 1) {
+    const s = Math.min(4, Math.round(scale));
+    const scaled = document.createElement("canvas");
+    scaled.width = canvas.width * s;
+    scaled.height = canvas.height * s;
+    const sCtx = scaled.getContext("2d");
+    if (sCtx) {
+      sCtx.imageSmoothingEnabled = false;
+      sCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, scaled.width, scaled.height);
+      exportCanvas = scaled;
+    }
+  }
+
+  if (typeof exportCanvas.toBlob === "function") {
+    exportCanvas.toBlob(
       blob => {
         if (!blob) {
-          const dataUrl = canvas.toDataURL(mime, quality);
+          const dataUrl = exportCanvas.toDataURL(mime, quality);
           downloadDataUrl(dataUrl, finalName);
           return;
         }
@@ -31,7 +46,7 @@ export function exportRaster(canvas, format = "png", quality = 0.92, filename = 
       quality
     );
   } else {
-    const dataUrl = canvas.toDataURL(mime, quality);
+    const dataUrl = exportCanvas.toDataURL(mime, quality);
     downloadDataUrl(dataUrl, finalName);
   }
 }

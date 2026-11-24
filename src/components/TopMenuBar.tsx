@@ -2,10 +2,12 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
+import { BatchProcessingModal } from './dialogs/BatchProcessingModal';
 import { Tooltip } from './common/Tooltip';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
 import { getExportCanvas } from '../utils/animationExport';
+import { exportProjectFile, importProjectFile } from '../utils/projectPersistence';
 import {
   FolderOpen,
   Sparkles,
@@ -18,7 +20,9 @@ import {
   Check,
   ChevronRight,
   Undo,
-  Redo
+  Redo,
+  Save,
+  Layers
 } from 'lucide-react';
 
 interface TopMenuBarProps {
@@ -47,8 +51,10 @@ const THEMES = [
 
 export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const projectInputRef = useRef<HTMLInputElement | null>(null);
   const [activeMenu, setActiveMenu] = useState<MenuType>(null);
   const [isThemesSubmenuOpen, setIsThemesSubmenuOpen] = useState<boolean>(false);
+  const [isBatchOpen, setIsBatchOpen] = useState<boolean>(false);
   const isExportOpen = useAppStore((state) => state.isExportOpen);
   const setIsExportOpen = useAppStore((state) => state.setIsExportOpen);
 
@@ -216,6 +222,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
 
       if (e.ctrlKey || e.metaKey) {
         if (e.key.toLowerCase() === 'o') { e.preventDefault(); handleOpenFileDialog(); return; }
+        if (e.key.toLowerCase() === 's') { e.preventDefault(); exportProjectFile(useAppStore.getState()); return; }
         if (e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) { e.preventDefault(); handleCopyClipboard(); return; }
         if (e.key.toLowerCase() === 'e') { e.preventDefault(); setIsExportOpen(true); return; }
         if (e.key === '=' || e.key === '+') { e.preventDefault(); handleZoomIn(); return; }
@@ -278,6 +285,19 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         style={{ display: 'none' }}
         onChange={handleFileInputChange}
       />
+      <input
+        type="file"
+        ref={projectInputRef}
+        accept=".ditherforge,application/json"
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            await importProjectFile(file, useAppStore);
+          }
+          e.target.value = '';
+        }}
+      />
 
       {/* Left: File | Edit | View pill */}
       <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
@@ -300,11 +320,21 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                   <Sparkles size={13} /><span>Load Calibration Pattern</span>
                 </button>
                 <div className="dropdown-divider" />
+                <button className="dropdown-menu-item" onClick={() => { projectInputRef.current?.click(); setActiveMenu(null); }}>
+                  <FolderOpen size={13} /><span>Open Project (.ditherforge)…</span>
+                </button>
+                <button className="dropdown-menu-item" onClick={() => { exportProjectFile(useAppStore.getState()); setActiveMenu(null); }}>
+                  <Save size={13} /><span>Save Project</span><span className="menu-shortcut">Ctrl+S</span>
+                </button>
+                <div className="dropdown-divider" />
                 <button className="dropdown-menu-item" onClick={() => { handleCopyClipboard(); setActiveMenu(null); }}>
                   <Copy size={13} /><span>Copy Result to Clipboard</span><span className="menu-shortcut">Ctrl+C</span>
                 </button>
                 <button className="dropdown-menu-item" onClick={() => { setIsExportOpen(true); setActiveMenu(null); }}>
                   <Download size={13} /><span>Export…</span><span className="menu-shortcut">Ctrl+E</span>
+                </button>
+                <button className="dropdown-menu-item" onClick={() => { setIsBatchOpen(true); setActiveMenu(null); }}>
+                  <Layers size={13} /><span>Batch Processing…</span>
                 </button>
                 <div className="dropdown-divider" />
                 <button className="dropdown-menu-item" onClick={() => { clearImage(); setActiveMenu(null); }}>
@@ -521,6 +551,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       </div>
 
       <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
+      <BatchProcessingModal isOpen={isBatchOpen} onClose={() => setIsBatchOpen(false)} />
     </header>
   );
 };

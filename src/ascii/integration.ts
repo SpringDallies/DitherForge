@@ -1,4 +1,5 @@
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
+import { LEGACY_ALGORITHM_REGISTRY } from '../algorithms/legacy';
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import { applyTweaksFast } from '../utils/fastTweaks';
 import {
@@ -20,11 +21,11 @@ import {
 } from './index';
 
 /**
- * Combined algorithm registry merging frozen ALGORITHM_REGISTRY (84) + ASCII_ALGORITHM_REGISTRY (24) = 108.
+ * Combined algorithm registry merging frozen ALGORITHM_REGISTRY (84) + LEGACY_ALGORITHM_REGISTRY (40) + ASCII_ALGORITHM_REGISTRY (24) = 148.
  * Never mutates the frozen ALGORITHM_REGISTRY array.
  */
 export function getCombinedAlgorithmRegistry(): any[] {
-  return [...ALGORITHM_REGISTRY, ...ASCII_ALGORITHM_REGISTRY];
+  return [...ALGORITHM_REGISTRY, ...LEGACY_ALGORITHM_REGISTRY, ...ASCII_ALGORITHM_REGISTRY];
 }
 
 export function findCombinedAlgorithm(id: string): any {

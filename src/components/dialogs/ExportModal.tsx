@@ -6,6 +6,7 @@ import { Dropdown } from '../common/Dropdown';
 import { exportRaster, copyCanvasToClipboard, exportCharacterGrid, exportSvgContours } from '../../dither-engine/exporters.js';
 import {
   downloadAnimatedGif,
+  downloadFrameSequenceZip,
   getExportCanvas,
   renderFullResolutionAsciiGrid
 } from '../../utils/animationExport';
@@ -23,7 +24,7 @@ interface ExportModalProps {
 }
 
 type TabType = 'image' | 'text' | 'vector';
-type ImageFormat = 'png' | 'jpg' | 'webp' | 'gif';
+type ImageFormat = 'png' | 'jpg' | 'webp' | 'gif' | 'zip';
 type CharSetType = 'dedicated' | 'ascii' | 'blocks' | 'braille';
 
 interface DedicatedGridState {
@@ -126,8 +127,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const [activeTab, setActiveTab] = useState<TabType>('image');
 
   const [format, setFormat] = useState<ImageFormat>('png');
+  const [resolutionScale, setResolutionScale] = useState<number>(1);
   const [quality, setQuality] = useState<number>(0.92);
   const [filename, setFilename] = useState<string>('ditherforge_export');
+  const [isExportingSequence, setIsExportingSequence] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<number>(0);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [copyError, setCopyError] = useState<string | null>(null);
 
@@ -543,6 +547,31 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   };
 
   const handleExportImage = () => {
+    if (format === 'zip') {
+      setIsExportingSequence(true);
+      setExportProgress(0);
+      const stateSnapshot = {
+        ...useAppStore.getState(),
+        imageFileName: filename.trim() || useAppStore.getState().imageFileName || 'ditherforge_export'
+      };
+      downloadFrameSequenceZip(stateSnapshot, {
+        scale: resolutionScale,
+        customFilename: filename.trim() || undefined,
+        onProgress: (p) => setExportProgress(Math.round(p * 100))
+      })
+        .then(() => {
+          addToast('Frame sequence exported to Downloads folder', 'success');
+          setIsExportingSequence(false);
+          onClose();
+        })
+        .catch((err) => {
+          console.error('Frame sequence export failed:', err);
+          addToast('Frame sequence export failed', 'error');
+          setIsExportingSequence(false);
+        });
+      return;
+    }
+
     if (format === 'gif') {
       const stateSnapshot = {
         ...useAppStore.getState(),
@@ -561,7 +590,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     const canvas = getSourceCanvas();
     if (!canvas) return;
 
-    exportRaster(canvas, format, quality, filename);
+    exportRaster(canvas, format, quality, filename, resolutionScale);
 
     try {
       const stored = localStorage.getItem('ditherforge_settings');
@@ -685,7 +714,25 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                       { id: 'png', label: 'PNG', hint: 'Lossless 24/32-bit' },
                       { id: 'jpg', label: 'JPG', hint: 'Web Compressed' },
                       { id: 'webp', label: 'WebP', hint: 'Modern Lightweight' },
-                      { id: 'gif', label: 'GIF', hint: 'Animated / Multi-Frame' }
+                      { id: 'gif', label: 'GIF', hint: 'Animated / Multi-Frame' },
+                      { id: 'zip', label: 'PNG Sequence (ZIP)', hint: 'All Animation Frames' }
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="export-form-row">
+                <label className="export-form-label" htmlFor="export-resolution-scale">Scale</label>
+                <div className="export-form-control">
+                  <Dropdown
+                    id="export-resolution-scale"
+                    value={String(resolutionScale)}
+                    onChange={(val) => setResolutionScale(Number(val))}
+                    width="100%"
+                    items={[
+                      { id: '1', label: '1x (Original)', hint: 'Native resolution' },
+                      { id: '2', label: '2x (Crisp)', hint: 'Pixel-perfect 2x upscale' },
+                      { id: '4', label: '4x (Ultra HD)', hint: 'Pixel-perfect 4x upscale' }
                     ]}
                   />
                 </div>
@@ -712,23 +759,39 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                 <div className="export-form-row">
                   <label className="export-form-label" htmlFor="export-image-quality">Quality</label>
                   <div className="export-form-control" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <input
-                      id="export-image-quality"
-                      type="range"
-                      className="control-slider"
-                      min="0.1"
-                      max="1.0"
-                      step="0.05"
-                      value={quality}
-                      onChange={(e) => setQuality(parseFloat(e.target.value))}
-                      style={{
-                        flex: 1,
-                        '--slider-fill': `${Math.round(((quality - 0.1) / (1.0 - 0.1)) * 100)}%`
-                      } as React.CSSProperties}
-                    />
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', height: '26px' }}>
+                      <input
+                        id="export-image-quality"
+                        type="range"
+                        className="control-slider"
+                        min="0.1"
+                        max="1.0"
+                        step="0.05"
+                        value={quality}
+                        onChange={(e) => setQuality(parseFloat(e.target.value))}
+                        style={{
+                          flex: 1,
+                          width: '100%',
+                          '--slider-fill': `${Math.round(((quality - 0.1) / (1.0 - 0.1)) * 100)}%`
+                        } as React.CSSProperties}
+                      />
+                    </div>
                     <div
                       className="control-num-input"
-                      style={{ width: '56px', textAlign: 'center', height: '28px', lineHeight: '26px', fontSize: '0.78rem' }}
+                      style={{
+                        width: '56px',
+                        minWidth: '56px',
+                        maxWidth: '56px',
+                        flex: '0 0 56px',
+                        textAlign: 'center',
+                        height: '28px',
+                        lineHeight: '26px',
+                        fontSize: '0.78rem',
+                        marginTop: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
                     >
                       {Math.round(quality * 100)}%
                     </div>
@@ -761,7 +824,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                       />
                       {getSourceCanvas() && (
                         <div className="export-preview-badge">
-                          {getSourceCanvas()?.width} × {getSourceCanvas()?.height} px
+                          {(getSourceCanvas()?.width || 0) * resolutionScale} × {(getSourceCanvas()?.height || 0) * resolutionScale} px
+                          {resolutionScale > 1 && ` (${resolutionScale}x)`}
                         </div>
                       )}
                     </>
@@ -911,7 +975,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
           <button
             type="button"
             className="action-btn primary"
-            disabled={!hasSourceCanvas}
+            disabled={!hasSourceCanvas || isExportingSequence}
             onClick={() => {
               if (activeTab === 'image') handleExportImage();
               else if (activeTab === 'text') void handleExportText();
@@ -927,7 +991,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
             }}
           >
             <Download size={14} />
-            <span>Export</span>
+            <span>{isExportingSequence ? `Exporting (${exportProgress}%)` : 'Export'}</span>
           </button>
         </div>
       </div>

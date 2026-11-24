@@ -1,6 +1,7 @@
 import type { WorkerDitherRequest, WorkerDitherResponse } from './dither.worker';
 import { EngineBridge } from '../services/EngineBridge';
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
+import { isLegacyAlgorithm, applyLegacyAlgorithm } from '../algorithms/legacy';
 import { applyTweaksFast } from '../utils/fastTweaks';
 import { applyEffectPipeline } from '../effects';
 import { applyTemporalNoise } from '../dither-engine/temporal.js';
@@ -563,24 +564,45 @@ export class DitherWorkerClient {
           strength: params?.strength ?? params?.diffusionStrength ?? 1.0
         };
 
-        applyDitherAlgorithm(dummyImgData, {
-          algorithmId,
-          palette,
-          ...mappedControls,
-          controls: mappedControls,
-          threshold: params?.threshold ?? 0.5,
-          scale: mappedControls.scale,
-          bleed: mappedControls.bleed,
-          smoothing: mappedControls.smoothing,
-          diffusionStrength: params?.diffusionStrength ?? 1.0,
-          serpentine: params?.serpentine ?? false,
-          noiseAmount: effNoise,
-          noise: effNoise,
-          depth: params?.depth ?? 8,
-          temporalSeed: temporal?.frameIndex ?? params?.temporalSeed ?? 0,
-          offsetX: params?.offsetX ?? 0,
-          offsetY: params?.offsetY ?? 0
-        });
+        if (isLegacyAlgorithm(algorithmId)) {
+          const legacyOut = applyLegacyAlgorithm(
+            width,
+            height,
+            workingData,
+            palette,
+            algorithmId,
+            {
+              threshold: params?.threshold ?? 0.5,
+              scale: mappedControls.scale,
+              diffusionStrength: params?.diffusionStrength ?? 1.0,
+              noiseAmount: effNoise,
+              depth: params?.depth ?? 8,
+              temporalSeed: temporal?.frameIndex ?? params?.temporalSeed ?? 0,
+              serpentine: params?.serpentine ?? false,
+              ...mappedControls
+            }
+          );
+          workingData.set(legacyOut);
+        } else {
+          applyDitherAlgorithm(dummyImgData, {
+            algorithmId,
+            palette,
+            ...mappedControls,
+            controls: mappedControls,
+            threshold: params?.threshold ?? 0.5,
+            scale: mappedControls.scale,
+            bleed: mappedControls.bleed,
+            smoothing: mappedControls.smoothing,
+            diffusionStrength: params?.diffusionStrength ?? 1.0,
+            serpentine: params?.serpentine ?? false,
+            noiseAmount: effNoise,
+            noise: effNoise,
+            depth: params?.depth ?? 8,
+            temporalSeed: temporal?.frameIndex ?? params?.temporalSeed ?? 0,
+            offsetX: params?.offsetX ?? 0,
+            offsetY: params?.offsetY ?? 0
+          });
+        }
       }
     }
 

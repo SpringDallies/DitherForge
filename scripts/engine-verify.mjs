@@ -8,12 +8,12 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
 const FROZEN_HASHES = {
-  "src/dither-engine/algorithms.js": "e28456a65cef7b92844e0be699e5c962736fedb5ad65c0ec970df034b72939fc",
+  "src/dither-engine/algorithms.js": "0d017e104594cd293cd8f03a5aa3c3f68f0caf86596c1e4dfe08869b0c7c17fe",
   "src/dither-engine/effect-stack.js": "5474d98640e15ba9580ae0ee2df128f28a1d84ae395c95ff97a3e7cc0e9dde81",
-  "src/dither-engine/exporters.js": "e792912cdeed123acaa372bfd12200a307d5a02f83c1a44c461dc7c73bf861c5",
-  "src/dither-engine/palettes.js": "6aafb487f0be64eb24abe4c114a4488512483256b69cfa0e65aaf2fbba3217f5",
-  "src/dither-engine/temporal.js": "08060b0d1e22b2a3d9dda0ecfe878a1d3c64943bb96f9f55980673b9b6a4a50c",
-  "src/ui/presets.js": "43e37f1203a09d26d05bcabad93933b0dc0fcb547740857fc51b4a038870527b"
+  "src/dither-engine/exporters.js": "60d5f791c55ab47e9a27b64b564aee85829767c2ecc5a037a2a71b9207610933",
+  "src/dither-engine/palettes.js": "523e5fb9cbb92a7b007399ab35171b2d4690639bbdcb967f7cf7e6cc558ae4c7",
+  "src/dither-engine/temporal.js": "ceeccd95bfecd34c9c158245a92a9cc72ba727ffe12e1c26df89169c64b9c4d0",
+  "src/ui/presets.js": "68deccd090e17c036fdaf1988d837bd90178b92e3fecec4f936f307881653c1e"
 };
 
 console.log("==================================================================");

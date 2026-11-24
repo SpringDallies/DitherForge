@@ -9,9 +9,10 @@ import { areAnimationsEnabled, getStoredSettings, saveStoredSettings, type Dithe
 // Import frozen registries UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
+import { LEGACY_ALGORITHM_REGISTRY } from '../../algorithms/legacy';
 import { ASCII_ALGORITHM_REGISTRY, isAsciiAlgorithmId, DEFAULT_ASCII_SETTINGS, downloadAsciiGridText, type AsciiAlgorithmId } from '../../ascii';
 
-const ALL_ALGORITHMS: any[] = [...ALGORITHM_REGISTRY, ...ASCII_ALGORITHM_REGISTRY];
+const ALL_ALGORITHMS: any[] = [...ALGORITHM_REGISTRY, ...LEGACY_ALGORITHM_REGISTRY, ...ASCII_ALGORITHM_REGISTRY];
 
 // @ts-ignore
 import { BUILTIN_PALETTES, extractPaletteMedianCut, extractPaletteKMeans, hexToRgba, rgbaToHex } from '../../dither-engine/palettes.js';

@@ -3,6 +3,7 @@ import { GifEncoder } from './gifEncoder.ts';
 // Import frozen dither engine UNCHANGED via allowJs
 // @ts-ignore
 import { applyDitherAlgorithm } from '../dither-engine/algorithms.js';
+import { isLegacyAlgorithm, applyLegacyAlgorithm } from '../algorithms/legacy';
 import { applyEffectPipeline } from '../effects';
 // @ts-ignore
 import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
@@ -468,24 +469,45 @@ export function renderDeterministicAnimationFrame(
       frameImageData.data.set(workBuffer);
     }
 
-    applyDitherAlgorithm(frameImageData, {
-      algorithmId,
-      palette: slicedPalette,
-      ...mappedControls,
-      controls: mappedControls,
-      threshold: effAlgoParams.threshold ?? 0.5,
-      scale: mappedControls.scale,
-      bleed: mappedControls.bleed,
-      smoothing: mappedControls.smoothing,
-      diffusionStrength: effAlgoParams.diffusionStrength ?? 1.0,
-      serpentine: effAlgoParams.serpentine ?? false,
-      noiseAmount: effNoise,
-      noise: effNoise,
-      depth: effDepth,
-      temporalSeed: animatedNoiseActive ? frameIdx : 0,
-      offsetX: effAlgoParams.offsetX ?? 0,
-      offsetY: effAlgoParams.offsetY ?? 0
-    });
+    if (isLegacyAlgorithm(algorithmId)) {
+      const legacyOut = applyLegacyAlgorithm(
+        exportWidth,
+        exportHeight,
+        frameImageData.data,
+        slicedPalette,
+        algorithmId,
+        {
+          threshold: effAlgoParams.threshold ?? 0.5,
+          scale: mappedControls.scale,
+          diffusionStrength: effAlgoParams.diffusionStrength ?? 1.0,
+          noiseAmount: effNoise,
+          depth: effDepth,
+          temporalSeed: animatedNoiseActive ? frameIdx : 0,
+          serpentine: effAlgoParams.serpentine ?? false,
+          ...mappedControls
+        }
+      );
+      frameImageData.data.set(legacyOut);
+    } else {
+      applyDitherAlgorithm(frameImageData, {
+        algorithmId,
+        palette: slicedPalette,
+        ...mappedControls,
+        controls: mappedControls,
+        threshold: effAlgoParams.threshold ?? 0.5,
+        scale: mappedControls.scale,
+        bleed: mappedControls.bleed,
+        smoothing: mappedControls.smoothing,
+        diffusionStrength: effAlgoParams.diffusionStrength ?? 1.0,
+        serpentine: effAlgoParams.serpentine ?? false,
+        noiseAmount: effNoise,
+        noise: effNoise,
+        depth: effDepth,
+        temporalSeed: animatedNoiseActive ? frameIdx : 0,
+        offsetX: effAlgoParams.offsetX ?? 0,
+        offsetY: effAlgoParams.offsetY ?? 0
+      });
+    }
   }
 
   const asciiAtlases: Record<string, GlyphAtlasData> = {};
@@ -1514,4 +1536,253 @@ export async function downloadAnimatedVideo(
     offscreenCanvas.width = 0;
     offscreenCanvas.height = 0;
   }
+}
+
+/**
+ * Export frame sequence as a compressed ZIP file containing sequential PNGs.
+ */
+export async function exportFrameSequenceZip(
+  storeState: any,
+  options: {
+    scale?: number;
+    onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void;
+    customFilename?: string;
+  } = {}
+): Promise<Blob> {
+  const JSZip = (await import('jszip')).default;
+  const zip = new JSZip();
+
+  const {
+    sourceImageData,
+    sourceVideoUrl,
+    duration = 5,
+    fps = 30,
+    playbackSpeed = 1
+  } = storeState;
+
+  if (!sourceImageData) {
+    throw new Error('No active image loaded to export');
+  }
+
+  const baseW = sourceImageData.width;
+  const baseH = sourceImageData.height;
+  const byteLen = baseW * baseH * 4;
+
+  const targetFps = Math.min(60, Math.max(1, Math.round(fps || 30)));
+  const frameWallSec = 1 / targetFps;
+  const speed = Math.max(0.1, Number(playbackSpeed) || 1);
+  const timelineStep = frameWallSec * speed;
+  const totalFrames = Math.max(1, Math.ceil(duration / timelineStep));
+
+  const scale = options.scale && options.scale > 1 ? Math.min(4, Math.round(options.scale)) : 1;
+  const outW = baseW * scale;
+  const outH = baseH * scale;
+
+  const renderCanvas = document.createElement('canvas');
+  renderCanvas.width = baseW;
+  renderCanvas.height = baseH;
+  const renderCtx = renderCanvas.getContext('2d');
+  if (!renderCtx) throw new Error('Failed to get 2D canvas context');
+
+  let scaleCanvas: HTMLCanvasElement | null = null;
+  let scaleCtx: CanvasRenderingContext2D | null = null;
+  if (scale > 1) {
+    scaleCanvas = document.createElement('canvas');
+    scaleCanvas.width = outW;
+    scaleCanvas.height = outH;
+    scaleCtx = scaleCanvas.getContext('2d');
+    if (scaleCtx) {
+      scaleCtx.imageSmoothingEnabled = false; // crisp pixel-art scaling
+    }
+  }
+
+  const workBuffer = new Uint8ClampedArray(byteLen);
+  const frameImageData: any =
+    typeof ImageData !== 'undefined'
+      ? new ImageData(workBuffer, baseW, baseH)
+      : { width: baseW, height: baseH, data: workBuffer };
+
+  let cachedAdjustedBuffer: Uint8ClampedArray | null = null;
+  let lastAdjustmentsSig = '';
+
+  const cacheHooks: AdjustmentCacheHooks = {
+    getCachedAdjusted: (sig: string) =>
+      lastAdjustmentsSig === sig && cachedAdjustedBuffer ? cachedAdjustedBuffer : null,
+    setCachedAdjusted: (sig: string, buf: Uint8ClampedArray) => {
+      if (!cachedAdjustedBuffer || cachedAdjustedBuffer.length !== buf.length) {
+        cachedAdjustedBuffer = new Uint8ClampedArray(buf.length);
+      }
+      cachedAdjustedBuffer.set(buf);
+      lastAdjustmentsSig = sig;
+    }
+  };
+
+  let offscreenVid: HTMLVideoElement | null = null;
+  let vidExtractCanvas: HTMLCanvasElement | null = null;
+  let vidExtractCtx: CanvasRenderingContext2D | null = null;
+
+  if (sourceVideoUrl) {
+    offscreenVid = document.createElement('video');
+    offscreenVid.src = sourceVideoUrl;
+    offscreenVid.muted = true;
+    offscreenVid.playsInline = true;
+    offscreenVid.crossOrigin = 'anonymous';
+    offscreenVid.preload = 'auto';
+    await new Promise<void>((resolve) => {
+      if (!offscreenVid) return resolve();
+      const onReady = () => {
+        offscreenVid?.removeEventListener('loadeddata', onReady);
+        offscreenVid?.removeEventListener('error', onReady);
+        resolve();
+      };
+      if (offscreenVid.readyState >= 2) {
+        resolve();
+      } else {
+        offscreenVid.addEventListener('loadeddata', onReady);
+        offscreenVid.addEventListener('error', onReady);
+      }
+    });
+    vidExtractCanvas = document.createElement('canvas');
+    vidExtractCanvas.width = baseW;
+    vidExtractCanvas.height = baseH;
+    vidExtractCtx = vidExtractCanvas.getContext('2d', { willReadFrequently: true });
+  }
+
+  const isAscii =
+    storeState.renderMode === 'ascii' ||
+    (typeof storeState.algorithmId === 'string' && storeState.algorithmId.startsWith('ascii-'));
+  const asciiSourceCanvas = isAscii ? document.createElement('canvas') : null;
+  if (asciiSourceCanvas) {
+    asciiSourceCanvas.width = baseW;
+    asciiSourceCanvas.height = baseH;
+  }
+  const asciiSourceCtx = asciiSourceCanvas ? asciiSourceCanvas.getContext('2d') : null;
+
+  try {
+    const padLen = String(totalFrames).length > 4 ? String(totalFrames).length : 4;
+
+    for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+      const t = Math.min(duration, frameIdx * timelineStep);
+
+      let frameBasePixels = sourceImageData.data;
+      const isStaticSource = !(offscreenVid && vidExtractCtx);
+      if (offscreenVid && vidExtractCtx) {
+        const vidDur = offscreenVid.duration || duration || 1;
+        const targetVidTime =
+          storeState.videoPlaybackMode === 'looped'
+            ? t % vidDur
+            : t >= vidDur
+            ? Math.max(0, vidDur - 0.001)
+            : t;
+        await seekExportVideoToTime(offscreenVid, targetVidTime);
+        vidExtractCtx.clearRect(0, 0, baseW, baseH);
+        vidExtractCtx.drawImage(offscreenVid, 0, 0, baseW, baseH);
+        frameBasePixels = vidExtractCtx.getImageData(0, 0, baseW, baseH).data;
+      }
+
+      if (asciiSourceCtx) {
+        if (offscreenVid) {
+          asciiSourceCtx.clearRect(0, 0, baseW, baseH);
+          asciiSourceCtx.drawImage(offscreenVid, 0, 0, baseW, baseH);
+        } else {
+          asciiSourceCtx.putImageData(sourceImageData, 0, 0);
+        }
+      }
+
+      const outGridRef: AsciiGridOutputRef = { grid: null };
+
+      renderDeterministicAnimationFrame(
+        storeState,
+        frameBasePixels,
+        baseW,
+        baseH,
+        t,
+        frameIdx,
+        workBuffer,
+        frameImageData,
+        cacheHooks,
+        isStaticSource,
+        outGridRef
+      );
+
+      if (isAscii && outGridRef.grid) {
+        renderAsciiVectorToCanvas(
+          outGridRef.grid,
+          storeState.asciiSettings || DEFAULT_ASCII_SETTINGS,
+          renderCanvas,
+          1,
+          asciiSourceCanvas,
+          undefined,
+          storeState.effects,
+          { frameIndex: frameIdx, time: t, fps: targetFps }
+        );
+      } else {
+        renderCtx.clearRect(0, 0, baseW, baseH);
+        renderCtx.putImageData(frameImageData, 0, 0);
+      }
+
+      let activeCanvas = renderCanvas;
+      if (scale > 1 && scaleCtx && scaleCanvas) {
+        scaleCtx.clearRect(0, 0, outW, outH);
+        scaleCtx.drawImage(renderCanvas, 0, 0, baseW, baseH, 0, 0, outW, outH);
+        activeCanvas = scaleCanvas;
+      }
+
+      // Convert frame canvas to blob and append to zip
+      const blob = await new Promise<Blob | null>((res) => activeCanvas.toBlob(res, 'image/png'));
+      if (blob) {
+        const frameNumberStr = String(frameIdx + 1).padStart(padLen, '0');
+        zip.file(`frame_${frameNumberStr}.png`, blob);
+      }
+
+      if (options.onProgress) {
+        options.onProgress((frameIdx + 1) / totalFrames, frameIdx + 1, totalFrames);
+      }
+    }
+
+    const zipBlob = await zip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    });
+
+    return zipBlob;
+  } finally {
+    if (offscreenVid) {
+      offscreenVid.pause();
+      offscreenVid.src = '';
+      offscreenVid.load();
+    }
+    if (vidExtractCanvas) {
+      vidExtractCanvas.width = 0;
+      vidExtractCanvas.height = 0;
+    }
+    renderCanvas.width = 0;
+    renderCanvas.height = 0;
+    if (scaleCanvas) {
+      scaleCanvas.width = 0;
+      scaleCanvas.height = 0;
+    }
+  }
+}
+
+export async function downloadFrameSequenceZip(
+  storeState: any,
+  options: {
+    scale?: number;
+    onProgress?: (progress: number, frameIndex: number, totalFrames: number) => void;
+    customFilename?: string;
+  } = {}
+): Promise<void> {
+  const blob = await exportFrameSequenceZip(storeState, options);
+  const rawName = options.customFilename || storeState.imageFileName || 'ditherforge_export';
+  const baseName = rawName.replace(/\.[^/.]+$/, '');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${baseName}_frames.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

@@ -766,13 +766,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                         className="control-slider"
                         min="0.1"
                         max="1.0"
-                        step="0.05"
+                        step="0.01"
                         value={quality}
                         onChange={(e) => setQuality(parseFloat(e.target.value))}
                         style={{
                           flex: 1,
                           width: '100%',
-                          '--slider-fill': `${Math.round(((quality - 0.1) / (1.0 - 0.1)) * 100)}%`
+                          '--slider-fill': `${Math.max(0, Math.min(100, ((quality - 0.1) / (1.0 - 0.1)) * 100)).toFixed(1)}%`
                         } as React.CSSProperties}
                       />
                     </div>

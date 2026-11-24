@@ -1253,6 +1253,20 @@ body {
   justify-content: space-between;
   gap: 10px;
   position: relative;
+}
+.picker-label-inline {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  width: 66px;
+  flex-shrink: 0;
+}
+.picker-row-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -1701,11 +1715,12 @@ body {
   flex: 1;
   width: 100%;
   height: 8px;
+  --slider-fill-pos: calc(5px + (100% - 10px) * (var(--slider-fill, 0%) / 100%));
   background-image: linear-gradient(
     to right,
     var(--accent-primary) 0%,
-    var(--accent-primary) var(--slider-fill, 0%),
-    var(--border-secondary) var(--slider-fill, 0%),
+    var(--accent-primary) var(--slider-fill-pos, var(--slider-fill, 0%)),
+    var(--border-secondary) var(--slider-fill-pos, var(--slider-fill, 0%)),
     var(--border-secondary) 100%
   );
   border-radius: 999px;

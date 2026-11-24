@@ -107,7 +107,10 @@ export function getStoredSettings(): DitherForgeSettings {
         const defaultUpdateMode = parsed.defaultUpdateMode === 'live' || parsed.defaultUpdateMode === 'debounce'
           ? parsed.defaultUpdateMode
           : DEFAULT_SETTINGS.defaultUpdateMode;
-        return { ...DEFAULT_SETTINGS, ...parsed, defaultUpdateMode, logoMode: '3d' };
+        const logoMode = parsed.logoMode === '2d' || parsed.logoMode === '3d'
+          ? parsed.logoMode
+          : DEFAULT_SETTINGS.logoMode;
+        return { ...DEFAULT_SETTINGS, ...parsed, defaultUpdateMode, logoMode };
       }
       // Migrate to v2 logo defaults while preserving user's non-logo preferences
       const migrated = {
@@ -116,7 +119,7 @@ export function getStoredSettings(): DitherForgeSettings {
         defaultUpdateMode: parsed.defaultUpdateMode === 'live' || parsed.defaultUpdateMode === 'debounce'
           ? parsed.defaultUpdateMode
           : DEFAULT_SETTINGS.defaultUpdateMode,
-        logoMode: '3d',
+        logoMode: parsed.logoMode === '2d' || parsed.logoMode === '3d' ? parsed.logoMode : DEFAULT_SETTINGS.logoMode,
         logoDitherStyle: DEFAULT_SETTINGS.logoDitherStyle,
         logoSharpness: DEFAULT_SETTINGS.logoSharpness,
         logoResolution: DEFAULT_SETTINGS.logoResolution,

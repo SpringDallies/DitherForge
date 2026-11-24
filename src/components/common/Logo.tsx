@@ -142,6 +142,9 @@ function mapDitherStyleToInt(style: LogoDitherStyle | undefined): number {
   }
 }
 
+/* Module-level cached geometry: built once on script load so mount time is 0ms */
+let cachedAnvilGeo: THREE.BufferGeometry | null = null;
+
 function smoothWalls(g: THREE.BufferGeometry) {
   const p = g.attributes.position;
   const out = new Float32Array(p.count * 3);
@@ -157,35 +160,34 @@ function smoothWalls(g: THREE.BufferGeometry) {
     A.fromBufferAttribute(p, i);
     B.fromBufferAttribute(p, i + 1);
     C.fromBufferAttribute(p, i + 2);
-    const f = new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(C, A)).normalize();
-    const cap = Math.abs(f.z) > 0.85;
+    const f = C.clone().sub(B).cross(A.clone().sub(B));
+    const len = f.length();
+    const cap = len > 0 && Math.abs(f.z) / len > 0.999;
     tris.push({ f, cap });
     if (!cap) {
-      for (const k of [key(i), key(i + 1), key(i + 2)]) {
-        if (!acc.has(k)) acc.set(k, new THREE.Vector3());
-        acc.get(k)!.add(f);
+      for (let k = 0; k < 3; k++) {
+        const kk = key(i + k);
+        if (!acc.has(kk)) acc.set(kk, new THREE.Vector3());
+        acc.get(kk)!.add(f);
       }
     }
   }
 
-  for (let i = 0; i < p.count; i++) {
-    const tri = tris[Math.floor(i / 3)];
-    let n: THREE.Vector3;
-    if (tri.cap) {
-      n = tri.f;
-    } else {
-      n = acc.get(key(i)) || tri.f;
+  tris.forEach((t, ti) => {
+    for (let k = 0; k < 3; k++) {
+      const kStr = key(ti * 3 + k);
+      let n = t.cap ? t.f.clone() : (acc.get(kStr)?.clone() ?? t.f.clone());
       n = n.length() > 1e-9 ? n.normalize() : new THREE.Vector3(0, 0, 1);
+      out.set([n.x, n.y, n.z], (ti * 3 + k) * 3);
     }
-    out[i * 3] = n.x;
-    out[i * 3 + 1] = n.y;
-    out[i * 3 + 2] = n.z;
-  }
+  });
+
   g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
 }
 
-/* Module-level precomputed geometry: built once at module evaluation so component mount is 0ms */
-const SHARED_ANVIL_GEO: THREE.BufferGeometry = (() => {
+function getAnvilGeometry(): THREE.BufferGeometry {
+  if (cachedAnvilGeo) return cachedAnvilGeo;
+
   const shape = new THREE.Shape();
   for (let i = 0; i < OUTLINE.length; i += 2) {
     if (i === 0) shape.moveTo(OUTLINE[i], OUTLINE[i + 1]);
@@ -204,8 +206,10 @@ const SHARED_ANVIL_GEO: THREE.BufferGeometry = (() => {
   });
   geo.center();
   smoothWalls(geo);
-  return geo;
-})();
+
+  cachedAnvilGeo = geo;
+  return cachedAnvilGeo;
+}
 
 /* Module-level constant shader sources */
 const MAIN_VERTEX_SHADER = `
@@ -443,7 +447,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     };
   }, []);
 
-  const is2DMode = false; // 3D logo is the only logo representation per strict user requirement
+  const is2DMode = logoCfg.logoMode === '2d';
   const useAntialias = (logoCfg.logoSharpness ?? 'smooth') === 'smooth';
 
   useLayoutEffect(() => {
@@ -484,8 +488,8 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     const rootGroup = new THREE.Group();
     scene.add(rootGroup);
 
-    /* Reuse module-level precomputed geometry (0ms mount overhead) */
-    const geo = SHARED_ANVIL_GEO;
+    /* Reuse module-level precomputed geometry */
+    const geo = getAnvilGeometry();
     const tGeomInit = performance.now();
 
     const material = new THREE.ShaderMaterial({

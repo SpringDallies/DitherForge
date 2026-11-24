@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
 import { BatchProcessingModal } from './dialogs/BatchProcessingModal';
+import { SaveProjectModal } from './dialogs/SaveProjectModal';
 import { Tooltip } from './common/Tooltip';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
@@ -55,6 +56,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const [activeMenu, setActiveMenu] = useState<MenuType>(null);
   const [isThemesSubmenuOpen, setIsThemesSubmenuOpen] = useState<boolean>(false);
   const [isBatchOpen, setIsBatchOpen] = useState<boolean>(false);
+  const [isSaveProjectOpen, setIsSaveProjectOpen] = useState<boolean>(false);
   const isExportOpen = useAppStore((state) => state.isExportOpen);
   const setIsExportOpen = useAppStore((state) => state.setIsExportOpen);
 
@@ -222,7 +224,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
 
       if (e.ctrlKey || e.metaKey) {
         if (e.key.toLowerCase() === 'o') { e.preventDefault(); handleOpenFileDialog(); return; }
-        if (e.key.toLowerCase() === 's') { e.preventDefault(); exportProjectFile(useAppStore.getState()); return; }
+        if (e.key.toLowerCase() === 's') { e.preventDefault(); setIsSaveProjectOpen(true); return; }
         if (e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) { e.preventDefault(); handleCopyClipboard(); return; }
         if (e.key.toLowerCase() === 'e') { e.preventDefault(); setIsExportOpen(true); return; }
         if (e.key === '=' || e.key === '+') { e.preventDefault(); handleZoomIn(); return; }
@@ -323,8 +325,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 <button className="dropdown-menu-item" onClick={() => { projectInputRef.current?.click(); setActiveMenu(null); }}>
                   <FolderOpen size={13} /><span>Open Project (.ditherforge)…</span>
                 </button>
-                <button className="dropdown-menu-item" onClick={() => { exportProjectFile(useAppStore.getState()); setActiveMenu(null); }}>
-                  <Save size={13} /><span>Save Project</span><span className="menu-shortcut">Ctrl+S</span>
+                <button className="dropdown-menu-item" onClick={() => { setIsSaveProjectOpen(true); setActiveMenu(null); }}>
+                  <Save size={13} /><span>Save Project…</span><span className="menu-shortcut">Ctrl+S</span>
                 </button>
                 <div className="dropdown-divider" />
                 <button className="dropdown-menu-item" onClick={() => { handleCopyClipboard(); setActiveMenu(null); }}>
@@ -552,6 +554,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
 
       <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
       <BatchProcessingModal isOpen={isBatchOpen} onClose={() => setIsBatchOpen(false)} />
+      <SaveProjectModal isOpen={isSaveProjectOpen} onClose={() => setIsSaveProjectOpen(false)} />
     </header>
   );
 };

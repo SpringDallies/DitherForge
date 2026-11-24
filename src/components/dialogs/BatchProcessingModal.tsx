@@ -1,12 +1,18 @@
 /**
  * BatchProcessingModal.tsx
  * Allows users to drop/select multiple image files, choose format and scale,
- * run dither batch processing, and download the results as a single ZIP archive.
+ * run dither batch processing using the active algorithm and palette,
+ * and download the results as a single ZIP archive.
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppStore } from '../../state/useAppStore';
 import { runBatchProcessing } from '../../utils/batchProcessing';
+import { Dropdown } from '../common/Dropdown';
+// @ts-ignore
+import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
+import { LEGACY_ALGORITHM_REGISTRY } from '../../algorithms/legacy';
 import {
   X,
   UploadCloud,
@@ -15,13 +21,17 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Download
+  Download,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 
 interface BatchProcessingModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const ALL_ALGORITHMS: any[] = [...ALGORITHM_REGISTRY, ...LEGACY_ALGORITHM_REGISTRY];
 
 export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
   isOpen,
@@ -32,6 +42,7 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
   const [scale, setScale] = useState<1 | 2 | 4>(1);
   const [format, setFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
   const [quality, setQuality] = useState<number>(0.92);
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progress, setProgress] = useState<{ current: number; total: number; filename: string }>({
@@ -43,8 +54,19 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
   const [completedZipBlob, setCompletedZipBlob] = useState<Blob | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
-
   const storeState = useAppStore();
+
+  // Escape key closes modal (only when not actively processing)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isProcessing) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isProcessing, onClose]);
 
   const handleFilesSelected = (newFiles: FileList | null) => {
     if (!newFiles) return;
@@ -97,7 +119,7 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
 
       setCompletedZipBlob(result.zipBlob);
 
-      // Auto-trigger download of the ZIP
+      // Auto-trigger download of the ZIP archive
       const url = URL.createObjectURL(result.zipBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -127,104 +149,140 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const currentAlgo = ALL_ALGORITHMS.find((a: any) => a.id === storeState.algorithmId);
+  const algoName = currentAlgo?.name || storeState.algorithmId;
+  const activeEffectsCount = Array.isArray(storeState.effects)
+    ? storeState.effects.filter((e: any) => e.enabled).length
+    : 0;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      style={{ animation: 'fadeIn 0.15s ease-out' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isProcessing) onClose();
+      className="modal-backdrop"
+      style={{
+        background: 'rgba(0, 0, 0, 0.70)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)'
+      }}
+      onClick={() => {
+        if (!isProcessing) onClose();
       }}
     >
       <div
-        className="w-full max-w-xl bg-[var(--surface-color)] border border-[var(--border-color)] rounded-xl shadow-2xl flex flex-col overflow-hidden text-[var(--text-color)]"
-        style={{ maxHeight: '85vh' }}
+        className="modal-dialog batch-dialog"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="batch-dialog-title"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)] bg-[var(--surface-header)]">
-          <div>
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">
-              Batch Image Processing
-            </h2>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Apply active dithering settings ({storeState.algorithmId}) to multiple images
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={isProcessing}
-            className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors disabled:opacity-40"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Content Body */}
-        <div className="p-5 flex-1 overflow-y-auto space-y-5">
-          {/* File Dropzone */}
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => handleFilesSelected(e.target.files)}
-            />
-            <div
-              onClick={() => !isProcessing && fileInputRef.current?.click()}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (!isProcessing) handleFilesSelected(e.dataTransfer.files);
-              }}
-              className={`border-2 border-dashed border-[var(--border-color)] rounded-xl p-6 text-center cursor-pointer hover:border-[var(--accent-color)] hover:bg-[var(--surface-hover)] transition-all ${
-                isProcessing ? 'pointer-events-none opacity-50' : ''
-              }`}
-            >
-              <UploadCloud size={32} className="mx-auto text-[var(--text-secondary)] mb-2" />
-              <div className="text-sm font-medium text-[var(--text-primary)]">
-                Click or drag & drop images here
+        {/* Modal Header */}
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Layers size={18} style={{ color: 'var(--accent-primary)' }} />
+            <div>
+              <div id="batch-dialog-title" style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                Batch Image Processing
               </div>
-              <div className="text-xs text-[var(--text-secondary)] mt-1">
-                PNG, JPEG, WebP, GIF supported
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Process multiple images simultaneously using your active settings
               </div>
             </div>
           </div>
+          <button
+            className="tool-icon-btn"
+            onClick={onClose}
+            disabled={isProcessing}
+            aria-label="Close"
+            style={{ opacity: isProcessing ? 0.4 : 1 }}
+          >
+            <X size={16} />
+          </button>
+        </div>
 
-          {/* File List */}
+        {/* Modal Body */}
+        <div className="modal-body" style={{ padding: '16px 20px' }}>
+          {/* Active Settings Context Banner */}
+          <div className="batch-info-banner">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <Sparkles size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+              <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Active Pipeline:</span>
+              <span className="batch-info-tag">{algoName}</span>
+            </div>
+            {activeEffectsCount > 0 && (
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', flexShrink: 0 }}>
+                +{activeEffectsCount} effect{activeEffectsCount > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {/* File Dropzone */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => handleFilesSelected(e.target.files)}
+          />
+          <div
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!isProcessing) setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              if (!isProcessing) handleFilesSelected(e.dataTransfer.files);
+            }}
+            className={`batch-dropzone ${isDragOver ? 'drag-active' : ''} ${isProcessing ? 'disabled' : ''}`}
+          >
+            <UploadCloud size={32} className="batch-dropzone-icon" />
+            <div className="batch-dropzone-title">Click or drag &amp; drop images here</div>
+            <div className="batch-dropzone-hint">PNG, JPEG, WebP, GIF supported</div>
+          </div>
+
+          {/* Selected Files List */}
           {files.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+            <div className="batch-files-container">
+              <div className="batch-files-header">
                 <span>Selected Images ({files.length})</span>
                 {!isProcessing && (
                   <button
                     onClick={handleClearAll}
-                    className="text-red-400 hover:text-red-300 transition-colors"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent-crimson, #f87171)',
+                      fontSize: '0.74rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
                   >
-                    Clear All
+                    <Trash2 size={12} />
+                    <span>Clear All</span>
                   </button>
                 )}
               </div>
 
-              <div className="max-h-36 overflow-y-auto divide-y divide-[var(--border-color)] border border-[var(--border-color)] rounded-lg bg-[var(--surface-bg)]">
+              <div className="batch-files-list">
                 {files.map((file, idx) => (
-                  <div
-                    key={`${file.name}-${idx}`}
-                    className="flex items-center justify-between px-3 py-2 text-xs"
-                  >
-                    <div className="flex items-center space-x-2 truncate pr-2">
-                      <FileImage size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
-                      <span className="truncate text-[var(--text-primary)]">{file.name}</span>
-                      <span className="text-[var(--text-secondary)] flex-shrink-0">
-                        ({(file.size / 1024).toFixed(0)} KB)
-                      </span>
+                  <div key={`${file.name}-${idx}`} className="batch-file-item">
+                    <div className="batch-file-info">
+                      <FileImage size={14} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                      <span className="batch-file-name">{file.name}</span>
+                      <span className="batch-file-size">({(file.size / 1024).toFixed(0)} KB)</span>
                     </div>
                     {!isProcessing && (
                       <button
                         onClick={() => handleRemoveFile(idx)}
-                        className="text-[var(--text-secondary)] hover:text-red-400 transition-colors"
+                        className="tool-icon-btn"
+                        style={{ width: '22px', height: '22px', padding: 0 }}
+                        title="Remove file"
                       >
-                        <Trash2 size={13} />
+                        <X size={12} />
                       </button>
                     )}
                   </div>
@@ -233,97 +291,106 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
             </div>
           )}
 
-          {/* Export Options */}
-          <div className="grid grid-cols-2 gap-4 pt-1">
-            <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
-                Output Format
-              </label>
-              <select
+          {/* Export Settings Grid */}
+          <div className="batch-form-grid">
+            <div className="batch-form-group">
+              <label className="batch-form-label">Output Format</label>
+              <Dropdown
+                id="batch-format-dropdown"
                 value={format}
+                onChange={(val) => setFormat(val as 'png' | 'jpeg' | 'webp')}
+                width="100%"
                 disabled={isProcessing}
-                onChange={(e) => setFormat(e.target.value as any)}
-                className="w-full bg-[var(--surface-input)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-color)]"
-              >
-                <option value="png">PNG (Lossless)</option>
-                <option value="jpeg">JPEG (Compressed)</option>
-                <option value="webp">WebP (Modern)</option>
-              </select>
+                items={[
+                  { id: 'png', label: 'PNG (Lossless)', hint: 'Best fidelity' },
+                  { id: 'jpeg', label: 'JPEG (Compressed)', hint: 'Smaller files' },
+                  { id: 'webp', label: 'WebP (Modern)', hint: 'High efficiency' }
+                ]}
+              />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
-                Resolution Scale
-              </label>
-              <select
-                value={scale}
+            <div className="batch-form-group">
+              <label className="batch-form-label">Resolution Scale</label>
+              <Dropdown
+                id="batch-scale-dropdown"
+                value={String(scale)}
+                onChange={(val) => setScale(Number(val) as 1 | 2 | 4)}
+                width="100%"
                 disabled={isProcessing}
-                onChange={(e) => setScale(Number(e.target.value) as any)}
-                className="w-full bg-[var(--surface-input)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-color)]"
-              >
-                <option value="1">1x (Original)</option>
-                <option value="2">2x (High Res)</option>
-                <option value="4">4x (Ultra HD)</option>
-              </select>
+                items={[
+                  { id: '1', label: '1x (Original Size)' },
+                  { id: '2', label: '2x (High Res)' },
+                  { id: '4', label: '4x (Ultra HD)' }
+                ]}
+              />
             </div>
           </div>
 
-          {/* Quality Slider for JPEG / WebP */}
+          {/* Quality Slider (for JPEG / WebP) */}
           {format !== 'png' && (
-            <div className="pt-1">
-              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] mb-1.5">
-                <span>Quality</span>
-                <span className="font-mono">{Math.round(quality * 100)}%</span>
+            <div style={{ marginTop: '14px' }}>
+              <div className="batch-slider-row">
+                <span className="batch-form-label" style={{ marginBottom: 0 }}>Compression Quality</span>
+                <span style={{ fontSize: '0.78rem', fontFamily: 'var(--font-mono)', color: 'var(--text-main)', fontWeight: 600 }}>
+                  {Math.round(quality * 100)}%
+                </span>
               </div>
               <input
                 type="range"
-                min="0.1"
-                max="1.0"
-                step="0.01"
-                value={quality}
+                className="control-slider"
+                min="10"
+                max="100"
+                step="1"
+                value={Math.round(quality * 100)}
                 disabled={isProcessing}
-                onChange={(e) => setQuality(parseFloat(e.target.value))}
-                className="w-full h-1 bg-[var(--surface-input)] rounded-lg appearance-none cursor-pointer accent-[var(--accent-color)]"
+                style={{
+                  '--slider-fill': `${((quality * 100 - 10) / 90) * 100}%`
+                } as React.CSSProperties}
+                onChange={(e) => setQuality(Number(e.target.value) / 100)}
               />
             </div>
           )}
 
-          {/* Progress / Status Display */}
+          {/* In-Progress Status Bar */}
           {isProcessing && (
-            <div className="bg-[var(--surface-input)] border border-[var(--border-color)] rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center space-x-2 text-[var(--text-primary)] font-medium">
-                  <Loader2 size={14} className="animate-spin text-[var(--accent-color)]" />
+            <div className="batch-progress-card">
+              <div className="batch-progress-header">
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: 'var(--text-main)' }}>
+                  <Loader2 size={14} className="batch-spin" style={{ color: 'var(--accent-primary)' }} />
                   <span>Processing {progress.current} of {progress.total}</span>
                 </span>
-                <span className="text-[var(--text-secondary)] font-mono">
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)', fontWeight: 600 }}>
                   {Math.round((progress.current / (progress.total || 1)) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-[var(--border-color)] h-1.5 rounded-full overflow-hidden">
+              <div className="batch-progress-bar-bg">
                 <div
-                  className="bg-[var(--accent-color)] h-full transition-all duration-200"
+                  className="batch-progress-bar-fill"
                   style={{ width: `${(progress.current / (progress.total || 1)) * 100}%` }}
                 />
               </div>
-              <div className="text-[11px] text-[var(--text-secondary)] truncate">
-                {progress.filename}
-              </div>
+              {progress.filename && (
+                <div className="batch-progress-filename">
+                  Current: {progress.filename}
+                </div>
+              )}
             </div>
           )}
 
+          {/* Error Message */}
           {error && (
-            <div className="flex items-center space-x-2 text-xs text-red-400 bg-red-400/10 border border-red-400/20 p-3 rounded-lg">
-              <AlertCircle size={15} className="flex-shrink-0" />
+            <div className="batch-error-banner">
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
               <span>{error}</span>
             </div>
           )}
 
+          {/* Success Banner */}
           {completedZipBlob && !isProcessing && (
-            <div className="flex items-center justify-between text-xs text-green-400 bg-green-400/10 border border-green-400/20 p-3 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <CheckCircle size={15} className="flex-shrink-0" />
-                <span>Batch complete! ZIP downloaded.</span>
+            <div className="batch-success-banner">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle size={15} style={{ flexShrink: 0 }} />
+                <span>Batch complete! ZIP downloaded successfully.</span>
               </div>
               <button
                 onClick={() => {
@@ -336,7 +403,17 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
                   document.body.removeChild(a);
                   URL.revokeObjectURL(url);
                 }}
-                className="flex items-center space-x-1 underline hover:text-green-300"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  textDecoration: 'underline',
+                  fontSize: '0.76rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
               >
                 <Download size={12} />
                 <span>Download Again</span>
@@ -345,35 +422,47 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end space-x-3 px-5 py-4 border-t border-[var(--border-color)] bg-[var(--surface-header)]">
+        {/* Modal Footer */}
+        <div className="batch-footer-actions">
           {isProcessing ? (
             <button
               onClick={handleCancel}
-              className="px-4 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-400/10 transition-colors"
+              className="btn-default"
+              style={{ color: 'var(--accent-crimson, #f87171)', borderColor: 'var(--border-color)' }}
             >
-              Cancel
+              Cancel Batch
             </button>
           ) : (
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+                className="btn-default"
+                style={{ minWidth: '80px' }}
               >
                 Close
               </button>
               <button
                 onClick={handleStartBatch}
                 disabled={files.length === 0}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-medium bg-[var(--accent-color)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className="btn-primary"
+                style={{
+                  width: 'auto',
+                  minWidth: '180px',
+                  background: files.length > 0 ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                  color: files.length > 0 ? 'var(--text-on-accent, #ffffff)' : 'var(--text-muted)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-pill, 999px)',
+                  fontWeight: 600
+                }}
               >
                 <Download size={14} />
-                <span>Process & Download ZIP ({files.length})</span>
+                <span>Process &amp; Download ZIP ({files.length})</span>
               </button>
             </>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

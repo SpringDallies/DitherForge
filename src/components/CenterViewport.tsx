@@ -1286,9 +1286,12 @@ export const CenterViewport: React.FC = () => {
   // Dither fallback loader timing constants:
   // - SLOW_DITHER_SHOW_DELAY_MS: delay before showing logo so fast renders never flash
   // - MIN_ANVIL_VISIBLE_MS: minimum dwell duration once shown to prevent split-second flashes
+  // - INITIAL_LOGO_SUPPRESSION_MS: suppress and cancel the logo timer during the first 10 seconds of app load
   const SLOW_DITHER_SHOW_DELAY_MS = 300;
   const MIN_ANVIL_VISIBLE_MS = 450;
+  const INITIAL_LOGO_SUPPRESSION_MS = 10000;
 
+  const appLoadTimeRef = useRef<number>(performance.now());
   const slowDitherTimerRef = useRef<number | null>(null);
   const anvilHideTimerRef = useRef<number | null>(null);
   const anvilShownAtRef = useRef<number>(0);
@@ -1296,6 +1299,13 @@ export const CenterViewport: React.FC = () => {
   const activeDitherCountRef = useRef<number>(0);
   const queuedRenderScheduledRef = useRef<boolean>(false);
   const firstRenderRef = useRef<boolean>(true);
+
+  const isWithinInitialSuppression = useCallback(() => {
+    return (
+      performance.now() < INITIAL_LOGO_SUPPRESSION_MS ||
+      (performance.now() - appLoadTimeRef.current < INITIAL_LOGO_SUPPRESSION_MS)
+    );
+  }, []);
 
   const appModeRef = useRef(appMode);
   appModeRef.current = appMode;
@@ -1325,6 +1335,11 @@ export const CenterViewport: React.FC = () => {
   }, []);
 
   const revealAnvil = useCallback(() => {
+    // Suppress and cancel if within first 10s of app load
+    if (isWithinInitialSuppression()) {
+      hideAnvilImmediate();
+      return;
+    }
     // Never show the fallback logo in Animation mode
     if (appModeRef.current === 'animation') {
       hideAnvilImmediate();
@@ -1339,10 +1354,10 @@ export const CenterViewport: React.FC = () => {
       anvilShownAtRef.current = performance.now();
       setShowSlowDitherAnvil(true);
     }
-  }, [hideAnvilImmediate]);
+  }, [hideAnvilImmediate, isWithinInitialSuppression]);
 
   const scheduleHideAnvil = useCallback(() => {
-    if (appModeRef.current === 'animation') {
+    if (appModeRef.current === 'animation' || isWithinInitialSuppression()) {
       hideAnvilImmediate();
       return;
     }
@@ -1380,7 +1395,7 @@ export const CenterViewport: React.FC = () => {
         }
       }, remainingDwell);
     }
-  }, [hideAnvilImmediate, isRenderActiveOrQueued]);
+  }, [hideAnvilImmediate, isRenderActiveOrQueued, isWithinInitialSuppression]);
 
   const startDitherTimer = useCallback(() => {
     if (appModeRef.current === 'animation') {
@@ -1398,6 +1413,11 @@ export const CenterViewport: React.FC = () => {
       slowDitherTimerRef.current = null;
     }
 
+    // Cancel and skip logo timer during the first 10s of app being loaded
+    if (isWithinInitialSuppression()) {
+      return;
+    }
+
     activeDitherCountRef.current += 1;
 
     // Skip the fallback timer on the very first render after app boot so the
@@ -1413,11 +1433,15 @@ export const CenterViewport: React.FC = () => {
 
     slowDitherTimerRef.current = window.setTimeout(() => {
       slowDitherTimerRef.current = null;
+      if (isWithinInitialSuppression()) {
+        hideAnvilImmediate();
+        return;
+      }
       if (appModeRef.current !== 'animation' && activeDitherCountRef.current > 0) {
         revealAnvil();
       }
     }, SLOW_DITHER_SHOW_DELAY_MS);
-  }, [revealAnvil]);
+  }, [hideAnvilImmediate, isWithinInitialSuppression, revealAnvil]);
 
   const finishDitherTimer = useCallback((hasQueuedRender = false) => {
     activeDitherCountRef.current = Math.max(0, activeDitherCountRef.current - 1);
@@ -1428,10 +1452,15 @@ export const CenterViewport: React.FC = () => {
       slowDitherTimerRef.current = null;
     }
 
+    if (isWithinInitialSuppression() && showSlowDitherAnvilRef.current) {
+      hideAnvilImmediate();
+      return;
+    }
+
     if (activeDitherCountRef.current === 0 && !hasQueuedRender) {
       scheduleHideAnvil();
     }
-  }, [scheduleHideAnvil]);
+  }, [hideAnvilImmediate, isWithinInitialSuppression, scheduleHideAnvil]);
 
   const executeRenderPipeline = useCallback(async (overrideTime?: number, preRender = false) => {
     const addDevLog = useAppStore.getState().addDevLog;
@@ -2572,7 +2601,7 @@ export const CenterViewport: React.FC = () => {
                 imageRendering: isSmoothDownscale || algorithmId.startsWith('ascii-') || renderMode === 'ascii' ? 'auto' : 'pixelated'
               }}
             />
-            {showSlowDitherAnvil && !sourceImageData && (
+            {showSlowDitherAnvil && !sourceImageData && !isWithinInitialSuppression() && (
               <LoadingScreen
                 imageReplace
                 size={Math.max(180, Math.min(520, Math.round(Math.min(sourceImageData?.width || 400, sourceImageData?.height || 300) * 0.9)))}

@@ -2053,14 +2053,12 @@ export const CenterViewport: React.FC = () => {
         drawToCanvas(finalImageData);
       }
 
-      // First real image render completed: dismiss the initial 3D anvil boot-loader overlay
+      // If legacy boot anvil helper exists, clean it up
       const dismissBoot = (window as any).__dismissBootAnvil;
       if (typeof dismissBoot === 'function') {
-        const bootState = (window as any).__DF_BOOT_STATE__;
-        if (bootState && bootState.status === 'pending') {
-          console.warn('[BootAnvil] Dismissing without verified first frame (status: pending)');
-        }
-        dismissBoot();
+        try {
+          dismissBoot();
+        } catch (_) {}
         (window as any).__dismissBootAnvil = null;
       }
     }

@@ -2571,7 +2571,7 @@ export const CenterViewport: React.FC = () => {
             {showSlowDitherAnvil && !sourceImageData && (
               <LoadingScreen
                 imageReplace
-                size={Math.max(180, Math.min(520, Math.round(Math.min(sourceImageData?.width || 400, sourceImageData?.height || 300) * 0.9)))}
+                size={260}
               />
             )}
             {!isOriginalView && showBeforeAfter && canvasRef.current && (

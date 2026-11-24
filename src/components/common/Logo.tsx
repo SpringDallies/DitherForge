@@ -443,7 +443,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
     };
   }, []);
 
-  const is2DMode = logoCfg.logoMode === '2d';
+  const is2DMode = false; // 3D logo is the only logo representation per strict user requirement
   const useAntialias = (logoCfg.logoSharpness ?? 'smooth') === 'smooth';
 
   useLayoutEffect(() => {

@@ -804,14 +804,18 @@ export const RightSidebar: React.FC = () => {
 
   // Category stepping
   const handlePrevCategory = () => {
+    if (!CATEGORY_KEYS || CATEGORY_KEYS.length === 0) return;
     const idx = CATEGORY_KEYS.indexOf(activeCategory);
-    const prev = (idx - 1 + CATEGORY_KEYS.length) % CATEGORY_KEYS.length;
+    const safeIdx = idx >= 0 ? idx : 0;
+    const prev = (safeIdx - 1 + CATEGORY_KEYS.length) % CATEGORY_KEYS.length;
     handleSelectCategory(CATEGORY_KEYS[prev]);
   };
 
   const handleNextCategory = () => {
+    if (!CATEGORY_KEYS || CATEGORY_KEYS.length === 0) return;
     const idx = CATEGORY_KEYS.indexOf(activeCategory);
-    const next = (idx + 1) % CATEGORY_KEYS.length;
+    const safeIdx = idx >= 0 ? idx : -1;
+    const next = (safeIdx + 1) % CATEGORY_KEYS.length;
     handleSelectCategory(CATEGORY_KEYS[next]);
   };
 
@@ -907,7 +911,8 @@ export const RightSidebar: React.FC = () => {
 
   const handlePrevAlgo = useCallback(() => {
     if (filteredAlgos.length === 0) return;
-    const prevIdx = (currentIndex - 1 + filteredAlgos.length) % filteredAlgos.length;
+    const safeIdx = currentIndex >= 0 ? currentIndex : 0;
+    const prevIdx = (safeIdx - 1 + filteredAlgos.length) % filteredAlgos.length;
     const targetId = filteredAlgos[prevIdx].id;
     setAlgorithmId(targetId);
     if (targetId.startsWith('ascii-')) {
@@ -1128,7 +1133,8 @@ export const RightSidebar: React.FC = () => {
 
   const handleNextAlgo = useCallback(() => {
     if (filteredAlgos.length === 0) return;
-    const nextIdx = (currentIndex + 1) % filteredAlgos.length;
+    const safeIdx = currentIndex >= 0 ? currentIndex : -1;
+    const nextIdx = (safeIdx + 1) % filteredAlgos.length;
     const targetId = filteredAlgos[nextIdx].id;
     setAlgorithmId(targetId);
     if (targetId.startsWith('ascii-')) {
@@ -1868,9 +1874,11 @@ export const RightSidebar: React.FC = () => {
                         aria-haspopup="listbox"
                         aria-expanded={isAlgoListboxOpen && !isAlgoListboxClosing}
                       >
-                        <span className="algo-listbox-label">
-                          {currentAlgo.name}
-                        </span>
+                        <div className="algo-listbox-label-wrap">
+                          <span className="algo-listbox-label" title={currentAlgo.name}>
+                            {currentAlgo.name}
+                          </span>
+                        </div>
                       </button>
                       {(isAlgoListboxOpen || isAlgoListboxClosing) && (
                         <div

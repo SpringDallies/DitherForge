@@ -621,6 +621,20 @@ export const CenterViewport: React.FC = () => {
     sourceImageCanvasRef.current = can;
   }, [sourceImageData]);
 
+  // Paint sourceImageData immediately upon mount so viewport canvas is never blank or delayed
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !sourceImageData) return;
+    if (canvas.width !== sourceImageData.width || canvas.height !== sourceImageData.height) {
+      canvas.width = sourceImageData.width;
+      canvas.height = sourceImageData.height;
+    }
+    const ctx = canvas.getContext('2d');
+    if (ctx && !lastDitheredImageRef.current) {
+      ctx.putImageData(sourceImageData, 0, 0);
+    }
+  }, [sourceImageData]);
+
   // Only clear adjustedBaseBufferRef when actual source image dimensions/pixels change
   useEffect(() => {
     lastAdjustmentsSigRef.current = '';
@@ -1905,16 +1919,6 @@ export const CenterViewport: React.FC = () => {
       return;
     }
 
-    // Fallback paint yield: if synchronous main-thread work exceeded the show delay
-    // without yielding, force the logo to paint before continuing.
-    if (performance.now() - t0 >= SLOW_DITHER_SHOW_DELAY_MS && !showSlowDitherAnvilRef.current) {
-      revealAnvil();
-      await new Promise((r) => setTimeout(r, 0));
-      if (currentNonce !== renderNonceRef.current) {
-        return;
-      }
-    }
-
     // Effects are already executed once inside dither.worker.ts (browser) or Rust / fallback
     // inside ditherWorkerClient.runRustPipeline (Tauri). Do not re-apply on main thread.
 
@@ -2562,16 +2566,16 @@ export const CenterViewport: React.FC = () => {
               draggable={false}
               onDragStart={(e) => e.preventDefault()}
               style={{
-                display: showSlowDitherAnvil ? 'none' : 'block',
+                display: 'block',
                 width: sourceImageData ? `${sourceImageData.width}px` : undefined,
                 height: sourceImageData ? `${sourceImageData.height}px` : undefined,
                 imageRendering: isSmoothDownscale || algorithmId.startsWith('ascii-') || renderMode === 'ascii' ? 'auto' : 'pixelated'
               }}
             />
-            {showSlowDitherAnvil && (
+            {showSlowDitherAnvil && !sourceImageData && (
               <LoadingScreen
                 imageReplace
-                size={Math.max(180, Math.min(520, Math.round(Math.min(sourceImageData.width, sourceImageData.height) * 0.9)))}
+                size={Math.max(180, Math.min(520, Math.round(Math.min(sourceImageData?.width || 400, sourceImageData?.height || 300) * 0.9)))}
               />
             )}
             {!isOriginalView && showBeforeAfter && canvasRef.current && (

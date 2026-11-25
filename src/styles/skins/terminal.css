@@ -32,7 +32,7 @@
   --tm-header: color-mix(in srgb, var(--bg-panel) 45%, var(--bg-raised, var(--bg-control)));
   --tm-control: var(--bg-control, var(--bg-tertiary));
   --tm-active: var(--bg-active, var(--bg-hover));
-  --tm-selected-row: var(--bg-active, var(--bg-hover));
+  --tm-selected-row: color-mix(in srgb, var(--bg-panel) 25%, var(--bg-control));
   --tm-lane-border: var(--border-color);
 
   --tm-border-subtle: var(--border-soft, var(--border-color));
@@ -41,8 +41,9 @@
   --tm-border-hover: var(--border-hover, var(--accent-primary));
 
   --tm-text: var(--text-main);
-  --tm-text-bright: var(--accent-hover, var(--text-main));
+  --tm-text-bright: color-mix(in srgb, var(--text-main) 65%, #ffffff);
   --tm-text-muted: var(--text-muted, var(--text-secondary));
+  --tm-star: color-mix(in srgb, var(--accent-primary) 35%, var(--tm-text-bright));
 
   --tm-dash-off: color-mix(in srgb, var(--tm-panel) 58%, var(--tm-border));
   --tm-dash-on: color-mix(in srgb, var(--tm-panel) 44%, var(--tm-border-strong));
@@ -113,6 +114,7 @@
   --tm-text: #dedede;
   --tm-text-bright: #ffffff;
   --tm-text-muted: #9a9a9a;
+  --tm-star: #dedede;
 
   --tm-dash-off: #444444;
   --tm-dash-on: #585858;
@@ -178,6 +180,7 @@
   --tm-text: #eceff6;
   --tm-text-bright: #ffffff;
   --tm-text-muted: #82899e;
+  --tm-star: #ffffff;
 
   --tm-dash-off: #232734;
   --tm-dash-on: #363d52;
@@ -222,23 +225,24 @@
 
   --tm-text: #4F535C;
   --tm-text-bright: #2B2E35;
-  --tm-text-muted: #7C8088;
+  --tm-text-muted: #636770;
+  --tm-star: #2B2E35;
 
   --tm-dash-off: #CFD4DF;
   --tm-dash-on: #B6BCC9;
   --tm-dash-section: #BEC3D0;
 
-  --tm-accent: #6E727A;
-  --tm-accent-hover: #545861;
+  --tm-accent: #5B5F68;
+  --tm-accent-hover: #474B53;
   --tm-on-accent: #F2F2F7;
 
   --tm-slider-fill-start: #5F636B;
-  --tm-slider-fill-end: #6E727A;
-  --tm-slider-fill-hover-start: #4B4E56;
-  --tm-slider-fill-hover-end: #5F636B;
-  --tm-slider-solid: #6E727A;
+  --tm-slider-fill-end: #5B5F68;
+  --tm-slider-fill-hover-start: #474B53;
+  --tm-slider-fill-hover-end: #545861;
+  --tm-slider-solid: #5B5F68;
 
-  --tm-selected-bg: #6E727A;
+  --tm-selected-bg: #5B5F68;
   --tm-selected-text: #F2F2F7;
   --tm-playhead: #545861;
   --tm-playhead-border: #F2F2F7;
@@ -343,7 +347,7 @@
 
 :root[data-ui-skin="terminal"] .df-app-context-left:has(svg[style*="b8bb26"])::after {
   content: '*';
-  color: var(--tm-accent);
+  color: var(--tm-star);
   font-size: 12px;
   line-height: 1;
 }
@@ -354,7 +358,7 @@
   content: '*';
   margin-left: auto;
   padding-left: 8px;
-  color: var(--tm-accent);
+  color: var(--tm-star);
   font-size: 12px;
 }
 
@@ -362,7 +366,7 @@
   content: '*';
   margin-left: auto;
   padding-left: 12px;
-  color: var(--tm-accent);
+  color: var(--tm-star);
   font-size: 12px;
 }
 

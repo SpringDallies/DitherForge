@@ -6,6 +6,7 @@ import { Dropdown } from '../common/Dropdown';
 import { exportRaster, copyCanvasToClipboard, exportCharacterGrid, exportSvgContours } from '../../dither-engine/exporters.js';
 import {
   downloadAnimatedGif,
+  downloadAnimatedVideo,
   downloadFrameSequenceZip,
   getExportCanvas,
   renderFullResolutionAsciiGrid
@@ -17,6 +18,7 @@ import {
 } from '../../ascii/exporters';
 import type { AsciiGridFrame } from '../../ascii/types';
 import { useAppStore } from '../../state/useAppStore';
+import { getStoredSettings } from './SettingsDialog';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -24,8 +26,27 @@ interface ExportModalProps {
 }
 
 type TabType = 'image' | 'text' | 'vector';
-type ImageFormat = 'png' | 'jpg' | 'webp' | 'gif' | 'zip';
+type ImageFormat = 'png' | 'jpg' | 'webp' | 'gif' | 'mp4' | 'mov' | 'webm' | 'zip';
+type ExportOptionId = ImageFormat | 'txt' | 'svg';
 type CharSetType = 'dedicated' | 'ascii' | 'blocks' | 'braille';
+
+const EXPORT_AS_OPTIONS: Array<{
+  id: ExportOptionId;
+  label: string;
+  sublabel: string;
+  tab: TabType;
+}> = [
+  { id: 'png', label: 'PNG', sublabel: 'Lossless', tab: 'image' },
+  { id: 'jpg', label: 'JPG', sublabel: 'Compressed', tab: 'image' },
+  { id: 'webp', label: 'WebP', sublabel: 'Modern', tab: 'image' },
+  { id: 'gif', label: 'GIF', sublabel: 'Animated', tab: 'image' },
+  { id: 'mp4', label: 'MP4', sublabel: 'H.264 Video', tab: 'image' },
+  { id: 'mov', label: 'MOV', sublabel: 'QuickTime', tab: 'image' },
+  { id: 'webm', label: 'WEBM', sublabel: 'WebM Video', tab: 'image' },
+  { id: 'zip', label: 'ZIP', sublabel: 'PNG Frames', tab: 'image' },
+  { id: 'txt', label: 'TXT', sublabel: 'ASCII / Text', tab: 'text' },
+  { id: 'svg', label: 'SVG', sublabel: 'Vector SVG', tab: 'vector' }
+];
 
 interface DedicatedGridState {
   grid: AsciiGridFrame | null;
@@ -134,6 +155,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [uiSkin, setUiSkin] = useState<string>(() => {
+    try {
+      return getStoredSettings().uiSkin || 'default';
+    } catch {
+      return 'default';
+    }
+  });
+
+  useEffect(() => {
+    const syncSkin = () => setUiSkin(getStoredSettings().uiSkin || 'default');
+    window.addEventListener('ditherforge_settings_changed', syncSkin);
+    return () => window.removeEventListener('ditherforge_settings_changed', syncSkin);
+  }, []);
 
   const addToast = useAppStore((state) => state.addToast);
   const renderMode = useAppStore((state) => state.renderMode);
@@ -202,6 +236,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
       const state = useAppStore.getState();
       setCharSet(isAsciiMode ? 'dedicated' : 'ascii');
+      if (state.imageFileName) {
+        setFilename(state.imageFileName.replace(/\.[^/.]+$/, ''));
+      }
 
       if (state.appMode === 'animation') {
         setFormat('gif');
@@ -587,6 +624,32 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
       return;
     }
 
+    if (format === 'mp4' || format === 'mov' || format === 'webm') {
+      setIsExportingSequence(true);
+      setExportProgress(0);
+      const stateSnapshot = {
+        ...useAppStore.getState(),
+        imageFileName: filename.trim() || useAppStore.getState().imageFileName || 'ditherforge_export'
+      };
+      downloadAnimatedVideo(
+        stateSnapshot,
+        format,
+        (p) => setExportProgress(Math.round(p * 100)),
+        filename.trim() || undefined
+      )
+        .then(() => {
+          addToast('Exported to Downloads folder', 'success');
+          setIsExportingSequence(false);
+          onClose();
+        })
+        .catch((err) => {
+          console.error('Video export failed:', err);
+          addToast('Video export failed', 'error');
+          setIsExportingSequence(false);
+        });
+      return;
+    }
+
     const canvas = getSourceCanvas();
     if (!canvas) return;
 
@@ -645,13 +708,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const hasSourceCanvas = Boolean(getSourceCanvas());
   const textCharsetItems = [
     ...(isAsciiMode
-      ? [{ id: 'dedicated', label: 'Active ASCII Grid', hint: 'Exact engine output' }]
+      ? [{ id: 'dedicated', label: 'Active ASCII Grid', hint: 'Exact engine' }]
       : []),
-    { id: 'ascii', label: 'ASCII Ramp', hint: ' .:-=+*#%@' },
-    { id: 'blocks', label: 'Unicode Blocks', hint: ' ░▒▓█' },
-    { id: 'braille', label: 'Unicode Braille', hint: '2×4 Matrix' }
+    { id: 'ascii', label: 'ASCII Ramp', hint: '.:-=+*#%@' },
+    { id: 'blocks', label: 'Blocks', hint: '░▒▓█' },
+    { id: 'braille', label: 'Braille', hint: '2×4 Matrix' }
   ];
   const disableCellInputs = charSet === 'braille' || charSet === 'dedicated';
+  const activeExportId: ExportOptionId =
+    activeTab === 'text' ? 'txt' : activeTab === 'vector' ? 'svg' : format;
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
@@ -667,7 +732,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Download size={16} style={{ color: 'var(--text-dim)' }} />
-            <span id="export-dialog-title" style={{ fontWeight: 600, fontSize: '0.95rem' }}>Export</span>
+            <span id="export-dialog-title" style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+              {uiSkin === 'terminal' ? 'Export As' : 'Export'}
+            </span>
           </div>
           <Tooltip text="Close dialog">
             <button className="tool-icon-btn" onClick={onClose} aria-label="Close dialog">
@@ -676,68 +743,99 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
           </Tooltip>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="export-tabs">
-          <button
-            className={`export-tab-btn ${activeTab === 'image' ? 'active' : ''}`}
-            onClick={() => setActiveTab('image')}
-          >
-            Image
-          </button>
-          <button
-            className={`export-tab-btn ${activeTab === 'text' ? 'active' : ''}`}
-            onClick={() => setActiveTab('text')}
-          >
-            Text
-          </button>
-          <button
-            className={`export-tab-btn ${activeTab === 'vector' ? 'active' : ''}`}
-            onClick={() => setActiveTab('vector')}
-          >
-            Vector
-          </button>
-        </div>
+        {uiSkin === 'terminal' ? (
+          <div className="export-all-options-section">
+            <div className="export-options-grid" role="radiogroup" aria-label="Export format options">
+              {EXPORT_AS_OPTIONS.map((opt) => {
+                const isSelected = activeExportId === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    className={`export-option-btn ${isSelected ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveTab(opt.tab);
+                      if (opt.tab === 'image') {
+                        setFormat(opt.id as ImageFormat);
+                      }
+                    }}
+                  >
+                    <span className="export-option-label">{opt.label}</span>
+                    <span className="export-option-sublabel">{opt.sublabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="export-tabs">
+            <button
+              className={`export-tab-btn ${activeTab === 'image' ? 'active' : ''}`}
+              onClick={() => setActiveTab('image')}
+            >
+              Image
+            </button>
+            <button
+              className={`export-tab-btn ${activeTab === 'text' ? 'active' : ''}`}
+              onClick={() => setActiveTab('text')}
+            >
+              Text
+            </button>
+            <button
+              className={`export-tab-btn ${activeTab === 'vector' ? 'active' : ''}`}
+              onClick={() => setActiveTab('vector')}
+            >
+              Vector
+            </button>
+          </div>
+        )}
 
         {/* Modal Body */}
-        <div className="modal-body" style={{ padding: '16px 20px' }}>
-          {/* TAB 1: IMAGE */}
+        <div className="modal-body export-modal-body" style={{ padding: '16px 20px' }}>
+          {/* TAB 1: IMAGE & VIDEO / SEQUENCE */}
           {activeTab === 'image' && (
             <div>
-              <div className="export-form-row">
-                <label className="export-form-label" htmlFor="export-image-format">Format</label>
-                <div className="export-form-control">
-                  <Dropdown
-                    id="export-image-format"
-                    value={format}
-                    onChange={(val) => setFormat(val as ImageFormat)}
-                    width="100%"
-                    items={[
-                      { id: 'png', label: 'PNG', hint: 'Lossless 24/32-bit' },
-                      { id: 'jpg', label: 'JPG', hint: 'Web Compressed' },
-                      { id: 'webp', label: 'WebP', hint: 'Modern Lightweight' },
-                      { id: 'gif', label: 'GIF', hint: 'Animated / Multi-Frame' },
-                      { id: 'zip', label: 'PNG Sequence (ZIP)', hint: 'All Animation Frames' }
-                    ]}
-                  />
+              {uiSkin !== 'terminal' && (
+                <div className="export-form-row">
+                  <label className="export-form-label" htmlFor="export-image-format">Format</label>
+                  <div className="export-form-control">
+                    <Dropdown
+                      id="export-image-format"
+                      value={format}
+                      onChange={(val) => setFormat(val as ImageFormat)}
+                      width="100%"
+                      items={[
+                        { id: 'png', label: 'PNG', hint: 'Lossless 24/32-bit' },
+                        { id: 'jpg', label: 'JPG', hint: 'Web Compressed' },
+                        { id: 'webp', label: 'WebP', hint: 'Modern Lightweight' },
+                        { id: 'gif', label: 'GIF', hint: 'Animated / Multi-Frame' },
+                        { id: 'zip', label: 'PNG Sequence (ZIP)', hint: 'All Animation Frames' }
+                      ]}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="export-form-row">
-                <label className="export-form-label" htmlFor="export-resolution-scale">Scale</label>
-                <div className="export-form-control">
-                  <Dropdown
-                    id="export-resolution-scale"
-                    value={String(resolutionScale)}
-                    onChange={(val) => setResolutionScale(Number(val))}
-                    width="100%"
-                    items={[
-                      { id: '1', label: '1x (Original)', hint: 'Native resolution' },
-                      { id: '2', label: '2x (Crisp)', hint: 'Pixel-perfect 2x upscale' },
-                      { id: '4', label: '4x (Ultra HD)', hint: 'Pixel-perfect 4x upscale' }
-                    ]}
-                  />
+              {['png', 'jpg', 'webp', 'zip'].includes(format) && (
+                <div className="export-form-row">
+                  <label className="export-form-label" htmlFor="export-resolution-scale">Scale</label>
+                  <div className="export-form-control">
+                    <Dropdown
+                      id="export-resolution-scale"
+                      value={String(resolutionScale)}
+                      onChange={(val) => setResolutionScale(Number(val))}
+                      width="100%"
+                      items={[
+                        { id: '1', label: '1x (Original)', hint: 'Native resolution' },
+                        { id: '2', label: '2x (Crisp)', hint: 'Pixel-perfect 2x upscale' },
+                        { id: '4', label: '4x (Ultra HD)', hint: 'Pixel-perfect 4x upscale' }
+                      ]}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {format === 'jpg' && (
                 <div
@@ -752,7 +850,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                     borderRadius: 'var(--radius-sm)'
                   }}
                 >
-                  💡 <strong>Transparency Notice:</strong> JPEG does not support alpha channels. Transparent areas will be flattened to black. Use <strong>PNG</strong> to preserve transparent pixels.
+                  Transparency Notice: JPEG does not support alpha channels. Transparent areas will be flattened to black. Use PNG or WebP to preserve transparency.
                 </div>
               )}
 
@@ -825,8 +923,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                       />
                       {getSourceCanvas() && (
                         <div className="export-preview-badge">
-                          {(getSourceCanvas()?.width || 0) * resolutionScale} × {(getSourceCanvas()?.height || 0) * resolutionScale} px
-                          {resolutionScale > 1 && ` (${resolutionScale}x)`}
+                          {(getSourceCanvas()?.width || 0) * (['png', 'jpg', 'webp', 'zip'].includes(format) ? resolutionScale : 1)} × {(getSourceCanvas()?.height || 0) * (['png', 'jpg', 'webp', 'zip'].includes(format) ? resolutionScale : 1)} px
+                          {['png', 'jpg', 'webp', 'zip'].includes(format) && resolutionScale > 1 && ` (${resolutionScale}x)`}
                         </div>
                       )}
                     </>
@@ -843,17 +941,38 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
           {/* TAB 2: TEXT */}
           {activeTab === 'text' && (
             <div>
-              <div className="export-form-row">
-                <label className="export-form-label" htmlFor="export-text-charset">Character Set</label>
-                <div className="export-form-control">
-                  <Dropdown
-                    id="export-text-charset"
-                    value={charSet}
-                    onChange={(val) => setCharSet(val as CharSetType)}
-                    width="100%"
-                    items={textCharsetItems}
-                  />
-                </div>
+              <div className="export-form-row" style={{ alignItems: uiSkin === 'terminal' ? 'flex-start' : 'center' }}>
+                {uiSkin === 'terminal' ? (
+                  <>
+                    <span className="export-form-label" style={{ paddingTop: '6px' }}>Character Set</span>
+                    <div className="export-form-control export-charset-grid">
+                      {textCharsetItems.map((cs) => (
+                        <button
+                          key={cs.id}
+                          type="button"
+                          className={`export-option-btn export-charset-btn ${charSet === cs.id ? 'active' : ''}`}
+                          onClick={() => setCharSet(cs.id as CharSetType)}
+                        >
+                          <span className="export-option-label">{cs.label}</span>
+                          <span className="export-option-sublabel">{cs.hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="export-form-label" htmlFor="export-text-charset">Character Set</label>
+                    <div className="export-form-control">
+                      <Dropdown
+                        id="export-text-charset"
+                        value={charSet}
+                        onChange={(val) => setCharSet(val as CharSetType)}
+                        width="100%"
+                        items={textCharsetItems}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="export-form-row">
@@ -988,11 +1107,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
               borderRadius: '10px',
               fontWeight: 600,
               border: 'none',
-              minWidth: '100px'
+              minWidth: '120px'
             }}
           >
             <Download size={14} />
-            <span>{isExportingSequence ? `Exporting (${exportProgress}%)` : 'Export'}</span>
+            <span>
+              {isExportingSequence
+                ? `Exporting (${exportProgress}%)`
+                : uiSkin === 'terminal'
+                  ? `Export ${activeExportId.toUpperCase()}`
+                  : 'Export'}
+            </span>
           </button>
         </div>
       </div>

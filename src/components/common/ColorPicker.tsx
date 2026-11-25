@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useId, useCallback } from 
 import { useAppStore } from '../../state/useAppStore';
 import { hexToRgba, rgbaToHex } from '../../dither-engine/palettes.js';
 import { areAnimationsEnabled } from '../dialogs/SettingsDialog';
+import { parseColorFromClipboard } from '../../utils/colorPaste';
 
 // Pure RGB <-> HSL conversions
 const rgbToHsl = (r: number, g: number, b: number): [number, number, number] => {
@@ -92,7 +93,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
 
   const [isClosing, setIsClosing] = useState(false);
   const [direction, setDirection] = useState<'down' | 'up'>('down');
-  const [copiedHex, setCopiedHex] = useState(false);
+  const [copiedHex, setCopiedHex] = useState<'copied' | 'pasted' | false>(false);
   const [isDragging, setIsDragging] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -210,13 +211,48 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
       }
     };
 
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isExternalInput =
+        target &&
+        (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) &&
+        !(containerRef.current && containerRef.current.contains(target));
+      if (isExternalInput) return;
+
+      const text = e.clipboardData?.getData('text/plain') || '';
+      const parsed = parseColorFromClipboard(text);
+      if (!parsed) {
+        if (target && containerRef.current?.contains(target) && target.tagName === 'INPUT') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+        return;
+      }
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      let targetHsl = rgbToHsl(parsed.r, parsed.g, parsed.b);
+      if (targetHsl[1] === 0 || targetHsl[2] === 0 || targetHsl[2] === 100) {
+        targetHsl = [currentHslRef.current[0], targetHsl[1], targetHsl[2]];
+      }
+      currentHslRef.current = targetHsl;
+      setLocalHsl(targetHsl);
+      setInputHex(parsed.hex);
+      lastEmittedHexRef.current = parsed.hex;
+      onChange(parsed.hex);
+      setCopiedHex('pasted');
+      setTimeout(() => setCopiedHex(false), 1200);
+    };
+
     window.addEventListener('mousedown', handleClickOutside);
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('paste', handlePaste, true);
     return () => {
       window.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('paste', handlePaste, true);
     };
-  }, [isOpen, isClosing, closePicker]);
+  }, [isOpen, isClosing, closePicker, onChange]);
 
   // Slider change handler
   const handleSliderChange = (type: 'h' | 's' | 'l', val: number) => {
@@ -351,13 +387,13 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
               try {
                 navigator.clipboard.writeText(currentHex);
               } catch {}
-              setCopiedHex(true);
+              setCopiedHex('copied');
               setTimeout(() => setCopiedHex(false), 1200);
             }}
-            title="Click to copy hex code"
+            title="Click to copy hex code or press Ctrl+V to paste Hex/HCL"
           >
             <span className="replica-swatch-hex-text" style={{ color: hexTextColor }}>
-              {copiedHex ? 'COPIED!' : currentHex.replace('#', '')}
+              {copiedHex === 'pasted' ? 'PASTED!' : copiedHex === 'copied' ? 'COPIED!' : currentHex.replace('#', '')}
             </span>
           </div>
 

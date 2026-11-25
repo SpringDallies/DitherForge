@@ -542,7 +542,7 @@ interface AppState {
   clearHistory: () => void;
 
   // Toast / notification system for export & status messages
-  toasts: Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>;
+  toasts: Array<{ id: string; message: string; type: 'success' | 'error' | 'info'; closing?: boolean }>;
   addToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number) => void;
   removeToast: (id: string) => void;
 }
@@ -1472,15 +1472,29 @@ export const useAppStore = create<AppState>((set, get) => ({
   toasts: [],
   addToast: (message, type = 'info', durationMs = 3500) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+    set((state) => ({ toasts: [...state.toasts, { id, message, type, closing: false }] }));
     if (durationMs > 0) {
       setTimeout(() => {
-        set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+        useAppStore.getState().removeToast(id);
       }, durationMs);
     }
   },
   removeToast: (id) => {
-    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+    const existing = useAppStore.getState().toasts.find((t) => t.id === id);
+    if (!existing || existing.closing) return;
+    const animDisabled =
+      typeof document !== 'undefined' &&
+      document.documentElement.getAttribute('data-animations') === 'false';
+    if (animDisabled) {
+      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+      return;
+    }
+    set((state) => ({
+      toasts: state.toasts.map((t) => (t.id === id ? { ...t, closing: true } : t))
+    }));
+    setTimeout(() => {
+      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+    }, 240);
   },
 }));
 

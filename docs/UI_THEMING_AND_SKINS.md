@@ -133,3 +133,5 @@ Every major region, sidebar section, modal, and shared control carries stable `d
    @import './my-skin.css';
    ```
 3. Register it in `UI_SKINS` inside `src/components/dialogs/SettingsDialog.tsx` so it appears in **Settings → UI skin (layout theme)** (or call `document.documentElement.setAttribute('data-ui-skin', 'my-skin')`).
+
+> Note: `@import` statements in `src/styles/skins/index.css` must appear at the top of the file before the `:root` rule. See `src/styles/skins/terminal.css` (`Terminal (Docked)`) for a complete built-in structural skin example.

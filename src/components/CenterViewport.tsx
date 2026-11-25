@@ -29,7 +29,9 @@ import {
   Play,
   Pause,
   SkipForward,
-  Plus
+  Plus,
+  X,
+  Trash2
 } from 'lucide-react';
 
 // Maximum memory budget for pre-rendered animation frames in "Rendered" mode: 128 MB
@@ -410,6 +412,19 @@ export const CenterViewport: React.FC = () => {
   const appMode = useAppStore((state) => state.appMode);
   const setAppMode = useAppStore((state) => state.setAppMode);
   const videoPlaybackMode = useAppStore((state) => state.videoPlaybackMode);
+  const [uiSkin, setUiSkin] = useState<string>(() => {
+    try {
+      return getStoredSettings().uiSkin || 'default';
+    } catch {
+      return 'default';
+    }
+  });
+
+  useEffect(() => {
+    const syncSkin = () => setUiSkin(getStoredSettings().uiSkin || 'default');
+    window.addEventListener('ditherforge_settings_changed', syncSkin);
+    return () => window.removeEventListener('ditherforge_settings_changed', syncSkin);
+  }, []);
 
   const hasConfiguredAnimation = useAppStore((state) => state.hasConfiguredAnimation);
   const setHasConfiguredAnimation = useAppStore((state) => state.setHasConfiguredAnimation);
@@ -2667,39 +2682,59 @@ export const CenterViewport: React.FC = () => {
               data-df-modal="create-animation"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="df-create-anim-top-row">
-                <div className="df-create-anim-field">
-                  <span className="df-create-anim-label">FPS</span>
-                  <input
-                    type="text"
-                    className="df-create-anim-pill-input"
-                    value={popupFpsInput}
-                    onChange={(e) => setPopupFpsInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleConfirmCreateAnimation();
+              {uiSkin === 'terminal' && (
+                <div className="df-create-anim-header">
+                  <span>{hasConfiguredAnimation ? 'Animation Settings' : 'Create Animation'}</span>
+                  <button
+                    type="button"
+                    className="tool-icon-btn"
+                    aria-label="Close"
+                    onClick={() => {
+                      setIsCreateAnimationPopupOpen(false);
+                      if (!hasConfiguredAnimation) {
+                        setAppMode('still');
+                      }
                     }}
-                  />
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
-                <div className="df-create-anim-field">
-                  <span className="df-create-anim-label">Duration</span>
-                  <input
-                    type="text"
-                    className="df-create-anim-pill-input"
-                    value={popupDurationInput}
-                    onChange={(e) => setPopupDurationInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleConfirmCreateAnimation();
-                    }}
-                  />
+              )}
+              <div className="df-create-anim-body">
+                <div className="df-create-anim-top-row">
+                  <div className="df-create-anim-field">
+                    <span className="df-create-anim-label">FPS</span>
+                    <input
+                      type="text"
+                      className="df-create-anim-pill-input"
+                      value={popupFpsInput}
+                      onChange={(e) => setPopupFpsInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleConfirmCreateAnimation();
+                      }}
+                    />
+                  </div>
+                  <div className="df-create-anim-field">
+                    <span className="df-create-anim-label">Duration</span>
+                    <input
+                      type="text"
+                      className="df-create-anim-pill-input"
+                      value={popupDurationInput}
+                      onChange={(e) => setPopupDurationInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleConfirmCreateAnimation();
+                      }}
+                    />
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="df-create-anim-submit-btn"
+                  onClick={handleConfirmCreateAnimation}
+                >
+                  {uiSkin === 'terminal' && hasConfiguredAnimation ? 'Apply' : 'Create'}
+                </button>
               </div>
-              <button
-                type="button"
-                className="df-create-anim-submit-btn"
-                onClick={handleConfirmCreateAnimation}
-              >
-                Create
-              </button>
             </div>
           </div>,
           document.body
@@ -2711,7 +2746,7 @@ export const CenterViewport: React.FC = () => {
           <div
             ref={timelineGroupRef}
             className="df-floating-timeline-group"
-            style={{ right: `${sidebarWidth + 28}px` }}
+            style={{ '--df-sidebar-offset': `${sidebarWidth + 28}px` } as React.CSSProperties}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Property Editor Popup - In-line directly above play buttons & + */}
@@ -2724,6 +2759,35 @@ export const CenterViewport: React.FC = () => {
                   setSelectedTrackId(selectedTrack.id);
                 }}
               >
+                {uiSkin === 'terminal' && (
+                  <div className="df-editor-header">
+                    <span className="df-editor-header-title">Track</span>
+                    <span className="df-editor-header-span">
+                      {formatTimecode(selectedTrack.startTime)}–{formatTimecode(selectedTrack.endTime)}
+                    </span>
+                    <div className="df-editor-header-actions">
+                      <button
+                        type="button"
+                        className="df-editor-header-btn df-editor-delete-icon-btn"
+                        aria-label="Delete track"
+                        title="Delete track (Del)"
+                        onClick={() => removeAnimationTrack(selectedTrack.id)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="df-editor-header-btn tool-icon-btn"
+                        aria-label="Close track editor"
+                        title="Close"
+                        onClick={() => setSelectedTrackId(null)}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="df-editor-body">
                 <div className="df-editor-field-group">
                   <label className="df-editor-label">Category</label>
                   <Dropdown
@@ -2855,6 +2919,7 @@ export const CenterViewport: React.FC = () => {
                     ]}
                   />
                 </div>
+                </div>
               </aside>
             )}
 
@@ -2869,6 +2934,7 @@ export const CenterViewport: React.FC = () => {
                   >
                     <span ref={timecodeCurrentRef} className="df-timecode-current">{formatTimecode(currentTime)}</span>
                     <span className="df-timecode-max"> / {formatTimecode(duration)}</span>
+                    {uiSkin === 'terminal' && <span className="df-timecode-fps">{fps}fps</span>}
                   </span>
                   <div className="df-transport-cluster">
                     <button
@@ -2944,6 +3010,7 @@ export const CenterViewport: React.FC = () => {
             <div
               className="df-timeline-body-card"
               onMouseDown={(e) => {
+                if (e.button !== 0) return;
                 if (!(e.target as HTMLElement).closest('.df-track-bar')) {
                   setIsScrubbingTimeline(true);
                   updateScrubFromClientX(e.clientX, e.shiftKey, false);
@@ -2980,6 +3047,11 @@ export const CenterViewport: React.FC = () => {
 
                   {/* Vertically Scrollable Track Lanes */}
                   <div className="df-tracks-lanes" data-lenis-prevent>
+                    {uiSkin === 'terminal' && animationTracks.length === 0 && (
+                      <div className="df-timeline-empty-hint">
+                        No animation tracks — click + Track or press T
+                      </div>
+                    )}
                     {animationTracks.map((track) => {
                       const leftPct = Math.max(0, Math.min(100, (track.startTime / duration) * 100));
                       const widthPct = Math.max(2, Math.min(100 - leftPct, ((track.endTime - track.startTime) / duration) * 100));
@@ -2992,10 +3064,16 @@ export const CenterViewport: React.FC = () => {
                               left: `${leftPct}%`,
                               width: `${widthPct}%`
                             }}
-                            onContextMenu={() => {
+                            onContextMenu={(e) => {
+                              if (e.button === 0 && !e.ctrlKey) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                return;
+                              }
                               setSelectedTrackId(track.id);
                             }}
                             onMouseDown={(e) => {
+                              if (e.button !== 0) return;
                               e.stopPropagation();
                               const wasAlreadySelected = selectedTrackId === track.id;
                               if (!wasAlreadySelected) {
@@ -3015,6 +3093,7 @@ export const CenterViewport: React.FC = () => {
                             <span
                               className={`df-track-handle left ${draggingTrackBar?.id === track.id && draggingTrackBar.mode === 'start' ? 'active' : ''}`}
                               onMouseDown={(e) => {
+                                if (e.button !== 0) return;
                                 e.stopPropagation();
                                 setSelectedTrackId(track.id);
                                 setDraggingTrackBar({
@@ -3031,9 +3110,13 @@ export const CenterViewport: React.FC = () => {
                               <span className="df-track-handle-grip" />
                             </span>
                             <span className="df-track-bar-label">{track.label}</span>
+                            {uiSkin === 'terminal' && widthPct >= 14 && (
+                              <span className="df-track-bar-range">{track.fromValue} → {track.toValue}</span>
+                            )}
                             <span
                               className={`df-track-handle right ${draggingTrackBar?.id === track.id && draggingTrackBar.mode === 'end' ? 'active' : ''}`}
                               onMouseDown={(e) => {
+                                if (e.button !== 0) return;
                                 e.stopPropagation();
                                 setSelectedTrackId(track.id);
                                 setDraggingTrackBar({

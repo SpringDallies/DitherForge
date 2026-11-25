@@ -4,6 +4,7 @@ import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
 import { BatchProcessingModal } from './dialogs/BatchProcessingModal';
 import { SaveProjectModal } from './dialogs/SaveProjectModal';
+import { UI_SKINS, getStoredSettings, saveStoredSettings } from './dialogs/SettingsDialog';
 import { Tooltip } from './common/Tooltip';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
@@ -32,6 +33,7 @@ interface TopMenuBarProps {
 }
 
 type MenuType = 'file' | 'edit' | 'view' | null;
+type ViewSubmenuType = 'themes' | 'skins' | null;
 
 const THEMES = [
   { id: 'light_pro', label: 'Light Pro' },
@@ -54,7 +56,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const projectInputRef = useRef<HTMLInputElement | null>(null);
   const [activeMenu, setActiveMenu] = useState<MenuType>(null);
-  const [isThemesSubmenuOpen, setIsThemesSubmenuOpen] = useState<boolean>(false);
+  const [activeSubmenu, setActiveSubmenu] = useState<ViewSubmenuType>(null);
+  const [activeSkin, setActiveSkin] = useState<string>(() => getStoredSettings().uiSkin || 'default');
   const [isBatchOpen, setIsBatchOpen] = useState<boolean>(false);
   const [isSaveProjectOpen, setIsSaveProjectOpen] = useState<boolean>(false);
   const isExportOpen = useAppStore((state) => state.isExportOpen);
@@ -83,17 +86,30 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const toggleVideoPlaybackMode = useAppStore((state) => state.toggleVideoPlaybackMode);
 
   const themesTriggerRef = useRef<HTMLDivElement | null>(null);
-  const themesCloseTimerRef = useRef<number | null>(null);
-  const [themesSubmenuPos, setThemesSubmenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const skinsTriggerRef = useRef<HTMLDivElement | null>(null);
+  const submenuCloseTimerRef = useRef<number | null>(null);
+  const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
-  const openThemesSubmenu = useCallback(() => {
-    if (themesCloseTimerRef.current) {
-      window.clearTimeout(themesCloseTimerRef.current);
-      themesCloseTimerRef.current = null;
+  useEffect(() => {
+    const syncSkin = () => setActiveSkin(getStoredSettings().uiSkin || 'default');
+    window.addEventListener('ditherforge_settings_changed', syncSkin);
+    return () => window.removeEventListener('ditherforge_settings_changed', syncSkin);
+  }, []);
+
+  useEffect(() => {
+    const openExport = () => setIsExportOpen(true);
+    window.addEventListener('ditherforge_open_export', openExport);
+    return () => window.removeEventListener('ditherforge_open_export', openExport);
+  }, []);
+
+  const openSubmenu = useCallback((submenu: Exclude<ViewSubmenuType, null>, triggerEl: HTMLElement | null) => {
+    if (submenuCloseTimerRef.current) {
+      window.clearTimeout(submenuCloseTimerRef.current);
+      submenuCloseTimerRef.current = null;
     }
-    if (themesTriggerRef.current) {
-      const triggerRect = themesTriggerRef.current.getBoundingClientRect();
-      const parentPopover = themesTriggerRef.current.closest('.dropdown-menu-popover');
+    if (triggerEl) {
+      const triggerRect = triggerEl.getBoundingClientRect();
+      const parentPopover = triggerEl.closest('.dropdown-menu-popover');
       const parentRect = parentPopover ? parentPopover.getBoundingClientRect() : triggerRect;
       const menuMaxH = 280;
       const top = Math.min(
@@ -102,18 +118,18 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       );
       // 4px breathing gap from the outer edge of the View dropdown popover
       const left = Math.min(parentRect.right + 4, window.innerWidth - 4);
-      setThemesSubmenuPos({ top, left });
+      setSubmenuPos({ top, left });
     }
-    setIsThemesSubmenuOpen(true);
+    setActiveSubmenu(submenu);
   }, []);
 
-  const scheduleCloseThemesSubmenu = useCallback(() => {
-    if (themesCloseTimerRef.current) {
-      window.clearTimeout(themesCloseTimerRef.current);
+  const scheduleCloseSubmenu = useCallback(() => {
+    if (submenuCloseTimerRef.current) {
+      window.clearTimeout(submenuCloseTimerRef.current);
     }
-    themesCloseTimerRef.current = window.setTimeout(() => {
-      setIsThemesSubmenuOpen(false);
-      themesCloseTimerRef.current = null;
+    submenuCloseTimerRef.current = window.setTimeout(() => {
+      setActiveSubmenu(null);
+      submenuCloseTimerRef.current = null;
     }, 300);
   }, []);
 
@@ -170,7 +186,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       const target = e.target as HTMLElement | null;
       if (!target?.closest?.('.menu-dropdowns, .df-portaled-themes-menu')) {
         setActiveMenu(null);
-        setIsThemesSubmenuOpen(false);
+        setActiveSubmenu(null);
       }
     };
     window.addEventListener('pointerdown', handleOutsideInteraction, true);
@@ -186,7 +202,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       if (e.key === 'Escape' && activeMenu) {
         e.preventDefault();
         setActiveMenu(null);
-        setIsThemesSubmenuOpen(false);
+        setActiveSubmenu(null);
         return;
       }
       const target = e.target as HTMLElement;
@@ -271,7 +287,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
 
   const toggleMenu = (menu: MenuType) => {
     setActiveMenu((curr) => (curr === menu ? null : menu));
-    setIsThemesSubmenuOpen(false);
+    setActiveSubmenu(null);
   };
 
   const qualityLabel = previewQuality === 'full' ? 'Full' : previewQuality === 'mid' ? 'Mid' : 'Low';
@@ -426,49 +442,78 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 <div className="dropdown-divider" />
                 <div
                   ref={themesTriggerRef}
-                  className={`dropdown-menu-item dropdown-submenu-trigger ${isThemesSubmenuOpen ? 'active' : ''}`}
-                  onMouseEnter={openThemesSubmenu}
-                  onMouseLeave={scheduleCloseThemesSubmenu}
+                  className={`dropdown-menu-item dropdown-submenu-trigger ${activeSubmenu === 'themes' ? 'active' : ''}`}
+                  onMouseEnter={() => openSubmenu('themes', themesTriggerRef.current)}
+                  onMouseLeave={scheduleCloseSubmenu}
                 >
                   <span>Colour schemes</span>
                   <ChevronRight size={13} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
                 </div>
-                {isThemesSubmenuOpen &&
+                <div
+                  ref={skinsTriggerRef}
+                  className={`dropdown-menu-item dropdown-submenu-trigger ${activeSubmenu === 'skins' ? 'active' : ''}`}
+                  onMouseEnter={() => openSubmenu('skins', skinsTriggerRef.current)}
+                  onMouseLeave={scheduleCloseSubmenu}
+                >
+                  <span>UI Theme</span>
+                  <ChevronRight size={13} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
+                </div>
+                {activeSubmenu &&
                   createPortal(
                     <div
                       className="dropdown-submenu-popover open df-portaled-themes-menu"
                       role="menu"
                       style={{
                         position: 'fixed',
-                        top: `${themesSubmenuPos.top}px`,
-                        left: `${themesSubmenuPos.left}px`,
+                        top: `${submenuPos.top}px`,
+                        left: `${submenuPos.left}px`,
                         maxHeight: '260px',
                         overflowY: 'auto',
                         overscrollBehavior: 'contain',
                         zIndex: 9999
                       }}
-                      onMouseEnter={openThemesSubmenu}
-                      onMouseLeave={scheduleCloseThemesSubmenu}
+                      onMouseEnter={() => openSubmenu(activeSubmenu, activeSubmenu === 'themes' ? themesTriggerRef.current : skinsTriggerRef.current)}
+                      onMouseLeave={scheduleCloseSubmenu}
                       onClick={(e) => e.stopPropagation()}
                       onPointerDown={(e) => e.stopPropagation()}
                     >
-                      {THEMES.map((theme) => (
-                        <button
-                          key={theme.id}
-                          type="button"
-                          className="dropdown-menu-item"
-                          onClick={() => {
-                            setActiveTheme(theme.id);
-                            setActiveMenu(null);
-                            setIsThemesSubmenuOpen(false);
-                          }}
-                        >
-                          <span style={{ width: '14px', display: 'inline-flex', alignItems: 'center' }}>
-                            {activeTheme === theme.id && <Check size={13} style={{ color: 'var(--text-main)' }} />}
-                          </span>
-                          <span>{theme.label}</span>
-                        </button>
-                      ))}
+                      {activeSubmenu === 'themes'
+                        ? THEMES.map((theme) => (
+                            <button
+                              key={theme.id}
+                              type="button"
+                              className={`dropdown-menu-item ${activeTheme === theme.id ? 'selected' : ''}`}
+                              onClick={() => {
+                                setActiveTheme(theme.id);
+                                setActiveMenu(null);
+                                setActiveSubmenu(null);
+                              }}
+                            >
+                              <span style={{ width: '14px', display: 'inline-flex', alignItems: 'center' }}>
+                                {activeTheme === theme.id && <Check size={13} style={{ color: 'var(--text-main)' }} />}
+                              </span>
+                              <span>{theme.label}</span>
+                            </button>
+                          ))
+                        : UI_SKINS.map((skin) => (
+                            <button
+                              key={skin.id}
+                              type="button"
+                              className={`dropdown-menu-item ${activeSkin === skin.id ? 'selected' : ''}`}
+                              onClick={() => {
+                                const next = { ...getStoredSettings(), uiSkin: skin.id };
+                                saveStoredSettings(next);
+                                setActiveSkin(skin.id);
+                                setActiveMenu(null);
+                                setActiveSubmenu(null);
+                              }}
+                            >
+                              <span style={{ width: '14px', display: 'inline-flex', alignItems: 'center' }}>
+                                {activeSkin === skin.id && <Check size={13} style={{ color: 'var(--text-main)' }} />}
+                              </span>
+                              <span>{skin.label}</span>
+                            </button>
+                          ))}
                     </div>,
                     document.body
                   )}

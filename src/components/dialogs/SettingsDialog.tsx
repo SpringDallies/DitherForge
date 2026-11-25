@@ -14,7 +14,8 @@ export type LogoMode = '3d' | '2d';
 export type LogoCursorReact = 'direct' | 'sidebar' | 'global' | 'off';
 
 export const UI_SKINS = [
-  { id: 'default', label: 'Default Studio' }
+  { id: 'default', label: 'Default Studio' },
+  { id: 'terminal', label: 'Terminal' }
 ];
 
 export interface DitherForgeSettings {

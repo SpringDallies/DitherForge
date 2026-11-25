@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../state/useAppStore';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
+// @ts-ignore
+import { BUILTIN_PALETTES } from '../dither-engine/palettes.js';
 import { getExportCanvas } from '../utils/animationExport';
 import {
   Copy,
@@ -44,6 +46,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const justRightClickedRef = useRef(false);
+  const lastPrimaryDownAtRef = useRef(0);
 
   const appMode = useAppStore((s) => s.appMode);
   const isPlaying = useAppStore((s) => s.isPlaying);
@@ -61,12 +64,17 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
   const resetZoom = useAppStore((s) => s.resetZoom);
   const resetAllAdjustments = useAppStore((s) => s.resetAllAdjustments);
   const resetCurrentAlgoParams = useAppStore((s) => s.resetCurrentAlgoParams);
+  const resetAsciiSettings = useAppStore((s) => s.resetAsciiSettings);
+  const setActivePaletteId = useAppStore((s) => s.setActivePaletteId);
+  const resetEffects = useAppStore((s) => s.resetEffects);
   const resetAll = useAppStore((s) => s.resetAll);
+  const addToast = useAppStore((s) => s.addToast);
   const loadSampleImage = useAppStore((s) => s.loadSampleImage);
   const loadImageFromData = useAppStore((s) => s.loadImageFromData);
   const setIsExportOpen = useAppStore((s) => s.setIsExportOpen);
   const setIsManualOpen = useAppStore((s) => s.setIsManualOpen);
   const [contextType, setContextType] = useState<'app' | 'timeline'>('app');
+  const [contextSection, setContextSection] = useState<string | null>(null);
   const selectedTrackId = useAppStore((s) => s.selectedTrackId);
   const setSelectedTrackId = useAppStore((s) => s.setSelectedTrackId);
   const animationTracks = useAppStore((s) => s.animationTracks);
@@ -81,6 +89,21 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
     setIsOpen(false);
   }, []);
 
+  // Track recent left-button pointer/mouse down so spurious contextmenu on track left-clicks is ignored
+  useEffect(() => {
+    const onDown = (e: MouseEvent | PointerEvent) => {
+      if (e.button === 0 && !e.ctrlKey) {
+        lastPrimaryDownAtRef.current = Date.now();
+      }
+    };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('mousedown', onDown, true);
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('mousedown', onDown, true);
+    };
+  }, []);
+
   // Listen for contextmenu across the application
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
@@ -89,6 +112,17 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
 
       const target = e.target as HTMLElement;
       if (!target) return;
+
+      // Ignore synthetic/non-secondary contextmenu fired immediately after a left click on a track
+      if (
+        e.button === 0 &&
+        !e.ctrlKey &&
+        target.closest('.df-track-bar, .df-track-lane') &&
+        Date.now() - lastPrimaryDownAtRef.current < 500
+      ) {
+        e.preventDefault();
+        return;
+      }
 
       // Allow native browser menu inside editable text inputs
       if (
@@ -137,6 +171,9 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
       const clampedX = Math.max(pad, Math.min(window.innerWidth - width - pad, e.clientX));
       const clampedY = Math.max(pad, Math.min(window.innerHeight - height - pad, e.clientY));
 
+      const sectionEl = target.closest('[data-df-section]') as HTMLElement | null;
+      const sectionId = sectionEl?.getAttribute('data-df-section') || null;
+      setContextSection(sectionId);
       setContextType(isTimelineClick ? 'timeline' : 'app');
       setPosition({ x: clampedX, y: clampedY });
       setIsOpen(true);
@@ -603,6 +640,93 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
           <div className="df-app-context-left">
             <Sparkles size={14} />
             <span>Load Calibration Pattern</span>
+          </div>
+        </button>
+
+        <div className="df-app-context-divider" />
+        <div className="df-app-context-section-label">Reset</div>
+
+        {contextSection === 'styles' && (
+          <button
+            type="button"
+            className="df-app-context-item"
+            onClick={() => {
+              closeMenu();
+              resetCurrentAlgoParams();
+              resetAsciiSettings();
+              addToast('Styles reset to default', 'info');
+            }}
+          >
+            <div className="df-app-context-left">
+              <RotateCcw size={14} />
+              <span>Reset Styles</span>
+            </div>
+          </button>
+        )}
+
+        {contextSection === 'adjustments' && (
+          <button
+            type="button"
+            className="df-app-context-item"
+            onClick={() => {
+              closeMenu();
+              resetAllAdjustments();
+              addToast('Adjustments reset to default', 'info');
+            }}
+          >
+            <div className="df-app-context-left">
+              <RotateCcw size={14} />
+              <span>Reset Adjustments</span>
+            </div>
+          </button>
+        )}
+
+        {contextSection === 'palette' && (
+          <button
+            type="button"
+            className="df-app-context-item"
+            onClick={() => {
+              closeMenu();
+              setActivePaletteId(BUILTIN_PALETTES[0]?.id || 'monochrome_1bit');
+              addToast('Colour palette reset to default', 'info');
+            }}
+          >
+            <div className="df-app-context-left">
+              <RotateCcw size={14} />
+              <span>Reset Colour Palette</span>
+            </div>
+          </button>
+        )}
+
+        {contextSection === 'effects-stack' && (
+          <button
+            type="button"
+            className="df-app-context-item"
+            onClick={() => {
+              closeMenu();
+              resetEffects();
+              addToast('Effects stack reset to default', 'info');
+            }}
+          >
+            <div className="df-app-context-left">
+              <RotateCcw size={14} />
+              <span>Reset Effects Stack</span>
+            </div>
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="df-app-context-item"
+          onClick={() => {
+            closeMenu();
+            resetAll();
+            addToast('All settings reset to default', 'info');
+          }}
+        >
+          <div className="df-app-context-left">
+            <RotateCcw size={14} />
+            <span>Reset All</span>
           </div>
         </button>
 

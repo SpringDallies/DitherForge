@@ -3308,6 +3308,59 @@ body {
   font-weight: 600;
   box-shadow: 0 2px 6px color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
+.export-all-options-section {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-panel);
+}
+.export-options-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.export-charset-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px !important;
+}
+.export-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 7px 6px;
+  background: var(--bg-control);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
+}
+.export-option-btn:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+.export-option-btn.active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--text-on-accent, #ffffff);
+}
+.export-option-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.export-option-sublabel {
+  font-size: 0.66rem;
+  opacity: 0.75;
+  line-height: 1.15;
+}
+.export-modal-body {
+  overflow-y: auto;
+}
 .export-form-row {
   display: flex;
   align-items: center;
@@ -5636,6 +5689,7 @@ canvas#hqPresentationCanvas {
 .df-floating-timeline-group {
   position: absolute;
   left: 36px;
+  right: var(--df-sidebar-offset, 384px);
   bottom: 14px;
   display: flex;
   flex-direction: column;
@@ -5643,6 +5697,82 @@ canvas#hqPresentationCanvas {
   z-index: 25;
   user-select: none;
   pointer-events: none;
+}
+
+.df-timeline-empty-hint {
+  margin: auto;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  pointer-events: none;
+  padding: 12px;
+}
+
+.df-track-bar-range {
+  margin-left: auto;
+  padding-left: 10px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.df-timecode-fps {
+  margin-left: 8px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.df-create-anim-header,
+.df-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.df-create-anim-body,
+.df-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.df-editor-header-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.df-editor-header-span {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.df-editor-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.df-editor-header-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.df-editor-header-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
 }
 
 .df-timeline-top-row {
@@ -6028,6 +6158,7 @@ canvas#hqPresentationCanvas {
   align-items: center;
   justify-content: flex-start;
   padding: 0 14px;
+  overflow: hidden;
   cursor: grab;
   z-index: 10;
   box-sizing: border-box;
@@ -6543,6 +6674,11 @@ canvas#hqPresentationCanvas {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes toastSlideOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
 .topbar-video-group {
   margin-left: 18px;
 }
@@ -6577,6 +6713,11 @@ canvas#hqPresentationCanvas {
   cursor: pointer;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+.df-toast.closing {
+  animation: toastSlideOut 240ms ease-out forwards;
+  pointer-events: none;
 }
 
 .df-toast-text {

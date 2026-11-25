@@ -21,6 +21,7 @@ import { AVAILABLE_EFFECT_TYPES } from '../../dither-engine/effect-stack.js';
 // @ts-ignore
 import { exportRaster } from '../../dither-engine/exporters.js';
 import { downloadAnimatedGif, downloadAnimatedVideo, getExportCanvas, renderFullResolutionAsciiGrid } from '../../utils/animationExport';
+import { parseColorFromClipboard } from '../../utils/colorPaste';
 import { loadUserPresets, saveUserPresets } from '../../ui/presets.js';
 import { getEffectDescriptor, getEffectParamsMeta, getAllEffects, mergePresetEffects, BlendMode, EffectCategory } from '../../effects';
 import { loadUserPresetsV2, saveUserPresetsV2, type PresetV2 } from '../../effects/presets';
@@ -161,7 +162,7 @@ const SwatchColorPickerPopover: React.FC<SwatchColorPickerPopoverProps> = ({
   }, [activeSwatchIndex]);
 
   const [localHsl, setLocalHsl] = useState<[number, number, number]>(initialHsl);
-  const [copiedHex, setCopiedHex] = useState<boolean>(false);
+  const [copiedHex, setCopiedHex] = useState<'copied' | 'pasted' | false>(false);
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
   const animRef = useRef<number | null>(null);
@@ -263,6 +264,42 @@ const SwatchColorPickerPopover: React.FC<SwatchColorPickerPopoverProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (isClosing) return;
+    const handlePasteColor = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) &&
+        !(popoverRef.current && popoverRef.current.contains(target))
+      ) {
+        return;
+      }
+      const text = e.clipboardData?.getData('text/plain') || '';
+      const parsed = parseColorFromClipboard(text);
+      if (!parsed) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (animRef.current !== null) {
+        cancelAnimationFrame(animRef.current);
+        animRef.current = null;
+      }
+      let targetHsl = rgbToHsl(parsed.r, parsed.g, parsed.b);
+      if (targetHsl[1] === 0 || targetHsl[2] === 0 || targetHsl[2] === 100) {
+        targetHsl = [currentHslRef.current[0], targetHsl[1], targetHsl[2]];
+      }
+      currentHslRef.current = targetHsl;
+      setLocalHsl(targetHsl);
+      lastEmittedRgbRef.current = [parsed.r, parsed.g, parsed.b];
+      onUpdateColor(activeSwatchIndex, [parsed.r, parsed.g, parsed.b, 255]);
+      setCopiedHex('pasted');
+      setTimeout(() => setCopiedHex(false), 1200);
+    };
+    window.addEventListener('paste', handlePasteColor, true);
+    return () => window.removeEventListener('paste', handlePasteColor, true);
+  }, [isClosing, activeSwatchIndex, onUpdateColor, popoverRef]);
+
   const handleSliderChange = (type: 'h' | 's' | 'l', val: number) => {
     if (animRef.current !== null) {
       cancelAnimationFrame(animRef.current);
@@ -339,13 +376,13 @@ const SwatchColorPickerPopover: React.FC<SwatchColorPickerPopoverProps> = ({
           try {
             navigator.clipboard.writeText(localHex);
           } catch {}
-          setCopiedHex(true);
+          setCopiedHex('copied');
           setTimeout(() => setCopiedHex(false), 1200);
         }}
-        title="Click color to copy hex"
+        title="Click color to copy hex, or press Ctrl+V to paste Hex/HCL"
       >
         <span className="replica-swatch-hex-text" style={{ color: hexTextColor }}>
-          {copiedHex ? 'COPIED!' : (localHex || '').replace('#', '')}
+          {copiedHex === 'pasted' ? 'PASTED!' : copiedHex === 'copied' ? 'COPIED!' : (localHex || '').replace('#', '')}
         </span>
       </div>
 
@@ -834,6 +871,13 @@ export const RightSidebar: React.FC = () => {
   const [exportFormat, setExportFormat] = useState<string>(getInitialExportFormat);
   const [videoExportFormat, setVideoExportFormat] = useState<'GIF' | 'MP4' | 'MOV' | 'WEBM'>('GIF');
   const [isExportingAnim, setIsExportingAnim] = useState<boolean>(false);
+  const [uiSkin, setUiSkin] = useState<string>(() => {
+    try {
+      return getStoredSettings().uiSkin || 'default';
+    } catch {
+      return 'default';
+    }
+  });
   const addToast = useAppStore((state) => state.addToast);
 
   useEffect(() => {
@@ -845,6 +889,11 @@ export const RightSidebar: React.FC = () => {
         else if (fmt === 'jpg') setExportFormat('JPEG');
         else if (fmt === 'png') setExportFormat('PNG');
         else setExportFormat(fmt.toUpperCase());
+      }
+      if (customEvt.detail?.uiSkin) {
+        setUiSkin(customEvt.detail.uiSkin);
+      } else {
+        setUiSkin(getStoredSettings().uiSkin || 'default');
       }
     };
     window.addEventListener('ditherforge_settings_changed', handleSettingsChanged);
@@ -1711,8 +1760,12 @@ export const RightSidebar: React.FC = () => {
               id="export-action-btn"
               className="unified-pill-btn"
               disabled={isExportingAnim}
-              title={isExportingAnim ? "Exporting animation..." : "Click to export immediately"}
+              title={uiSkin === 'terminal' ? undefined : (isExportingAnim ? "Exporting animation..." : "Click to export immediately")}
               onClick={() => {
+                if (uiSkin === 'terminal') {
+                  window.dispatchEvent(new CustomEvent('ditherforge_open_export'));
+                  return;
+                }
                 if (appMode === 'animation') {
                   if (!useAppStore.getState().sourceImageData) return;
                   const ext = videoExportFormat.toLowerCase();
@@ -1773,39 +1826,41 @@ export const RightSidebar: React.FC = () => {
             >
               {isExportingAnim ? 'Exporting…' : (appMode === 'animation' ? 'Export Video' : 'Export Image')}
             </button>
-            <button
-              type="button"
-              id="export-format-toggle"
-              className="export-format-toggle"
-              title="Click to switch export format"
-              aria-label={`Export format: ${appMode === 'animation' ? videoExportFormat : exportFormat}. Click to change.`}
-              onClick={() => {
-                if (appMode === 'animation') {
-                  const vOrder = ['GIF', 'MP4', 'MOV', 'WEBM'] as const;
-                  const idx = vOrder.findIndex((f) => f === videoExportFormat);
-                  setVideoExportFormat(vOrder[(idx + 1) % vOrder.length]);
-                } else {
-                  const isAsciiActive = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
-                  const order = isAsciiActive
-                    ? (['PNG', 'JPEG', 'WEBP', 'TXT'] as const)
-                    : (['PNG', 'JPEG', 'WEBP'] as const);
-                  const idx = order.findIndex((f) => f === exportFormat);
-                  const nextFormat = order[(idx + 1) % order.length];
-                  setExportFormat(nextFormat);
-                  if (nextFormat !== 'TXT') {
-                    try {
-                      const current = getStoredSettings();
-                      const mapped = nextFormat === 'JPEG' ? 'jpg' : (nextFormat.toLowerCase() as 'png' | 'webp');
-                      saveStoredSettings({ ...current, defaultExportFormat: mapped });
-                    } catch {}
+            {uiSkin !== 'terminal' && (
+              <button
+                type="button"
+                id="export-format-toggle"
+                className="export-format-toggle"
+                title="Click to switch export format"
+                aria-label={`Export format: ${appMode === 'animation' ? videoExportFormat : exportFormat}. Click to change.`}
+                onClick={() => {
+                  if (appMode === 'animation') {
+                    const vOrder = ['GIF', 'MP4', 'MOV', 'WEBM'] as const;
+                    const idx = vOrder.findIndex((f) => f === videoExportFormat);
+                    setVideoExportFormat(vOrder[(idx + 1) % vOrder.length]);
+                  } else {
+                    const isAsciiActive = algorithmId.startsWith('ascii-') || renderMode === 'ascii';
+                    const order = isAsciiActive
+                      ? (['PNG', 'JPEG', 'WEBP', 'TXT'] as const)
+                      : (['PNG', 'JPEG', 'WEBP'] as const);
+                    const idx = order.findIndex((f) => f === exportFormat);
+                    const nextFormat = order[(idx + 1) % order.length];
+                    setExportFormat(nextFormat);
+                    if (nextFormat !== 'TXT') {
+                      try {
+                        const current = getStoredSettings();
+                        const mapped = nextFormat === 'JPEG' ? 'jpg' : (nextFormat.toLowerCase() as 'png' | 'webp');
+                        saveStoredSettings({ ...current, defaultExportFormat: mapped });
+                      } catch {}
+                    }
                   }
-                }
-              }}
-            >
-              {appMode === 'animation' ? videoExportFormat : exportFormat}
-            </button>
+                }}
+              >
+                {appMode === 'animation' ? videoExportFormat : exportFormat}
+              </button>
+            )}
           </div>
-          {exportFormat === 'JPEG' && (
+          {exportFormat === 'JPEG' && uiSkin !== 'terminal' && (
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', textAlign: 'center' }}>
               JPG flattens transparency to black.
             </div>
@@ -1816,8 +1871,23 @@ export const RightSidebar: React.FC = () => {
         <div className="sections-container" data-df-group="sidebar-sections">
           {/* 1. STYLE SECTION */}
           <div className="section-block" data-df-section="styles">
-            <div className="section-header">
-              <span className="section-title-text">Styles</span>
+            <div
+              className="section-header"
+              onDoubleClick={(e) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                resetCurrentAlgoParams();
+                resetAsciiSettings();
+                setActiveCategory('all');
+                addToast('Styles reset to default', 'info');
+              }}
+            >
+              {uiSkin === 'terminal' ? (
+                <Tooltip text="Double-click or right-click to reset styles" side="bottom">
+                  <span className="section-title-text">Styles</span>
+                </Tooltip>
+              ) : (
+                <span className="section-title-text">Styles</span>
+              )}
               <button
                 type="button"
                 className="card-reset-icon-btn"
@@ -2486,8 +2556,21 @@ export const RightSidebar: React.FC = () => {
 
           {/* 2. ADJUSTMENTS SECTION */}
           <div className="section-block" data-df-section="adjustments">
-            <div className="section-header">
-              <span className="section-title-text">Adjustments</span>
+            <div
+              className="section-header"
+              onDoubleClick={(e) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                resetAllAdjustments();
+                addToast('Adjustments reset to default', 'info');
+              }}
+            >
+              {uiSkin === 'terminal' ? (
+                <Tooltip text="Double-click or right-click to reset adjustments" side="bottom">
+                  <span className="section-title-text">Adjustments</span>
+                </Tooltip>
+              ) : (
+                <span className="section-title-text">Adjustments</span>
+              )}
               <button
                 type="button"
                 className="card-reset-icon-btn"
@@ -2824,8 +2907,21 @@ export const RightSidebar: React.FC = () => {
 
           {/* 3. PALETTE SECTION */}
           <div className="section-block" data-df-section="palette">
-            <div className="section-header">
-              <span className="section-title-text">Colour Palette</span>
+            <div
+              className="section-header"
+              onDoubleClick={(e) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                setActivePaletteId(BUILTIN_PALETTES[0]?.id || 'monochrome_1bit');
+                addToast('Colour palette reset to default', 'info');
+              }}
+            >
+              {uiSkin === 'terminal' ? (
+                <Tooltip text="Double-click or right-click to reset colour palette" side="bottom">
+                  <span className="section-title-text">Colour Palette</span>
+                </Tooltip>
+              ) : (
+                <span className="section-title-text">Colour Palette</span>
+              )}
               <button
                 type="button"
                 className="card-reset-icon-btn"
@@ -2975,7 +3071,7 @@ export const RightSidebar: React.FC = () => {
 
                 {/* 4. Palette Depth Row — hidden when algorithm does not use palettes or palette has <= 2 colors */}
                 {currentAlgo.features?.supportsColorPalettes !== false && workingPalette.length > 2 && (
-                <div className="replica-subheading-block">
+                <div className="replica-subheading-block replica-depth-block">
                   <span className="replica-subheading-title">Palette Depth</span>
                   <div className="replica-depth-row">
                     <input
@@ -2987,6 +3083,11 @@ export const RightSidebar: React.FC = () => {
                       disabled={workingPalette.length <= 2}
                       value={paletteDepth}
                       style={{
+                        '--slider-fill': `${
+                          Math.min(32, workingPalette.length) <= 2
+                            ? 0
+                            : ((paletteDepth - 2) / (Math.min(32, workingPalette.length) - 2)) * 100
+                        }%`,
                         background: `linear-gradient(to right, var(--accent-primary) 0%, var(--accent-primary) ${
                           Math.min(32, workingPalette.length) <= 2
                             ? 0
@@ -2996,7 +3097,7 @@ export const RightSidebar: React.FC = () => {
                             ? 0
                             : ((paletteDepth - 2) / (Math.min(32, workingPalette.length) - 2)) * 100
                         }%, var(--accent-secondary) 100%)`
-                      }}
+                      } as React.CSSProperties}
                       {...sliderPointerProps}
                       onChange={(e) => setPaletteDepth(Number(e.target.value))}
                     />
@@ -3194,8 +3295,21 @@ export const RightSidebar: React.FC = () => {
 
           {/* 4. EFFECTS STACK SECTION */}
           <div className="section-block" data-df-section="effects-stack">
-            <div className="section-header">
-              <span className="section-title-text">Effects Stack</span>
+            <div
+              className="section-header"
+              onDoubleClick={(e) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                resetEffects();
+                addToast('Effects stack reset to default', 'info');
+              }}
+            >
+              {uiSkin === 'terminal' ? (
+                <Tooltip text="Double-click or right-click to reset effects stack" side="bottom">
+                  <span className="section-title-text">Effects Stack</span>
+                </Tooltip>
+              ) : (
+                <span className="section-title-text">Effects Stack</span>
+              )}
               <button
                 type="button"
                 className="card-reset-icon-btn"
@@ -3687,7 +3801,13 @@ export const RightSidebar: React.FC = () => {
               className="section-header section-header-clickable presets-header-row"
               onClick={() => toggleSection('presets')}
             >
-              <span className="section-title-text presets-header-title">Presets</span>
+              {uiSkin === 'terminal' ? (
+                <Tooltip text="Click to toggle presets" side="bottom">
+                  <span className="section-title-text presets-header-title">Presets</span>
+                </Tooltip>
+              ) : (
+                <span className="section-title-text presets-header-title">Presets</span>
+              )}
               <ChevronDown
                 size={18}
                 strokeWidth={2.2}

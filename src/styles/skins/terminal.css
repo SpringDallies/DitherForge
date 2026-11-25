@@ -1,0 +1,2834 @@
+/* ==========================================================================
+   DitherForge UI Skin: Terminal (Docked)
+   1:1 Penpot SVG specification extended across ALL components:
+   - Zero icons anywhere (all <svg> & mask chevrons hidden; icon buttons use text)
+   - No < > navigation stepper arrows; section resets via double-click or right-click
+   - Selective hover underlines (links, clickable headers, menu/list items, text actions)
+   - Compact 38px topbar & 36px pickers/dropdowns
+   - Crisp TUI Color Picker with Ctrl+V Hex/HCL/LCH/HSL clipboard support
+   - Low-end GPU optimized (no filter: drop-shadow / backdrop-filter blur passes)
+   ========================================================================== */
+
+:root[data-ui-skin="terminal"],
+:root[data-ui-skin="terminal"] .app-container {
+  /* Structural tokens only — color palettes flow from [data-theme="..."] */
+  --font-sans: 'JetBrains Mono Variable', 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', monospace;
+  --df-topbar-height: 38px;
+  --df-topbar-padding: 0 16px;
+  --df-sidebar-margin: 0px;
+  --df-sidebar-radius: 0px;
+  --df-card-radius: 5px;
+  --df-control-radius: 5px;
+  --df-pill-radius: 0px;
+  --df-toast-radius: 5px;
+  --df-border-width: 1px;
+
+  /* Dynamic Terminal semantic tokens mapped to active Colour Scheme */
+  --tm-canvas: var(--canvas-bg, var(--bg-primary));
+  --tm-inset: color-mix(in srgb, var(--bg-primary) 58%, var(--bg-panel));
+  --tm-panel: var(--bg-panel, var(--bg-secondary));
+  --tm-surface: var(--bg-tertiary, var(--bg-control));
+  --tm-header: color-mix(in srgb, var(--bg-panel) 45%, var(--bg-raised, var(--bg-control)));
+  --tm-control: var(--bg-control, var(--bg-tertiary));
+  --tm-active: var(--bg-active, var(--bg-hover));
+  --tm-selected-row: var(--bg-active, var(--bg-hover));
+  --tm-lane-border: var(--border-color);
+
+  --tm-border-subtle: var(--border-soft, var(--border-color));
+  --tm-border: var(--border-color);
+  --tm-border-strong: var(--border-raised, var(--border-secondary));
+  --tm-border-hover: var(--border-hover, var(--accent-primary));
+
+  --tm-text: var(--text-main);
+  --tm-text-bright: var(--accent-hover, var(--text-main));
+  --tm-text-muted: var(--text-muted, var(--text-secondary));
+
+  --tm-dash-off: color-mix(in srgb, var(--tm-panel) 58%, var(--tm-border));
+  --tm-dash-on: color-mix(in srgb, var(--tm-panel) 44%, var(--tm-border-strong));
+  --tm-dash-section: color-mix(in srgb, var(--tm-panel) 48%, var(--tm-border-strong));
+
+  --tm-accent: var(--accent-primary);
+  --tm-accent-hover: var(--accent-hover, var(--accent-primary));
+  --tm-on-accent: var(--text-on-accent, var(--bg-primary));
+
+  --tm-slider-fill-start: var(--accent-hover, var(--accent-primary));
+  --tm-slider-fill-end: var(--accent-primary);
+  --tm-slider-fill-hover-start: color-mix(in srgb, var(--accent-hover, var(--accent-primary)) 82%, #ffffff);
+  --tm-slider-fill-hover-end: var(--accent-hover, var(--accent-primary));
+  --tm-slider-solid: var(--accent-primary);
+
+  --tm-selected-bg: var(--accent-primary);
+  --tm-selected-text: var(--text-on-accent, var(--bg-primary));
+  --tm-playhead: var(--accent-primary);
+  --tm-playhead-border: var(--bg-primary);
+
+  --tm-slider-shade-top: rgba(0, 0, 0, 0.28);
+  --tm-slider-shade-mid: rgba(0, 0, 0, 0.08);
+  --tm-backdrop: rgba(12, 12, 12, 0.65);
+  --tm-shadow: rgba(0, 0, 0, 0.45);
+  --tm-shadow-lg: rgba(0, 0, 0, 0.55);
+}
+
+/* Standard Dark scheme: classic neutral Penpot monochrome palette */
+:root[data-ui-skin="terminal"]:is([data-theme="dark"], :not([data-theme])),
+:root[data-ui-skin="terminal"]:is([data-theme="dark"], :not([data-theme])) .app-container {
+  --canvas-bg: #171717;
+  --bg-primary: #171717;
+  --bg-panel: #313131;
+  --bg-secondary: #434343;
+  --bg-tertiary: #363636;
+  --bg-control: #474747;
+  --bg-raised: #363636;
+  --bg-hover: #525252;
+  --bg-active: #5a5a5a;
+  --border-color: #646464;
+  --border-secondary: #838383;
+  --border-raised: #838383;
+  --border-hover: #9e9e9e;
+  --text-main: #dedede;
+  --text-secondary: #dedede;
+  --text-dim: #dedede;
+  --text-muted: #9a9a9a;
+  --text-on-accent: #171717;
+  --accent-primary: #dedede;
+  --accent-secondary: #474747;
+  --accent-hover: #ffffff;
+
+  --tm-canvas: #171717;
+  --tm-inset: #262626;
+  --tm-panel: #313131;
+  --tm-surface: #363636;
+  --tm-header: #434343;
+  --tm-control: #474747;
+  --tm-active: #525252;
+  --tm-selected-row: #474747;
+  --tm-lane-border: #434343;
+
+  --tm-border-subtle: #474747;
+  --tm-border: #646464;
+  --tm-border-strong: #838383;
+  --tm-border-hover: #9e9e9e;
+
+  --tm-text: #dedede;
+  --tm-text-bright: #ffffff;
+  --tm-text-muted: #9a9a9a;
+
+  --tm-dash-off: #444444;
+  --tm-dash-on: #585858;
+  --tm-dash-section: #525252;
+
+  --tm-accent: #dedede;
+  --tm-accent-hover: #ffffff;
+  --tm-on-accent: #171717;
+
+  --tm-slider-fill-start: #ededed;
+  --tm-slider-fill-end: #dedede;
+  --tm-slider-fill-hover-start: #ffffff;
+  --tm-slider-fill-hover-end: #e6e6e6;
+  --tm-slider-solid: #dedede;
+
+  --tm-selected-bg: #dedede;
+  --tm-selected-text: #171717;
+  --tm-playhead: #dedede;
+  --tm-playhead-border: #171717;
+}
+
+/* Dark Pro scheme: true pitch-black obsidian carbon & crisp silver */
+:root[data-ui-skin="terminal"][data-theme="dark_pro"],
+:root[data-ui-skin="terminal"][data-theme="dark_pro"] .app-container {
+  --canvas-bg: #08090c;
+  --bg-primary: #08090c;
+  --bg-panel: #111319;
+  --bg-secondary: #191c26;
+  --bg-tertiary: #161922;
+  --bg-control: #222633;
+  --bg-raised: #191c26;
+  --bg-hover: #2d3242;
+  --bg-active: #343a4d;
+  --border-color: #2e3446;
+  --border-secondary: #3e455b;
+  --border-soft: #222633;
+  --border-raised: #3e455b;
+  --border-hover: #9ba3ba;
+  --text-main: #eceff6;
+  --text-secondary: #d5dae7;
+  --text-dim: #82899e;
+  --text-muted: #82899e;
+  --text-on-accent: #08090c;
+  --accent-primary: #f0f2f7;
+  --accent-secondary: #222633;
+  --accent-hover: #ffffff;
+
+  --tm-canvas: #08090c;
+  --tm-inset: #0d0f14;
+  --tm-panel: #111319;
+  --tm-surface: #161922;
+  --tm-header: #191c26;
+  --tm-control: #222633;
+  --tm-active: #2d3242;
+  --tm-selected-row: #282d3d;
+  --tm-lane-border: #232734;
+
+  --tm-border-subtle: #222633;
+  --tm-border: #2e3446;
+  --tm-border-strong: #3e455b;
+  --tm-border-hover: #9ba3ba;
+
+  --tm-text: #eceff6;
+  --tm-text-bright: #ffffff;
+  --tm-text-muted: #82899e;
+
+  --tm-dash-off: #232734;
+  --tm-dash-on: #363d52;
+  --tm-dash-section: #303648;
+
+  --tm-accent: #f0f2f7;
+  --tm-accent-hover: #ffffff;
+  --tm-on-accent: #08090c;
+
+  --tm-slider-fill-start: #f5f7fc;
+  --tm-slider-fill-end: #dce1ee;
+  --tm-slider-fill-hover-start: #ffffff;
+  --tm-slider-fill-hover-end: #edf0f8;
+  --tm-slider-solid: #e4e8f2;
+
+  --tm-selected-bg: #f0f2f7;
+  --tm-selected-text: #08090c;
+  --tm-playhead: #ffffff;
+  --tm-playhead-border: #08090c;
+
+  --tm-slider-shade-top: rgba(0, 0, 0, 0.45);
+  --tm-slider-shade-mid: rgba(0, 0, 0, 0.14);
+}
+
+/* Light Pro high-contrast terminal palette tuning */
+:root[data-ui-skin="terminal"][data-theme="light_pro"],
+:root[data-ui-skin="terminal"][data-theme="light_pro"] .app-container {
+  --tm-canvas: #DDDDE3;
+  --tm-inset: #D3D5DF;
+  --tm-panel: #E6E6ED;
+  --tm-surface: #EAEAF1;
+  --tm-header: #D7D9E2;
+  --tm-control: #DCDDE5;
+  --tm-active: #CFD4DD;
+  --tm-selected-row: #CFD4DD;
+  --tm-lane-border: #C4C9D4;
+
+  --tm-border-subtle: #CFD4DD;
+  --tm-border: #C4C9D4;
+  --tm-border-strong: #A6ACB8;
+  --tm-border-hover: #7C8088;
+
+  --tm-text: #4F535C;
+  --tm-text-bright: #2B2E35;
+  --tm-text-muted: #7C8088;
+
+  --tm-dash-off: #CFD4DF;
+  --tm-dash-on: #B6BCC9;
+  --tm-dash-section: #BEC3D0;
+
+  --tm-accent: #6E727A;
+  --tm-accent-hover: #545861;
+  --tm-on-accent: #F2F2F7;
+
+  --tm-slider-fill-start: #5F636B;
+  --tm-slider-fill-end: #6E727A;
+  --tm-slider-fill-hover-start: #4B4E56;
+  --tm-slider-fill-hover-end: #5F636B;
+  --tm-slider-solid: #6E727A;
+
+  --tm-selected-bg: #6E727A;
+  --tm-selected-text: #F2F2F7;
+  --tm-playhead: #545861;
+  --tm-playhead-border: #F2F2F7;
+
+  --tm-slider-shade-top: rgba(0, 0, 0, 0.07);
+  --tm-slider-shade-mid: rgba(0, 0, 0, 0.02);
+  --tm-backdrop: rgba(22, 26, 36, 0.32);
+  --tm-shadow: rgba(24, 28, 40, 0.14);
+  --tm-shadow-lg: rgba(24, 28, 40, 0.2);
+}
+
+:root[data-ui-skin="terminal"] body,
+:root[data-ui-skin="terminal"] button,
+:root[data-ui-skin="terminal"] input,
+:root[data-ui-skin="terminal"] select,
+:root[data-ui-skin="terminal"] textarea,
+:root[data-ui-skin="terminal"] label,
+:root[data-ui-skin="terminal"] span,
+:root[data-ui-skin="terminal"] div {
+  font-family: 'JetBrains Mono Variable', 'JetBrains Mono', monospace;
+}
+
+/* --------------------------------------------------------------------------
+   0. Zero Icons Policy & Monospace Text Replacements
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] svg {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .inline-stepper-cluster,
+:root[data-ui-skin="terminal"] .replica-segmented-stepper,
+:root[data-ui-skin="terminal"] .card-reset-icon-btn {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-header .tool-icon-btn,
+:root[data-ui-skin="terminal"] .modal-header button[aria-label*="Close"],
+:root[data-ui-skin="terminal"] .df-create-anim-header .tool-icon-btn,
+:root[data-ui-skin="terminal"] .df-editor-header-btn {
+  width: auto !important;
+  min-width: 24px !important;
+  height: 22px !important;
+  padding: 0 7px !important;
+  background: var(--tm-surface) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 3px !important;
+  color: var(--tm-text) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-ui-skin="terminal"] .modal-header .tool-icon-btn::after,
+:root[data-ui-skin="terminal"] .modal-header button[aria-label*="Close"]::after,
+:root[data-ui-skin="terminal"] .df-create-anim-header .tool-icon-btn::after,
+:root[data-ui-skin="terminal"] .df-editor-header-btn.tool-icon-btn::after {
+  content: 'X';
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--tm-text);
+  line-height: 1;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-delete-icon-btn::after {
+  content: 'Del';
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--tm-text);
+  line-height: 1;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-header-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  text-decoration: underline !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-swatch-add-btn::after {
+  content: '+';
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--tm-text);
+  line-height: 1;
+}
+
+:root[data-ui-skin="terminal"] .dropdown-item-delete-btn::after,
+:root[data-ui-skin="terminal"] .replica-preset-delete-btn::after {
+  content: '[x]';
+  font-size: 11px;
+  color: var(--tm-text-muted);
+  line-height: 1;
+}
+
+:root[data-ui-skin="terminal"] .dropdown-item-delete-btn:hover::after,
+:root[data-ui-skin="terminal"] .replica-preset-delete-btn:hover::after {
+  color: var(--tm-text);
+  text-decoration: underline;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item > span:first-child {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .df-app-context-left:has(svg[style*="b8bb26"])::after {
+  content: '*';
+  color: var(--tm-accent);
+  font-size: 12px;
+  line-height: 1;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-item.selected::after,
+:root[data-ui-skin="terminal"] .algo-listbox-item[aria-selected="true"]::after,
+:root[data-ui-skin="terminal"] .algo-listbox-item.selected::after {
+  content: '*';
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--tm-accent);
+  font-size: 12px;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item.selected::after {
+  content: '*';
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--tm-accent);
+  font-size: 12px;
+}
+
+:root[data-ui-skin="terminal"] .dropdown-submenu-trigger::after {
+  content: '>';
+  margin-left: auto;
+  color: var(--tm-text-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* Color Picker bottom toolbar text labels */
+:root[data-ui-skin="terminal"] .replica-popover-tool-btn[aria-label*="lighter"]::after {
+  content: 'Light+';
+  font-size: 11px;
+  color: var(--tm-text);
+}
+
+:root[data-ui-skin="terminal"] .replica-popover-tool-btn[aria-label*="darker"]::after {
+  content: 'Dark+';
+  font-size: 11px;
+  color: var(--tm-text);
+}
+
+:root[data-ui-skin="terminal"] .replica-popover-tool-btn[aria-label*="Delete"]::after {
+  content: 'Del';
+  font-size: 11px;
+  color: var(--tm-text);
+}
+
+/* ASCII panel action buttons */
+:root[data-ui-skin="terminal"] .card-action-icon-btn {
+  width: auto !important;
+  min-width: 24px !important;
+  height: 22px !important;
+  padding: 0 6px !important;
+  border-radius: 3px !important;
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .card-action-icon-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  color: var(--tm-text-bright) !important;
+  text-decoration: underline !important;
+}
+
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="New"]::after { content: '+'; font-size: 12px; }
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Edit"]::after { content: 'Edit'; font-size: 11px; }
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Duplicate"]::after { content: 'Dup'; font-size: 11px; }
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Delete"]::after { content: 'Del'; font-size: 11px; }
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Import"]::after { content: 'Imp'; font-size: 11px; }
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Export"]::after { content: 'Exp'; font-size: 11px; }
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Reset"]::after { content: 'Reset'; font-size: 11px; }
+:root[data-ui-skin="terminal"] .card-action-icon-btn:not([aria-label])::after { content: 'X'; font-size: 11px; }
+
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Reset"],
+:root[data-ui-skin="terminal"] .card-action-icon-btn:not([aria-label]) {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 4px !important;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .card-action-icon-btn[aria-label*="Reset"]:hover,
+:root[data-ui-skin="terminal"] .card-action-icon-btn:not([aria-label]):hover {
+  background: transparent !important;
+  border: none !important;
+  color: var(--tm-text-bright) !important;
+  text-decoration: underline !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container {
+  gap: 11px !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container .picker-row {
+  margin-bottom: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container .export-input {
+  height: 34px !important;
+  padding: 0 11px !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container .export-input::placeholder {
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-ramp-preview-container {
+  background: var(--tm-surface) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 5px !important;
+  padding: 10px !important;
+  margin-bottom: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-ramp-preview-container > div:first-child {
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-ramp-preview-container [data-lenis-prevent] {
+  scrollbar-width: none !important;
+  padding: 4px 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-ramp-preview-container [data-lenis-prevent]::-webkit-scrollbar {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-ramp-preview-container [draggable] {
+  border-radius: 2px !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-ramp-preview-container [draggable] .themed-tooltip-wrapper > div {
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 2px !important;
+  color: var(--tm-text) !important;
+  transition: none !important;
+}
+
+:root[data-ui-skin="terminal"] .ascii-ramp-preview-container [draggable] > div:not(.themed-tooltip-wrapper) {
+  background-color: var(--tm-accent) !important;
+  box-shadow: none !important;
+  border-radius: 1px !important;
+}
+
+/* Animation transport text replacements */
+:root[data-ui-skin="terminal"] .df-transport-btn {
+  width: auto !important;
+  min-width: 28px;
+  padding: 0 7px !important;
+  font-size: 12px;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-transport-btn[aria-label="Previous Frame"]::after { content: '|<'; }
+:root[data-ui-skin="terminal"] .df-transport-btn[aria-label="Play"]::after { content: '>'; }
+:root[data-ui-skin="terminal"] .df-transport-btn[aria-label="Pause"]::after { content: '||'; }
+:root[data-ui-skin="terminal"] .df-transport-btn[aria-label="Next Frame"]::after { content: '>|'; }
+:root[data-ui-skin="terminal"] .df-playback-plus-btn::after { content: '+ Track'; font-size: 12px; color: var(--tm-text); line-height: 1; }
+
+/* --------------------------------------------------------------------------
+   1. Selective Hover Underlines (underline text ONLY — no hover background fill)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .switch-btn:hover,
+:root[data-ui-skin="terminal"] .unified-pill-btn:hover,
+:root[data-ui-skin="terminal"] .dropdown-menu-item:hover > span:not(.menu-shortcut),
+:root[data-ui-skin="terminal"] .custom-dropdown-item:hover .custom-dropdown-item-label,
+:root[data-ui-skin="terminal"] .algo-listbox-item:hover .algo-listbox-item-name,
+:root[data-ui-skin="terminal"] .palette-option-row:hover .palette-option-label,
+:root[data-ui-skin="terminal"] .df-app-context-item:hover .df-app-context-left > span,
+:root[data-ui-skin="terminal"] .section-header:hover .section-title-text,
+:root[data-ui-skin="terminal"] .section-header-clickable:hover .section-title-text,
+:root[data-ui-skin="terminal"] .effects-category-header:hover .effects-category-title,
+:root[data-ui-skin="terminal"] .replica-effect-header-row:hover .replica-effect-title,
+:root[data-ui-skin="terminal"] .replica-preset-item:hover .replica-preset-name,
+:root[data-ui-skin="terminal"] .replica-swatch-preview-box:hover .replica-swatch-hex-text,
+:root[data-ui-skin="terminal"] .replica-btn-2:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .replica-btn-3:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .replica-action-btn:hover,
+:root[data-ui-skin="terminal"] .replica-preset-create-btn:hover,
+:root[data-ui-skin="terminal"] .preset-popup-btn:hover,
+:root[data-ui-skin="terminal"] .export-option-btn:hover .export-option-label,
+:root[data-ui-skin="terminal"] .df-create-anim-submit-btn:hover,
+:root[data-ui-skin="terminal"] .df-playback-plus-btn:hover::after,
+:root[data-ui-skin="terminal"] .df-timecode-readout:hover,
+:root[data-ui-skin="terminal"] .df-transport-btn:hover,
+:root[data-ui-skin="terminal"] .df-speed-popover-item:hover,
+:root[data-ui-skin="terminal"] .df-track-bar:hover .df-track-bar-label,
+:root[data-ui-skin="terminal"] .df-context-menu-item:hover,
+:root[data-ui-skin="terminal"] .effect-color-reset-btn:hover,
+:root[data-ui-skin="terminal"] .btn-default:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .btn-subtle:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .action-btn:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .export-tab-btn:hover,
+:root[data-ui-skin="terminal"] .replica-popover-tool-btn:hover:not(:disabled)::after {
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   2. Compact Flat Topbar (38px height, #434343, 1px #646464 bottom border)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .topbar-wrapper {
+  position: relative;
+  height: var(--df-topbar-height);
+  z-index: 30;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="topbar"] {
+  position: static;
+  width: 100%;
+  height: var(--df-topbar-height);
+  padding: 0 12px;
+  margin: 0;
+  gap: 8px;
+  border-radius: 0 !important;
+  background: var(--tm-header) !important;
+  border-bottom: 1px solid var(--tm-border) !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="topbar"]::before {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .menu-dropdowns {
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="topbar"] .segmented-switch {
+  height: 26px;
+  border-radius: 0 !important;
+  padding: 0;
+  gap: 0;
+  background: var(--tm-surface) !important;
+  border: 1px solid var(--tm-border) !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="topbar"] .switch-btn {
+  display: block !important;
+  line-height: 24px !important;
+  border-radius: 0 !important;
+  border-right: none !important;
+  border-left: none !important;
+  padding: 0 10px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="topbar"] .switch-btn:hover:not(.active),
+:root[data-ui-skin="terminal"] [data-df-region="topbar"] .switch-btn:hover:not(:disabled):not(.active) {
+  color: var(--tm-text-bright) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="topbar"] .switch-btn.active {
+  color: var(--tm-text-bright) !important;
+  background: var(--tm-control) !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .topbar-center-controls {
+  position: static !important;
+  left: auto !important;
+  transform: none !important;
+  margin: 0 auto !important;
+  min-width: 0;
+  gap: 10px;
+  flex-shrink: 1;
+}
+
+:root[data-ui-skin="terminal"] .topbar-control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+:root[data-ui-skin="terminal"] .strip-viewport-label {
+  display: inline-block;
+  text-transform: lowercase;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--tm-text);
+  letter-spacing: 0;
+}
+
+:root[data-ui-skin="terminal"] .strip-viewport-label::first-letter {
+  text-transform: uppercase;
+}
+
+:root[data-ui-skin="terminal"] .top-right-controls {
+  margin-left: 0;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+:root[data-ui-skin="terminal"] .topbar-status-text {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--tm-text);
+  gap: 10px;
+  margin-right: 0;
+}
+
+:root[data-ui-skin="terminal"] .topbar-compare-grid-switch > *:first-child {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .topbar-compare-grid-switch .switch-btn {
+  padding: 0 14px;
+}
+
+/* --------------------------------------------------------------------------
+   3. Workspace, Centered Canvas Frame (#171717) & Docked Sidebar (#313131)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--tm-canvas);
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="workspace"] {
+  position: relative;
+  flex: 1;
+  inset: auto;
+  width: 100vw;
+  height: calc(100vh - var(--df-topbar-height));
+  background: var(--tm-canvas);
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="viewport"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: var(--sidebar-width, 356px);
+  width: auto !important;
+  height: 100% !important;
+  min-width: 0;
+  background: var(--tm-canvas) !important;
+}
+
+@media (max-width: 780px) {
+  :root[data-ui-skin="terminal"] [data-df-region="sidebar"] {
+    width: min(100vw, var(--sidebar-width, 356px)) !important;
+  }
+  :root[data-ui-skin="terminal"] [data-df-region="viewport"] {
+    right: min(100vw, var(--sidebar-width, 356px));
+  }
+}
+
+:root[data-ui-skin="terminal"] .canvas-area {
+  padding: 0 !important;
+  background-color: var(--tm-canvas) !important;
+}
+
+:root[data-ui-skin="terminal"] .preview-canvas {
+  outline: 1px solid var(--tm-border-strong);
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="sidebar"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  height: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-left: 1px solid var(--tm-border) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  contain: layout style;
+}
+
+:root[data-ui-skin="terminal"] .sidebar-scrollable-content {
+  padding: 16px clamp(12px, 5.5%, 22px) 24px !important;
+}
+
+:root[data-ui-skin="terminal"] .sidebar-scrollable-content > div {
+  gap: 16px !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-section="brand"] {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   4. Top Action Box (OPEN IMAGE ¦ EXPORT IMAGE)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] [data-df-section="top-actions"] {
+  padding: 0;
+  margin-bottom: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-control="primary-action-pill"] {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 44px !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+
+:root[data-ui-skin="terminal"] [data-df-control="primary-action-pill"]:hover {
+  border-color: var(--tm-border-hover) !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-control="primary-action-pill"] .unified-pill-btn {
+  display: block !important;
+  line-height: 42px !important;
+  text-align: center;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  border-radius: 0 !important;
+  padding: 0 8px;
+  font-size: clamp(11.5px, 1vw, 13px);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tm-text) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-control="primary-action-pill"] .unified-pill-btn:hover {
+  color: var(--tm-text-bright) !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-control="primary-action-pill"] .unified-pill-divider {
+  width: 0;
+  height: 22px;
+  align-self: center;
+  margin: 0;
+  background: transparent !important;
+  border-left: 1px dashed var(--tm-border-strong);
+}
+
+:root[data-ui-skin="terminal"] [data-df-control="primary-action-pill"] .export-format-toggle {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   5. Symmetrical Dashed Section Headers (double-click or right-click to reset)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .sections-container {
+  gap: 20px;
+}
+
+:root[data-ui-skin="terminal"] .section-block {
+  gap: 10px;
+}
+
+:root[data-ui-skin="terminal"] .section-block,
+:root[data-ui-skin="terminal"] .section-card,
+:root[data-ui-skin="terminal"] .style-card-inner,
+:root[data-ui-skin="terminal"] .adjustments-card-inner,
+:root[data-ui-skin="terminal"] .palette-card-inner,
+:root[data-ui-skin="terminal"] .effects-card-inner {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .section-card {
+  gap: 11px;
+}
+
+:root[data-ui-skin="terminal"] .section-header,
+:root[data-ui-skin="terminal"] .presets-header-row {
+  position: relative;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  padding: 0 !important;
+  margin: 0;
+  min-height: 20px;
+  user-select: none;
+}
+
+:root[data-ui-skin="terminal"] .section-header::before,
+:root[data-ui-skin="terminal"] .section-header::after {
+  content: '';
+  flex: 1;
+  height: 3px;
+  border: none;
+  opacity: 0.85;
+  background-image: radial-gradient(
+    circle,
+    var(--tm-dash-section) 1px,
+    transparent 1.15px
+  );
+  background-size: 7px 3px;
+  background-repeat: space no-repeat;
+  background-position: center;
+}
+
+:root[data-ui-skin="terminal"] .section-header {
+  cursor: pointer;
+}
+
+:root[data-ui-skin="terminal"] .section-title-text,
+:root[data-ui-skin="terminal"] .presets-header-title {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text-muted) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  white-space: nowrap;
+}
+
+:root[data-ui-skin="terminal"] .section-header:hover .section-title-text,
+:root[data-ui-skin="terminal"] .presets-header-row:hover .presets-header-title {
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .card-inner-divider,
+:root[data-ui-skin="terminal"] .replica-divider {
+  display: none !important;
+}
+
+/* Keep ALL toggles below sliders & dropdowns inside Styles (and Special Algorithms / ASCII) */
+:root[data-ui-skin="terminal"] [data-df-section="styles"] .section-card > .picker-row-inline {
+  order: 1;
+}
+
+:root[data-ui-skin="terminal"] [data-df-section="styles"] .section-card > .slider-control-block {
+  order: 2;
+}
+
+:root[data-ui-skin="terminal"] [data-df-section="styles"] .section-card > .picker-row {
+  order: 3;
+}
+
+:root[data-ui-skin="terminal"] [data-df-section="styles"] .section-card > .serpentine-footer-row,
+:root[data-ui-skin="terminal"] [data-df-section="styles"] .section-card > .serpentine-row,
+:root[data-ui-skin="terminal"] [data-df-section="styles"] .section-card > .param-toggle-row {
+  order: 4;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container > .picker-row {
+  order: 1;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container > .slider-control-block {
+  order: 2;
+}
+
+:root[data-ui-skin="terminal"] .ascii-controls-container > .serpentine-row,
+:root[data-ui-skin="terminal"] .ascii-controls-container > .param-toggle-row {
+  order: 4;
+}
+
+/* --------------------------------------------------------------------------
+   6. Compact Pickers & Dropdowns (36px pickers, 30px items, no chevrons)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .picker-row-inline,
+:root[data-ui-skin="terminal"] .picker-row,
+:root[data-ui-skin="terminal"] .replica-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+:root[data-ui-skin="terminal"] .picker-label-inline,
+:root[data-ui-skin="terminal"] .picker-label,
+:root[data-ui-skin="terminal"] .replica-label {
+  width: auto !important;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .picker-box-with-steppers,
+:root[data-ui-skin="terminal"] .replica-picker-box {
+  position: relative;
+  flex: none !important;
+  width: 100% !important;
+  height: 36px !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  padding: 0 11px !important;
+  gap: 0;
+}
+
+:root[data-ui-skin="terminal"] .picker-box-with-steppers:hover,
+:root[data-ui-skin="terminal"] .picker-box-with-steppers:has(.open),
+:root[data-ui-skin="terminal"] .replica-picker-box:hover,
+:root[data-ui-skin="terminal"] .replica-picker-box:has(.open) {
+  border-color: var(--tm-border-hover) !important;
+  background-color: var(--tm-control) !important;
+}
+
+:root[data-ui-skin="terminal"] .picker-box-with-steppers .borderless-dropdown .custom-dropdown-trigger,
+:root[data-ui-skin="terminal"] .picker-box-with-steppers .borderless-trigger,
+:root[data-ui-skin="terminal"] .picker-box-with-steppers .algo-listbox-trigger,
+:root[data-ui-skin="terminal"] .replica-picker-trigger {
+  justify-content: flex-start !important;
+  text-align: left !important;
+  height: 100% !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .picker-box-with-steppers .algo-listbox-label,
+:root[data-ui-skin="terminal"] .picker-box-with-steppers .custom-dropdown-value,
+:root[data-ui-skin="terminal"] .replica-picker-text {
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-picker-extra-text {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-trigger,
+:root[data-ui-skin="terminal"] .algo-listbox-trigger,
+:root[data-ui-skin="terminal"] .palette-dropdown-trigger,
+:root[data-ui-skin="terminal"] select {
+  justify-content: space-between !important;
+  text-align: left !important;
+  height: 32px !important;
+  border-radius: 5px !important;
+  background: var(--tm-control) !important;
+  background-image: none !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  color: var(--tm-text) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  box-shadow: none !important;
+  padding: 0 11px !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-trigger:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .custom-dropdown-trigger.open,
+:root[data-ui-skin="terminal"] .algo-listbox-trigger:hover,
+:root[data-ui-skin="terminal"] .algo-listbox-trigger.open,
+:root[data-ui-skin="terminal"] select:focus {
+  border-color: var(--tm-border-hover) !important;
+  background-color: var(--tm-control) !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-trigger::after,
+:root[data-ui-skin="terminal"] .custom-dropdown-trigger::before,
+:root[data-ui-skin="terminal"] .custom-dropdown-arrow {
+  display: none !important;
+  content: none !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-panel,
+:root[data-ui-skin="terminal"] .algo-listbox-panel {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 6px 16px var(--tm-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Topbar Menus & Submenus: compact, zero excess horizontal lines, single dashed group dividers */
+:root[data-ui-skin="terminal"] .dropdown-menu-popover,
+:root[data-ui-skin="terminal"] .dropdown-submenu-popover,
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 6px 16px var(--tm-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 4px 0 !important;
+  gap: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu {
+  max-height: 360px !important;
+  min-width: 196px !important;
+  padding: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item:first-child {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding-top: 4px !important;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item:last-child {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding-bottom: 4px !important;
+}
+
+:root[data-ui-skin="terminal"] .dropdown-divider {
+  height: 0 !important;
+  background: transparent !important;
+  border-top: 1px dashed var(--tm-border) !important;
+  margin: 4px 10px !important;
+}
+
+:root[data-ui-skin="terminal"] .dropdown-menu-item {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 12px !important;
+  border-radius: 0 !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: var(--tm-text) !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .dropdown-menu-popover button:hover,
+:root[data-ui-skin="terminal"] .dropdown-submenu-popover button:hover,
+:root[data-ui-skin="terminal"] .dropdown-menu-item:hover,
+:root[data-ui-skin="terminal"] .dropdown-submenu-trigger:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item.selected {
+  background: var(--tm-selected-row) !important;
+  background-color: var(--tm-selected-row) !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item.selected:hover {
+  background: var(--tm-selected-row) !important;
+  background-color: var(--tm-selected-row) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+/* Let small single-list dropdowns (like Category's 9 items) fit without scrolling */
+:root[data-ui-skin="terminal"] .custom-dropdown-panel.single-list {
+  max-height: 380px !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-panel.single-list .custom-dropdown-items {
+  max-height: 360px !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-items-card {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+/* Algorithm dropdown matches Category's crisp edge-to-edge TUI list */
+:root[data-ui-skin="terminal"] .algo-listbox-panel {
+  gap: 0 !important;
+  max-height: 360px !important;
+}
+
+:root[data-ui-skin="terminal"] .algo-search-container,
+:root[data-ui-skin="terminal"] .custom-dropdown-search-container {
+  padding: 6px !important;
+  background: var(--tm-panel) !important;
+  border-bottom: 1px solid var(--tm-border-subtle) !important;
+}
+
+:root[data-ui-skin="terminal"] .algo-search-input,
+:root[data-ui-skin="terminal"] .custom-dropdown-search-input {
+  height: 30px !important;
+  padding: 0 10px !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .algo-search-input:focus,
+:root[data-ui-skin="terminal"] .custom-dropdown-search-input:focus {
+  border-color: var(--tm-border-hover) !important;
+  outline: none !important;
+}
+
+:root[data-ui-skin="terminal"] .algo-search-input::placeholder,
+:root[data-ui-skin="terminal"] .custom-dropdown-search-input::placeholder {
+  color: var(--tm-text-muted) !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .algo-dropdown-category-header {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .algo-listbox-card {
+  border: none !important;
+  border-top: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+:root[data-ui-skin="terminal"] .algo-listbox-items {
+  max-height: 280px !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-item,
+:root[data-ui-skin="terminal"] .algo-listbox-item {
+  justify-content: flex-start !important;
+  text-align: left !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--tm-border-subtle) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  color: var(--tm-text) !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-item:last-child,
+:root[data-ui-skin="terminal"] .algo-listbox-item:last-child {
+  border-bottom: none !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-item:hover:not(.selected),
+:root[data-ui-skin="terminal"] .custom-dropdown-item.focused:not(.selected),
+:root[data-ui-skin="terminal"] .algo-listbox-item:hover:not([aria-selected="true"]):not(.selected),
+:root[data-ui-skin="terminal"] .custom-dropdown-panel [role="option"]:hover:not([aria-selected="true"]) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-item.selected,
+:root[data-ui-skin="terminal"] .custom-dropdown-panel [role="option"][aria-selected="true"],
+:root[data-ui-skin="terminal"] .algo-listbox-item[aria-selected="true"],
+:root[data-ui-skin="terminal"] .algo-listbox-item.selected {
+  border-radius: 0 !important;
+  background: var(--tm-selected-row) !important;
+  background-color: var(--tm-selected-row) !important;
+  background-image: none !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-item.selected:hover,
+:root[data-ui-skin="terminal"] .algo-listbox-item[aria-selected="true"]:hover,
+:root[data-ui-skin="terminal"] .algo-listbox-item.selected:hover {
+  background: var(--tm-selected-row) !important;
+  background-color: var(--tm-selected-row) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+/* --------------------------------------------------------------------------
+   7. GPU-Lightweight Bar Sliders (zero filter: drop-shadow, clean inset base)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .slider-control-block {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 6px;
+  column-gap: 8px;
+  margin-bottom: 0;
+  contain: layout style;
+}
+
+:root[data-ui-skin="terminal"] .slider-label-above {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  height: auto;
+  line-height: 1.2;
+  margin-bottom: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .slider-track-input-row > .control-num-input,
+:root[data-ui-skin="terminal"] .control-num-input {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  justify-self: end;
+  margin-top: 0 !important;
+  width: auto !important;
+  min-width: 24px !important;
+  max-width: 64px !important;
+  flex: none !important;
+  height: auto !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  text-align: right;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .slider-track-input-row > *:first-child {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+}
+
+/* Recessed top-shaded #474747 base via cheap gradient (no heavy blur passes!) */
+:root[data-ui-skin="terminal"] .control-slider {
+  height: 12px !important;
+  padding: 0 !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background-color: var(--tm-control) !important;
+  background-image: linear-gradient(
+    to bottom,
+    var(--tm-slider-shade-top) 0%,
+    var(--tm-slider-shade-mid) 45%,
+    transparent 100%
+  ) !important;
+  box-shadow: none !important;
+  filter: none !important;
+  overflow: hidden;
+}
+
+/* Bright luminous fill painted cleanly ABOVE recessed base gradient */
+:root[data-ui-skin="terminal"] .control-slider::-webkit-slider-runnable-track {
+  height: 10px;
+  margin: 0;
+  border-radius: 4px;
+  background-color: transparent;
+  background-image: linear-gradient(
+    to right,
+    var(--tm-slider-fill-start) 0%,
+    var(--tm-slider-fill-end) var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  );
+  filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider:hover::-webkit-slider-runnable-track,
+:root[data-ui-skin="terminal"] .control-slider:active::-webkit-slider-runnable-track {
+  background-image: linear-gradient(
+    to right,
+    var(--tm-slider-fill-hover-start) 0%,
+    var(--tm-slider-fill-hover-end) var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  );
+}
+
+:root[data-ui-skin="terminal"] .control-slider::-moz-range-track {
+  height: 10px;
+  border-radius: 4px;
+  background-color: transparent;
+  background-image: linear-gradient(
+    to right,
+    var(--tm-slider-fill-start) 0%,
+    var(--tm-slider-fill-end) var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  );
+  filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: 0 !important;
+  width: 10px;
+  height: 10px;
+  border-radius: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  cursor: ew-resize;
+}
+
+:root[data-ui-skin="terminal"] .control-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  cursor: ew-resize;
+}
+
+/* --------------------------------------------------------------------------
+   8. Toggle Rows & 18px Tick Boxes (no clipped trailing dots!)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .serpentine-footer-row {
+  margin-top: 2px;
+}
+
+:root[data-ui-skin="terminal"] .serpentine-footer-row .serpentine-row,
+:root[data-ui-skin="terminal"] .serpentine-row,
+:root[data-ui-skin="terminal"] .param-toggle-row {
+  display: flex;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 !important;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+:root[data-ui-skin="terminal"] .serpentine-label,
+:root[data-ui-skin="terminal"] .serpentine-row > label,
+:root[data-ui-skin="terminal"] .param-toggle-row > span,
+:root[data-ui-skin="terminal"] .param-toggle-row > label {
+  order: 1;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+:root[data-ui-skin="terminal"] .serpentine-row::after,
+:root[data-ui-skin="terminal"] .param-toggle-row::after {
+  content: '';
+  order: 2;
+  flex: 1 1 auto;
+  min-width: 10px;
+  height: 3px;
+  opacity: 0.85;
+  background-image: radial-gradient(
+    circle,
+    var(--tm-dash-off) 1px,
+    transparent 1.15px
+  );
+  background-size: 7px 3px;
+  background-repeat: space no-repeat;
+  background-position: center;
+}
+
+:root[data-ui-skin="terminal"] .serpentine-row:has(.enabled)::after,
+:root[data-ui-skin="terminal"] .param-toggle-row:has(.enabled)::after {
+  background-image: radial-gradient(
+    circle,
+    var(--tm-dash-on) 1px,
+    transparent 1.15px
+  );
+}
+
+:root[data-ui-skin="terminal"] .toggle-square-btn,
+:root[data-ui-skin="terminal"] .param-toggle-row > button {
+  order: 3;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+:root[data-ui-skin="terminal"] .toggle-square,
+:root[data-ui-skin="terminal"] .replica-effect-checkbox,
+:root[data-ui-skin="terminal"] .palette-options-checkbox {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  border-radius: 2px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .serpentine-row:hover .toggle-square,
+:root[data-ui-skin="terminal"] .param-toggle-row:hover .toggle-square,
+:root[data-ui-skin="terminal"] .palette-option-row:hover .palette-options-checkbox,
+:root[data-ui-skin="terminal"] .replica-effect-header-row:hover .replica-effect-checkbox {
+  border-color: var(--tm-border-hover) !important;
+}
+
+:root[data-ui-skin="terminal"] .toggle-square-btn.enabled .toggle-square,
+:root[data-ui-skin="terminal"] .toggle-square.enabled,
+:root[data-ui-skin="terminal"] .replica-effect-checkbox.checked,
+:root[data-ui-skin="terminal"] .palette-options-checkbox.checked {
+  background: var(--tm-accent) !important;
+  border-color: var(--tm-border-hover) !important;
+}
+
+/* --------------------------------------------------------------------------
+   9. Colour Palette & Redesigned Terminal Color Picker
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .replica-swatches-pill,
+:root[data-ui-skin="terminal"] .palette-swatches-grid {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  overflow: hidden;
+  height: 36px;
+}
+
+:root[data-ui-skin="terminal"] .replica-swatch-segment,
+:root[data-ui-skin="terminal"] .replica-swatch-segment:first-child,
+:root[data-ui-skin="terminal"] .replica-swatch-segment:last-child {
+  border-radius: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-swatch-add-btn,
+:root[data-ui-skin="terminal"] .palette-swatch-item,
+:root[data-ui-skin="terminal"] .palette-swatch-item.palette-swatch-add {
+  border-radius: 5px !important;
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-swatch-add-btn:hover:not(:disabled) {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-control) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-subheading-title,
+:root[data-ui-skin="terminal"] .replica-sub-label,
+:root[data-ui-skin="terminal"] .replica-section-label {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-btn-2,
+:root[data-ui-skin="terminal"] .replica-btn-3,
+:root[data-ui-skin="terminal"] .replica-action-btn,
+:root[data-ui-skin="terminal"] .replica-pill-btn,
+:root[data-ui-skin="terminal"] .action-pill-btn {
+  height: 32px;
+  border-radius: 5px !important;
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  color: var(--tm-text) !important;
+  font-size: 12.5px;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-btn-2:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .replica-btn-3:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .replica-action-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+/* Palette Depth matches Threshold / Brightness bar slider 1:1 */
+:root[data-ui-skin="terminal"] .replica-depth-block {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 6px;
+  column-gap: 8px;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-block .replica-subheading-title {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 13px !important;
+  color: var(--tm-text) !important;
+  margin: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-block .replica-depth-row {
+  display: contents !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-badge {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  width: auto !important;
+  min-width: 24px !important;
+  max-width: 64px !important;
+  height: auto !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  text-align: right;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-slider {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100% !important;
+  height: 12px !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background-color: var(--tm-control) !important;
+  background-image: linear-gradient(
+    to bottom,
+    var(--tm-slider-shade-top) 0%,
+    var(--tm-slider-shade-mid) 45%,
+    transparent 100%
+  ) !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-slider::-webkit-slider-runnable-track {
+  height: 10px !important;
+  margin: 0 !important;
+  border-radius: 4px !important;
+  border: none !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    to right,
+    var(--tm-slider-fill-start) 0%,
+    var(--tm-slider-fill-end) var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  ) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-slider:hover::-webkit-slider-runnable-track,
+:root[data-ui-skin="terminal"] .replica-depth-slider:active::-webkit-slider-runnable-track {
+  background-image: linear-gradient(
+    to right,
+    var(--tm-slider-fill-hover-start) 0%,
+    var(--tm-slider-fill-hover-end) var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  ) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-slider::-moz-range-track {
+  height: 10px !important;
+  border-radius: 4px !important;
+  border: none !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    to right,
+    var(--tm-slider-fill-start) 0%,
+    var(--tm-slider-fill-end) var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  ) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-slider::-webkit-slider-thumb {
+  width: 10px !important;
+  height: 10px !important;
+  margin-top: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  cursor: ew-resize;
+}
+
+:root[data-ui-skin="terminal"] .replica-depth-slider::-moz-range-thumb {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  cursor: ew-resize;
+}
+
+/* Misc. Dropdown matches Category & Algorithm flat TUI list */
+:root[data-ui-skin="terminal"] .palette-options-card {
+  padding: 0 !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 6px 16px var(--tm-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: hidden !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-options-header {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-options-box {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-options-divider {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-option-row {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--tm-border-subtle) !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-option-row:last-child {
+  border-bottom: none !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-option-row:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-option-label {
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .palette-option-row:hover .palette-option-label {
+  color: var(--tm-text-bright) !important;
+}
+
+/* --- Color Picker Popover (compact inline layout, centered H/S/L thumbs) --- */
+:root[data-ui-skin="terminal"] .replica-callout-popover,
+:root[data-ui-skin="terminal"] .effect-color-popover {
+  width: clamp(196px, calc(100% - 4px), 232px) !important;
+  max-width: calc(100vw - 24px) !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 6px 16px var(--tm-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 12px !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-swatch-preview-box {
+  height: 36px !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  padding: 0 10px !important;
+  margin-bottom: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-swatch-hex-text {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.04em;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-container {
+  gap: 8px !important;
+  margin-bottom: 10px !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-label {
+  width: 12px !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-val {
+  width: 34px !important;
+  text-align: right;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-slider {
+  flex: 1 !important;
+  height: 12px !important;
+  border-radius: 3px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-slider::-webkit-slider-runnable-track {
+  height: 10px !important;
+  background: transparent !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-slider::-webkit-slider-thumb {
+  width: 4px !important;
+  height: 14px !important;
+  margin-top: -2px !important;
+  border-radius: 1px !important;
+  background: var(--tm-playhead) !important;
+  border: 1px solid var(--tm-playhead-border) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-slider::-webkit-slider-thumb:hover {
+  transform: none !important;
+  background: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-hsl-slider::-moz-range-thumb {
+  width: 4px !important;
+  height: 14px !important;
+  border-radius: 1px !important;
+  background: var(--tm-playhead) !important;
+  border: 1px solid var(--tm-playhead-border) !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-popover-toolbar {
+  height: 30px;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-popover-tool-divider {
+  height: 16px;
+  border-left: 1px dashed var(--tm-border-strong);
+  background: transparent !important;
+}
+
+:root[data-ui-skin="terminal"] .effect-swatch-btn {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+}
+
+:root[data-ui-skin="terminal"] .effect-hex-input {
+  height: 32px !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .effect-color-popover-actions {
+  border-top: 1px dashed var(--tm-border) !important;
+}
+
+/* --------------------------------------------------------------------------
+   10. Effects Stack & Presets (No Icons, Clean 5px Boxes)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .effects-category-accordion {
+  background: var(--tm-panel) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 5px !important;
+}
+
+:root[data-ui-skin="terminal"] .effects-category-header {
+  height: 34px;
+  min-height: 34px;
+  background: var(--tm-header) !important;
+  border-bottom: 1px solid var(--tm-border) !important;
+  border-radius: 4px 4px 0 0 !important;
+  padding: 0 12px;
+}
+
+:root[data-ui-skin="terminal"] .effects-category-header.is-collapsed {
+  border-bottom: none !important;
+  border-radius: 4px !important;
+}
+
+:root[data-ui-skin="terminal"] .effects-category-title {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .effects-category-header:hover .effects-category-title {
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .effects-category-badge {
+  border-radius: 3px !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  font-weight: 400;
+}
+
+:root[data-ui-skin="terminal"] .effects-category-body {
+  padding: 4px 12px 8px;
+}
+
+:root[data-ui-skin="terminal"] .replica-effect-header-row {
+  min-height: 34px;
+}
+
+:root[data-ui-skin="terminal"] .replica-effect-header-row > div {
+  gap: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-effect-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-effect-params-card {
+  background: var(--tm-surface) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 5px !important;
+  padding: 10px 12px !important;
+  gap: 8px;
+}
+
+:root[data-ui-skin="terminal"] .replica-effect-params-card .custom-dropdown-trigger {
+  height: 32px !important;
+  padding: 0 10px !important;
+  font-size: 12.5px !important;
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 5px !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-presets-card {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 4px 0 !important;
+  margin-top: 2px;
+}
+
+:root[data-ui-skin="terminal"] .replica-presets-empty {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tm-text-muted) !important;
+  margin: 8px 0 12px;
+}
+
+:root[data-ui-skin="terminal"] .replica-preset-create-btn,
+:root[data-ui-skin="terminal"] .preset-popup-btn {
+  height: 34px;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  font-size: 13px;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-preset-create-btn:hover,
+:root[data-ui-skin="terminal"] .preset-popup-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-preset-item {
+  border-bottom: 1px dashed var(--tm-border) !important;
+}
+
+:root[data-ui-skin="terminal"] .replica-preset-name {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .preset-popup-dialog {
+  background: var(--tm-panel) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 5px !important;
+  box-shadow: 0 8px 20px var(--tm-shadow-lg) !important;
+}
+
+:root[data-ui-skin="terminal"] .preset-popup-input {
+  height: 36px;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  font-size: 13px;
+  font-weight: 400 !important;
+}
+
+/* --------------------------------------------------------------------------
+   11. Settings & All Modals (Lightweight shadows, compact 30px dropdowns)
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .modal-backdrop {
+  background-color: var(--tm-backdrop) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-dialog,
+:root[data-ui-skin="terminal"] .modal-dialog,
+:root[data-ui-skin="terminal"] .export-dialog,
+:root[data-ui-skin="terminal"] .batch-dialog,
+:root[data-ui-skin="terminal"] .save-project-dialog,
+:root[data-ui-skin="terminal"] [data-df-modal] {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 8px 24px var(--tm-shadow-lg) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-header {
+  background: var(--tm-header) !important;
+  border-bottom: 1px solid var(--tm-border) !important;
+  padding: 10px 16px !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-header > div {
+  gap: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-header span {
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-dialog,
+:root[data-ui-skin="terminal"] .modal-dialog {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-body,
+:root[data-ui-skin="terminal"] .settings-dialog .modal-body,
+:root[data-ui-skin="terminal"] .modal-dialog .modal-body,
+:root[data-ui-skin="terminal"] .export-modal-body {
+  background: var(--tm-panel) !important;
+  padding: 16px 18px !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-dialog::-webkit-scrollbar,
+:root[data-ui-skin="terminal"] .modal-dialog::-webkit-scrollbar,
+:root[data-ui-skin="terminal"] .modal-body::-webkit-scrollbar,
+:root[data-ui-skin="terminal"] .settings-dialog .modal-body::-webkit-scrollbar,
+:root[data-ui-skin="terminal"] .modal-dialog .modal-body::-webkit-scrollbar,
+:root[data-ui-skin="terminal"] .export-modal-body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-footer,
+:root[data-ui-skin="terminal"] .export-footer-actions {
+  background: var(--tm-header) !important;
+  border-top: 1px solid var(--tm-border) !important;
+  padding: 10px 16px !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-section-title {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--tm-text-muted) !important;
+  border-bottom: 1px dashed var(--tm-border) !important;
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+}
+
+:root[data-ui-skin="terminal"] .settings-row {
+  padding: 7px 0;
+  gap: 8px 16px;
+  flex-wrap: nowrap !important;
+  align-items: center;
+}
+
+:root[data-ui-skin="terminal"] .settings-row > div:first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+:root[data-ui-skin="terminal"] .settings-row > :not(:first-child) {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+:root[data-ui-skin="terminal"] .settings-label {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-row > div > div:nth-child(2) {
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-readonly-text {
+  font-size: 12.5px;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-dialog .control-slider {
+  flex: 1;
+}
+
+:root[data-ui-skin="terminal"] .settings-dialog .custom-dropdown-trigger,
+:root[data-ui-skin="terminal"] .modal-dialog .custom-dropdown-trigger {
+  height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 12.5px !important;
+}
+
+:root[data-ui-skin="terminal"] .btn-default,
+:root[data-ui-skin="terminal"] .btn-primary,
+:root[data-ui-skin="terminal"] .action-btn,
+:root[data-ui-skin="terminal"] .export-tab-btn,
+:root[data-ui-skin="terminal"] button.primary-btn,
+:root[data-ui-skin="terminal"] button.secondary-btn {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  font-size: 12.5px;
+  font-weight: 400 !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .settings-dialog .btn-default,
+:root[data-ui-skin="terminal"] .settings-dialog .action-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 12.5px !important;
+}
+
+:root[data-ui-skin="terminal"] .btn-subtle {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--tm-text-muted) !important;
+  padding: 4px 8px !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .btn-subtle:hover:not(:disabled) {
+  border: none !important;
+  background: transparent !important;
+  color: var(--tm-text-bright) !important;
+  text-decoration: underline !important;
+}
+
+:root[data-ui-skin="terminal"] .btn-default:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .action-btn:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .export-tab-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .btn-primary,
+:root[data-ui-skin="terminal"] .action-btn.primary,
+:root[data-ui-skin="terminal"] .export-tab-btn.active {
+  background: var(--tm-selected-bg) !important;
+  border-color: var(--tm-border-hover) !important;
+  color: var(--tm-selected-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .export-tabs,
+:root[data-ui-skin="terminal"] .export-all-options-section {
+  background: var(--tm-surface) !important;
+  border-bottom: 1px solid var(--tm-border) !important;
+  padding: 12px 18px !important;
+}
+
+:root[data-ui-skin="terminal"] .export-option-btn {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  color: var(--tm-text) !important;
+  padding: 7px 6px !important;
+}
+
+:root[data-ui-skin="terminal"] .export-option-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-panel) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .export-option-btn.active {
+  background: var(--tm-selected-row) !important;
+  border-color: var(--tm-border-hover) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .export-option-label {
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .export-option-sublabel {
+  font-size: 10.5px !important;
+  color: var(--tm-text-muted) !important;
+  opacity: 1 !important;
+}
+
+:root[data-ui-skin="terminal"] .export-form-label {
+  color: var(--tm-text-muted) !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .export-input,
+:root[data-ui-skin="terminal"] .export-select,
+:root[data-ui-skin="terminal"] .export-text-preview,
+:root[data-ui-skin="terminal"] .settings-number-input,
+:root[data-ui-skin="terminal"] .batch-info-banner,
+:root[data-ui-skin="terminal"] .batch-dropzone,
+:root[data-ui-skin="terminal"] .batch-file-item,
+:root[data-ui-skin="terminal"] .batch-info-tag {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .export-input:focus,
+:root[data-ui-skin="terminal"] .export-select:focus {
+  border-color: var(--tm-border-hover) !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .export-preview-box {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-canvas) !important;
+}
+
+/* --------------------------------------------------------------------------
+   12. Dropzone, Tooltips, Context Menu, Compare Handle, Animation Bar & Toasts
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .themed-tooltip-panel {
+  background: var(--tm-surface) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 4px !important;
+  color: var(--tm-text) !important;
+  font-size: 11.5px !important;
+  font-weight: 400 !important;
+  padding: 5px 9px !important;
+  box-shadow: 0 4px 10px var(--tm-shadow) !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-card {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: none !important;
+  padding: 22px 26px !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-card.drag-active {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-icon-ring,
+:root[data-ui-skin="terminal"] .viewport-dropzone-sub,
+:root[data-ui-skin="terminal"] .viewport-dropzone-formats {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-heading {
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+  letter-spacing: 0 !important;
+  margin-bottom: 16px !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-actions {
+  margin-bottom: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-btn {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  padding: 7px 14px !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-btn:hover,
+:root[data-ui-skin="terminal"] .viewport-dropzone-btn.secondary:hover {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text-bright) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  text-decoration: underline !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-btn.primary {
+  background: var(--tm-selected-bg) !important;
+  border-color: var(--tm-border-hover) !important;
+  color: var(--tm-selected-text) !important;
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .viewport-dropzone-btn.primary:hover {
+  background: var(--tm-accent-hover) !important;
+  border-color: var(--tm-border-hover) !important;
+  color: var(--tm-selected-text) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  text-decoration: underline !important;
+}
+
+:root[data-ui-skin="terminal"] .df-app-context-menu {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 6px 16px var(--tm-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 4px 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-app-context-item {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 12px !important;
+  border-radius: 0 !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--tm-text) !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-app-context-item:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-app-context-divider {
+  height: 0 !important;
+  background: transparent !important;
+  border-top: 1px dashed var(--tm-border) !important;
+  margin: 4px 10px !important;
+}
+
+:root[data-ui-skin="terminal"] .compare-badge {
+  border-radius: 3px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-surface) !important;
+  color: var(--tm-text) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .split-handle {
+  border-radius: 3px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-surface) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-ui-skin="terminal"] .split-handle::after {
+  content: '||';
+  font-size: 11px;
+  color: var(--tm-text);
+}
+
+/* --------------------------------------------------------------------------
+   13. Animation Mode: Create Setup, Docked Timeline, Playhead, Tracks & Editor
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .df-create-anim-backdrop {
+  background: var(--tm-backdrop) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-popup {
+  width: 340px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 8px 24px var(--tm-shadow-lg) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: hidden;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-header {
+  background: var(--tm-header) !important;
+  border-bottom: 1px solid var(--tm-border) !important;
+  padding: 10px 14px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-body {
+  padding: 16px !important;
+  gap: 16px !important;
+  background: var(--tm-panel) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-label {
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-pill-input {
+  width: 68px !important;
+  height: 32px !important;
+  border-radius: 5px !important;
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  color: var(--tm-text) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-pill-input:focus {
+  border-color: var(--tm-border-hover) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-submit-btn {
+  height: 34px !important;
+  border-radius: 5px !important;
+  background: var(--tm-selected-bg) !important;
+  border: 1px solid var(--tm-border-hover) !important;
+  color: var(--tm-selected-text) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-create-anim-submit-btn:hover {
+  background: var(--tm-accent-hover) !important;
+  border-color: var(--tm-border-hover) !important;
+  color: var(--tm-selected-text) !important;
+}
+
+/* Full-width Docked Timeline anchored flush to viewport bottom */
+:root[data-ui-skin="terminal"] .canvas-area.animation-active {
+  padding-bottom: 196px !important;
+}
+
+:root[data-ui-skin="terminal"] .df-floating-timeline-group {
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  gap: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-timeline-top-row {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--tm-header) !important;
+  border-top: 1px solid var(--tm-border) !important;
+  border-bottom: 1px solid var(--tm-border) !important;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+:root[data-ui-skin="terminal"] .df-playback-left-cluster {
+  width: 100%;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+:root[data-ui-skin="terminal"] .df-playback-pill {
+  flex: 1;
+  min-width: 0 !important;
+  height: 100% !important;
+  padding: 0 !important;
+  gap: 16px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  justify-content: flex-start !important;
+}
+
+:root[data-ui-skin="terminal"] .df-playback-pill::before,
+:root[data-ui-skin="terminal"] .df-floating-property-editor::before {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .df-timecode-readout {
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+  white-space: nowrap;
+}
+
+:root[data-ui-skin="terminal"] .df-timecode-current {
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-timecode-max,
+:root[data-ui-skin="terminal"] .df-timecode-fps {
+  color: var(--tm-text-muted) !important;
+  font-size: 12px !important;
+}
+
+:root[data-ui-skin="terminal"] .df-transport-cluster {
+  gap: 4px !important;
+}
+
+:root[data-ui-skin="terminal"] .df-transport-btn,
+:root[data-ui-skin="terminal"] .df-speed-btn {
+  height: 24px !important;
+  min-width: 28px !important;
+  padding: 0 7px !important;
+  border-radius: 3px !important;
+  border: 1px solid var(--tm-border) !important;
+  background: var(--tm-surface) !important;
+  color: var(--tm-text) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-transport-btn:hover,
+:root[data-ui-skin="terminal"] .df-speed-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-surface) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-speed-btn.speed-active {
+  border-color: var(--tm-border-hover) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-playback-plus-btn {
+  width: auto !important;
+  height: 24px !important;
+  padding: 0 10px !important;
+  border-radius: 3px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-control) !important;
+  color: var(--tm-text) !important;
+  box-shadow: none !important;
+  flex-shrink: 0;
+}
+
+:root[data-ui-skin="terminal"] .df-playback-plus-btn:hover {
+  border-color: var(--tm-border-hover) !important;
+  background: var(--tm-control) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-speed-popover,
+:root[data-ui-skin="terminal"] .df-track-context-menu {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  box-shadow: 0 6px 16px var(--tm-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 4px 0 !important;
+  gap: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-speed-popover-item,
+:root[data-ui-skin="terminal"] .df-context-menu-item {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--tm-text) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-speed-popover-item:hover:not(.active),
+:root[data-ui-skin="terminal"] .df-context-menu-item:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-speed-popover-item.active {
+  background: var(--tm-selected-row) !important;
+  background-color: var(--tm-selected-row) !important;
+  color: var(--tm-text) !important;
+}
+
+/* Docked Timeline Canvas Body */
+:root[data-ui-skin="terminal"] .df-timeline-body-card {
+  height: 160px !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: var(--tm-panel) !important;
+  padding: 8px 14px 10px !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .df-ruler-time-edge {
+  width: 38px !important;
+  height: 20px !important;
+  font-size: 11.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-timeline-coord-stage {
+  gap: 8px !important;
+}
+
+:root[data-ui-skin="terminal"] .df-ruler-ticks {
+  height: 20px !important;
+  border-bottom: 1px solid var(--tm-border-subtle);
+}
+
+:root[data-ui-skin="terminal"] .df-ruler-tick {
+  width: 1px !important;
+  height: 6px !important;
+  background-color: var(--tm-border) !important;
+  border-radius: 0 !important;
+  opacity: 1 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-ruler-tick.medium {
+  width: 1px !important;
+  height: 10px !important;
+  background-color: var(--tm-border-strong) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-ruler-tick.major {
+  width: 1px !important;
+  height: 14px !important;
+  background-color: var(--tm-text-muted) !important;
+}
+
+/* Precision Needle Playhead (no oversized white circle/pole) */
+:root[data-ui-skin="terminal"] .df-playhead-line {
+  top: 7px !important;
+  bottom: 2px !important;
+  width: 2px !important;
+  background-color: var(--tm-playhead) !important;
+  border-radius: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-playhead-cap {
+  top: 0 !important;
+  width: 9px !important;
+  height: 7px !important;
+  border-radius: 1px !important;
+  background-color: var(--tm-playhead) !important;
+  border: 1px solid var(--tm-playhead-border) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-tracks-lanes {
+  gap: 5px !important;
+  padding-top: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .df-timeline-empty-hint {
+  font-size: 12px !important;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-lane {
+  height: 28px !important;
+  min-height: 28px !important;
+  background: var(--tm-inset) !important;
+  border: 1px solid var(--tm-lane-border) !important;
+  border-radius: 3px !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-bar {
+  height: 26px !important;
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  border-radius: 3px !important;
+  padding: 0 10px !important;
+  gap: 6px;
+  overflow: hidden !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-bar:hover:not(.selected) {
+  background: var(--tm-control) !important;
+  border-color: var(--tm-border-hover) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-bar.selected {
+  background: var(--tm-active) !important;
+  border-color: var(--tm-accent) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-bar-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-bar-range {
+  flex-shrink: 0;
+  font-size: 11px !important;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-handle-grip {
+  width: 2px !important;
+  height: 12px !important;
+  border-radius: 1px !important;
+  background-color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-track-handle:hover .df-track-handle-grip,
+:root[data-ui-skin="terminal"] .df-track-handle.active .df-track-handle-grip {
+  background-color: var(--tm-accent) !important;
+}
+
+/* Floating Property Editor Card */
+:root[data-ui-skin="terminal"] .df-floating-property-editor {
+  position: absolute !important;
+  left: 12px !important;
+  bottom: 204px !important;
+  width: 280px !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-panel) !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  box-shadow: 0 8px 24px var(--tm-shadow-lg) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-header {
+  background: var(--tm-header) !important;
+  border-bottom: 1px solid var(--tm-border) !important;
+  padding: 8px 12px !important;
+  border-radius: 4px 4px 0 0;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-header-title {
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-header-span {
+  font-size: 11.5px !important;
+  color: var(--tm-text-muted) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-body {
+  padding: 12px !important;
+  gap: 10px !important;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-label {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-dropdown .custom-dropdown-trigger {
+  height: 32px !important;
+  border-radius: 5px !important;
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  color: var(--tm-text) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-toast {
+  border-radius: 5px !important;
+  border: 1px solid var(--tm-border-strong) !important;
+  background: var(--tm-surface) !important;
+  color: var(--tm-text) !important;
+  box-shadow: 0 4px 12px var(--tm-shadow) !important;
+  font-size: 12.5px;
+}

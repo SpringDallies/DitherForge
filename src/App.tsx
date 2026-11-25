@@ -331,7 +331,7 @@ export const App: React.FC = () => {
           <div
             key={t.id}
             role="alert"
-            className="df-toast"
+            className={`df-toast ${t.closing ? 'closing' : ''}`}
             data-df-control="toast"
             data-df-toast-type={t.type}
             onClick={() => {

@@ -1,58 +1,44 @@
 <p align="center">
   <img src="assets/logo-wordmark.webp" alt="DitherForge" height="80" style="vertical-align: middle;" />
-  &nbsp;&nbsp;
 </p>
 
-<h3 align="center">Dithering Suite</h3>
+<h3 align="center">Dithering, ASCII & Retro Post-Processing Suite</h3>
 
-DitherForge is a standalone, cross-platform app for dithering images, video, and animation. It includes 84 original and public-domain dithering algorithms, native color-space processing, a stackable post-effects pipeline, CRT-style temporal noise, vector contour export, and Unicode character-grid export. Inspired by ditherboy.
+DitherForge is a standalone, cross-platform studio for dithering images, video, and keyframe animations. Built with React 19, TypeScript, Zustand, Web Workers, and an optional Tauri 2 + Rust native backend, it combines **148 dithering & ASCII algorithms**, **42 stackable post-effects**, **19 built-in palettes**, **batch ZIP processing**, and **`.ditherforge` project files**.
 
 🌐 **Live demo:** https://springdallies.github.io/DitherForge/
 
 ---
 
-## Features
+## Key Features
 
-### 84 Dithering Algorithms
-Directly generated from the engine registry, categorized and searchable:
+### 148 Dithering & ASCII Algorithms
+Categorized, searchable, and navigable with `<` / `>` stepping, favorites, and progressive parameter disclosure:
+- **Core Engine (84 algorithms)** across **Basic**, **Error Diffusion**, **Ordered**, **Pattern**, **Polygon**, **Glitch Effects**, and **Special**
+- **Legacy Ported Algorithms (40 algorithms)** with bit-identical determinism & alpha preservation
+- **Dedicated ASCII Engine (24+ modes)** with vector/raster glyph rendering, custom character sets, ink-density calibration, and dedicated ASCII post-effects
 
-- **Basic** (2) — Color Separation, Original
-- **Error Diffusion** (22) — Floyd–Steinberg, Atkinson, Jarvis–Judice–Ninke, Stucki, Burkes, Sierra, Stevenson–Arce, Fan, Shiau–Fan, False Floyd–Steinberg, Minimized Average Error, Dynamic Serpentine, and more
-- **Ordered** (10) — Bayer 2×2, 4×4, 8×8, 16×16, Clustered Dot, Bayer-Void, Bit Tone, Mosaic, Random Ordered
-- **Pattern** (13) — Block Tone, Camo, Checkers, Circle Grid, Crosshatch, Diamond Grid, Gridlock/Traffic, Heart Grid, Pop Tone, Print Pattern, Square Mosaic, Stippling
-- **Polygon** (4) — Hexa-Poly, Low-Poly, Penta-Poly, Tri-Poly
-- **Glitch Effects** (17) — Artifact Modulation, Glitch, Wave Modulation, Smooth Diffuse, and more
-- **Special** (16) — Beehive, Diagonal, Displace Contour, Dotted Lines, Noise, Orb Diffuse, Radial Burst, Sine Distort, Thresholder, Topography, Vortex, Wave, and more
+### Color & Palette System
+- **19 Built-in Palettes** (Monochrome, GameBoy, Amber CRT, Cyberpunk, CGA, C64, PICO-8, Nordic, Vaporwave, Solar, EGA, Sepia, Spectrum, Macintosh 1984, and more)
+- **Live Palette Extraction**: K-Means and Median Cut color extraction directly from the active image
+- **Custom Swatch Editor**: Per-swatch color picker, lock/unlock, shuffle, invert, flip, palette depth control, and `.json` / `.hex` import & export
 
-### Native Color Handling
-Processes directly in Rec. 709 luminance-weighted RGB space, with up to 32 palette depth iterations and live swatch remapping.
+### 42 Reorderable Post-Effects & Chain Presets
+Stack, reorder, solo/toggle, and blend effects across 6 categories (**CRT**, **Film**, **Glitch**, **Print**, **Color**, **Texture**) with per-effect opacity and blend modes (`normal`, `screen`, `multiply`, `overlay`, `add`), plus named chain presets (*Trinitron 1994*, *Photocopy Zine*, *Super 8*, *GameBoy Pocket*, *VHS Rental*).
 
-### 14 Built-in Color Palettes
-Monochrome, GameBoy, Amber CRT, Cyberpunk, CGA, C64, PICO-8, Nordic, Vaporwave, Solar, EGA, Sepia, Spectrum, and Macintosh 1984. Includes Median Cut and K-Means palette extraction from images.
+### Video, Keyframe Timeline & Animation
+- **Still & Animated Modes**: Convert any image into a multi-track keyframe animation with easing curves
+- **Video Import**: MP4 / WebM / MOV / GIF playback with **9 CRT temporal noise profiles**
+- **Native FFmpeg Integration** (Tauri desktop) + in-browser GIF / WebM / frame-sequence ZIP export
 
-### Reorderable Post-Effects Stack
-- Ignition Glow
-- Blur / Sharpen
-- Chromatic Aberration
-- JPEG Artifacts
-- CMYK Newspaper Halftone
-- CRT Scanlines
-- Pixelate
-- Curves & Levels
-- Optical Vignette
+### Batch Processing & Project Persistence
+- **Batch Processing**: Apply your active dither, tweaks, palette, ASCII mode, and post-effects stack across multiple images and download a single `.zip`
+- **Project Files (`.ditherforge`)**: Save and reload compact projects (including embedded source image and full editor state) via **File → Save Project / Open Project** (`Ctrl+S`) or drag-and-drop
 
-### Video & Animation
-9 CRT temporal noise profiles. One-click Animate Still converter.
-
-### Export Formats
-PNG, JPG, WebP, SVG vector contours, TXT character grids (ASCII, Unicode Blocks, Unicode Braille), and clipboard copy.
-
-### Studio UI
-- Smooth zoom, pan, 1:1 view, and fit-to-window.
-- Before/After toggle and draggable split comparison.
-- 9 themes with unified high-legibility menus.
-- Preset manager with user-saved presets and undo/redo history.
-- In-app algorithm reference.
+### Studio UI, Colour Schemes & Swappable Skins
+- **14 Colour Schemes**: Light Pro, Dark, Dark Pro, Nord, Evergreen, Gruvbox, Catppuccin Mocha, Tokyo Night, Kanagawa Wave, Rosé Pine, Dracula, Monokai Pro, Solarized Dark, One Dark
+- **Swappable UI Skin Architecture**: Semantic `data-df-*` labels on every region, section, modal, and control plus `data-ui-skin` CSS entry points ([`docs/UI_THEMING_AND_SKINS.md`](./docs/UI_THEMING_AND_SKINS.md))
+- **Viewport Controls**: Pointer-centered zoom, pan, `1:1`, fit-to-viewport, draggable Before/After split compare, full application-level Undo/Redo (`Ctrl+Z` / `Ctrl+Shift+Z`), and configurable 2D / 3D anvil logo
 
 ---
 
@@ -63,7 +49,7 @@ PNG, JPG, WebP, SVG vector contours, TXT character grids (ASCII, Unicode Blocks,
 | Tool | Version Requirement | Notes |
 | :--- | :--- | :--- |
 | **Node.js** | `>= 18.0.0` (LTS recommended) | Includes `npm` |
-| **Rust & Cargo** | `>= 1.75.0` (stable) | Required for desktop native engine (`rustup default stable`) |
+| **Rust & Cargo** | `>= 1.75.0` (stable) | Required only for Tauri 2 native desktop builds |
 
 #### System Packages for Desktop App (Tauri v2)
 
@@ -117,7 +103,6 @@ sudo pacman -S --needed \
 <summary><b>macOS</b></summary>
 
 ```bash
-# Install Xcode Command Line Tools
 xcode-select --install
 ```
 </details>
@@ -131,7 +116,7 @@ xcode-select --install
 
 ---
 
-### 1. Clone & Install Dependencies
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/SpringDallies/DitherForge.git
@@ -139,110 +124,57 @@ cd DitherForge
 npm install
 ```
 
----
-
 ### 2. Web Application
 
-#### Development Server
 ```bash
+# Development server (http://localhost:5173/)
 npm run dev
-```
-Open [http://localhost:5173/](http://localhost:5173/) in any modern evergreen browser (Chrome, Edge, Firefox, Safari).
 
-#### Production Build & Local Preview
-```bash
+# Production build & local preview (http://localhost:8080/)
 npm run build
 npm run serve
 ```
-Serves the bundled production application at [http://localhost:8080/](http://localhost:8080/).
 
----
+### 3. Desktop Application (Tauri v2)
 
-### 3. Desktop Application (Tauri v2 Native Backend)
-
-The desktop edition pairs the React interface with an ultra-low-latency Rust backend powered by SIMD parallel image diffusion, zero-allocation FastPaletteLUT cache, and native raw binary IPC.
-
-#### Run in Development Mode
 ```bash
+# Development mode
 npm run tauri dev
-```
 
-#### Build Production Standalone Executable / Installer
-```bash
-# On Linux, set APPIMAGE_EXTRACT_AND_RUN=1 if building without FUSE / in containers
-export APPIMAGE_EXTRACT_AND_RUN=1
+# Production installer / bundle
+export APPIMAGE_EXTRACT_AND_RUN=1   # Linux containers / no FUSE
 npm run tauri build
 ```
 
-You can also build individual bundle formats:
-```bash
-npm run tauri build -- -b deb       # Debian / Ubuntu package (.deb)
-npm run tauri build -- -b appimage  # Portable standalone AppImage (.AppImage)
-npm run tauri build -- -b rpm       # Fedora / RHEL package (.rpm)
-```
-
-Build outputs will be generated in `src-tauri/target/release/bundle/`:
-- **Linux:**
-  - `bundle/deb/DitherForge_1.0.0_amd64.deb`
-  - `bundle/rpm/DitherForge-1.0.0-1.x86_64.rpm`
-  - `bundle/appimage/DitherForge_1.0.0_amd64.AppImage`
-- **Windows:** `bundle/msi/DitherForge_1.0.0_x64_en-US.msi`, `bundle/nsis/DitherForge_1.0.0_x64-setup.exe`
-- **macOS:** `bundle/dmg/DitherForge_1.0.0_universal.dmg` (or `aarch64` / `x64`), `bundle/macos/DitherForge.app`
-
-> [!NOTE]
-> **Cross-Platform Release Builds (Windows & macOS):**
-> Because Tauri dynamically links against each operating system's native Webview (Microsoft Edge WebView2 on Windows, Apple Cocoa WebKit on macOS, and WebKitGTK on Linux), native executables must be built on their respective host OS or compiled via GitHub Actions:
-> - **Building on Windows:** Clone repo on a Windows machine and run `npm run tauri build` to output the `.msi` and `.exe` installers.
-> - **Building on macOS:** Clone repo on a Mac and run `npm run tauri build` to output `.dmg` and `.app`.
-> - **Automated Multi-Platform Release (CI):** Run the included [`.github/workflows/release.yml`](./.github/workflows/release.yml) on GitHub Actions (`workflow_dispatch` or push tag `v*`). It compiles Windows (`windows-latest`), macOS (`macos-latest` for Apple Silicon & Intel), and Linux (`ubuntu-22.04`) in parallel and publishes all installers to GitHub Releases.
-
-#### Installing & Running on Linux
-- **AppImage (Standalone Portable):**
-  ```bash
-  chmod +x src-tauri/target/release/bundle/appimage/DitherForge_1.0.0_amd64.AppImage
-  ./src-tauri/target/release/bundle/appimage/DitherForge_1.0.0_amd64.AppImage
-  ```
-- **Debian / Ubuntu / Mint (.deb):**
-  ```bash
-  sudo apt install ./src-tauri/target/release/bundle/deb/DitherForge_1.0.0_amd64.deb
-  # or: sudo dpkg -i src-tauri/target/release/bundle/deb/DitherForge_1.0.0_amd64.deb
-  ```
-- **Fedora / RHEL (.rpm):**
-  ```bash
-  sudo dnf install ./src-tauri/target/release/bundle/rpm/DitherForge-1.0.0-1.x86_64.rpm
-  # or: sudo rpm -i src-tauri/target/release/bundle/rpm/DitherForge-1.0.0-1.x86_64.rpm
-  ```
-
 ---
 
-## Testing & Verification Suites
-
-DitherForge maintains full parity between its JavaScript reference engine and the native Rust SIMD acceleration engine.
+## Testing & Verification
 
 ```bash
-# Run all frontend integration and effects tests
+# TypeScript type-check
+npx tsc --noEmit
+
+# Full test suite (legacy algorithms, batch video, effects, presets, undo/redo)
 npm test
 
-# Run bit-identical golden tests (112 test cases)
+# Bit-identical golden tests
 npm run test:golden
 
-# Verify engine freeze hashes and feature inventories
-npm run inventory:check
+# Verify frozen engine SHA-256 hashes & feature inventory
 npm run engine:verify
-
-# Run full 308-case Rust vs JS algorithm and effects parity suite
-node tests/rust-parity.test.mjs
-
-# Verify special & glitch dynamic slider parameter modulation
-node tests/special-sliders-verification.test.mjs
+npm run inventory:check
 ```
 
 ---
 
 ## Documentation
-- [`SPEC_LOG.md`](./SPEC_LOG.md) — technical spec and algorithm formulations.
-- [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) — full algorithm manual (2,438 lines).
-- [`FEATURE_INVENTORY.md`](./FEATURE_INVENTORY.md) — audited feature inventory mapped to source code.
+
+- [`docs/UI_THEMING_AND_SKINS.md`](./docs/UI_THEMING_AND_SKINS.md) — UI skinning architecture, `data-df-*` component labels, and CSS token reference.
+- [`docs/ENGINE_PARITY.md`](./docs/ENGINE_PARITY.md) — JS vs Rust engine parity, IPC routing, and Tauri command surface.
+- [`FEATURE_INVENTORY.md`](./FEATURE_INVENTORY.md) — Audited feature inventory and 84-algorithm registry map.
+- [`SPEC_LOG.md`](./SPEC_LOG.md) — Mathematical formulations and academic citations.
+- [`CHANGELOG.md`](./CHANGELOG.md) — Chronological release and development history.
+- [`src/docs/ALGORITHM_REFERENCE.md`](./src/docs/ALGORITHM_REFERENCE.md) — Full in-app algorithm reference manual.
 
 ---
 

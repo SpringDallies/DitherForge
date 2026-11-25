@@ -82,3 +82,11 @@ Rust engine parked: see docs/ENGINE_PARITY.md (to be written). Not called at run
 - `perf(lut)`: Arc-wrapped `FastPaletteLUT` cache eliminating 96 KB table copies on every cache hit.
 - `perf(memory)`: bounded batch animation processing writing directly to output slices, zero-copy effect stack execution via `std::mem::take` and `into_raw`, and 3-channel buffer reuse for glow and bloom.
 - `feat(parity)`: complete polygon algorithm suite (`hexa-poly`, `low-poly`, `penta-poly`, `tri-poly`) and comprehensive multi-phase parity test suites ensuring 100% bit-identical determinism.
+
+## v2.3.x — ASCII Engine, Effects Expansion, Batch & Project Persistence (2026-11)
+- **Dedicated ASCII Engine**: Vector & raster ASCII rendering, custom charset manager, ink-density glyph calibration, worker atlas sync, and ASCII-specific effects.
+- **42-Effect Pipeline & Named Presets**: Expanded post-effects across CRT, Film, Glitch, Print, Color, and Texture categories with per-effect blend modes, opacity, and named chain presets (*Trinitron 1994*, *Photocopy Zine*, *Super 8*, *GameBoy Pocket*, *VHS Rental*).
+- **Batch Image Processing**: Redesigned portaled `BatchProcessingModal` using the unified `ditherWorkerClient.execute` pipeline (tweaks, dither/ASCII, palette transforms, and post-effects) with ZIP export.
+- **Project Persistence (`.ditherforge`)**: Added `SaveProjectModal` (with project name prompt and Downloads toast), reduced project snapshot size by >95% (~34 KB → ~1.6 KB), fixed `sourceImageData` serialization/restoration (including opening projects in no-image mode and drag-and-drop onto the viewport).
+- **2D Default Logo & Theme/Skin Readiness**: Set 2D flat logo as the default (`SETTINGS_VERSION = 3`), added semantic `data-df-*` component labels across all regions/sections/modals/controls, added `src/styles/skins/index.css` (`data-ui-skin`), and documented the skinning architecture in `docs/UI_THEMING_AND_SKINS.md`.
+- **Stability & Type-Safety Audit**: Resolved all 42 TypeScript errors (`npx tsc --noEmit`), fixed `animationExport.ts` legacy algorithm dimensions, fixed `TopMenuBar.tsx` `fitToViewport` sidebar clearance, and synced `clearImage`/`toggleFullScreen`/`resetAll` store state.

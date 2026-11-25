@@ -6,8 +6,6 @@
 
 import JSZip from 'jszip';
 import { ditherWorkerClient } from '../workers/ditherWorkerClient';
-import { isLegacyAlgorithm, applyLegacyAlgorithm } from '../algorithms/legacy';
-import { applyEffectPipeline } from '../effects';
 
 export interface BatchProcessingOptions {
   files: File[];
@@ -115,65 +113,71 @@ export async function runBatchProcessing(
     sCtx.drawImage(img, 0, 0);
     const rawImageData = sCtx.getImageData(0, 0, w, h);
 
-    // 2. Execute Dither
-    let ditheredImageData: ImageData;
-    const algoId = state.algorithmId;
-    const algoParams = state.algoParams || {};
-    const palette = state.workingPalette || [[0, 0, 0], [255, 255, 255]];
+    // 2. Execute Dither + Tweaks + Post-Effects via unified worker/engine pipeline
+    let ditheredImageData: ImageData = rawImageData;
+    const algoId = state.algorithmId || 'floyd_steinberg';
+    const currentAlgoParams = (state.algoParams && state.algoParams[algoId]) || {};
 
-    if (isLegacyAlgorithm(algoId)) {
-      const clonedBytes = new Uint8ClampedArray(rawImageData.data);
-      const outBytes = applyLegacyAlgorithm(w, h, clonedBytes, palette, algoId, algoParams);
-      ditheredImageData = new ImageData(outBytes, w, h);
-    } else {
-      // Use Worker or Fallback client
-      const tweaks = {
-        brightness: state.brightness ?? 0,
-        contrast: state.contrast ?? 0,
-        saturation: state.saturation ?? 0,
-        gamma: state.gamma ?? 1.0,
-        hue: state.hue ?? 0,
-        blur: state.blur ?? 0,
-        denoise: state.denoise ?? 0,
-        highlight: state.highlight ?? 0,
-        depth: state.depth ?? 0
-      };
+    let palette: number[][] = Array.isArray(state.workingPalette) && state.workingPalette.length > 0
+      ? state.workingPalette.map((c: number[]) => [...c])
+      : [[0, 0, 0], [255, 255, 255]];
 
-      try {
-        const res = await ditherWorkerClient.requestDither({
-          imageData: rawImageData,
-          algorithmId: algoId,
-          algoParams,
-          palette,
-          tweaks
-        });
-        ditheredImageData = res.resultImageData;
-      } catch (e) {
-        // Fallback: draw unmodified raw
-        ditheredImageData = rawImageData;
-      }
+    if (state.paletteDepth && state.paletteDepth > 0 && state.paletteDepth < palette.length) {
+      palette = palette.slice(0, state.paletteDepth);
+    }
+    if (state.paletteFlipped) {
+      palette = [...palette].reverse();
+    }
+    if (state.paletteInverted) {
+      palette = palette.map((c: number[]) => [255 - c[0], 255 - c[1], 255 - c[2]]);
     }
 
-    // 3. Apply post effects if any
-    if (Array.isArray(state.effects) && state.effects.length > 0) {
-      const activeEffects = state.effects.filter((e: any) => e.enabled);
-      if (activeEffects.length > 0) {
-        try {
-          applyEffectPipeline(ditheredImageData, activeEffects, {
-            palette,
-            fps: state.fps ?? 30,
-            frameIndex: 0,
-            time: 0
-          });
-        } catch (e) {
-          console.warn('[BatchProcessing] Failed to apply post effects:', e);
-        }
+    const activeEffects = Array.isArray(state.effects)
+      ? state.effects.filter((e: any) => e.enabled)
+      : [];
+
+    const tweaks = {
+      brightness: (state.brightness ?? 0) / 100,
+      contrast: (state.contrast ?? 0) / 100,
+      saturation: (state.saturation ?? 0) / 100,
+      gamma: state.gamma ?? 1.0,
+      hue: state.hue ?? 0
+    };
+
+    try {
+      const clonedBuffer = new Uint8ClampedArray(rawImageData.data).buffer;
+      const res = await ditherWorkerClient.execute({
+        buffer: clonedBuffer,
+        width: w,
+        height: h,
+        tweaks,
+        algorithmId: algoId,
+        palette,
+        params: { ...currentAlgoParams, depth: state.depth ?? 8 },
+        effects: activeEffects,
+        renderMode: state.renderMode || 'dither',
+        asciiSettings: state.asciiSettings,
+        customCharsets: state.customCharsets,
+        fps: state.fps ?? 30,
+        frameIndex: 0,
+        time: 0,
+        isExport: true,
+        coalesce: false
+      });
+
+      if (res.success && res.buffer) {
+        const outW = res.width || w;
+        const outH = res.height || h;
+        const outBytes = new Uint8ClampedArray(res.buffer);
+        ditheredImageData = new ImageData(outBytes, outW, outH);
       }
+    } catch (e) {
+      console.warn('[BatchProcessing] Worker execution failed, using raw fallback:', e);
     }
 
     const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = w;
-    finalCanvas.height = h;
+    finalCanvas.width = ditheredImageData.width;
+    finalCanvas.height = ditheredImageData.height;
     const fCtx = finalCanvas.getContext('2d')!;
     fCtx.putImageData(ditheredImageData, 0, 0);
 

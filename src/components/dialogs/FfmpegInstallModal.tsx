@@ -93,6 +93,7 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal-dialog ffmpeg-modal"
+        data-df-modal="ffmpeg-install"
         style={{ maxWidth: '520px', width: '92%' }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"

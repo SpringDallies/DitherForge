@@ -319,6 +319,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
         <div
           ref={popoverRef}
           className={`effect-color-popover ${direction === 'up' ? 'direction-up' : ''} ${isClosing ? 'closing' : ''}`}
+          data-df-control="color-picker"
           role="dialog"
           aria-label="Color Picker"
           onMouseDown={(e) => e.stopPropagation()}

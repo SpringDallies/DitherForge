@@ -2494,6 +2494,7 @@ export const CenterViewport: React.FC = () => {
   return (
     <main
       className="center-viewport"
+      data-df-region="viewport"
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={(e) => {
@@ -2517,6 +2518,7 @@ export const CenterViewport: React.FC = () => {
       <div
         ref={containerRef}
         className={`canvas-area ${appMode === 'animation' && hasConfiguredAnimation ? 'animation-active' : ''}`}
+        data-df-panel="canvas-area"
         style={{
           cursor: isDraggingSplitter ? 'ew-resize' : 'default'
         }}
@@ -2527,7 +2529,7 @@ export const CenterViewport: React.FC = () => {
         onDragStart={(e) => e.preventDefault()}
       >
         {!hasImage || !sourceImageData ? (
-          <div className={`viewport-dropzone-card ${isDragOver ? 'drag-active' : ''}`}>
+          <div className={`viewport-dropzone-card ${isDragOver ? 'drag-active' : ''}`} data-df-panel="empty-dropzone">
             <div className="viewport-dropzone-icon-ring">
               <UploadCloud size={28} strokeWidth={2.2} />
             </div>
@@ -2613,7 +2615,7 @@ export const CenterViewport: React.FC = () => {
                   } as React.CSSProperties}
                   onMouseDown={(e) => { e.stopPropagation(); setIsDraggingSplitter(true); }}
                 >
-                  <div className="split-handle" title="Drag to compare before and after">
+                  <div className="split-handle" data-df-control="compare-splitter" title="Drag to compare before and after">
                     <svg
                       width="20"
                       height="48"
@@ -2662,6 +2664,7 @@ export const CenterViewport: React.FC = () => {
           >
             <div
               className="df-create-anim-popup"
+              data-df-modal="create-animation"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="df-create-anim-top-row">

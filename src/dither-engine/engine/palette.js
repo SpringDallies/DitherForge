@@ -41,6 +41,10 @@ export function colorDistSq(r1, g1, b1, r2, g2, b2) {
 export class FastPaletteLUT {
   static cache = new Map();
 
+  /**
+   * @param {any[]} palette
+   * @param {number | Record<string, any>} [optionsOrBias=0.5]
+   */
   constructor(palette, optionsOrBias = 0.5) {
     let bias = 0.5;
     if (typeof optionsOrBias === 'number') {

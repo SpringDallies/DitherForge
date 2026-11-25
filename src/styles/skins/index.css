@@ -1,0 +1,29 @@
+/* ==========================================================================
+   DitherForge UI Skin Architecture (Structural / Layout Themes)
+   ==========================================================================
+   Color palettes are handled by [data-theme="..."] in src/styles/themes.css.
+   Full UI skins (changing layout, borders, radii, panel geometry, typography,
+   or control shapes) are handled here via [data-ui-skin="..."] and semantic
+   [data-df-*] component selectors.
+
+   To add a new UI skin:
+   1. Create `src/styles/skins/<skin-name>.css` scoping rules under
+      `:root[data-ui-skin="<skin-name>"] { ... }` and
+      `:root[data-ui-skin="<skin-name>"] [data-df-region="..."] { ... }`.
+   2. Import it at the bottom of this file.
+   3. Register it in Settings / Store if you want it selectable in-app.
+   See docs/UI_THEMING_AND_SKINS.md for the complete component & token map.
+   ========================================================================== */
+
+:root {
+  /* Structural Layout Tokens (overridable by any UI skin) */
+  --df-topbar-height: 44px;
+  --df-topbar-padding: 8px 16px;
+  --df-sidebar-margin: 10px;
+  --df-sidebar-radius: 16px;
+  --df-card-radius: 12px;
+  --df-control-radius: 8px;
+  --df-pill-radius: 9999px;
+  --df-toast-radius: 9999px;
+  --df-border-width: 1px;
+}

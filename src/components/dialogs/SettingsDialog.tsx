@@ -13,6 +13,10 @@ export type LogoDitherStyle = 'bayer4' | 'bayer2' | 'bayer8' | 'halftone' | 'sca
 export type LogoMode = '3d' | '2d';
 export type LogoCursorReact = 'direct' | 'sidebar' | 'global' | 'off';
 
+export const UI_SKINS = [
+  { id: 'default', label: 'Default Studio' }
+];
+
 export interface DitherForgeSettings {
   defaultUpdateMode: 'live' | 'debounce';
   language: string;
@@ -29,6 +33,7 @@ export interface DitherForgeSettings {
   shadows: boolean;
   animations: boolean;
   highQualityZoom: boolean;
+  uiSkin: string;
   // 3D / 2D Anvil Logo Settings
   logoMode: LogoMode;
   logoResolution: 64 | 128 | 256 | 512;
@@ -59,8 +64,9 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   shadows: true,
   animations: true,
   highQualityZoom: true,
-  // Default Logo Settings matching user specification
-  logoMode: '3d',
+  uiSkin: 'default',
+  // Default Logo Settings
+  logoMode: '2d',
   logoDitherStyle: 'none',
   logoSharpness: 'smooth',
   logoResolution: 256,
@@ -75,7 +81,7 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
 };
 
 const SETTINGS_STORAGE_KEY = 'ditherforge_settings';
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
 export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   if (typeof document === 'undefined') return;
@@ -86,6 +92,7 @@ export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   document.documentElement.setAttribute('data-shadows', settings.shadows !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-animations', settings.animations !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-high-quality-zoom', settings.highQualityZoom !== false ? 'true' : 'false');
+  document.documentElement.setAttribute('data-ui-skin', settings.uiSkin || 'default');
 
   const blurRadius = settings.glassBlurRadius ?? 16;
   const opacity = settings.glassOpacity ?? 0.82;
@@ -112,14 +119,14 @@ export function getStoredSettings(): DitherForgeSettings {
           : DEFAULT_SETTINGS.logoMode;
         return { ...DEFAULT_SETTINGS, ...parsed, defaultUpdateMode, logoMode };
       }
-      // Migrate to v2 logo defaults while preserving user's non-logo preferences
+      // Migrate to v3 logo defaults (2D default) while preserving user's non-logo preferences
       const migrated = {
         ...DEFAULT_SETTINGS,
         ...parsed,
         defaultUpdateMode: parsed.defaultUpdateMode === 'live' || parsed.defaultUpdateMode === 'debounce'
           ? parsed.defaultUpdateMode
           : DEFAULT_SETTINGS.defaultUpdateMode,
-        logoMode: parsed.logoMode === '2d' || parsed.logoMode === '3d' ? parsed.logoMode : DEFAULT_SETTINGS.logoMode,
+        logoMode: DEFAULT_SETTINGS.logoMode,
         logoDitherStyle: DEFAULT_SETTINGS.logoDitherStyle,
         logoSharpness: DEFAULT_SETTINGS.logoSharpness,
         logoResolution: DEFAULT_SETTINGS.logoResolution,
@@ -242,6 +249,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
     <div className="modal-backdrop" onClick={onClose}>
       <div 
         className="modal-dialog settings-dialog" 
+        data-df-modal="settings"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -504,13 +512,28 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <div>
+                <div className="settings-label">UI skin (layout theme)</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Switch the structural UI layout and control geometry independently of colour schemes.
+                </div>
+              </div>
+              <Dropdown
+                width={176}
+                value={settings.uiSkin ?? 'default'}
+                onChange={(val) => updateSetting('uiSkin', val)}
+                items={UI_SKINS}
+              />
+            </div>
+
+            <div className="settings-row">
+              <div>
                 <div className="settings-label">Logo mode (2D / 3D)</div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                   Switch between the interactive 3D extruded anvil and a flat 2D silhouette logo.
                 </div>
               </div>
               <Dropdown
-                width={150}
+                width={176}
                 value={settings.logoMode ?? '2d'}
                 onChange={(val) => updateSetting('logoMode', val as LogoMode)}
                 items={[
@@ -530,7 +553,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </div>
                   </div>
                   <Dropdown
-                    width={150}
+                    width={176}
                     value={settings.logoDitherStyle ?? 'none'}
                     onChange={(val) => updateSetting('logoDitherStyle', val as LogoDitherStyle)}
                     items={[
@@ -553,7 +576,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </div>
                   </div>
                   <Dropdown
-                    width={150}
+                    width={176}
                     value={settings.logoSharpness ?? 'pixelated'}
                     onChange={(val) => updateSetting('logoSharpness', val as LogoSharpness)}
                     items={[
@@ -572,7 +595,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </div>
                   </div>
                   <Dropdown
-                    width={150}
+                    width={176}
                     value={String(settings.logoResolution ?? 128)}
                     onChange={(val) => updateSetting('logoResolution', parseInt(val, 10) as 64 | 128 | 256 | 512)}
                     items={[
@@ -704,7 +727,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </div>
                   </div>
                   <Dropdown
-                    width={150}
+                    width={176}
                     value={settings.logoCursorReact ?? 'direct'}
                     onChange={(val) => updateSetting('logoCursorReact', val as LogoCursorReact)}
                     items={[
@@ -759,7 +782,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </div>
                   </div>
                   <Dropdown
-                    width={150}
+                    width={176}
                     value={settings.logoInteractiveClick !== false ? 'enabled' : 'disabled'}
                     onChange={(val) => updateSetting('logoInteractiveClick', val === 'enabled')}
                     items={[
@@ -777,7 +800,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </div>
                   </div>
                   <Dropdown
-                    width={150}
+                    width={176}
                     value={settings.logoPeriodicShine !== false ? 'enabled' : 'disabled'}
                     onChange={(val) => updateSetting('logoPeriodicShine', val === 'enabled')}
                     items={[

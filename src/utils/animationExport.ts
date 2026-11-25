@@ -471,20 +471,20 @@ export function renderDeterministicAnimationFrame(
 
     if (isLegacyAlgorithm(algorithmId)) {
       const legacyOut = applyLegacyAlgorithm(
-        exportWidth,
-        exportHeight,
+        width,
+        height,
         frameImageData.data,
         slicedPalette,
         algorithmId,
         {
+          ...mappedControls,
           threshold: effAlgoParams.threshold ?? 0.5,
           scale: mappedControls.scale,
           diffusionStrength: effAlgoParams.diffusionStrength ?? 1.0,
           noiseAmount: effNoise,
           depth: effDepth,
           temporalSeed: animatedNoiseActive ? frameIdx : 0,
-          serpentine: effAlgoParams.serpentine ?? false,
-          ...mappedControls
+          serpentine: effAlgoParams.serpentine ?? false
         }
       );
       frameImageData.data.set(legacyOut);

@@ -657,6 +657,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="export-dialog"
+        data-df-modal="export"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

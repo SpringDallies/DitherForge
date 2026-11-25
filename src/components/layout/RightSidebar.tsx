@@ -1675,6 +1675,7 @@ export const RightSidebar: React.FC = () => {
   return (
     <aside 
       className={`right-sidebar ${isResizing ? 'is-resizing' : ''}`} 
+      data-df-region="sidebar"
       style={{ width: `${sidebarWidth}px` }}
     >
       <div 
@@ -1685,8 +1686,8 @@ export const RightSidebar: React.FC = () => {
       <div ref={scrollWrapperRef} className="sidebar-scrollable-content">
         <div ref={scrollContentRef}>
         {/* TOP ACTION BLOCK */}
-        <div className="top-action-block">
-          <div className="sidebar-brand">
+        <div className="top-action-block" data-df-section="top-actions">
+          <div className="sidebar-brand" data-df-section="brand">
             <Logo variant="mark" size={280} />
           </div>
           <input
@@ -1696,7 +1697,7 @@ export const RightSidebar: React.FC = () => {
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
-          <div className="unified-action-pill">
+          <div className="unified-action-pill" data-df-control="primary-action-pill">
             <button
               type="button"
               className="unified-pill-btn"
@@ -1812,9 +1813,9 @@ export const RightSidebar: React.FC = () => {
         </div>
 
         {/* SECTIONS STACK */}
-        <div className="sections-container">
+        <div className="sections-container" data-df-group="sidebar-sections">
           {/* 1. STYLE SECTION */}
-          <div className="section-block">
+          <div className="section-block" data-df-section="styles">
             <div className="section-header">
               <span className="section-title-text">Styles</span>
               <button
@@ -2484,7 +2485,7 @@ export const RightSidebar: React.FC = () => {
           )}
 
           {/* 2. ADJUSTMENTS SECTION */}
-          <div className="section-block">
+          <div className="section-block" data-df-section="adjustments">
             <div className="section-header">
               <span className="section-title-text">Adjustments</span>
               <button
@@ -2822,7 +2823,7 @@ export const RightSidebar: React.FC = () => {
           </div>
 
           {/* 3. PALETTE SECTION */}
-          <div className="section-block">
+          <div className="section-block" data-df-section="palette">
             <div className="section-header">
               <span className="section-title-text">Colour Palette</span>
               <button
@@ -3192,7 +3193,7 @@ export const RightSidebar: React.FC = () => {
           </div>
 
           {/* 4. EFFECTS STACK SECTION */}
-          <div className="section-block">
+          <div className="section-block" data-df-section="effects-stack">
             <div className="section-header">
               <span className="section-title-text">Effects Stack</span>
               <button
@@ -3681,7 +3682,7 @@ export const RightSidebar: React.FC = () => {
           </div>
 
           {/* 5. PRESETS SECTION */}
-          <div className="section-block">
+          <div className="section-block" data-df-section="presets">
             <div 
               className="section-header section-header-clickable presets-header-row"
               onClick={() => toggleSection('presets')}

@@ -718,7 +718,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         imageWidth: 0,
         imageHeight: 0,
         sourceImageData: null,
-        sourceVideoUrl: null
+        sourceVideoUrl: null,
+        lastRenderMs: 0
       };
     });
   },
@@ -1424,7 +1425,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { activeTheme };
   }),
   toggleFullScreen: () => set((state) => {
-    const next = !state.isFullScreen;
+    const currentlyFullscreen = typeof document !== 'undefined' && Boolean(document.fullscreenElement);
+    const next = !currentlyFullscreen;
     if (next) {
       document.documentElement.requestFullscreen?.().catch(() => {});
     } else {
@@ -1450,6 +1452,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       [state.algorithmId]: getInitialAlgoParams(state.algorithmId)
     },
     asciiSettings: cloneDefaultAsciiSettings(),
+    effects: state.effects.map((e) => ({ ...e, enabled: false })),
     zoom: 100,
     panX: 0,
     panY: 0,

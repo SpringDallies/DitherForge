@@ -169,6 +169,7 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
     >
       <div
         className="modal-dialog batch-dialog"
+        data-df-modal="batch"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

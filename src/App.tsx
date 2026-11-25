@@ -10,6 +10,7 @@ import { RightSidebar } from './components/layout/RightSidebar';
 import { AppContextMenu } from './components/AppContextMenu';
 import { AlgorithmReferenceModal } from './components/AlgorithmReferenceModal';
 import './styles/preferences.css';
+import './styles/skins/index.css';
 import { SettingsDialog, getStoredSettings, applyPerformanceSettings } from './components/dialogs/SettingsDialog';
 import { FfmpegInstallModal } from './components/dialogs/FfmpegInstallModal';
 import { ffmpegService } from './services/ffmpegService';
@@ -282,6 +283,7 @@ export const App: React.FC = () => {
       {/* Main Workspace Layout */}
       <div 
         className="workspace-container"
+        data-df-region="workspace"
         style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
       >
         {/* Viewport (takes remaining width, canvas centered) */}
@@ -323,47 +325,21 @@ export const App: React.FC = () => {
       {/* Export / notification toasts */}
       <div
         className="toast-container"
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          zIndex: 50,
-          pointerEvents: 'none'
-        }}
+        data-df-region="toasts"
       >
         {toasts.map((t) => (
           <div
             key={t.id}
             role="alert"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '9px 16px',
-              borderRadius: 9999,
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-main)',
-              border: `1px solid var(--border-color)`,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              fontSize: '0.82rem',
-              fontWeight: 500,
-              minWidth: 160,
-              maxWidth: 420,
-              animation: 'toastSlideIn 220ms ease-out',
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)'
-            }}
+            className="df-toast"
+            data-df-control="toast"
+            data-df-toast-type={t.type}
             onClick={() => {
               const { removeToast } = useAppStore.getState();
               removeToast(t.id);
             }}
           >
-            <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>{t.message}</span>
+            <span className="df-toast-text">{t.message}</span>
           </div>
         ))}
       </div>

@@ -31,6 +31,57 @@
     document.body.style.backgroundColor = activePal.bg;
   } catch (e) {}
 
+  const OUTLINE = [
+    2.123,-1.578,2.156,-1.577,2.195,-1.567,2.228,-1.554,2.257,-1.538,2.287,-1.515,2.314,-1.488,2.326,-1.472,
+    2.342,-1.447,2.362,-1.403,2.369,-1.383,2.376,-1.344,2.376,-1.295,2.373,-1.272,2.366,-1.243,2.346,-1.194,
+    2.329,-1.167,2.300,-1.130,2.210,-1.040,2.197,-1.031,2.118,-0.952,2.105,-0.942,1.939,-0.779,1.924,-0.768,
+    1.805,-0.648,1.754,-0.587,1.711,-0.528,1.655,-0.433,1.610,-0.335,1.580,-0.250,1.563,-0.188,1.547,-0.106,
+    1.546,-0.090,1.540,-0.054,1.540,-0.028,1.537,-0.015,1.537,0.113,1.537,0.126,1.540,0.139,1.540,0.165,
+    1.554,0.253,1.574,0.338,1.593,0.400,1.626,0.482,1.663,0.555,1.691,0.606,1.731,0.666,1.795,0.746,
+    1.842,0.797,1.857,0.808,1.891,0.843,1.931,0.875,1.996,0.923,2.064,0.966,2.133,1.002,2.218,1.038,
+    2.287,1.061,2.349,1.077,2.417,1.091,2.456,1.095,2.466,1.097,2.486,1.098,2.496,1.101,2.558,1.104,
+    2.567,1.107,2.594,1.108,2.616,1.111,2.656,1.118,2.711,1.135,2.745,1.148,2.783,1.167,2.817,1.187,
+    2.875,1.232,2.912,1.269,2.950,1.318,2.976,1.360,2.999,1.409,3.000,1.452,2.992,1.476,2.986,1.488,
+    2.973,1.506,2.946,1.524,2.917,1.535,2.868,1.535,2.852,1.538,2.620,1.539,2.600,1.542,2.368,1.542,
+    2.349,1.545,2.117,1.545,2.100,1.548,1.868,1.548,1.849,1.552,1.617,1.552,1.597,1.555,1.365,1.555,
+    1.346,1.558,1.114,1.558,1.094,1.561,0.862,1.561,0.843,1.565,0.611,1.565,0.591,1.568,0.363,1.568,
+    0.343,1.571,0.111,1.571,0.091,1.574,-0.140,1.574,-0.160,1.578,-0.392,1.578,-0.412,1.581,-0.614,1.581,
+    -0.653,1.573,-0.692,1.560,-0.784,1.507,-0.823,1.487,-0.862,1.471,-0.908,1.458,-0.973,1.447,-1.316,1.447,
+    -1.333,1.440,-1.378,1.412,-1.424,1.389,-1.486,1.363,-1.545,1.344,-1.610,1.327,-1.672,1.317,-1.695,1.316,
+    -1.708,1.313,-1.748,1.313,-1.764,1.310,-2.956,1.310,-2.969,1.306,-2.986,1.296,-2.996,1.282,-3.000,1.269,
+    -3.000,1.246,-2.996,1.233,-2.984,1.217,-2.969,1.205,-2.845,1.081,-2.830,1.070,-2.705,0.944,-2.690,0.933,
+    -2.564,0.807,-2.550,0.795,-2.512,0.758,-2.469,0.722,-2.408,0.675,-2.316,0.612,-2.247,0.572,-2.162,0.530,
+    -2.110,0.507,-1.999,0.468,-1.944,0.452,-1.819,0.425,-1.751,0.415,-1.692,0.411,-1.679,0.408,-1.653,0.408,
+    -1.643,0.405,-1.614,0.405,-1.604,0.402,-1.574,0.401,-1.565,0.399,-1.535,0.398,-1.525,0.396,-1.496,0.395,
+    -1.486,0.392,-1.457,0.392,-1.447,0.389,-1.418,0.388,-1.408,0.386,-1.378,0.385,-1.369,0.382,-1.339,0.382,
+    -1.329,0.379,-1.300,0.379,-1.290,0.376,-1.261,0.375,-1.251,0.373,-1.222,0.372,-1.212,0.369,-1.182,0.369,
+    -1.173,0.366,-1.143,0.366,-1.133,0.363,-1.104,0.362,-1.094,0.360,-1.065,0.359,-1.055,0.356,-1.026,0.356,
+    -1.016,0.353,-0.986,0.352,-0.977,0.350,-0.947,0.349,-0.937,0.347,-0.908,0.346,-0.898,0.343,-0.869,0.343,
+    -0.859,0.340,-0.830,0.339,-0.820,0.337,-0.790,0.336,-0.781,0.333,-0.751,0.333,-0.741,0.330,-0.712,0.330,
+    -0.702,0.327,-0.673,0.326,-0.663,0.324,-0.634,0.323,-0.624,0.320,-0.595,0.320,-0.585,0.317,-0.562,0.317,
+    -0.503,0.307,-0.438,0.286,-0.415,0.277,-0.382,0.260,-0.350,0.241,-0.310,0.212,-0.286,0.191,-0.263,0.168,
+    -0.231,0.129,-0.192,0.067,-0.173,0.024,-0.156,-0.021,-0.142,-0.083,-0.142,-0.100,-0.139,-0.113,-0.139,
+    -0.198,-0.150,-0.260,-0.159,-0.296,-0.173,-0.333,-0.202,-0.390,-0.225,-0.427,-0.250,-0.459,-0.301,-0.509,
+    -0.931,-0.996,-0.977,-1.039,-1.020,-1.093,-1.033,-1.112,-1.056,-1.155,-1.079,-1.210,-1.092,-1.259,-1.099,
+    -1.298,-1.102,-1.370,-1.099,-1.396,-1.092,-1.426,-1.075,-1.465,-1.052,-1.499,-1.019,-1.532,-0.996,-1.547,
+    -0.947,-1.570,-0.915,-1.577,-0.892,-1.578,-0.879,-1.581,-0.291,-1.581,-0.274,-1.578,-0.219,-1.577,-0.209,
+    -1.575,-0.183,-1.574,-0.160,-1.571,-0.105,-1.561,-0.059,-1.551,-0.003,-1.534,0.059,-1.511,0.114,-1.487,
+    0.173,-1.456,0.284,-1.393,0.356,-1.356,0.408,-1.334,0.464,-1.314,0.536,-1.294,0.640,-1.274,0.692,-1.270,
+    0.706,-1.267,0.820,-1.267,0.836,-1.270,0.862,-1.271,0.875,-1.274,0.892,-1.274,0.983,-1.291,1.049,-1.308,
+    1.107,-1.327,1.166,-1.352,1.274,-1.405,1.512,-1.531,1.542,-1.544,1.591,-1.560,1.617,-1.567,1.679,-1.577,
+    1.718,-1.578,1.735,-1.581,2.117,-1.580
+  ];
+  const DEPTH = 1.1;
+  const bootSeed = ((Math.random() * 0xffffffff) >>> 0) || 123456789;
+  let prngState = bootSeed;
+  function seededRand() {
+    prngState = (prngState * 1664525 + 1013904223) >>> 0;
+    return prngState / 4294967296;
+  }
+  const rnd = (a, b) => a + seededRand() * (b - a);
+  const bootStartEpochMs = Date.now();
+
+  // Single-canvas OffscreenCanvas Worker from t=0: 0 handoff, 0 direction jump, 0 main-thread lag
   const canUseWorker = typeof canvas.transferControlToOffscreen === 'function' && typeof Worker !== 'undefined';
 
   if (canUseWorker) {
@@ -41,48 +92,53 @@
       const workerUrl = new URL('./boot-anvil-worker.js', bootScriptUrl).href;
       const worker = new Worker(workerUrl);
 
-      worker.postMessage({
-        type: 'init',
-        canvas: offscreen,
-        theme: storedTheme
-      }, [offscreen]);
-
       const sendRect = () => {
         const r = canvas.getBoundingClientRect();
         return { left: r.left, top: r.top, width: r.width, height: r.height };
       };
 
       const onPointerMove = (e) => {
-        worker.postMessage({
-          type: 'pointermove',
-          clientX: e.clientX,
-          clientY: e.clientY,
-          rect: sendRect()
-        });
+        worker.postMessage({ type: 'pointermove', clientX: e.clientX, clientY: e.clientY, rect: sendRect() });
       };
-
       const onPointerDown = (e) => {
-        worker.postMessage({
-          type: 'pointerdown',
-          clientX: e.clientX,
-          clientY: e.clientY,
-          rect: sendRect()
-        });
+        worker.postMessage({ type: 'pointerdown', clientX: e.clientX, clientY: e.clientY, rect: sendRect() });
       };
-
       const onPointerLeave = () => {
         worker.postMessage({ type: 'pointerleave' });
+      };
+      const onVisibilityChange = () => {
+        worker.postMessage({ type: 'visibility', hidden: document.hidden });
       };
 
       window.addEventListener('pointermove', onPointerMove, { passive: true });
       canvas.addEventListener('pointerdown', onPointerDown);
       document.addEventListener('mouseleave', onPointerLeave);
       window.addEventListener('blur', onPointerLeave);
-
-      const onVisibilityChange = () => {
-        worker.postMessage({ type: 'visibility', hidden: document.hidden });
-      };
       document.addEventListener('visibilitychange', onVisibilityChange);
+
+      worker.onmessage = (e) => {
+        if (e.data && e.data.type === 'first_frame_rendered') {
+          window.__DF_BOOT_STATE__ = { status: 'first-frame' };
+          try {
+            if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+              window.__TAURI__.core.invoke('show_main_window').catch(function(){});
+            } else if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+              window.__TAURI_INTERNALS__.invoke('show_main_window').catch(function(){});
+            }
+          } catch (err) {}
+          if (typeof window.__startDitherForgeApp === 'function') {
+            window.__startDitherForgeApp();
+          }
+        }
+      };
+
+      worker.postMessage({
+        type: 'init',
+        canvas: offscreen,
+        theme: storedTheme,
+        seed: bootSeed,
+        startEpochMs: bootStartEpochMs
+      }, [offscreen]);
 
       window.__dismissBootAnvil = function() {
         window.removeEventListener('pointermove', onPointerMove);
@@ -96,13 +152,13 @@
           container.style.transition = 'opacity 180ms ease-out';
           container.style.opacity = '0';
           setTimeout(() => {
-            try {
-              worker.postMessage({ type: 'dispose' });
-            } catch (err) {}
+            try { worker.postMessage({ type: 'dispose' }); } catch (err) {}
+            worker.terminate();
             container.remove();
           }, 200);
         } else {
           try { worker.postMessage({ type: 'dispose' }); } catch (err) {}
+          worker.terminate();
         }
       };
       return;
@@ -111,8 +167,17 @@
     }
   }
 
-  // Fallback: If Web Worker or OffscreenCanvas is unavailable
-  runMainThreadAnvil();
+  // Fallback for environments without OffscreenCanvas: dynamically load three.min.js
+  if (typeof THREE !== 'undefined') {
+    runMainThreadAnvil();
+  } else {
+    const s = document.createElement('script');
+    const bootScriptUrl = (document.currentScript && document.currentScript.src) || window.location.href;
+    s.src = new URL('./three.min.js', bootScriptUrl).href;
+    s.onload = () => runMainThreadAnvil();
+    document.head.appendChild(s);
+  }
+  return;
 
   function runMainThreadAnvil() {
     const renderer = new THREE.WebGLRenderer({
@@ -1620,7 +1685,7 @@
     
     
     
-        const now = (performance.now() - start) / 1000;
+        const now = (Date.now() - start) / 1000;
     
         HOVER.lastClickTime = now;
     
@@ -1928,7 +1993,7 @@
     
       function triggerShineSweep(dx, dy, dur) {
     
-        const now = (performance.now() - start) / 1000;
+        const now = (Date.now() - start) / 1000;
     
         SHINE.on = true;
     
@@ -1956,7 +2021,7 @@
     
       function triggerInteractiveShine(dx, dy) {
     
-        const now = (performance.now() - start) / 1000;
+        const now = (Date.now() - start) / 1000;
     
         if (SHINE.on || now < SHINE.cooldownUntil) return;
     
@@ -2015,7 +2080,7 @@
     
       /* ---------- Render loop with visibility & context-loss handling ---------- */
     
-      const start = performance.now();
+      const start = bootStartEpochMs;
     
       let rafId = null;
     
@@ -2059,7 +2124,7 @@
     
         } else if (!contextLost && rafId === null) {
     
-          lastS = (performance.now() - start) / 1000;
+          lastS = (Date.now() - start) / 1000;
     
           frame();
     
@@ -2074,7 +2139,7 @@
     
         if (contextLost || document.hidden) return;
     
-        const s = (performance.now() - start) / 1000;
+        const s = (Date.now() - start) / 1000;
     
         stepMotion(s);
     
@@ -2104,6 +2169,13 @@
             console.error('[BootAnvil]', window.__DF_BOOT_STATE__.reason);
           } else {
             window.__DF_BOOT_STATE__ = { status: 'first-frame' };
+            try {
+              if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+                window.__TAURI__.core.invoke('show_main_window').catch(function(){});
+              } else if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+                window.__TAURI_INTERNALS__.invoke('show_main_window').catch(function(){});
+              }
+            } catch (e) {}
           }
         }
 
@@ -2129,6 +2201,14 @@
             container.remove();
           }, 200);
         }
+      };
+
+      return function stopMainThreadAnvil() {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        try { renderer.dispose(); } catch(e) {}
       };
   }
 })();

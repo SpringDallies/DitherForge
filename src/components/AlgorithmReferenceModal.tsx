@@ -36,7 +36,7 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
   // Render fixed overlay via portal into document.body to escape ancestor transforms & flex flow
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-dialog" data-df-modal="algorithm-reference" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BookOpen size={16} style={{ color: 'var(--text-dim)' }} />

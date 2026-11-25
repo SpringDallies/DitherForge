@@ -79,6 +79,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
     >
       <div
         className="modal-dialog save-project-dialog"
+        data-df-modal="save-project"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

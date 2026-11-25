@@ -257,6 +257,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     <div
       ref={containerRef}
       className={`custom-dropdown-container ${className} ${isOpen && !isClosing ? 'open' : ''}`}
+      data-df-control="dropdown"
       style={{
         width: width ?? '100%',
         opacity: disabled ? 0.5 : 1,

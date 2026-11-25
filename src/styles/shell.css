@@ -1689,13 +1689,17 @@ body {
 /* Slider Controls (1:1 Mockup Replica: Thick Soft Track, Pill Thumb, Aligned Pill Number Box) */
 .slider-control-block {
   margin-bottom: 2px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 3px;
 }
 .slider-label-above {
+  grid-column: 1 / -1;
+  grid-row: 1;
   height: 16px;
   line-height: 16px;
-  margin-bottom: 3px;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-dim);
@@ -1704,10 +1708,7 @@ body {
   align-items: center;
 }
 .slider-track-input-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 26px;
+  display: contents;
 }
 .control-slider {
   -webkit-appearance: none;
@@ -6540,5 +6541,46 @@ canvas#hqPresentationCanvas {
 @keyframes toastSlideIn {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.topbar-video-group {
+  margin-left: 18px;
+}
+
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.df-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-radius: var(--df-toast-radius, 9999px);
+  background: var(--bg-secondary);
+  color: var(--text-main);
+  border: var(--df-border-width, 1px) solid var(--border-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 0.82rem;
+  font-weight: 500;
+  min-width: 160px;
+  max-width: 420px;
+  animation: toastSlideIn 220ms ease-out;
+  pointer-events: auto;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.df-toast-text {
+  white-space: pre-wrap;
+  line-height: 1.3;
 }
 

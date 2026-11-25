@@ -158,7 +158,7 @@ export function exportProjectFile(storeState: any, projectName?: string): string
 export async function importProjectFile(
   file: File,
   store: any
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; name?: string; error?: string }> {
   try {
     const text = await file.text();
     const data = JSON.parse(text) as DitherForgeProjectFile;

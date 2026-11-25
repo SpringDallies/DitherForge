@@ -348,6 +348,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
       <div
         ref={menuRef}
         className="df-app-context-menu"
+        data-df-control="context-menu"
         style={{ left: `${position.x}px`, top: `${position.y}px` }}
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}

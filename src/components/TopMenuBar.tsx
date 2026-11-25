@@ -8,7 +8,7 @@ import { Tooltip } from './common/Tooltip';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
 import { getExportCanvas } from '../utils/animationExport';
-import { exportProjectFile, importProjectFile } from '../utils/projectPersistence';
+import { importProjectFile } from '../utils/projectPersistence';
 import {
   FolderOpen,
   Sparkles,
@@ -258,8 +258,9 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         const imgData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
         loadImageFromData(imgData, file.name);
         const canvasArea = document.querySelector('.canvas-area');
+        const sWidth = useAppStore.getState().sidebarWidth;
         if (canvasArea) {
-          fitToViewport(canvasArea.clientWidth, canvasArea.clientHeight);
+          fitToViewport(canvasArea.clientWidth - (sWidth + 14), canvasArea.clientHeight - 38);
         }
       };
       img.src = event.target?.result as string;
@@ -279,7 +280,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   const playbackLabel = videoPlaybackMode === 'standard' ? 'Standard' : 'Looped';
 
   return (
-    <header className="top-menu-bar">
+    <header className="top-menu-bar" data-df-region="topbar">
       <input
         type="file"
         ref={fileInputRef}
@@ -308,7 +309,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       />
 
       {/* Left: File | Edit | View pill */}
-      <nav className="menu-dropdowns" onClick={(e) => e.stopPropagation()}>
+      <nav className="menu-dropdowns" data-df-group="topbar-menus" onClick={(e) => e.stopPropagation()}>
         <div className="segmented-switch topbar-menu-pill" role="group" aria-label="Main Menu" style={{ overflow: 'visible' }}>
           <button
             type="button"
@@ -429,7 +430,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                   onMouseEnter={openThemesSubmenu}
                   onMouseLeave={scheduleCloseThemesSubmenu}
                 >
-                  <span>Themes</span>
+                  <span>Colour schemes</span>
                   <ChevronRight size={13} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
                 </div>
                 {isThemesSubmenuOpen &&
@@ -477,7 +478,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       </nav>
 
       {/* Center: Single 3-part cycling VIEWPORT pill + Video pill in Animation mode */}
-      <div className="topbar-center-controls">
+      <div className="topbar-center-controls" data-df-group="topbar-viewport-controls">
         <div className="topbar-control-group">
           <span className="strip-viewport-label">VIEWPORT:</span>
           <div className="segmented-switch topbar-viewport-switch" role="group" aria-label="Viewport Configuration">
@@ -512,7 +513,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         </div>
 
         {appMode === 'animation' && hasConfiguredAnimation && (
-          <div className="topbar-control-group" style={{ marginLeft: '18px' }}>
+          <div className="topbar-control-group topbar-video-group">
             <span className="strip-viewport-label" style={{ textTransform: 'none' }}>Video:</span>
             <div className="segmented-switch topbar-viewport-switch" role="group" aria-label="Video Configuration">
               <Tooltip text="Standard / Looped playback">
@@ -530,7 +531,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
       </div>
 
       {/* Right: Dimensions & Render Time + Compare pill + Settings pill */}
-      <div className="top-right-controls">
+      <div className="top-right-controls" data-df-group="topbar-status-actions">
         <div className="topbar-status-text">
           <span>{imageWidth > 0 ? `${imageWidth}×${imageHeight}` : 'Ready'}</span>
           <span>{lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)}ms` : '<1ms'}</span>

@@ -745,28 +745,27 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
         {uiSkin === 'terminal' ? (
           <div className="export-all-options-section">
-            <div className="export-options-grid" role="radiogroup" aria-label="Export format options">
-              {EXPORT_AS_OPTIONS.map((opt) => {
-                const isSelected = activeExportId === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={isSelected}
-                    className={`export-option-btn ${isSelected ? 'active' : ''}`}
-                    onClick={() => {
-                      setActiveTab(opt.tab);
-                      if (opt.tab === 'image') {
-                        setFormat(opt.id as ImageFormat);
-                      }
-                    }}
-                  >
-                    <span className="export-option-label">{opt.label}</span>
-                    <span className="export-option-sublabel">{opt.sublabel}</span>
-                  </button>
-                );
-              })}
+            <div className="export-form-row" style={{ marginBottom: 0 }}>
+              <label className="export-form-label" htmlFor="export-terminal-format">Format</label>
+              <div className="export-form-control">
+                <Dropdown
+                  id="export-terminal-format"
+                  value={activeExportId}
+                  onChange={(val) => {
+                    const opt = EXPORT_AS_OPTIONS.find((o) => o.id === val);
+                    if (!opt) return;
+                    setActiveTab(opt.tab);
+                    if (opt.tab === 'image') {
+                      setFormat(opt.id as ImageFormat);
+                    }
+                  }}
+                  width="100%"
+                  items={EXPORT_AS_OPTIONS.map((opt) => ({
+                    id: opt.id,
+                    label: opt.label,
+                  }))}
+                />
+              </div>
             </div>
           </div>
         ) : (
@@ -928,8 +927,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                   const srcH = srcCanvas?.height || 0;
                   const maxPreviewH =
                     typeof window !== 'undefined'
-                      ? Math.min(280, Math.max(120, Math.round(window.innerHeight * 0.38)))
-                      : 240;
+                      ? Math.min(200, Math.max(120, Math.round(window.innerHeight * 0.28)))
+                      : 190;
                   const isTerminalDynamic = uiSkin === 'terminal' && hasSourceCanvas && srcW > 0 && srcH > 0;
                   return (
                     <div

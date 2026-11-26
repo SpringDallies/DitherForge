@@ -2210,8 +2210,8 @@
 :root[data-ui-skin="terminal"] .export-tabs,
 :root[data-ui-skin="terminal"] .export-all-options-section {
   background: var(--tm-panel) !important;
-  border-bottom: 1px solid var(--tm-border) !important;
-  padding: 6px 12px !important;
+  border-bottom: none !important;
+  padding: 10px 12px 0 !important;
 }
 
 :root[data-ui-skin="terminal"] .export-options-grid {
@@ -2243,9 +2243,15 @@
   color: var(--tm-text-bright) !important;
 }
 
-:root[data-ui-skin="terminal"] .export-dialog,
+:root[data-ui-skin="terminal"] .export-dialog {
+  width: 460px !important;
+  min-width: 0 !important;
+  max-width: 92vw !important;
+  overflow: visible !important;
+}
+
 :root[data-ui-skin="terminal"] .batch-dialog {
-  width: 360px !important;
+  width: 380px !important;
   min-width: 0 !important;
   max-width: 92vw !important;
   overflow: visible !important;

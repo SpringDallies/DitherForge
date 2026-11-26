@@ -201,6 +201,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const [charSet, setCharSet] = useState<CharSetType>('ascii');
   const [cellWidth, setCellWidth] = useState<number>(6);
   const [cellHeight, setCellHeight] = useState<number>(12);
+  const [previewPopupUrl, setPreviewPopupUrl] = useState<string | null>(null);
 
   const [dedicatedGridState, setDedicatedGridState] = useState<DedicatedGridState>({
     grid: null,
@@ -258,15 +259,22 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setPreviewPopupUrl(null);
+      return;
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (previewPopupUrl) {
+          setPreviewPopupUrl(null);
+          return;
+        }
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, previewPopupUrl]);
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'image') return;
@@ -933,14 +941,25 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                   return (
                     <div
                       className="export-preview-box"
+                      title={hasSourceCanvas ? 'Click to enlarge preview' : undefined}
+                      onClick={() => {
+                        if (!hasSourceCanvas) return;
+                        const src = previewCanvasRef.current || getSourceCanvas();
+                        if (src) {
+                          setPreviewPopupUrl(src.toDataURL('image/png'));
+                        }
+                      }}
                       style={
                         isTerminalDynamic
                           ? {
                               padding: 0,
                               minHeight: '64px',
                               maxHeight: `${maxPreviewH}px`,
+                              cursor: hasSourceCanvas ? 'zoom-in' : 'default',
                             }
-                          : undefined
+                          : hasSourceCanvas
+                            ? { cursor: 'zoom-in' }
+                            : undefined
                       }
                     >
                       {hasSourceCanvas ? (
@@ -1164,6 +1183,66 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
           </button>
         </div>
       </div>
+      {previewPopupUrl && (
+        <div
+          className="modal-backdrop export-preview-lightbox-backdrop"
+          style={{ zIndex: 10020, background: 'rgba(0, 0, 0, 0.78)' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setPreviewPopupUrl(null);
+          }}
+        >
+          <div
+            className="export-preview-lightbox"
+            data-df-modal="export-preview-lightbox"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              background: 'var(--tm-panel, var(--bg-panel, #1e1e20))',
+              border: '1px solid var(--tm-border-strong, var(--border-color, #444))',
+              borderRadius: '6px',
+              padding: 0,
+              overflow: 'hidden',
+              maxWidth: '92vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.65)',
+            }}
+          >
+            <div className="modal-header" style={{ padding: '6px 10px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--tm-text, var(--text-main))' }}>
+                Preview
+              </span>
+              <button
+                type="button"
+                className="tool-icon-btn"
+                aria-label="Close preview"
+                onClick={() => setPreviewPopupUrl(null)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div style={{ padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img
+                src={previewPopupUrl}
+                alt="Export preview"
+                style={{
+                  display: 'block',
+                  maxWidth: '84vw',
+                  maxHeight: '78vh',
+                  minWidth: 'min(520px, 75vw)',
+                  width: 'auto',
+                  height: 'auto',
+                  imageRendering: 'pixelated',
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );

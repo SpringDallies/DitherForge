@@ -2824,9 +2824,7 @@
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider,
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider {
-  transition:
-    filter 450ms ease-in-out,
-    border-color 450ms ease-in-out !important;
+  transition: filter 220ms ease-in-out !important;
 }
 
 :root[data-ui-skin="terminal"] .control-slider:hover,
@@ -2834,14 +2832,6 @@
 :root[data-ui-skin="terminal"] .replica-depth-slider:hover,
 :root[data-ui-skin="terminal"] .replica-depth-slider:active {
   filter: brightness(1.16);
-  border-color: var(--tm-border-hover) !important;
-}
-
-:root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider:hover,
-:root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider:hover {
-  transition:
-    filter 550ms cubic-bezier(0.4, 0, 0.2, 1) 60ms,
-    border-color 550ms cubic-bezier(0.4, 0, 0.2, 1) 60ms !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) :is(
@@ -2890,13 +2880,13 @@
   .card-action-icon-btn
 ) {
   transition:
-    color 320ms ease-in-out,
-    background-color 320ms ease-in-out,
-    border-color 320ms ease-in-out !important;
+    color 180ms ease-in-out,
+    background-color 180ms ease-in-out,
+    border-color 180ms ease-in-out !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-hsl-slider::-webkit-slider-thumb {
   transition:
-    background-color 320ms ease-in-out,
-    border-color 320ms ease-in-out !important;
+    background-color 180ms ease-in-out,
+    border-color 180ms ease-in-out !important;
 }

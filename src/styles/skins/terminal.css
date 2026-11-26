@@ -2819,21 +2819,24 @@
    -------------------------------------------------------------------------- */
 :root[data-ui-skin="terminal"] .control-slider,
 :root[data-ui-skin="terminal"] .replica-depth-slider {
+  opacity: 0.88;
   filter: brightness(1);
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider,
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider {
   transition:
-    filter 450ms ease-in-out,
-    border-color 450ms ease-in-out !important;
+    opacity 420ms ease-in-out,
+    filter 420ms ease-in-out,
+    border-color 420ms ease-in-out !important;
 }
 
 :root[data-ui-skin="terminal"] .control-slider:hover,
 :root[data-ui-skin="terminal"] .control-slider:active,
 :root[data-ui-skin="terminal"] .replica-depth-slider:hover,
 :root[data-ui-skin="terminal"] .replica-depth-slider:active {
-  filter: brightness(1.12);
+  opacity: 1;
+  filter: brightness(1.08);
   border-color: var(--tm-border-hover) !important;
 }
 

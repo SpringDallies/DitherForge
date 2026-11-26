@@ -2819,25 +2819,29 @@
    -------------------------------------------------------------------------- */
 :root[data-ui-skin="terminal"] .control-slider,
 :root[data-ui-skin="terminal"] .replica-depth-slider {
-  opacity: 0.88;
   filter: brightness(1);
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider,
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider {
   transition:
-    opacity 420ms ease-in-out,
-    filter 420ms ease-in-out,
-    border-color 420ms ease-in-out !important;
+    filter 450ms ease-in-out,
+    border-color 450ms ease-in-out !important;
 }
 
 :root[data-ui-skin="terminal"] .control-slider:hover,
 :root[data-ui-skin="terminal"] .control-slider:active,
 :root[data-ui-skin="terminal"] .replica-depth-slider:hover,
 :root[data-ui-skin="terminal"] .replica-depth-slider:active {
-  opacity: 1;
-  filter: brightness(1.08);
+  filter: brightness(1.16);
   border-color: var(--tm-border-hover) !important;
+}
+
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider:hover,
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider:hover {
+  transition:
+    filter 550ms cubic-bezier(0.4, 0, 0.2, 1) 60ms,
+    border-color 550ms cubic-bezier(0.4, 0, 0.2, 1) 60ms !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) :is(

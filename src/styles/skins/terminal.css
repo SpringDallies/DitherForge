@@ -2825,8 +2825,8 @@
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider,
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider {
   transition:
-    filter 300ms ease,
-    border-color 300ms ease !important;
+    filter 450ms ease-in-out,
+    border-color 450ms ease-in-out !important;
 }
 
 :root[data-ui-skin="terminal"] .control-slider:hover,
@@ -2883,13 +2883,13 @@
   .card-action-icon-btn
 ) {
   transition:
-    color 240ms ease,
-    background-color 240ms ease,
-    border-color 240ms ease !important;
+    color 320ms ease-in-out,
+    background-color 320ms ease-in-out,
+    border-color 320ms ease-in-out !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-hsl-slider::-webkit-slider-thumb {
   transition:
-    background-color 240ms ease,
-    border-color 240ms ease !important;
+    background-color 320ms ease-in-out,
+    border-color 320ms ease-in-out !important;
 }

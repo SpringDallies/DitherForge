@@ -115,9 +115,10 @@ export function getStoredSettings(): DitherForgeSettings {
         const defaultUpdateMode = parsed.defaultUpdateMode === 'live' || parsed.defaultUpdateMode === 'debounce'
           ? parsed.defaultUpdateMode
           : DEFAULT_SETTINGS.defaultUpdateMode;
+        const defaultLogoMode: LogoMode = parsed.uiSkin === 'terminal' ? 'none' : DEFAULT_SETTINGS.logoMode;
         const logoMode = parsed.logoMode === '2d' || parsed.logoMode === '3d' || parsed.logoMode === 'none'
           ? parsed.logoMode
-          : DEFAULT_SETTINGS.logoMode;
+          : defaultLogoMode;
         return { ...DEFAULT_SETTINGS, ...parsed, defaultUpdateMode, logoMode };
       }
       // Migrate to v3 logo defaults (2D default) while preserving user's non-logo preferences
@@ -146,6 +147,16 @@ export function getStoredSettings(): DitherForgeSettings {
     }
   } catch {}
   return DEFAULT_SETTINGS;
+}
+
+export function withUiSkinDefaults(prev: DitherForgeSettings, nextSkin: string): DitherForgeSettings {
+  const logoMode: LogoMode =
+    nextSkin === 'terminal'
+      ? 'none'
+      : prev.uiSkin === 'terminal' && prev.logoMode === 'none'
+      ? '2d'
+      : prev.logoMode;
+  return { ...prev, uiSkin: nextSkin, logoMode };
 }
 
 export function saveStoredSettings(settings: DitherForgeSettings): void {
@@ -521,7 +532,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               <Dropdown
                 width={176}
                 value={settings.uiSkin ?? 'default'}
-                onChange={(val) => updateSetting('uiSkin', val)}
+                onChange={(val) => {
+                  const next = withUiSkinDefaults(settings, val);
+                  setSettings(next);
+                  saveStoredSettings(next);
+                }}
                 items={UI_SKINS}
               />
             </div>

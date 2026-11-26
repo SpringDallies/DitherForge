@@ -4,7 +4,7 @@ import { useAppStore } from '../state/useAppStore';
 import { ExportModal } from './dialogs/ExportModal';
 import { BatchProcessingModal } from './dialogs/BatchProcessingModal';
 import { SaveProjectModal } from './dialogs/SaveProjectModal';
-import { UI_SKINS, getStoredSettings, saveStoredSettings } from './dialogs/SettingsDialog';
+import { UI_SKINS, getStoredSettings, saveStoredSettings, withUiSkinDefaults } from './dialogs/SettingsDialog';
 import { Tooltip } from './common/Tooltip';
 // @ts-ignore
 import { copyCanvasToClipboard } from '../dither-engine/exporters.js';
@@ -501,7 +501,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                               type="button"
                               className={`dropdown-menu-item ${activeSkin === skin.id ? 'selected' : ''}`}
                               onClick={() => {
-                                const next = { ...getStoredSettings(), uiSkin: skin.id };
+                                const next = withUiSkinDefaults(getStoredSettings(), skin.id);
                                 saveStoredSettings(next);
                                 setActiveSkin(skin.id);
                                 setActiveMenu(null);

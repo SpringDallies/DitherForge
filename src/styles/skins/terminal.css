@@ -758,7 +758,13 @@
 }
 
 :root[data-ui-skin="terminal"] [data-df-section="brand"] {
-  display: none !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0 0 8px 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 /* --------------------------------------------------------------------------

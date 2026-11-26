@@ -1,4 +1,5 @@
 import { Logo } from '../common/Logo';
+import { AnvilLogo3D } from '../common/AnvilLogo3D';
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
@@ -1737,7 +1738,11 @@ export const RightSidebar: React.FC = () => {
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block" data-df-section="top-actions">
           <div className="sidebar-brand" data-df-section="brand">
-            <Logo variant="mark" size={280} />
+            {uiSkin === 'terminal' ? (
+              <AnvilLogo3D size={168} interactive={true} sharpness="pixelated" />
+            ) : (
+              <Logo variant="mark" size={280} />
+            )}
           </div>
           <input
             type="file"

@@ -972,7 +972,7 @@ dependencies = [
 
 [[package]]
 name = "ditherforge"
-version = "1.0.0"
+version = "2.3.3"
 dependencies = [
  "base64 0.22.1",
  "image",

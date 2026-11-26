@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../dither-engine/algorithms.js';
 import { X, Search, BookOpen } from 'lucide-react';
+import { TerminalWindow } from './common/TerminalWindow';
+import { getStoredSettings } from './dialogs/SettingsDialog';
 
 interface AlgorithmReferenceModalProps {
   isOpen: boolean;
@@ -33,23 +35,11 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
     a.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Render fixed overlay via portal into document.body to escape ancestor transforms & flex flow
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-dialog" data-df-modal="algorithm-reference" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={16} style={{ color: 'var(--text-dim)' }} />
-            <span style={{ fontWeight: 600 }}>
-              Algorithm Reference Manual ({ALGORITHM_REGISTRY.length} Models{searchTerm.trim() ? ` · ${filtered.length} matching` : ''})
-            </span>
-          </div>
-          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
+  const isTerminal = (getStoredSettings().uiSkin || 'default') === 'terminal';
 
-        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '8px' }}>
+  const algoContent = (
+    <>
+        <div style={{ padding: isTerminal ? '0 0 10px' : '10px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '8px' }}>
           <div style={{ position: 'relative', flex: 1 }}>
             <Search size={14} style={{ position: 'absolute', left: '10px', top: '9px', color: 'var(--text-muted)' }} />
             <input 
@@ -114,6 +104,41 @@ export const AlgorithmReferenceModal: React.FC<AlgorithmReferenceModalProps> = (
             </div>
           )}
         </div>
+    </>
+  );
+
+  if (isTerminal) {
+    return (
+      <TerminalWindow
+        title={`Algorithms.exe (${ALGORITHM_REGISTRY.length})`}
+        isOpen={isOpen}
+        onClose={onClose}
+        defaultSize={{ w: 580, h: 480 }}
+        minSize={{ w: 380, h: 280 }}
+        className="df-tw-scroll"
+        dataModal="algorithm-reference"
+      >
+        {algoContent}
+      </TerminalWindow>
+    );
+  }
+
+  // Render fixed overlay via portal into document.body to escape ancestor transforms & flex flow
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-dialog" data-df-modal="algorithm-reference" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BookOpen size={16} style={{ color: 'var(--text-dim)' }} />
+            <span style={{ fontWeight: 600 }}>
+              Algorithm Reference Manual ({ALGORITHM_REGISTRY.length} Models{searchTerm.trim() ? ` · ${filtered.length} matching` : ''})
+            </span>
+          </div>
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        {algoContent}
       </div>
     </div>,
     document.body

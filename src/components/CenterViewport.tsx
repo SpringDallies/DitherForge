@@ -8,6 +8,7 @@ import {
   getDynamicStyleAnimatableProps
 } from '../state/useAppStore';
 import { Dropdown } from './common/Dropdown';
+import { TerminalWindow } from './common/TerminalWindow';
 import { LoadingScreen } from './common/LoadingScreen';
 import { getStoredSettings, DitherForgeSettings } from './dialogs/SettingsDialog';
 import { downsampleAreaGamma } from '../utils/areaDownsample';
@@ -2721,7 +2722,59 @@ export const CenterViewport: React.FC = () => {
       </div>
 
       {/* 2. Create Animation Popup — Shown FIRST on switching to Animation mode BEFORE the timeline appears */}
-      {appMode === 'animation' && isCreateAnimationPopupOpen &&
+      {appMode === 'animation' && isCreateAnimationPopupOpen && uiSkin === 'terminal' && (
+        <TerminalWindow
+          title={hasConfiguredAnimation ? 'Animation.exe' : 'Create_Animation.exe'}
+          isOpen={isCreateAnimationPopupOpen}
+          onClose={() => {
+            setIsCreateAnimationPopupOpen(false);
+            if (!hasConfiguredAnimation) {
+              setAppMode('still');
+            }
+          }}
+          defaultSize={{ w: 340, h: 190 }}
+          minSize={{ w: 280, h: 168 }}
+          className="df-tw-scroll"
+          dataModal="create-animation"
+        >
+          <div className="df-create-anim-body" style={{ padding: 0 }}>
+            <div className="df-create-anim-top-row">
+              <div className="df-create-anim-field">
+                <span className="df-create-anim-label">FPS</span>
+                <input
+                  type="text"
+                  className="df-create-anim-pill-input"
+                  value={popupFpsInput}
+                  onChange={(e) => setPopupFpsInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleConfirmCreateAnimation();
+                  }}
+                />
+              </div>
+              <div className="df-create-anim-field">
+                <span className="df-create-anim-label">Duration</span>
+                <input
+                  type="text"
+                  className="df-create-anim-pill-input"
+                  value={popupDurationInput}
+                  onChange={(e) => setPopupDurationInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleConfirmCreateAnimation();
+                  }}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              className="df-create-anim-submit-btn"
+              onClick={handleConfirmCreateAnimation}
+            >
+              {hasConfiguredAnimation ? 'Apply' : 'Create'}
+            </button>
+          </div>
+        </TerminalWindow>
+      )}
+      {appMode === 'animation' && isCreateAnimationPopupOpen && uiSkin !== 'terminal' &&
         createPortal(
           <div
             className="df-create-anim-backdrop"
@@ -2737,24 +2790,6 @@ export const CenterViewport: React.FC = () => {
               data-df-modal="create-animation"
               onClick={(e) => e.stopPropagation()}
             >
-              {uiSkin === 'terminal' && (
-                <div className="df-create-anim-header">
-                  <span>{hasConfiguredAnimation ? 'Animation Settings' : 'Create Animation'}</span>
-                  <button
-                    type="button"
-                    className="tool-icon-btn"
-                    aria-label="Close"
-                    onClick={() => {
-                      setIsCreateAnimationPopupOpen(false);
-                      if (!hasConfiguredAnimation) {
-                        setAppMode('still');
-                      }
-                    }}
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-              )}
               <div className="df-create-anim-body">
                 <div className="df-create-anim-top-row">
                   <div className="df-create-anim-field">
@@ -2787,7 +2822,7 @@ export const CenterViewport: React.FC = () => {
                   className="df-create-anim-submit-btn"
                   onClick={handleConfirmCreateAnimation}
                 >
-                  {uiSkin === 'terminal' && hasConfiguredAnimation ? 'Apply' : 'Create'}
+                  Create
                 </button>
               </div>
             </div>

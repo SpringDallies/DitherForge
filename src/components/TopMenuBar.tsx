@@ -97,7 +97,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
   }, []);
 
   useEffect(() => {
-    const openExport = () => setIsExportOpen(true);
+    const openExport = () => setIsExportOpen(!useAppStore.getState().isExportOpen);
     window.addEventListener('ditherforge_open_export', openExport);
     return () => window.removeEventListener('ditherforge_open_export', openExport);
   }, []);
@@ -242,7 +242,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
         if (e.key.toLowerCase() === 'o') { e.preventDefault(); handleOpenFileDialog(); return; }
         if (e.key.toLowerCase() === 's') { e.preventDefault(); setIsSaveProjectOpen(true); return; }
         if (e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) { e.preventDefault(); handleCopyClipboard(); return; }
-        if (e.key.toLowerCase() === 'e') { e.preventDefault(); setIsExportOpen(true); return; }
+        if (e.key.toLowerCase() === 'e') { e.preventDefault(); setIsExportOpen(!useAppStore.getState().isExportOpen); return; }
         if (e.key === '=' || e.key === '+') { e.preventDefault(); handleZoomIn(); return; }
         if (e.key === '-') { e.preventDefault(); handleZoomOut(); return; }
       }
@@ -355,7 +355,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({ onOpenSettings }) => {
                 <button className="dropdown-menu-item" onClick={() => { handleCopyClipboard(); setActiveMenu(null); }}>
                   <Copy size={13} /><span>Copy Result to Clipboard</span><span className="menu-shortcut">Ctrl+C</span>
                 </button>
-                <button className="dropdown-menu-item" onClick={() => { setIsExportOpen(true); setActiveMenu(null); }}>
+                <button className="dropdown-menu-item" onClick={() => { setIsExportOpen(!useAppStore.getState().isExportOpen); setActiveMenu(null); }}>
                   <Download size={13} /><span>Export…</span><span className="menu-shortcut">Ctrl+E</span>
                 </button>
                 <button className="dropdown-menu-item" onClick={() => { setIsBatchOpen(true); setActiveMenu(null); }}>

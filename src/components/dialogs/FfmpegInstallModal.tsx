@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CheckCircle, Video, Terminal, Download, Copy, Check, RefreshCw } from 'lucide-react';
 import { ffmpegService, FfmpegStatus } from '../../services/ffmpegService';
+import { TerminalWindow } from '../common/TerminalWindow';
+import { getStoredSettings } from './SettingsDialog';
 
 interface FfmpegInstallModalProps {
   isOpen: boolean;
@@ -89,32 +91,12 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
     ? 'WINGET'
     : 'LINUX';
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal-dialog ffmpeg-modal"
-        data-df-modal="ffmpeg-install"
-        style={{ maxWidth: '520px', width: '92%' }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ffmpeg-modal-title"
-      >
-        {/* Header */}
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Video size={16} style={{ color: 'var(--text-dim)' }} />
-            <span id="ffmpeg-modal-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-              Native Video Engine (FFmpeg)
-            </span>
-          </div>
-          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
+  const isTerminal = (getStoredSettings().uiSkin || 'default') === 'terminal';
 
+  const ffmpegContent = (
+    <>
         {/* Content Body */}
-        <div className="modal-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="modal-body" style={{ padding: isTerminal ? '0' : '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {status === null && isChecking ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 20px', gap: '12px' }}>
               <RefreshCw size={22} className="spin" style={{ color: 'var(--text-muted)' }} />
@@ -370,12 +352,13 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
         <div
           className="modal-footer"
           style={{
-            padding: '12px 20px',
+            padding: isTerminal ? '12px 0 0' : '12px 20px',
             borderTop: '1px solid var(--border-color)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            background: 'var(--bg-tertiary)'
+            background: isTerminal ? 'transparent' : 'var(--bg-tertiary)',
+            marginTop: isTerminal ? '12px' : undefined
           }}
         >
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -390,6 +373,50 @@ export const FfmpegInstallModal: React.FC<FfmpegInstallModalProps> = ({
             {isInstalled ? 'Done' : 'Continue with Browser Fallback'}
           </button>
         </div>
+    </>
+  );
+
+  if (isTerminal) {
+    return (
+      <TerminalWindow
+        title="FFmpeg.exe"
+        isOpen={isOpen}
+        onClose={onClose}
+        defaultSize={{ w: 500, h: 360 }}
+        minSize={{ w: 360, h: 240 }}
+        className="df-tw-scroll"
+        dataModal="ffmpeg-install"
+        ariaLabelledBy="ffmpeg-modal-title"
+      >
+        {ffmpegContent}
+      </TerminalWindow>
+    );
+  }
+
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal-dialog ffmpeg-modal"
+        data-df-modal="ffmpeg-install"
+        style={{ maxWidth: '520px', width: '92%' }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ffmpeg-modal-title"
+      >
+        {/* Header */}
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Video size={16} style={{ color: 'var(--text-dim)' }} />
+            <span id="ffmpeg-modal-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+              Native Video Engine (FFmpeg)
+            </span>
+          </div>
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        {ffmpegContent}
       </div>
     </div>,
     document.body

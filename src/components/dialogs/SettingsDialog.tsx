@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Settings } from 'lucide-react';
 import { Dropdown } from '../common/Dropdown';
+import { TerminalWindow } from '../common/TerminalWindow';
 import { useAppStore } from '../../state/useAppStore';
 import { EngineBridge } from '../../services/EngineBridge';
 import { invoke } from '@tauri-apps/api/core';
@@ -260,31 +261,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
     }
   };
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div 
-        className="modal-dialog settings-dialog" 
-        data-df-modal="settings"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-dialog-title"
-      >
-        {/* Header */}
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Settings size={16} style={{ color: 'var(--text-dim)' }} />
-            <span id="settings-dialog-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-              Settings
-            </span>
-          </div>
-          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
+  const isTerminal = (settings.uiSkin ?? 'default') === 'terminal';
 
+  const settingsContent = (
+    <>
         {/* Body */}
-        <div className="modal-body" style={{ padding: '20px' }}>
+        <div className="modal-body" style={{ padding: isTerminal ? '0' : '20px' }}>
           {/* Section: GENERAL */}
           <div className="settings-section">
             <div className="settings-section-title">GENERAL</div>
@@ -1082,7 +1064,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)', gap: '10px' }}>
+        <div className="modal-footer" style={{ padding: isTerminal ? '12px 0 0' : '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: isTerminal ? 'transparent' : 'var(--bg-tertiary)', gap: '10px', marginTop: isTerminal ? '12px' : undefined }}>
           <button type="button" className="btn-subtle" onClick={() => setShowDevLogs(true)}>
             View Logs
           </button>
@@ -1094,6 +1076,116 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             Reset to Default
           </button>
         </div>
+    </>
+  );
+
+  const devLogsContent = (
+    <>
+            <div
+              className="modal-body"
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: isTerminal ? '0' : '16px 20px',
+                backgroundColor: isTerminal ? 'transparent' : 'var(--bg-secondary)',
+              }}
+            >
+              {/* Category filter chips */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                {availableCategories.map((cat) => (
+                  <button key={cat} type="button" onClick={() => toggleLogCategory(cat)} style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', border: `1px solid ${logFilter[cat] !== false ? 'var(--border-focus)' : 'var(--border-color)'}`, backgroundColor: logFilter[cat] !== false ? 'var(--bg-hover)' : 'transparent', color: logFilter[cat] !== false ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer' }}>{cat}</button>
+                ))}
+                <button type="button" onClick={() => { const allOn = Object.values(logFilter).every((v) => v !== false); setLogFilter(Object.fromEntries(Object.keys(logFilter).map((k) => [k, !allOn]))); }} style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>Toggle All</button>
+              </div>
+
+              {filteredLogs.length === 0 ? (
+                <span className="dev-log-empty">No logs match current filters</span>
+              ) : (
+                filteredLogs.map((entry, i) => (
+                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`} style={{ marginBottom: '2px', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                    <span className="dev-log-time" style={{ flexShrink: 0 }}>{entry.time}</span>
+                    <span className={`dev-log-level dev-log-level-${entry.level}`} style={{ flexShrink: 0, width: '52px' }}>{entry.level.toUpperCase()}</span>
+                    <span style={{ flexShrink: 0, fontSize: '0.65rem', color: 'var(--text-muted)', backgroundColor: 'color-mix(in srgb, var(--text-dim) 15%, transparent)', padding: '1px 6px', borderRadius: '3px', marginTop: '1px' }}>{entry.category}</span>
+                    <span className="dev-log-msg" style={{ flex: 1 }}>{entry.msg}</span>
+                    {entry.durationMs !== undefined && <span style={{ flexShrink: 0, fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '6px', whiteSpace: 'nowrap' }}>{entry.durationMs.toFixed(1)}ms</span>}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="modal-footer" style={{ padding: isTerminal ? '12px 0 0' : '12px 20px', borderTop: '1px solid var(--border-color)', background: isTerminal ? 'transparent' : 'var(--bg-tertiary)', display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: isTerminal ? '12px' : undefined }}>
+              <button
+                type="button"
+                className="btn-subtle"
+                onClick={() => {
+                  const text = filteredLogs.map((e) => `[${e.time}] [${e.category}] ${e.level.toUpperCase()}: ${e.msg}`).join('\n');
+                  navigator.clipboard.writeText(text);
+                }}
+              >
+                Copy all
+              </button>
+              <button type="button" className="btn-subtle" onClick={clearDevLogs}>
+                Clear
+              </button>
+            </div>
+    </>
+  );
+
+  if (isTerminal) {
+    return (
+      <>
+        <TerminalWindow
+          title="Settings.exe"
+          isOpen={isOpen}
+          onClose={onClose}
+          defaultSize={{ w: 540, h: 520 }}
+          minSize={{ w: 380, h: 300 }}
+          className="df-tw-scroll"
+          dataModal="settings"
+          ariaLabelledBy="settings-dialog-title"
+        >
+          {settingsContent}
+        </TerminalWindow>
+        {showDevLogs && (
+          <TerminalWindow
+            title="Logs.exe"
+            isOpen={showDevLogs}
+            onClose={() => setShowDevLogs(false)}
+            defaultSize={{ w: 560, h: 460 }}
+            minSize={{ w: 360, h: 260 }}
+            className="df-tw-scroll"
+            dataModal="dev-logs"
+            ariaLabelledBy="dev-logs-title"
+          >
+            {devLogsContent}
+          </TerminalWindow>
+        )}
+      </>
+    );
+  }
+
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div 
+        className="modal-dialog settings-dialog" 
+        data-df-modal="settings"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-dialog-title"
+      >
+        {/* Header */}
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Settings size={16} style={{ color: 'var(--text-dim)' }} />
+            <span id="settings-dialog-title" style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+              Settings
+            </span>
+          </div>
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        {settingsContent}
       </div>
 
       {/* Developer logs popup */}
@@ -1131,52 +1223,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 <X size={16} />
               </button>
             </div>
-            <div
-              className="modal-body"
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: '16px 20px',
-                backgroundColor: 'var(--bg-secondary)',
-              }}
-            >
-              {/* Category filter chips */}
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
-                {availableCategories.map((cat) => (
-                  <button key={cat} type="button" onClick={() => toggleLogCategory(cat)} style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', border: `1px solid ${logFilter[cat] !== false ? 'var(--border-focus)' : 'var(--border-color)'}`, backgroundColor: logFilter[cat] !== false ? 'var(--bg-hover)' : 'transparent', color: logFilter[cat] !== false ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer' }}>{cat}</button>
-                ))}
-                <button type="button" onClick={() => { const allOn = Object.values(logFilter).every((v) => v !== false); setLogFilter(Object.fromEntries(Object.keys(logFilter).map((k) => [k, !allOn]))); }} style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>Toggle All</button>
-              </div>
-
-              {filteredLogs.length === 0 ? (
-                <span className="dev-log-empty">No logs match current filters</span>
-              ) : (
-                filteredLogs.map((entry, i) => (
-                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`} style={{ marginBottom: '2px', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                    <span className="dev-log-time" style={{ flexShrink: 0 }}>{entry.time}</span>
-                    <span className={`dev-log-level dev-log-level-${entry.level}`} style={{ flexShrink: 0, width: '52px' }}>{entry.level.toUpperCase()}</span>
-                    <span style={{ flexShrink: 0, fontSize: '0.65rem', color: 'var(--text-muted)', backgroundColor: 'color-mix(in srgb, var(--text-dim) 15%, transparent)', padding: '1px 6px', borderRadius: '3px', marginTop: '1px' }}>{entry.category}</span>
-                    <span className="dev-log-msg" style={{ flex: 1 }}>{entry.msg}</span>
-                    {entry.durationMs !== undefined && <span style={{ flexShrink: 0, fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '6px', whiteSpace: 'nowrap' }}>{entry.durationMs.toFixed(1)}ms</span>}
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-              <button
-                type="button"
-                className="btn-subtle"
-                onClick={() => {
-                  const text = filteredLogs.map((e) => `[${e.time}] [${e.category}] ${e.level.toUpperCase()}: ${e.msg}`).join('\n');
-                  navigator.clipboard.writeText(text);
-                }}
-              >
-                Copy all
-              </button>
-              <button type="button" className="btn-subtle" onClick={clearDevLogs}>
-                Clear
-              </button>
-            </div>
+            {devLogsContent}
           </div>
         </div>
       )}

@@ -8,6 +8,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../../state/useAppStore';
 import { exportProjectFile } from '../../utils/projectPersistence';
+import { TerminalWindow } from '../common/TerminalWindow';
+import { getStoredSettings } from './SettingsDialog';
 import { Save, X } from 'lucide-react';
 
 interface SaveProjectModalProps {
@@ -67,39 +69,12 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
 
   if (!isOpen) return null;
 
-  return createPortal(
-    <div
-      className="modal-backdrop"
-      style={{
-        background: 'rgba(0, 0, 0, 0.70)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)'
-      }}
-      onClick={onClose}
-    >
-      <div
-        className="modal-dialog save-project-dialog"
-        data-df-modal="save-project"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="save-project-title"
-      >
-        {/* Modal Header */}
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Save size={16} style={{ color: 'var(--accent-primary)' }} />
-            <span id="save-project-title" style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--text-main)' }}>
-              Save Project
-            </span>
-          </div>
-          <button className="tool-icon-btn" onClick={onClose} aria-label="Close dialog">
-            <X size={16} />
-          </button>
-        </div>
+  const isTerminal = (getStoredSettings().uiSkin || 'default') === 'terminal';
 
+  const saveContent = (
+    <>
         {/* Modal Body */}
-        <div className="modal-body" style={{ padding: '18px 20px' }}>
+        <div className="modal-body" style={{ padding: isTerminal ? '0' : '18px 20px' }}>
           <label
             htmlFor="save-project-name-input"
             style={{
@@ -149,12 +124,13 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
         <div
           className="modal-footer"
           style={{
-            padding: '12px 20px',
+            padding: isTerminal ? '12px 0 0' : '12px 20px',
             borderTop: '1px solid var(--border-color)',
-            background: 'var(--bg-secondary)',
+            background: isTerminal ? 'transparent' : 'var(--bg-secondary)',
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: '8px'
+            gap: '8px',
+            marginTop: isTerminal ? '12px' : undefined
           }}
         >
           <button
@@ -175,6 +151,57 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
             <span>Save Project</span>
           </button>
         </div>
+    </>
+  );
+
+  if (isTerminal) {
+    return (
+      <TerminalWindow
+        title="Save.exe"
+        isOpen={isOpen}
+        onClose={onClose}
+        defaultSize={{ w: 410, h: 230 }}
+        minSize={{ w: 320, h: 190 }}
+        className="df-tw-scroll"
+        dataModal="save-project"
+        ariaLabelledBy="save-project-title"
+      >
+        {saveContent}
+      </TerminalWindow>
+    );
+  }
+
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      style={{
+        background: 'rgba(0, 0, 0, 0.70)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)'
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="modal-dialog save-project-dialog"
+        data-df-modal="save-project"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-project-title"
+      >
+        {/* Modal Header */}
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Save size={16} style={{ color: 'var(--accent-primary)' }} />
+            <span id="save-project-title" style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+              Save Project
+            </span>
+          </div>
+          <button className="tool-icon-btn" onClick={onClose} aria-label="Close dialog">
+            <X size={16} />
+          </button>
+        </div>
+        {saveContent}
       </div>
     </div>,
     document.body

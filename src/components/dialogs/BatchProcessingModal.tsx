@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '../../state/useAppStore';
 import { runBatchProcessing } from '../../utils/batchProcessing';
 import { Dropdown } from '../common/Dropdown';
+import { TerminalWindow } from '../common/TerminalWindow';
 import { getStoredSettings } from './SettingsDialog';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
@@ -168,52 +169,12 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
     ? storeState.effects.filter((e: any) => e.enabled).length
     : 0;
 
-  return createPortal(
-    <div
-      className="modal-backdrop"
-      style={{
-        background: 'rgba(0, 0, 0, 0.70)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)'
-      }}
-      onClick={() => {
-        if (!isProcessing) onClose();
-      }}
-    >
-      <div
-        className="modal-dialog batch-dialog"
-        data-df-modal="batch"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="batch-dialog-title"
-      >
-        {/* Modal Header */}
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Layers size={18} style={{ color: 'var(--accent-primary)' }} />
-            <div>
-              <div id="batch-dialog-title" style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-main)' }}>
-                {uiSkin === 'terminal' ? 'Batch' : 'Batch Image Processing'}
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Process multiple images simultaneously using your active settings
-              </div>
-            </div>
-          </div>
-          <button
-            className="tool-icon-btn"
-            onClick={onClose}
-            disabled={isProcessing}
-            aria-label="Close"
-            style={{ opacity: isProcessing ? 0.4 : 1 }}
-          >
-            <X size={16} />
-          </button>
-        </div>
+  const isTerminal = uiSkin === 'terminal';
 
+  const batchContent = (
+    <>
         {/* Modal Body */}
-        <div className="modal-body" style={{ padding: '16px 20px' }}>
+        <div className="modal-body" style={{ padding: isTerminal ? '0' : '16px 20px' }}>
           {/* Active Settings Context Banner */}
           <div className="batch-info-banner">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
@@ -491,12 +452,78 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
               >
                 <Download size={14} />
                 <span>
-                  {uiSkin === 'terminal' ? `Export ZIP (${files.length})` : `Process & Download ZIP (${files.length})`}
+                  {isTerminal ? `Export ZIP (${files.length})` : `Process & Download ZIP (${files.length})`}
                 </span>
               </button>
             </>
           )}
         </div>
+    </>
+  );
+
+  if (isTerminal) {
+    return (
+      <TerminalWindow
+        title="Batch.exe"
+        isOpen={isOpen}
+        onClose={() => {
+          if (!isProcessing) onClose();
+        }}
+        defaultSize={{ w: 430, h: 360 }}
+        minSize={{ w: 320, h: 240 }}
+        className="df-tw-scroll"
+        dataModal="batch"
+        ariaLabelledBy="batch-dialog-title"
+      >
+        {batchContent}
+      </TerminalWindow>
+    );
+  }
+
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      style={{
+        background: 'rgba(0, 0, 0, 0.70)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)'
+      }}
+      onClick={() => {
+        if (!isProcessing) onClose();
+      }}
+    >
+      <div
+        className="modal-dialog batch-dialog"
+        data-df-modal="batch"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="batch-dialog-title"
+      >
+        {/* Modal Header */}
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Layers size={18} style={{ color: 'var(--accent-primary)' }} />
+            <div>
+              <div id="batch-dialog-title" style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                Batch Image Processing
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Process multiple images simultaneously using your active settings
+              </div>
+            </div>
+          </div>
+          <button
+            className="tool-icon-btn"
+            onClick={onClose}
+            disabled={isProcessing}
+            aria-label="Close"
+            style={{ opacity: isProcessing ? 0.4 : 1 }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+        {batchContent}
       </div>
     </div>,
     document.body

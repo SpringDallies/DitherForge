@@ -1751,7 +1751,7 @@ export const RightSidebar: React.FC = () => {
         <div className="top-action-block" data-df-section="top-actions">
           {logoMode !== 'none' && (
             <div className="sidebar-brand" data-df-section="brand">
-              {uiSkin === 'terminal' ? (
+              {uiSkin === 'terminal' && logoMode === '3d' ? (
                 <AnvilLogo3D size={256} interactive={true} trackGlobalPointer={false} sharpness="pixelated" />
               ) : (
                 <Logo variant="mark" size={280} />

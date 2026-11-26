@@ -1337,7 +1337,7 @@
     transparent 100%
   ) !important;
   box-shadow: none !important;
-  filter: none !important;
+  filter: brightness(1);
   overflow: hidden;
 }
 
@@ -1355,17 +1355,6 @@
     transparent 100%
   );
   filter: none !important;
-}
-
-:root[data-ui-skin="terminal"] .control-slider:hover::-webkit-slider-runnable-track,
-:root[data-ui-skin="terminal"] .control-slider:active::-webkit-slider-runnable-track {
-  background-image: linear-gradient(
-    to right,
-    var(--tm-slider-fill-hover-start) 0%,
-    var(--tm-slider-fill-hover-end) var(--slider-fill, 0%),
-    transparent var(--slider-fill, 0%),
-    transparent 100%
-  );
 }
 
 :root[data-ui-skin="terminal"] .control-slider::-moz-range-track {
@@ -1638,17 +1627,6 @@
     to right,
     var(--tm-slider-fill-start) 0%,
     var(--tm-slider-fill-end) var(--slider-fill, 0%),
-    transparent var(--slider-fill, 0%),
-    transparent 100%
-  ) !important;
-}
-
-:root[data-ui-skin="terminal"] .replica-depth-slider:hover::-webkit-slider-runnable-track,
-:root[data-ui-skin="terminal"] .replica-depth-slider:active::-webkit-slider-runnable-track {
-  background-image: linear-gradient(
-    to right,
-    var(--tm-slider-fill-hover-start) 0%,
-    var(--tm-slider-fill-hover-end) var(--slider-fill, 0%),
     transparent var(--slider-fill, 0%),
     transparent 100%
   ) !important;
@@ -2329,7 +2307,6 @@
   padding: 7px 14px !important;
   box-shadow: none !important;
   transform: none !important;
-  transition: none !important;
 }
 
 :root[data-ui-skin="terminal"] .viewport-dropzone-btn:hover,
@@ -2835,4 +2812,84 @@
   color: var(--tm-text) !important;
   box-shadow: 0 4px 12px var(--tm-shadow) !important;
   font-size: 12.5px;
+}
+
+/* --------------------------------------------------------------------------
+   14. Smooth Hover & Focus Highlight Transitions
+   -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .control-slider,
+:root[data-ui-skin="terminal"] .replica-depth-slider {
+  filter: brightness(1);
+}
+
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider,
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider {
+  transition:
+    filter 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 160ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider:hover,
+:root[data-ui-skin="terminal"] .control-slider:active,
+:root[data-ui-skin="terminal"] .replica-depth-slider:hover,
+:root[data-ui-skin="terminal"] .replica-depth-slider:active {
+  filter: brightness(1.1);
+  border-color: var(--tm-border-hover) !important;
+}
+
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) :is(
+  [data-df-control="primary-action-pill"],
+  .unified-pill-btn,
+  .switch-btn,
+  .picker-box-with-steppers,
+  .replica-picker-box,
+  .custom-dropdown-trigger,
+  .algo-listbox-trigger,
+  .dropdown-menu-item,
+  .custom-dropdown-item,
+  .algo-listbox-item,
+  .palette-option-row,
+  .palette-option-label,
+  .section-title-text,
+  .presets-header-title,
+  .effects-category-title,
+  .toggle-square,
+  .palette-options-checkbox,
+  .replica-effect-checkbox,
+  .replica-btn-2,
+  .replica-btn-3,
+  .replica-action-btn,
+  .replica-pill-btn,
+  .action-pill-btn,
+  .replica-swatch-add-btn,
+  .replica-preset-create-btn,
+  .preset-popup-btn,
+  .btn-default,
+  .btn-primary,
+  .btn-subtle,
+  .action-btn,
+  .export-tab-btn,
+  .export-option-btn,
+  .viewport-dropzone-btn,
+  .df-app-context-item,
+  .df-transport-btn,
+  .df-speed-btn,
+  .df-playback-plus-btn,
+  .df-speed-popover-item,
+  .df-context-menu-item,
+  .df-track-bar,
+  .df-track-handle-grip,
+  .df-editor-header-btn,
+  .card-action-icon-btn
+) {
+  transition:
+    color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 150ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-hsl-slider::-webkit-slider-thumb {
+  transition:
+    background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 150ms cubic-bezier(0.22, 1, 0.36, 1) !important;
 }

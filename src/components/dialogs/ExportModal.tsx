@@ -827,11 +827,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                       value={String(resolutionScale)}
                       onChange={(val) => setResolutionScale(Number(val))}
                       width="100%"
-                      items={[
-                        { id: '1', label: '1x (Original)', hint: 'Native resolution' },
-                        { id: '2', label: '2x (Crisp)', hint: 'Pixel-perfect 2x upscale' },
-                        { id: '4', label: '4x (Ultra HD)', hint: 'Pixel-perfect 4x upscale' }
-                      ]}
+                      items={
+                        uiSkin === 'terminal'
+                          ? [
+                              { id: '1', label: '1x' },
+                              { id: '2', label: '2x' },
+                              { id: '4', label: '4x' }
+                            ]
+                          : [
+                              { id: '1', label: '1x (Original)', hint: 'Native resolution' },
+                              { id: '2', label: '2x (Crisp)', hint: 'Pixel-perfect 2x upscale' },
+                              { id: '4', label: '4x (Ultra HD)', hint: 'Pixel-perfect 4x upscale' }
+                            ]
+                      }
                     />
                   </div>
                 </div>

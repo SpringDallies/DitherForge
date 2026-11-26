@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '../../state/useAppStore';
 import { runBatchProcessing } from '../../utils/batchProcessing';
 import { Dropdown } from '../common/Dropdown';
+import { getStoredSettings } from './SettingsDialog';
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 import { LEGACY_ALGORITHM_REGISTRY } from '../../algorithms/legacy';
@@ -43,6 +44,18 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
   const [format, setFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
   const [quality, setQuality] = useState<number>(0.92);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
+  const [uiSkin, setUiSkin] = useState<string>(() => {
+    try {
+      return getStoredSettings().uiSkin || 'default';
+    } catch {
+      return 'default';
+    }
+  });
+  useEffect(() => {
+    const syncSkin = () => setUiSkin(getStoredSettings().uiSkin || 'default');
+    window.addEventListener('ditherforge_settings_changed', syncSkin);
+    return () => window.removeEventListener('ditherforge_settings_changed', syncSkin);
+  }, []);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progress, setProgress] = useState<{ current: number; total: number; filename: string }>({
@@ -181,7 +194,7 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
             <Layers size={18} style={{ color: 'var(--accent-primary)' }} />
             <div>
               <div id="batch-dialog-title" style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-main)' }}>
-                Batch Image Processing
+                {uiSkin === 'terminal' ? 'Batch' : 'Batch Image Processing'}
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                 Process multiple images simultaneously using your active settings
@@ -238,9 +251,13 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
             }}
             className={`batch-dropzone ${isDragOver ? 'drag-active' : ''} ${isProcessing ? 'disabled' : ''}`}
           >
-            <UploadCloud size={32} className="batch-dropzone-icon" />
-            <div className="batch-dropzone-title">Click or drag &amp; drop images here</div>
-            <div className="batch-dropzone-hint">PNG, JPEG, WebP, GIF supported</div>
+            <UploadCloud size={uiSkin === 'terminal' ? 20 : 32} className="batch-dropzone-icon" />
+            <div className="batch-dropzone-title">
+              {uiSkin === 'terminal' ? 'Drop images or click' : 'Click or drag & drop images here'}
+            </div>
+            {uiSkin !== 'terminal' && (
+              <div className="batch-dropzone-hint">PNG, JPEG, WebP, GIF supported</div>
+            )}
           </div>
 
           {/* Selected Files List */}
@@ -295,34 +312,50 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
           {/* Export Settings Grid */}
           <div className="batch-form-grid">
             <div className="batch-form-group">
-              <label className="batch-form-label">Output Format</label>
+              <label className="batch-form-label">{uiSkin === 'terminal' ? 'Format' : 'Output Format'}</label>
               <Dropdown
                 id="batch-format-dropdown"
                 value={format}
                 onChange={(val) => setFormat(val as 'png' | 'jpeg' | 'webp')}
                 width="100%"
                 disabled={isProcessing}
-                items={[
-                  { id: 'png', label: 'PNG (Lossless)', hint: 'Best fidelity' },
-                  { id: 'jpeg', label: 'JPEG (Compressed)', hint: 'Smaller files' },
-                  { id: 'webp', label: 'WebP (Modern)', hint: 'High efficiency' }
-                ]}
+                items={
+                  uiSkin === 'terminal'
+                    ? [
+                        { id: 'png', label: 'PNG' },
+                        { id: 'jpeg', label: 'JPEG' },
+                        { id: 'webp', label: 'WebP' }
+                      ]
+                    : [
+                        { id: 'png', label: 'PNG (Lossless)', hint: 'Best fidelity' },
+                        { id: 'jpeg', label: 'JPEG (Compressed)', hint: 'Smaller files' },
+                        { id: 'webp', label: 'WebP (Modern)', hint: 'High efficiency' }
+                      ]
+                }
               />
             </div>
 
             <div className="batch-form-group">
-              <label className="batch-form-label">Resolution Scale</label>
+              <label className="batch-form-label">{uiSkin === 'terminal' ? 'Scale' : 'Resolution Scale'}</label>
               <Dropdown
                 id="batch-scale-dropdown"
                 value={String(scale)}
                 onChange={(val) => setScale(Number(val) as 1 | 2 | 4)}
                 width="100%"
                 disabled={isProcessing}
-                items={[
-                  { id: '1', label: '1x (Original Size)' },
-                  { id: '2', label: '2x (High Res)' },
-                  { id: '4', label: '4x (Ultra HD)' }
-                ]}
+                items={
+                  uiSkin === 'terminal'
+                    ? [
+                        { id: '1', label: '1x' },
+                        { id: '2', label: '2x' },
+                        { id: '4', label: '4x' }
+                      ]
+                    : [
+                        { id: '1', label: '1x (Original Size)' },
+                        { id: '2', label: '2x (High Res)' },
+                        { id: '4', label: '4x (Ultra HD)' }
+                      ]
+                }
               />
             </div>
           </div>
@@ -457,7 +490,9 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
                 }}
               >
                 <Download size={14} />
-                <span>Process &amp; Download ZIP ({files.length})</span>
+                <span>
+                  {uiSkin === 'terminal' ? `Export ZIP (${files.length})` : `Process & Download ZIP (${files.length})`}
+                </span>
               </button>
             </>
           )}

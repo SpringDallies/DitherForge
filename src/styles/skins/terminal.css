@@ -2211,7 +2211,11 @@
 :root[data-ui-skin="terminal"] .export-all-options-section {
   background: var(--tm-panel) !important;
   border-bottom: 1px solid var(--tm-border) !important;
-  padding: 12px 18px !important;
+  padding: 8px 14px !important;
+}
+
+:root[data-ui-skin="terminal"] .export-options-grid {
+  gap: 4px !important;
 }
 
 :root[data-ui-skin="terminal"] .export-option-btn {
@@ -2219,7 +2223,7 @@
   border: 1px solid transparent !important;
   background: transparent !important;
   color: var(--tm-text-muted) !important;
-  padding: 6px 8px !important;
+  padding: 4px 6px !important;
 }
 
 :root[data-ui-skin="terminal"] .export-option-btn:hover {
@@ -2234,17 +2238,60 @@
   color: var(--tm-text-bright) !important;
 }
 
+:root[data-ui-skin="terminal"] .modal-dialog:has(.export-modal-body),
+:root[data-ui-skin="terminal"] .batch-dialog {
+  max-width: 480px !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-dialog:has(.export-modal-body) .modal-header,
+:root[data-ui-skin="terminal"] .batch-dialog .modal-header {
+  padding: 9px 14px !important;
+}
+
+:root[data-ui-skin="terminal"] .export-modal-body {
+  padding: 10px 14px !important;
+  gap: 8px !important;
+}
+
+:root[data-ui-skin="terminal"] .export-preview-box {
+  min-height: 110px !important;
+  max-height: 135px !important;
+  padding: 8px !important;
+}
+
+:root[data-ui-skin="terminal"] .export-footer-actions {
+  padding: 8px 14px 10px !important;
+}
+
+:root[data-ui-skin="terminal"] .export-footer-actions .action-btn.primary,
 :root[data-ui-skin="terminal"] .modal-footer .btn-primary,
 :root[data-ui-skin="terminal"] .modal-footer .action-btn.primary {
   background: var(--tm-control) !important;
   border: 1px solid var(--tm-border-hover) !important;
+  border-radius: 4px !important;
   color: var(--tm-text-bright) !important;
+  font-weight: 400 !important;
 }
 
+:root[data-ui-skin="terminal"] .export-footer-actions .action-btn.primary:hover:not(:disabled),
 :root[data-ui-skin="terminal"] .modal-footer .btn-primary:hover:not(:disabled),
 :root[data-ui-skin="terminal"] .modal-footer .action-btn.primary:hover:not(:disabled) {
   background: var(--tm-active) !important;
   border-color: var(--tm-accent) !important;
+}
+
+:root[data-ui-skin="terminal"] .batch-dialog .modal-body {
+  padding: 10px 14px !important;
+  gap: 10px !important;
+}
+
+:root[data-ui-skin="terminal"] .batch-dialog .batch-dropzone {
+  padding: 14px 12px !important;
+  min-height: 76px !important;
+}
+
+:root[data-ui-skin="terminal"] .batch-dialog .modal-header > div > div > div:last-child {
+  display: none !important;
 }
 
 :root[data-ui-skin="terminal"] .batch-dialog .batch-info-banner svg {
@@ -2257,10 +2304,6 @@
 }
 
 :root[data-ui-skin="terminal"] .export-option-sublabel {
-  display: none !important;
-}
-
-:root[data-ui-skin="terminal"] .batch-dialog .modal-header > div > div:last-child {
   display: none !important;
 }
 

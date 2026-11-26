@@ -322,6 +322,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
           <div className="settings-section">
             <div className="settings-section-title">PERFORMANCE</div>
 
+            {!(
+              typeof document !== 'undefined' &&
+              (document.documentElement.getAttribute('data-platform') === 'linux' ||
+                (typeof navigator !== 'undefined' && /linux/i.test(navigator.platform)))
+            ) && (
             <>
               <div className="settings-row">
               <div>
@@ -438,6 +443,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               />
             </div>
             </>
+            )}
 
             <div className="settings-row">
               <div>

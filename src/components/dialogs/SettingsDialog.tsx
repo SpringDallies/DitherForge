@@ -10,7 +10,7 @@ import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
 
 export type LogoSharpness = 'pixelated' | 'crisp' | 'smooth';
 export type LogoDitherStyle = 'bayer4' | 'bayer2' | 'bayer8' | 'halftone' | 'scanline' | 'checker' | 'none';
-export type LogoMode = '3d' | '2d';
+export type LogoMode = '3d' | '2d' | 'none';
 export type LogoCursorReact = 'direct' | 'sidebar' | 'global' | 'off';
 
 export const UI_SKINS = [
@@ -115,7 +115,7 @@ export function getStoredSettings(): DitherForgeSettings {
         const defaultUpdateMode = parsed.defaultUpdateMode === 'live' || parsed.defaultUpdateMode === 'debounce'
           ? parsed.defaultUpdateMode
           : DEFAULT_SETTINGS.defaultUpdateMode;
-        const logoMode = parsed.logoMode === '2d' || parsed.logoMode === '3d'
+        const logoMode = parsed.logoMode === '2d' || parsed.logoMode === '3d' || parsed.logoMode === 'none'
           ? parsed.logoMode
           : DEFAULT_SETTINGS.logoMode;
         return { ...DEFAULT_SETTINGS, ...parsed, defaultUpdateMode, logoMode };
@@ -528,9 +528,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
             <div className="settings-row">
               <div>
-                <div className="settings-label">Logo mode (2D / 3D)</div>
+                <div className="settings-label">Logo mode (2D / 3D / None)</div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                  Switch between the interactive 3D extruded anvil and a flat 2D silhouette logo.
+                  Switch between the interactive 3D extruded anvil, a flat 2D silhouette logo, or no sidebar logo.
                 </div>
               </div>
               <Dropdown
@@ -539,7 +539,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 onChange={(val) => updateSetting('logoMode', val as LogoMode)}
                 items={[
                   { id: '2d', label: '2D Flat Logo' },
-                  { id: '3d', label: '3D Anvil' }
+                  { id: '3d', label: '3D Anvil' },
+                  { id: 'none', label: 'No Logo' }
                 ]}
               />
             </div>

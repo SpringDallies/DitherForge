@@ -6,7 +6,7 @@ import { Tooltip } from '../common/Tooltip';
 import { ColorPicker } from '../common/ColorPicker';
 import { useAppStore } from '../../state/useAppStore';
 import { useLenis } from '../../hooks/useLenis';
-import { areAnimationsEnabled, getStoredSettings, saveStoredSettings, type DitherForgeSettings } from '../dialogs/SettingsDialog';
+import { areAnimationsEnabled, getStoredSettings, saveStoredSettings, type DitherForgeSettings, type LogoMode } from '../dialogs/SettingsDialog';
 // Import frozen registries UNCHANGED
 // @ts-ignore
 import { ALGORITHM_REGISTRY } from '../../dither-engine/algorithms.js';
@@ -879,6 +879,13 @@ export const RightSidebar: React.FC = () => {
       return 'default';
     }
   });
+  const [logoMode, setLogoMode] = useState<LogoMode>(() => {
+    try {
+      return getStoredSettings().logoMode || '2d';
+    } catch {
+      return '2d';
+    }
+  });
   const addToast = useAppStore((state) => state.addToast);
 
   useEffect(() => {
@@ -895,6 +902,11 @@ export const RightSidebar: React.FC = () => {
         setUiSkin(customEvt.detail.uiSkin);
       } else {
         setUiSkin(getStoredSettings().uiSkin || 'default');
+      }
+      if (customEvt.detail?.logoMode) {
+        setLogoMode(customEvt.detail.logoMode);
+      } else {
+        setLogoMode(getStoredSettings().logoMode || '2d');
       }
     };
     window.addEventListener('ditherforge_settings_changed', handleSettingsChanged);
@@ -1737,13 +1749,15 @@ export const RightSidebar: React.FC = () => {
         <div ref={scrollContentRef}>
         {/* TOP ACTION BLOCK */}
         <div className="top-action-block" data-df-section="top-actions">
-          <div className="sidebar-brand" data-df-section="brand">
-            {uiSkin === 'terminal' ? (
-              <AnvilLogo3D size={256} interactive={true} trackGlobalPointer={false} sharpness="pixelated" />
-            ) : (
-              <Logo variant="mark" size={280} />
-            )}
-          </div>
+          {logoMode !== 'none' && (
+            <div className="sidebar-brand" data-df-section="brand">
+              {uiSkin === 'terminal' ? (
+                <AnvilLogo3D size={256} interactive={true} trackGlobalPointer={false} sharpness="pixelated" />
+              ) : (
+                <Logo variant="mark" size={280} />
+              )}
+            </div>
+          )}
           <input
             type="file"
             ref={fileInputRef}

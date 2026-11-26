@@ -86,7 +86,10 @@ const SETTINGS_VERSION = 3;
 
 export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   if (typeof document === 'undefined') return;
-  const isGlass = settings.glassBlur !== false;
+  const isLinux =
+    document.documentElement.getAttribute('data-platform') === 'linux' ||
+    (typeof navigator !== 'undefined' && /linux/i.test(navigator.platform));
+  const isGlass = !isLinux && settings.glassBlur !== false;
   const isTopbarGlass = isGlass && settings.topbarGlass !== false;
   document.documentElement.setAttribute('data-glass-blur', isGlass ? 'true' : 'false');
   document.documentElement.setAttribute('data-topbar-glass', isTopbarGlass ? 'true' : 'false');

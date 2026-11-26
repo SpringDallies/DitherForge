@@ -152,6 +152,14 @@ function mapDitherStyleToInt(style: LogoDitherStyle | undefined): number {
   }
 }
 
+const ANVIL_SVG_POINTS = (() => {
+  const pts: string[] = [];
+  for (let i = 0; i < OUTLINE.length; i += 2) {
+    pts.push(`${OUTLINE[i]},${(-OUTLINE[i + 1]).toFixed(3)}`);
+  }
+  return pts.join(' ');
+})();
+
 export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const activeTheme = useAppStore((state) => state.activeTheme);
@@ -1504,6 +1512,8 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
       ? 'crisp-edges'
       : 'pixelated';
 
+  const [imgFailed, setImgFailed] = useState(false);
+
   if (is2DMode) {
     const isLightTheme = activeTheme === 'light_pro';
     const fallback = isLightTheme
@@ -1538,21 +1548,38 @@ export const Logo: React.FC<LogoProps> = ({ size = 280, className = '' }) => {
           boxSizing: 'border-box'
         }}
       >
-        <img
-          src={themeLogo}
-          alt="DitherForge"
-          draggable={false}
-          style={{
-            width: `${imgWidth}px`,
-            height: 'auto',
-            display: 'block',
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            pointerEvents: 'none',
-            imageRendering: imageRenderingStyle,
-            transform: `translateY(${offsetY}px)`
-          }}
-        />
+        {imgFailed ? (
+          <svg
+            viewBox="-3.1 -1.7 6.2 3.4"
+            aria-label="DitherForge"
+            style={{
+              width: `${Math.round(targetVisibleWidth)}px`,
+              height: 'auto',
+              display: 'block',
+              transform: `translateY(${offsetY}px)`
+            }}
+          >
+            <polygon points={ANVIL_SVG_POINTS} fill="var(--accent-primary, #dedede)" />
+          </svg>
+        ) : (
+          <img
+            key={themeLogo}
+            src={themeLogo}
+            alt="DitherForge"
+            draggable={false}
+            onError={() => setImgFailed(true)}
+            style={{
+              width: `${imgWidth}px`,
+              height: 'auto',
+              display: 'block',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              pointerEvents: 'none',
+              imageRendering: imageRenderingStyle,
+              transform: `translateY(${offsetY}px)`
+            }}
+          />
+        )}
       </div>
     );
   }

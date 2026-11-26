@@ -6725,3 +6725,33 @@ canvas#hqPresentationCanvas {
   line-height: 1.3;
 }
 
+/* ==========================================================================
+   Linux Tauri: Disable glass blur (backdrop-filter corrupts WebKitGTK compositing)
+   ========================================================================== */
+[data-platform="linux"] *,
+[data-platform="linux"] *::before,
+[data-platform="linux"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-platform="linux"] :is(
+  .top-menubar,
+  .right-sidebar,
+  .unified-action-pill,
+  .custom-dropdown-panel,
+  .algo-listbox-panel,
+  .palette-options-card,
+  .df-speed-popover,
+  .dropdown-menu-popover,
+  .dropdown-submenu-popover,
+  .context-menu,
+  .modal-dialog,
+  .df-floating-property-editor,
+  .df-timeline-body-card,
+  .df-playback-pill,
+  .df-toast
+) {
+  background-color: var(--bg-panel, var(--bg-secondary, #242426)) !important;
+}
+

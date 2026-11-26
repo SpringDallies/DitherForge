@@ -1083,6 +1083,7 @@
 :root[data-ui-skin="terminal"] .dropdown-menu-popover,
 :root[data-ui-skin="terminal"] .dropdown-submenu-popover,
 :root[data-ui-skin="terminal"] .df-portaled-themes-menu {
+  min-width: 220px !important;
   border-radius: 5px !important;
   border: 1px solid var(--tm-border-strong) !important;
   background: var(--tm-panel) !important;
@@ -1091,6 +1092,7 @@
   -webkit-backdrop-filter: none !important;
   padding: 4px 0 !important;
   gap: 0 !important;
+  overflow: hidden !important;
 }
 
 :root[data-ui-skin="terminal"] .df-portaled-themes-menu {
@@ -1392,6 +1394,14 @@
   border: none !important;
   box-shadow: none !important;
   cursor: ew-resize;
+  transform: none !important;
+  transition: none !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider::-webkit-slider-thumb:hover,
+:root[data-ui-skin="terminal"] .control-slider::-webkit-slider-thumb:active {
+  transform: none !important;
+  background: transparent !important;
 }
 
 :root[data-ui-skin="terminal"] .control-slider::-moz-range-thumb {
@@ -1402,6 +1412,14 @@
   border: none !important;
   box-shadow: none !important;
   cursor: ew-resize;
+  transform: none !important;
+  transition: none !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider::-moz-range-thumb:hover,
+:root[data-ui-skin="terminal"] .control-slider::-moz-range-thumb:active {
+  transform: none !important;
+  background: transparent !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -2191,29 +2209,46 @@
 
 :root[data-ui-skin="terminal"] .export-tabs,
 :root[data-ui-skin="terminal"] .export-all-options-section {
-  background: var(--tm-surface) !important;
+  background: var(--tm-panel) !important;
   border-bottom: 1px solid var(--tm-border) !important;
   padding: 12px 18px !important;
 }
 
 :root[data-ui-skin="terminal"] .export-option-btn {
-  border-radius: 5px !important;
-  border: 1px solid var(--tm-border-strong) !important;
-  background: var(--tm-panel) !important;
-  color: var(--tm-text) !important;
-  padding: 7px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--tm-text-muted) !important;
+  padding: 6px 8px !important;
 }
 
 :root[data-ui-skin="terminal"] .export-option-btn:hover {
-  border-color: var(--tm-border-hover) !important;
-  background: var(--tm-panel) !important;
+  border-color: var(--tm-border) !important;
+  background: var(--tm-surface) !important;
   color: var(--tm-text-bright) !important;
 }
 
 :root[data-ui-skin="terminal"] .export-option-btn.active {
   background: var(--tm-selected-row) !important;
-  border-color: var(--tm-border-hover) !important;
+  border-color: var(--tm-border-strong) !important;
   color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-footer .btn-primary,
+:root[data-ui-skin="terminal"] .modal-footer .action-btn.primary {
+  background: var(--tm-control) !important;
+  border: 1px solid var(--tm-border-hover) !important;
+  color: var(--tm-text-bright) !important;
+}
+
+:root[data-ui-skin="terminal"] .modal-footer .btn-primary:hover:not(:disabled),
+:root[data-ui-skin="terminal"] .modal-footer .action-btn.primary:hover:not(:disabled) {
+  background: var(--tm-active) !important;
+  border-color: var(--tm-accent) !important;
+}
+
+:root[data-ui-skin="terminal"] .batch-dialog .batch-info-banner svg {
+  display: none !important;
 }
 
 :root[data-ui-skin="terminal"] .export-option-label {
@@ -2222,9 +2257,24 @@
 }
 
 :root[data-ui-skin="terminal"] .export-option-sublabel {
-  font-size: 10.5px !important;
-  color: var(--tm-text-muted) !important;
-  opacity: 1 !important;
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .batch-dialog .modal-header > div > div:last-child {
+  display: none !important;
+}
+
+:root[data-ui-skin="terminal"] .batch-dialog .batch-info-banner {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 0 6px !important;
+  border-bottom: 1px solid var(--tm-border-subtle) !important;
+  border-radius: 0 !important;
+}
+
+:root[data-ui-skin="terminal"] .batch-dialog .custom-dropdown-trigger > span > span:last-child,
+:root[data-ui-skin="terminal"] .export-modal-body .custom-dropdown-trigger > span > span:last-child {
+  opacity: 0.7;
 }
 
 :root[data-ui-skin="terminal"] .export-form-label {
@@ -2903,19 +2953,21 @@
    -------------------------------------------------------------------------- */
 :root[data-ui-skin="terminal"] .control-slider,
 :root[data-ui-skin="terminal"] .replica-depth-slider {
-  filter: brightness(1);
+  filter: none !important;
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0) !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider,
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) .replica-depth-slider {
-  transition: filter 220ms ease-in-out !important;
+  transition: box-shadow 180ms ease-in-out !important;
 }
 
 :root[data-ui-skin="terminal"] .control-slider:hover,
 :root[data-ui-skin="terminal"] .control-slider:active,
 :root[data-ui-skin="terminal"] .replica-depth-slider:hover,
 :root[data-ui-skin="terminal"] .replica-depth-slider:active {
-  filter: brightness(1.16);
+  filter: none !important;
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.08) !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-animations="false"]) :is(

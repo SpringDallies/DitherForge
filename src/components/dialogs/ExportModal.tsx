@@ -922,26 +922,62 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
               <div className="export-preview-container">
                 <div className="export-preview-label">Preview:</div>
-                <div className="export-preview-box">
-                  {hasSourceCanvas ? (
-                    <>
-                      <canvas
-                        ref={previewCanvasRef}
-                        style={{ maxWidth: '100%', maxHeight: '180px', display: 'block', objectFit: 'contain' }}
-                      />
-                      {getSourceCanvas() && (
-                        <div className="export-preview-badge">
-                          {(getSourceCanvas()?.width || 0) * (['png', 'jpg', 'webp', 'zip'].includes(format) ? resolutionScale : 1)} × {(getSourceCanvas()?.height || 0) * (['png', 'jpg', 'webp', 'zip'].includes(format) ? resolutionScale : 1)} px
-                          {['png', 'jpg', 'webp', 'zip'].includes(format) && resolutionScale > 1 && ` (${resolutionScale}x)`}
-                        </div>
+                {(() => {
+                  const srcCanvas = getSourceCanvas();
+                  const srcW = srcCanvas?.width || 0;
+                  const srcH = srcCanvas?.height || 0;
+                  const maxPreviewH =
+                    typeof window !== 'undefined'
+                      ? Math.min(280, Math.max(120, Math.round(window.innerHeight * 0.38)))
+                      : 240;
+                  const isTerminalDynamic = uiSkin === 'terminal' && hasSourceCanvas && srcW > 0 && srcH > 0;
+                  return (
+                    <div
+                      className="export-preview-box"
+                      style={
+                        isTerminalDynamic
+                          ? {
+                              padding: 0,
+                              minHeight: '64px',
+                              maxHeight: `${maxPreviewH}px`,
+                            }
+                          : undefined
+                      }
+                    >
+                      {hasSourceCanvas ? (
+                        <>
+                          <canvas
+                            ref={previewCanvasRef}
+                            style={
+                              isTerminalDynamic
+                                ? {
+                                    width: srcW >= srcH ? '100%' : 'auto',
+                                    height: 'auto',
+                                    maxWidth: '100%',
+                                    maxHeight: `${maxPreviewH}px`,
+                                    aspectRatio: `${srcW} / ${srcH}`,
+                                    display: 'block',
+                                    objectFit: 'contain',
+                                    margin: '0 auto',
+                                  }
+                                : { maxWidth: '100%', maxHeight: '180px', display: 'block', objectFit: 'contain' }
+                            }
+                          />
+                          {srcCanvas && (
+                            <div className="export-preview-badge">
+                              {srcW * (['png', 'jpg', 'webp', 'zip'].includes(format) ? resolutionScale : 1)} × {srcH * (['png', 'jpg', 'webp', 'zip'].includes(format) ? resolutionScale : 1)} px
+                              {['png', 'jpg', 'webp', 'zip'].includes(format) && resolutionScale > 1 && ` (${resolutionScale}x)`}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          No active image loaded in viewport
+                        </span>
                       )}
-                    </>
-                  ) : (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      No active image loaded in viewport
-                    </span>
-                  )}
-                </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}

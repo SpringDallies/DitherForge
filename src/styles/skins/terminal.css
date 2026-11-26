@@ -2291,13 +2291,8 @@
 }
 
 :root[data-ui-skin="terminal"] .export-preview-box {
-  min-height: 92px !important;
-  max-height: 115px !important;
-  padding: 6px !important;
-}
-
-:root[data-ui-skin="terminal"] .export-preview-box canvas {
-  max-height: 96px !important;
+  min-height: 64px !important;
+  overflow: hidden !important;
 }
 
 :root[data-ui-skin="terminal"] .export-footer-actions,

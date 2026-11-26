@@ -2471,7 +2471,7 @@
 
 /* Full-width Docked Timeline anchored flush to viewport bottom */
 :root[data-ui-skin="terminal"] .canvas-area.animation-active {
-  padding-bottom: 196px !important;
+  padding-bottom: calc(var(--df-timeline-body-h, 160px) + 36px) !important;
 }
 
 :root[data-ui-skin="terminal"] .df-floating-timeline-group {
@@ -2481,7 +2481,23 @@
   gap: 0 !important;
 }
 
+:root[data-ui-skin="terminal"] .df-timeline-resize-handle {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 6;
+  pointer-events: auto;
+}
+
+:root[data-ui-skin="terminal"] .df-timeline-resize-handle:hover + .df-timeline-top-row {
+  border-top-color: var(--tm-border-hover) !important;
+}
+
 :root[data-ui-skin="terminal"] .df-timeline-top-row {
+  position: relative;
   width: 100%;
   height: 36px;
   padding: 0 12px;
@@ -2503,7 +2519,7 @@
   min-width: 0 !important;
   height: 100% !important;
   padding: 0 !important;
-  gap: 16px !important;
+  gap: 12px !important;
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
@@ -2534,31 +2550,39 @@
 }
 
 :root[data-ui-skin="terminal"] .df-transport-cluster {
-  gap: 4px !important;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0 !important;
+  background: var(--tm-surface);
+  border: 1px solid var(--tm-border);
+  border-radius: 3px;
 }
 
 :root[data-ui-skin="terminal"] .df-transport-btn,
 :root[data-ui-skin="terminal"] .df-speed-btn {
-  height: 24px !important;
+  height: 22px !important;
   min-width: 28px !important;
-  padding: 0 7px !important;
-  border-radius: 3px !important;
-  border: 1px solid var(--tm-border) !important;
-  background: var(--tm-surface) !important;
+  padding: 0 9px !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: transparent !important;
   color: var(--tm-text) !important;
   font-size: 12px !important;
   font-weight: 400 !important;
 }
 
+:root[data-ui-skin="terminal"] .df-speed-control-wrap {
+  border-left: 1px solid var(--tm-border);
+}
+
 :root[data-ui-skin="terminal"] .df-transport-btn:hover,
 :root[data-ui-skin="terminal"] .df-speed-btn:hover {
-  border-color: var(--tm-border-hover) !important;
-  background: var(--tm-surface) !important;
+  background: transparent !important;
   color: var(--tm-text-bright) !important;
 }
 
 :root[data-ui-skin="terminal"] .df-speed-btn.speed-active {
-  border-color: var(--tm-border-hover) !important;
   color: var(--tm-text-bright) !important;
 }
 
@@ -2577,6 +2601,10 @@
 :root[data-ui-skin="terminal"] .df-playback-plus-btn:hover {
   border-color: var(--tm-border-hover) !important;
   background: var(--tm-control) !important;
+}
+
+:root[data-ui-skin="terminal"] .df-speed-popover {
+  z-index: 60 !important;
 }
 
 :root[data-ui-skin="terminal"] .df-speed-popover,
@@ -2619,7 +2647,7 @@
 
 /* Docked Timeline Canvas Body */
 :root[data-ui-skin="terminal"] .df-timeline-body-card {
-  height: 160px !important;
+  height: var(--df-timeline-body-h, 160px) !important;
   border-radius: 0 !important;
   border: none !important;
   background: var(--tm-panel) !important;
@@ -2632,6 +2660,8 @@
 :root[data-ui-skin="terminal"] .df-ruler-time-edge {
   width: 38px !important;
   height: 20px !important;
+  align-items: center !important;
+  padding-bottom: 0 !important;
   font-size: 11.5px !important;
   font-weight: 400 !important;
   color: var(--tm-text-muted) !important;
@@ -2643,10 +2673,13 @@
 
 :root[data-ui-skin="terminal"] .df-ruler-ticks {
   height: 20px !important;
-  border-bottom: 1px solid var(--tm-border-subtle);
+  border-bottom: none !important;
 }
 
 :root[data-ui-skin="terminal"] .df-ruler-tick {
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
   width: 1px !important;
   height: 6px !important;
   background-color: var(--tm-border) !important;
@@ -2754,8 +2787,15 @@
 :root[data-ui-skin="terminal"] .df-floating-property-editor {
   position: absolute !important;
   left: 12px !important;
-  bottom: 204px !important;
-  width: 280px !important;
+  bottom: calc(var(--df-timeline-body-h, 160px) + 44px) !important;
+  width: 280px;
+  min-width: 240px;
+  max-width: 520px;
+  min-height: 220px;
+  max-height: calc(100vh - var(--df-timeline-body-h, 160px) - 110px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: 5px !important;
   border: 1px solid var(--tm-border-strong) !important;
   background: var(--tm-panel) !important;
@@ -2766,7 +2806,38 @@
   -webkit-backdrop-filter: none !important;
 }
 
+:root[data-ui-skin="terminal"] .df-editor-resize-top {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 6;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-resize-right {
+  position: absolute;
+  top: 8px;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 6;
+}
+
+:root[data-ui-skin="terminal"] .df-editor-resize-top-right {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+  z-index: 7;
+}
+
 :root[data-ui-skin="terminal"] .df-editor-header {
+  flex-shrink: 0;
   background: var(--tm-header) !important;
   border-bottom: 1px solid var(--tm-border) !important;
   padding: 8px 12px !important;
@@ -2785,6 +2856,9 @@
 }
 
 :root[data-ui-skin="terminal"] .df-editor-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 12px !important;
   gap: 10px !important;
 }

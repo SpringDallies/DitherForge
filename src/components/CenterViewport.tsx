@@ -426,6 +426,60 @@ export const CenterViewport: React.FC = () => {
     return () => window.removeEventListener('ditherforge_settings_changed', syncSkin);
   }, []);
 
+  const [timelineBodyHeight, setTimelineBodyHeight] = useState<number>(160);
+  const [editorSize, setEditorSize] = useState<{ width: number; height: number | null }>({ width: 280, height: null });
+
+  const handleTimelineResizeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startHeight = timelineBodyHeight;
+    document.body.style.cursor = 'ns-resize';
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const next = Math.max(96, Math.min(420, Math.round(startHeight + (startY - moveEvent.clientY))));
+      setTimelineBodyHeight(next);
+    };
+
+    const onMouseUp = () => {
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [timelineBodyHeight]);
+
+  const handleEditorResizeMouseDown = useCallback((axis: 'x' | 'y' | 'xy', e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = floatingEditorRef.current?.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = rect ? rect.width : editorSize.width;
+    const startHeight = rect ? rect.height : (editorSize.height ?? 340);
+    document.body.style.cursor = axis === 'x' ? 'ew-resize' : axis === 'y' ? 'ns-resize' : 'nesw-resize';
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      setEditorSize((prev) => ({
+        width: axis === 'y' ? prev.width : Math.max(240, Math.min(520, Math.round(startWidth + (moveEvent.clientX - startX)))),
+        height: axis === 'x' ? prev.height : Math.max(220, Math.min(560, Math.round(startHeight + (startY - moveEvent.clientY)))),
+      }));
+    };
+
+    const onMouseUp = () => {
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [editorSize]);
+
   const hasConfiguredAnimation = useAppStore((state) => state.hasConfiguredAnimation);
   const setHasConfiguredAnimation = useAppStore((state) => state.setHasConfiguredAnimation);
   const isCreateAnimationPopupOpen = useAppStore((state) => state.isCreateAnimationPopupOpen);
@@ -2535,8 +2589,9 @@ export const CenterViewport: React.FC = () => {
         className={`canvas-area ${appMode === 'animation' && hasConfiguredAnimation ? 'animation-active' : ''}`}
         data-df-panel="canvas-area"
         style={{
-          cursor: isDraggingSplitter ? 'ew-resize' : 'default'
-        }}
+          cursor: isDraggingSplitter ? 'ew-resize' : 'default',
+          ...(uiSkin === 'terminal' ? { '--df-timeline-body-h': `${timelineBodyHeight}px` } : {})
+        } as React.CSSProperties}
         onPointerDown={handleViewportPointerDown}
         onPointerMove={handleViewportPointerMove}
         onPointerUp={handleViewportPointerUp}
@@ -2746,7 +2801,10 @@ export const CenterViewport: React.FC = () => {
           <div
             ref={timelineGroupRef}
             className="df-floating-timeline-group"
-            style={{ '--df-sidebar-offset': `${sidebarWidth + 28}px` } as React.CSSProperties}
+            style={{
+              '--df-sidebar-offset': `${sidebarWidth + 28}px`,
+              ...(uiSkin === 'terminal' ? { '--df-timeline-body-h': `${timelineBodyHeight}px` } : {})
+            } as React.CSSProperties}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Property Editor Popup - In-line directly above play buttons & + */}
@@ -2754,11 +2812,38 @@ export const CenterViewport: React.FC = () => {
               <aside
                 ref={floatingEditorRef}
                 className="df-floating-property-editor"
+                style={
+                  uiSkin === 'terminal'
+                    ? {
+                        width: `${editorSize.width}px`,
+                        ...(editorSize.height !== null ? { height: `${editorSize.height}px` } : {}),
+                      }
+                    : undefined
+                }
                 onClick={(e) => e.stopPropagation()}
                 onContextMenu={() => {
                   setSelectedTrackId(selectedTrack.id);
                 }}
               >
+                {uiSkin === 'terminal' && (
+                  <>
+                    <div
+                      className="df-editor-resize-top"
+                      onMouseDown={(e) => handleEditorResizeMouseDown('y', e)}
+                      title="Drag to resize height"
+                    />
+                    <div
+                      className="df-editor-resize-right"
+                      onMouseDown={(e) => handleEditorResizeMouseDown('x', e)}
+                      title="Drag to resize width"
+                    />
+                    <div
+                      className="df-editor-resize-top-right"
+                      onMouseDown={(e) => handleEditorResizeMouseDown('xy', e)}
+                      title="Drag to resize"
+                    />
+                  </>
+                )}
                 {uiSkin === 'terminal' && (
                   <div className="df-editor-header">
                     <span className="df-editor-header-title">Track</span>
@@ -2921,6 +3006,14 @@ export const CenterViewport: React.FC = () => {
                 </div>
                 </div>
               </aside>
+            )}
+
+            {uiSkin === 'terminal' && (
+              <div
+                className="df-timeline-resize-handle"
+                onMouseDown={handleTimelineResizeMouseDown}
+                title="Drag to resize timeline"
+              />
             )}
 
             <div className="df-timeline-top-row">

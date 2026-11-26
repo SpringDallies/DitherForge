@@ -136,6 +136,7 @@ export interface AnvilLogo3DProps {
   size?: number | string;
   className?: string;
   interactive?: boolean;
+  trackGlobalPointer?: boolean;
   sharpness?: 'pixelated' | 'crisp' | 'smooth';
   themeOverride?: string;
   onFirstFrame?: () => void;
@@ -146,6 +147,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
   size = 128,
   className = '',
   interactive = true,
+  trackGlobalPointer = true,
   sharpness = 'pixelated',
   themeOverride,
   onFirstFrame,
@@ -241,7 +243,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.set(0, 2.0, 10);
+    camera.position.set(0, 0, 10);
     camera.lookAt(0, 0, 0);
 
     const rootGroup = new THREE.Group();
@@ -845,9 +847,14 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       }
     };
 
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    document.addEventListener('mouseleave', handleWindowLeave);
-    window.addEventListener('blur', handleWindowLeave);
+    if (trackGlobalPointer) {
+      window.addEventListener('pointermove', onPointerMove, { passive: true });
+      document.addEventListener('mouseleave', handleWindowLeave);
+      window.addEventListener('blur', handleWindowLeave);
+    } else {
+      canvas.addEventListener('pointermove', onPointerMove, { passive: true });
+      canvas.addEventListener('pointerleave', handleWindowLeave);
+    }
     canvas.addEventListener('pointerdown', onPointerDown);
 
     let contextLost = false;
@@ -1095,9 +1102,14 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       disposed = true;
       triggerShineRef.current = null;
       if (rafId !== null) cancelAnimationFrame(rafId);
-      window.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('mouseleave', handleWindowLeave);
-      window.removeEventListener('blur', handleWindowLeave);
+      if (trackGlobalPointer) {
+        window.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('mouseleave', handleWindowLeave);
+        window.removeEventListener('blur', handleWindowLeave);
+      } else {
+        canvas.removeEventListener('pointermove', onPointerMove);
+        canvas.removeEventListener('pointerleave', handleWindowLeave);
+      }
       window.removeEventListener('resize', updateCachedRect);
       window.removeEventListener('scroll', updateCachedRect, true);
       document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -1113,7 +1125,7 @@ export const AnvilLogo3D: React.FC<AnvilLogo3DProps> = ({
       STEAM_PUFFS.forEach((st) => st.mesh.material.dispose());
       renderer.dispose();
     };
-  }, [interactive]);
+  }, [interactive, trackGlobalPointer]);
 
   const resolvedCssSize = typeof size === 'number' ? `${size}px` : size;
 

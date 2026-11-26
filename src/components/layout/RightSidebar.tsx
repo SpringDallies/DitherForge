@@ -1739,7 +1739,7 @@ export const RightSidebar: React.FC = () => {
         <div className="top-action-block" data-df-section="top-actions">
           <div className="sidebar-brand" data-df-section="brand">
             {uiSkin === 'terminal' ? (
-              <AnvilLogo3D size={168} interactive={true} sharpness="pixelated" />
+              <AnvilLogo3D size={256} interactive={true} trackGlobalPointer={false} sharpness="pixelated" />
             ) : (
               <Logo variant="mark" size={280} />
             )}

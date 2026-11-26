@@ -1,7 +1,7 @@
 {
   "name": "ditherforge",
   "private": true,
-  "version": "2.3.3",
+  "version": "2.0.0",
   "type": "module",
   "description": "DitherForge - Standalone Retro Image, Video & Animation Dithering Suite",
   "scripts": {

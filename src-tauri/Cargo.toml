@@ -1,6 +1,6 @@
 [package]
 name = "ditherforge"
-version = "2.3.3"
+version = "2.0.0"
 description = "DitherForge - The Retro Synthesis & Precision Dithering Suite"
 authors = ["DitherForge Team"]
 edition = "2021"

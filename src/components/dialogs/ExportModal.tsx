@@ -202,6 +202,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const [cellWidth, setCellWidth] = useState<number>(6);
   const [cellHeight, setCellHeight] = useState<number>(12);
   const [previewPopupUrl, setPreviewPopupUrl] = useState<string | null>(null);
+  const [exePos, setExePos] = useState<{ x: number; y: number } | null>(null);
+  const [exeSize, setExeSize] = useState<{ w: number; h: number }>({ w: 430, h: 224 });
+  const [exeMinimized, setExeMinimized] = useState<boolean>(false);
+  const [openOptMenu, setOpenOptMenu] = useState<'scale' | 'format' | null>(null);
+  const [exeBgUrl, setExeBgUrl] = useState<string | null>(null);
 
   const [dedicatedGridState, setDedicatedGridState] = useState<DedicatedGridState>({
     grid: null,
@@ -261,10 +266,26 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   useEffect(() => {
     if (!isOpen) {
       setPreviewPopupUrl(null);
+      setOpenOptMenu(null);
+      setExeMinimized(false);
       return;
+    }
+    if (uiSkin === 'terminal') {
+      const src = getSourceCanvas();
+      setExeBgUrl(src ? src.toDataURL('image/png') : null);
+      setExePos((prev) =>
+        prev ?? {
+          x: Math.max(16, Math.round((window.innerWidth - exeSize.w) / 2)),
+          y: Math.max(48, Math.round((window.innerHeight - exeSize.h) / 2)),
+        }
+      );
     }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (openOptMenu) {
+          setOpenOptMenu(null);
+          return;
+        }
         if (previewPopupUrl) {
           setPreviewPopupUrl(null);
           return;
@@ -272,9 +293,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         onClose();
       }
     };
+    const handleDocClick = () => setOpenOptMenu(null);
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, previewPopupUrl]);
+    window.addEventListener('click', handleDocClick);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('click', handleDocClick);
+    };
+  }, [isOpen, onClose, previewPopupUrl, openOptMenu, uiSkin]);
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'image') return;
@@ -725,6 +751,218 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
   const disableCellInputs = charSet === 'braille' || charSet === 'dedicated';
   const activeExportId: ExportOptionId =
     activeTab === 'text' ? 'txt' : activeTab === 'vector' ? 'svg' : format;
+
+  const handleExeDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const basePos = exePos ?? {
+      x: Math.max(16, Math.round((window.innerWidth - exeSize.w) / 2)),
+      y: Math.max(48, Math.round((window.innerHeight - exeSize.h) / 2)),
+    };
+    const onMove = (ev: MouseEvent) => {
+      const nextX = Math.max(0, Math.min(window.innerWidth - 120, Math.round(basePos.x + (ev.clientX - startX))));
+      const nextY = Math.max(0, Math.min(window.innerHeight - 36, Math.round(basePos.y + (ev.clientY - startY))));
+      setExePos({ x: nextX, y: nextY });
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const handleExeResizeStart = (axis: 'x' | 'y' | 'xy', e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = exeSize.w;
+    const startH = exeSize.h;
+    document.body.style.cursor = axis === 'x' ? 'ew-resize' : axis === 'y' ? 'ns-resize' : 'nwse-resize';
+    const onMove = (ev: MouseEvent) => {
+      setExeSize((prev) => ({
+        w: axis === 'y' ? prev.w : Math.max(300, Math.min(window.innerWidth - 32, Math.round(startW + (ev.clientX - startX)))),
+        h: axis === 'x' ? prev.h : Math.max(176, Math.min(window.innerHeight - 64, Math.round(startH + (ev.clientY - startY)))),
+      }));
+    };
+    const onUp = () => {
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  if (uiSkin === 'terminal') {
+    const pos = exePos ?? {
+      x: Math.max(16, Math.round((window.innerWidth - exeSize.w) / 2)),
+      y: Math.max(48, Math.round((window.innerHeight - exeSize.h) / 2)),
+    };
+    const showScale = ['png', 'jpg', 'webp', 'zip'].includes(activeExportId);
+    const activeLabel = EXPORT_AS_OPTIONS.find((o) => o.id === activeExportId)?.label || activeExportId.toUpperCase();
+
+    return createPortal(
+      <div
+        className="export-exe-window"
+        data-df-modal="export"
+        style={{
+          left: `${pos.x}px`,
+          top: `${pos.y}px`,
+          width: `${exeSize.w}px`,
+          height: exeMinimized ? '32px' : `${exeSize.h}px`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-dialog-title"
+      >
+        <div className="export-exe-bg-wrap">
+          {exeBgUrl && <img className="export-exe-bg-img" src={exeBgUrl} alt="" draggable={false} />}
+          <div className="export-exe-bg-scrim" />
+        </div>
+
+        <div className="export-exe-titlebar" onMouseDown={handleExeDragStart}>
+          <span id="export-dialog-title" className="export-exe-title">Export.exe</span>
+          <div className="export-exe-win-controls">
+            <button
+              type="button"
+              className="export-exe-win-btn"
+              aria-label={exeMinimized ? 'Restore window' : 'Minimize window'}
+              title={exeMinimized ? 'Restore' : 'Minimize'}
+              onClick={() => setExeMinimized((v) => !v)}
+            >
+              -
+            </button>
+            <button
+              type="button"
+              className="export-exe-win-btn"
+              aria-label="Close"
+              title="Close"
+              onClick={onClose}
+            >
+              X
+            </button>
+          </div>
+        </div>
+
+        {!exeMinimized && (
+          <div className="export-exe-body">
+            <div className="export-exe-panel">
+              <div className="export-exe-row">
+                <label className="export-exe-label" htmlFor="export-exe-filename">File Name:</label>
+                <input
+                  id="export-exe-filename"
+                  type="text"
+                  className="export-exe-input"
+                  value={filename}
+                  onChange={(e) => setFilename(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && hasSourceCanvas && !isExportingSequence) {
+                      if (activeTab === 'image') handleExportImage();
+                      else if (activeTab === 'text') void handleExportText();
+                      else if (activeTab === 'vector') handleExportVector();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="export-exe-action-bar">
+                <button
+                  type="button"
+                  className="export-exe-btn"
+                  disabled={!hasSourceCanvas || isExportingSequence}
+                  onClick={() => {
+                    if (activeTab === 'image') handleExportImage();
+                    else if (activeTab === 'text') void handleExportText();
+                    else if (activeTab === 'vector') handleExportVector();
+                  }}
+                >
+                  {isExportingSequence ? `Exporting (${exportProgress}%)` : 'Export'}
+                </button>
+
+                <div className="export-exe-options">
+                  {showScale && (
+                    <div className="export-exe-opt-wrap" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="export-exe-opt-link"
+                        onClick={() => setOpenOptMenu((cur) => (cur === 'scale' ? null : 'scale'))}
+                      >
+                        {resolutionScale}x
+                      </button>
+                      {openOptMenu === 'scale' && (
+                        <div className="export-exe-opt-menu">
+                          {[1, 2, 4].map((sc) => (
+                            <button
+                              key={sc}
+                              type="button"
+                              className={`export-exe-opt-item ${resolutionScale === sc ? 'active' : ''}`}
+                              onClick={() => {
+                                setResolutionScale(sc);
+                                setOpenOptMenu(null);
+                              }}
+                            >
+                              <span>{sc}x</span>
+                              {resolutionScale === sc && <span>*</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="export-exe-opt-wrap" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="export-exe-opt-link"
+                      onClick={() => setOpenOptMenu((cur) => (cur === 'format' ? null : 'format'))}
+                    >
+                      {activeLabel}
+                    </button>
+                    {openOptMenu === 'format' && (
+                      <div className="export-exe-opt-menu">
+                        {EXPORT_AS_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            className={`export-exe-opt-item ${activeExportId === opt.id ? 'active' : ''}`}
+                            onClick={() => {
+                              setActiveTab(opt.tab);
+                              if (opt.tab === 'image') {
+                                setFormat(opt.id as ImageFormat);
+                              }
+                              setOpenOptMenu(null);
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {activeExportId === opt.id && <span>*</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!exeMinimized && (
+          <>
+            <div className="export-exe-resize-right" onMouseDown={(e) => handleExeResizeStart('x', e)} />
+            <div className="export-exe-resize-bottom" onMouseDown={(e) => handleExeResizeStart('y', e)} />
+            <div className="export-exe-resize-corner" onMouseDown={(e) => handleExeResizeStart('xy', e)} />
+          </>
+        )}
+      </div>,
+      document.body
+    );
+  }
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>

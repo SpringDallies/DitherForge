@@ -188,6 +188,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
   const [defaultExportDir, setDefaultExportDir] = useState<string>('Downloads');
   const [showDevLogs, setShowDevLogs] = useState<boolean>(false);
+  const [openSettingMenu, setOpenSettingMenu] = useState<string | null>(null);
 
   const activeBackend = useAppStore((state) => state.activeBackend);
   const backendError = useAppStore((state) => state.backendError);
@@ -215,6 +216,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
     if (isOpen) {
       setSettings(getStoredSettings());
       setPurgeMsg(null);
+      setOpenSettingMenu(null);
       if (EngineBridge.isTauri()) {
         EngineBridge.getDefaultExportDirectory().then((dir) => {
           if (dir) setDefaultExportDir(dir);
@@ -222,6 +224,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
       }
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!openSettingMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.settings-exe-value-wrap')) {
+        setOpenSettingMenu(null);
+      }
+    };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [openSettingMenu]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1131,19 +1144,457 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   );
 
   if (isTerminal) {
+    const isLinuxPlatform =
+      typeof document !== 'undefined' &&
+      (document.documentElement.getAttribute('data-platform') === 'linux' ||
+        (typeof navigator !== 'undefined' && /linux/i.test(navigator.platform)));
+
+    const renderSelectRow = (
+      id: string,
+      label: string,
+      value: string,
+      items: { id: string; label: string }[],
+      onSelect: (val: string) => void,
+      disabled = false
+    ) => {
+      const activeLabel = items.find((i) => i.id === value)?.label ?? value;
+      return (
+        <div className={`settings-exe-row ${disabled ? 'disabled' : ''}`}>
+          <span className="settings-exe-label">{label}</span>
+          <span className="settings-exe-dots" />
+          <div className="settings-exe-value-wrap">
+            <button
+              type="button"
+              className="settings-exe-link"
+              onClick={() => setOpenSettingMenu((cur) => (cur === id ? null : id))}
+            >
+              {activeLabel}
+            </button>
+            {openSettingMenu === id && (
+              <div className="export-exe-opt-menu">
+                {items.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`export-exe-opt-item ${value === opt.id ? 'active' : ''}`}
+                    onClick={() => {
+                      onSelect(opt.id);
+                      setOpenSettingMenu(null);
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                    {value === opt.id && <span>*</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const renderToggleRow = (
+      label: string,
+      enabled: boolean,
+      onToggle: (next: boolean) => void,
+      disabled = false
+    ) => (
+      <div className={`settings-exe-row ${disabled ? 'disabled' : ''}`}>
+        <span className="settings-exe-label">{label}</span>
+        <span className="settings-exe-dots" />
+        <div className="settings-exe-value-wrap">
+          <button
+            type="button"
+            className="settings-exe-link"
+            onClick={() => onToggle(!enabled)}
+          >
+            {enabled ? 'Enabled' : 'Disabled'}
+          </button>
+        </div>
+      </div>
+    );
+
+    const renderReadonlyRow = (label: string, valueText: string) => (
+      <div className="settings-exe-row">
+        <span className="settings-exe-label">{label}</span>
+        <span className="settings-exe-dots" />
+        <span className="settings-exe-readonly">{valueText}</span>
+      </div>
+    );
+
+    const renderSlider = (
+      label: string,
+      valueText: string,
+      min: number,
+      max: number,
+      step: number,
+      value: number,
+      fillPct: number,
+      onChange: (val: number) => void,
+      disabled = false
+    ) => (
+      <div className={`settings-exe-slider-block ${disabled ? 'disabled' : ''}`}>
+        <div className="settings-exe-label">{label}</div>
+        <div className="settings-exe-slider-row">
+          <input
+            type="range"
+            className="control-slider"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            style={{ flex: 1, minWidth: 0, '--slider-fill': `${fillPct}%` } as React.CSSProperties}
+            onChange={(e) => onChange(parseFloat(e.target.value))}
+            aria-label={label}
+          />
+          <span className="settings-exe-slider-val">{valueText}</span>
+        </div>
+      </div>
+    );
+
     return (
       <>
         <TerminalWindow
           title="Settings.exe"
           isOpen={isOpen}
           onClose={onClose}
-          defaultSize={{ w: 540, h: 520 }}
+          defaultSize={{ w: 540, h: 560 }}
           minSize={{ w: 380, h: 300 }}
-          className="df-tw-scroll"
+          disableResize={openSettingMenu !== null}
+          className="df-tw-scroll df-settings-exe"
           dataModal="settings"
           ariaLabelledBy="settings-dialog-title"
         >
-          {settingsContent}
+          <div className="settings-exe-scroll">
+            <div className="settings-exe-section-title first">general</div>
+            {renderSelectRow(
+              'viewportMode',
+              'Viewport mode',
+              settings.defaultUpdateMode,
+              [
+                { id: 'live', label: 'Live' },
+                { id: 'debounce', label: 'Debounce' }
+              ],
+              (val) => updateSetting('defaultUpdateMode', val as 'live' | 'debounce')
+            )}
+            {renderReadonlyRow('Language', 'English')}
+
+            <div className="settings-exe-section-title">performance</div>
+            {!isLinuxPlatform && (
+              <>
+                {renderToggleRow('Glass Blur', settings.glassBlur !== false, (v) => updateSetting('glassBlur', v))}
+                {renderSlider(
+                  'Glass Blur Strength',
+                  `${settings.glassBlurRadius ?? 16}px`,
+                  0,
+                  40,
+                  1,
+                  settings.glassBlurRadius ?? 16,
+                  ((settings.glassBlurRadius ?? 16) / 40) * 100,
+                  (v) => updateSetting('glassBlurRadius', Math.round(v)),
+                  settings.glassBlur === false
+                )}
+                {renderSlider(
+                  'Glass Opacity',
+                  `${Math.round((settings.glassOpacity ?? 0.82) * 100)}%`,
+                  0.3,
+                  0.98,
+                  0.02,
+                  settings.glassOpacity ?? 0.82,
+                  (((settings.glassOpacity ?? 0.82) - 0.3) / 0.68) * 100,
+                  (v) => updateSetting('glassOpacity', v),
+                  settings.glassBlur === false
+                )}
+                {renderToggleRow(
+                  'Topbar Glass',
+                  settings.topbarGlass !== false,
+                  (v) => updateSetting('topbarGlass', v),
+                  settings.glassBlur === false
+                )}
+              </>
+            )}
+            {renderToggleRow('Drop Shadows', settings.shadows !== false, (v) => updateSetting('shadows', v))}
+            {renderToggleRow('Ui Animations', settings.animations !== false, (v) => updateSetting('animations', v))}
+            {renderToggleRow('High Zoom', settings.highQualityZoom !== false, (v) => updateSetting('highQualityZoom', v))}
+
+            {EngineBridge.isTauri() && (
+              <>
+                <div className="settings-exe-section-title">video</div>
+                <div className="settings-exe-row">
+                  <span className="settings-exe-label">FFmpeg Backend</span>
+                  <span className="settings-exe-dots" />
+                  <div className="settings-exe-value-wrap">
+                    <button
+                      type="button"
+                      className="settings-exe-link"
+                      onClick={() => useAppStore.getState().setIsFfmpegModalOpen(true)}
+                    >
+                      Configure
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="settings-exe-section-title">misc</div>
+            {renderSelectRow(
+              'uiSkin',
+              'Ui Skin',
+              settings.uiSkin ?? 'default',
+              UI_SKINS,
+              (val) => {
+                const next = withUiSkinDefaults(settings, val);
+                setSettings(next);
+                saveStoredSettings(next);
+              }
+            )}
+            {renderSelectRow(
+              'logoMode',
+              'Logo',
+              settings.logoMode ?? 'none',
+              [
+                { id: '2d', label: '2D' },
+                { id: '3d', label: '3D' },
+                { id: 'none', label: 'None' }
+              ],
+              (val) => updateSetting('logoMode', val as LogoMode)
+            )}
+            {settings.logoMode === '3d' && (
+              <>
+                {renderSelectRow(
+                  'logoDitherStyle',
+                  'Logo Dither',
+                  settings.logoDitherStyle ?? 'none',
+                  [
+                    { id: 'bayer4', label: 'Bayer 4x4' },
+                    { id: 'bayer2', label: 'Bayer 2x2' },
+                    { id: 'bayer8', label: 'Bayer 8x8' },
+                    { id: 'halftone', label: 'Halftone' },
+                    { id: 'scanline', label: 'Scanlines' },
+                    { id: 'checker', label: 'Checker' },
+                    { id: 'none', label: 'Smooth' }
+                  ],
+                  (val) => updateSetting('logoDitherStyle', val as LogoDitherStyle)
+                )}
+                {renderSelectRow(
+                  'logoSharpness',
+                  'Logo Sharpness',
+                  settings.logoSharpness ?? 'pixelated',
+                  [
+                    { id: 'pixelated', label: 'Pixelated' },
+                    { id: 'crisp', label: 'Crisp' },
+                    { id: 'smooth', label: 'Smooth' }
+                  ],
+                  (val) => updateSetting('logoSharpness', val as LogoSharpness)
+                )}
+                {renderSelectRow(
+                  'logoResolution',
+                  'Logo Resolution',
+                  String(settings.logoResolution ?? 128),
+                  [
+                    { id: '64', label: '64' },
+                    { id: '128', label: '128' },
+                    { id: '256', label: '256' },
+                    { id: '512', label: '512' }
+                  ],
+                  (val) => updateSetting('logoResolution', parseInt(val, 10) as 64 | 128 | 256 | 512)
+                )}
+                {renderSlider(
+                  'Shading Bands',
+                  String(settings.logoColorSteps ?? 5),
+                  2,
+                  16,
+                  1,
+                  settings.logoColorSteps ?? 5,
+                  (((settings.logoColorSteps ?? 5) - 2) / 14) * 100,
+                  (v) => updateSetting('logoColorSteps', Math.round(v))
+                )}
+                {renderSlider(
+                  'Dither Spread',
+                  `${Math.round((settings.logoDitherStrength ?? 1.0) * 100)}%`,
+                  0,
+                  2,
+                  0.05,
+                  settings.logoDitherStrength ?? 1.0,
+                  ((settings.logoDitherStrength ?? 1.0) / 2.0) * 100,
+                  (v) => updateSetting('logoDitherStrength', v)
+                )}
+                {renderSlider(
+                  'Animation Speed',
+                  `${Math.round((settings.logoSpeed ?? 1.0) * 100)}%`,
+                  0,
+                  3,
+                  0.05,
+                  settings.logoSpeed ?? 1.0,
+                  ((settings.logoSpeed ?? 1.0) / 3.0) * 100,
+                  (v) => updateSetting('logoSpeed', v)
+                )}
+                {renderSlider(
+                  'Wiggle Amount',
+                  `${Math.round((settings.logoWiggle ?? 1.0) * 100)}%`,
+                  0,
+                  3,
+                  0.05,
+                  settings.logoWiggle ?? 1.0,
+                  ((settings.logoWiggle ?? 1.0) / 3.0) * 100,
+                  (v) => updateSetting('logoWiggle', v)
+                )}
+                {renderSelectRow(
+                  'logoCursorReact',
+                  'Cursor Tracking',
+                  settings.logoCursorReact ?? 'direct',
+                  [
+                    { id: 'direct', label: 'Direct' },
+                    { id: 'sidebar', label: 'Sidebar' },
+                    { id: 'global', label: 'Global' },
+                    { id: 'off', label: 'Off' }
+                  ],
+                  (val) => updateSetting('logoCursorReact', val as LogoCursorReact)
+                )}
+                {renderSlider(
+                  'Cursor Sensitivity',
+                  `${Math.round((settings.logoCursorSensitivity ?? 0.4) * 100)}%`,
+                  0.1,
+                  2.5,
+                  0.05,
+                  settings.logoCursorSensitivity ?? 0.4,
+                  (((settings.logoCursorSensitivity ?? 0.4) - 0.1) / 2.4) * 100,
+                  (v) => updateSetting('logoCursorSensitivity', v),
+                  (settings.logoCursorReact ?? 'direct') === 'off'
+                )}
+                {renderToggleRow(
+                  'Click Sparks',
+                  settings.logoInteractiveClick !== false,
+                  (v) => updateSetting('logoInteractiveClick', v)
+                )}
+                {renderToggleRow(
+                  'Metallic Glint',
+                  settings.logoPeriodicShine !== false,
+                  (v) => updateSetting('logoPeriodicShine', v)
+                )}
+              </>
+            )}
+
+            {renderSelectRow(
+              'smoothScroll',
+              'Scroll',
+              settings.smoothScroll !== false ? 'lenis' : 'native',
+              [
+                { id: 'lenis', label: 'Lenis' },
+                { id: 'native', label: 'Native' }
+              ],
+              (val) => updateSetting('smoothScroll', val === 'lenis')
+            )}
+            {renderSlider(
+              'Scroll Tightness',
+              `${Math.round((settings.scrollTightness ?? 0.25) * 100)}%`,
+              0.05,
+              1.0,
+              0.05,
+              settings.scrollTightness ?? 0.25,
+              (((settings.scrollTightness ?? 0.25) - 0.05) / 0.95) * 100,
+              (v) => updateSetting('scrollTightness', v),
+              settings.smoothScroll === false
+            )}
+            {renderSlider(
+              'Scroll Duration',
+              `${(settings.scrollDuration ?? 1.2).toFixed(1)}s`,
+              0.1,
+              3.0,
+              0.1,
+              settings.scrollDuration ?? 1.2,
+              (((settings.scrollDuration ?? 1.2) - 0.1) / 2.9) * 100,
+              (v) => updateSetting('scrollDuration', v),
+              settings.smoothScroll === false
+            )}
+
+            {renderSelectRow(
+              'defaultExportFormat',
+              'Default Format',
+              settings.defaultExportFormat,
+              [
+                { id: 'png', label: 'PNG' },
+                { id: 'jpg', label: 'JPG' },
+                { id: 'webp', label: 'WebP' },
+                { id: 'svg', label: 'SVG' }
+              ],
+              (val) => updateSetting('defaultExportFormat', val as 'png' | 'jpg' | 'webp' | 'svg')
+            )}
+
+            {EngineBridge.isTauri() && (
+              <div className="settings-exe-row">
+                <span className="settings-exe-label">Export Folder</span>
+                <span className="settings-exe-dots" />
+                <div className="settings-exe-value-wrap">
+                  <button
+                    type="button"
+                    className="settings-exe-link"
+                    title={settings.exportFolder || `${defaultExportDir} (Default)`}
+                    onClick={async () => {
+                      const folder = await EngineBridge.selectExportDirectory();
+                      if (folder) updateSetting('exportFolder', folder);
+                    }}
+                  >
+                    Browse...
+                  </button>
+                  {settings.exportFolder && (
+                    <button
+                      type="button"
+                      className="settings-exe-link"
+                      onClick={() => updateSetting('exportFolder', undefined as any)}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="settings-exe-row">
+              <span className="settings-exe-label">Recent Files Limit</span>
+              <span className="settings-exe-dots" />
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={settings.recentFilesLimit}
+                onChange={(e) => updateSetting('recentFilesLimit', Math.max(1, parseInt(e.target.value, 10) || 8))}
+                className="settings-exe-num"
+                aria-label="Recent files limit"
+              />
+            </div>
+
+            <div className="settings-exe-section-title">developer</div>
+            {renderReadonlyRow('Build Mode', import.meta.env.PROD ? 'Release' : 'Development')}
+            {renderReadonlyRow('Platform', navigator.platform)}
+            {renderReadonlyRow('Version', 'v2')}
+            {renderReadonlyRow('Engine', `${ALGORITHM_REGISTRY.length} algorithms`)}
+            {renderReadonlyRow(
+              'Active Backend',
+              activeBackend === 'rust' ? 'Rust' : activeBackend === 'js-fallback' ? 'JS (Fallback)' : 'JavaScript'
+            )}
+            {renderReadonlyRow('Last Render', lastRenderMs > 0 ? `${lastRenderMs.toFixed(1)} ms` : '< 1 ms')}
+            {renderReadonlyRow('Backend Error', backendError ?? 'None')}
+            <div className="settings-exe-row">
+              <span className="settings-exe-label">Purge Temp Files</span>
+              <span className="settings-exe-dots" />
+              <div className="settings-exe-value-wrap">
+                {purgeMsg && <span className="settings-exe-readonly">{purgeMsg}</span>}
+                <button type="button" className="settings-exe-link" onClick={handlePurgeTempFiles}>
+                  Purge
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-exe-footer">
+            <button type="button" className="settings-exe-btn" onClick={() => setShowDevLogs(true)}>
+              View Logs
+            </button>
+            <button type="button" className="settings-exe-btn" onClick={handleResetDefaults}>
+              Reset to Default
+            </button>
+          </div>
         </TerminalWindow>
         {showDevLogs && (
           <TerminalWindow

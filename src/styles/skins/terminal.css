@@ -3495,6 +3495,182 @@
   padding: 16px 18px !important;
 }
 
+/* Settings.exe 1:1 Terminal Reference Layout */
+:root[data-ui-skin="terminal"] .df-settings-exe .export-exe-body {
+  padding: 4px 20px 16px;
+}
+
+:root[data-ui-skin="terminal"] .df-settings-exe .export-exe-panel {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 2px 2px 8px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-section-title {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tm-text-muted);
+  margin: 20px 0 12px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-section-title.first {
+  margin-top: 2px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-row.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-label {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--tm-text-bright);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-dots {
+  flex: 1 1 auto;
+  min-width: 16px;
+  border-bottom: 1.5px dotted rgba(255, 255, 255, 0.22);
+  transform: translateY(-2px);
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-value-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--tm-text-bright);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-link:hover {
+  color: #ffffff;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-readonly {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--tm-text-muted);
+  white-space: nowrap;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-num {
+  width: 48px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: 1px solid var(--tm-border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tm-text-bright);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  text-align: right;
+  outline: none;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-num:focus {
+  border-color: var(--tm-text-muted);
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-slider-block {
+  margin-bottom: 14px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-slider-block.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 7px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-slider-val {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--tm-text-bright);
+  min-width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--tm-border-subtle);
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 4px;
+  border: 1px solid var(--tm-border-strong);
+  background: var(--tm-control);
+  color: var(--tm-text-bright);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 400;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-btn:hover {
+  border-color: var(--tm-text-muted);
+  background: var(--tm-control-hover);
+  color: #ffffff;
+}
+
 :root[data-ui-skin="terminal"] .export-exe-resize-right {
   position: absolute;
   top: 32px;

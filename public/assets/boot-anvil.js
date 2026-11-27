@@ -9,7 +9,7 @@
   })();
 
   const THEMES = {
-    'light_pro':        { bg:'#DDDDE3', shadow:[0.54,0.56,0.59], highlight:[1.00,1.00,1.00] },
+    'light_pro':        { bg:'#D2D4DC', shadow:[0.12,0.13,0.16], highlight:[0.55,0.57,0.62] },
     'dark':         { bg:'#333333', shadow:[0.34,0.35,0.45], highlight:[0.96,0.98,1.00] },
     'dark_pro':    { bg:'#0D0E11', shadow:[0.32,0.34,0.41], highlight:[0.96,0.96,0.97] },
     'nord':             { bg:'#2E3440', shadow:[0.37,0.51,0.67], highlight:[0.93,0.94,0.96] },

@@ -95,7 +95,7 @@ interface LogoThemeColors {
 
 const LOGO_THEMES: Record<string, LogoThemeColors> = {
   obsidian:  { shadow: [0.34, 0.35, 0.45], highlight: [0.96, 0.98, 1.00], lightMode: 0.0 },
-  light_pro: { shadow: [0.58, 0.64, 0.73], highlight: [0.85, 0.89, 0.95], lightMode: 1.0 },
+  light_pro: { shadow: [0.12, 0.13, 0.16], highlight: [0.55, 0.57, 0.62], lightMode: 1.0 },
   indigo:    { shadow: [0.35, 0.50, 0.95], highlight: [0.93, 0.96, 1.00], lightMode: 0.0 },
   emerald:   { shadow: [0.14, 0.66, 0.48], highlight: [0.90, 1.00, 0.95], lightMode: 0.0 },
   crimson:   { shadow: [0.84, 0.26, 0.46], highlight: [1.00, 0.91, 0.96], lightMode: 0.0 },

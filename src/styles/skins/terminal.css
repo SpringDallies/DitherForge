@@ -3775,90 +3775,14 @@
   transition: color 140ms ease, text-decoration-color 140ms ease;
 }
 
-:root[data-ui-skin="terminal"]:not([data-animations="false"]):not([data-slider-holder="false"]) .control-slider::-webkit-slider-runnable-track {
-  transition: border-color 140ms ease, background-color 140ms ease;
-}
-
-:root[data-ui-skin="terminal"]:not([data-animations="false"]):not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb {
+:root[data-ui-skin="terminal"]:not([data-animations="false"]):not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb,
+:root[data-ui-skin="terminal"]:not([data-animations="false"]):not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb {
   transition: background-color 140ms ease;
 }
 
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider {
-  height: 16px !important;
-  border: none !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  background-image: none !important;
-  box-shadow: none !important;
   overflow: visible !important;
-}
-
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active {
-  box-shadow: none !important;
-}
-
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover::-webkit-slider-runnable-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active::-webkit-slider-runnable-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-webkit-slider-runnable-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-webkit-slider-runnable-track {
-  border-color: rgba(255, 255, 255, 0.55) !important;
-  background-color: rgba(255, 255, 255, 0.07) !important;
-  background-image: linear-gradient(
-    to right,
-    #ffffff 0%,
-    #ffffff var(--slider-fill, 0%),
-    transparent var(--slider-fill, 0%),
-    transparent 100%
-  ) !important;
-}
-
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover::-moz-range-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active::-moz-range-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-moz-range-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-moz-range-track {
-  border-color: rgba(255, 255, 255, 0.55) !important;
-  background-color: rgba(255, 255, 255, 0.07) !important;
-  background-image: linear-gradient(
-    to right,
-    #ffffff 0%,
-    #ffffff var(--slider-fill, 0%),
-    transparent var(--slider-fill, 0%),
-    transparent 100%
-  ) !important;
-}
-
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-runnable-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-runnable-track {
-  height: 6px !important;
-  border-radius: 1px !important;
-  border: 1px solid rgba(255, 255, 255, 0.28) !important;
-  background-color: transparent !important;
-  background-image: linear-gradient(
-    to right,
-    #e5e5e5 0%,
-    #e5e5e5 var(--slider-fill, 0%),
-    transparent var(--slider-fill, 0%),
-    transparent 100%
-  ) !important;
-}
-
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-track,
-:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-track {
-  height: 6px !important;
-  border-radius: 1px !important;
-  border: 1px solid rgba(255, 255, 255, 0.28) !important;
-  background-color: transparent !important;
-  background-image: linear-gradient(
-    to right,
-    #e5e5e5 0%,
-    #e5e5e5 var(--slider-fill, 0%),
-    transparent var(--slider-fill, 0%),
-    transparent 100%
-  ) !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb,
@@ -3867,7 +3791,7 @@
   appearance: none !important;
   width: 20px !important;
   height: 14px !important;
-  margin-top: -5px !important;
+  margin-top: -2px !important;
   border-radius: 2px !important;
   border: none !important;
   background-color: #d4d4d4 !important;

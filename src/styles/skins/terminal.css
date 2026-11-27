@@ -3817,16 +3817,16 @@
   height: 18px !important;
   margin-top: -4px !important;
   border-radius: 4px !important;
-  border: 1px solid var(--tm-border-strong) !important;
+  border: 1px solid color-mix(in srgb, var(--tm-accent) 45%, var(--tm-border-strong)) !important;
   background-color: var(--tm-slider-fill-end, var(--tm-accent)) !important;
   background-image: linear-gradient(
     to right,
     transparent 0 8.5px,
-    color-mix(in srgb, var(--tm-canvas) 70%, transparent) 8.5px 9.5px,
+    color-mix(in srgb, var(--tm-header) 80%, var(--tm-canvas)) 8.5px 9.5px,
     transparent 9.5px 11.5px,
-    color-mix(in srgb, var(--tm-canvas) 70%, transparent) 11.5px 12.5px,
+    color-mix(in srgb, var(--tm-header) 80%, var(--tm-canvas)) 11.5px 12.5px,
     transparent 12.5px 14.5px,
-    color-mix(in srgb, var(--tm-canvas) 70%, transparent) 14.5px 15.5px,
+    color-mix(in srgb, var(--tm-header) 80%, var(--tm-canvas)) 14.5px 15.5px,
     transparent 15.5px 100%
   ) !important;
   background-size: 24px 10px !important;
@@ -3836,11 +3836,26 @@
   cursor: ew-resize !important;
 }
 
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover::-webkit-slider-thumb,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active::-webkit-slider-thumb,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb:hover,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb:active,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-webkit-slider-thumb,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-webkit-slider-thumb,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb:hover,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb:active {
-  background-color: var(--tm-text-bright) !important;
+  background-color: color-mix(in srgb, var(--tm-accent) 75%, var(--tm-text-bright)) !important;
+  border-color: var(--tm-accent) !important;
+  background-image: linear-gradient(
+    to right,
+    transparent 0 8.5px,
+    var(--tm-canvas) 8.5px 9.5px,
+    transparent 9.5px 11.5px,
+    var(--tm-canvas) 11.5px 12.5px,
+    transparent 12.5px 14.5px,
+    var(--tm-canvas) 14.5px 15.5px,
+    transparent 15.5px 100%
+  ) !important;
 }
 
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb,
@@ -3848,16 +3863,16 @@
   width: 26px !important;
   height: 18px !important;
   border-radius: 4px !important;
-  border: 1px solid var(--tm-border-strong) !important;
+  border: 1px solid color-mix(in srgb, var(--tm-accent) 45%, var(--tm-border-strong)) !important;
   background-color: var(--tm-slider-fill-end, var(--tm-accent)) !important;
   background-image: linear-gradient(
     to right,
     transparent 0 8.5px,
-    color-mix(in srgb, var(--tm-canvas) 70%, transparent) 8.5px 9.5px,
+    color-mix(in srgb, var(--tm-header) 80%, var(--tm-canvas)) 8.5px 9.5px,
     transparent 9.5px 11.5px,
-    color-mix(in srgb, var(--tm-canvas) 70%, transparent) 11.5px 12.5px,
+    color-mix(in srgb, var(--tm-header) 80%, var(--tm-canvas)) 11.5px 12.5px,
     transparent 12.5px 14.5px,
-    color-mix(in srgb, var(--tm-canvas) 70%, transparent) 14.5px 15.5px,
+    color-mix(in srgb, var(--tm-header) 80%, var(--tm-canvas)) 14.5px 15.5px,
     transparent 15.5px 100%
   ) !important;
   background-size: 24px 10px !important;
@@ -3867,11 +3882,26 @@
   cursor: ew-resize !important;
 }
 
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover::-moz-range-thumb,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active::-moz-range-thumb,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb:hover,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb:active,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-moz-range-thumb,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-moz-range-thumb,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-thumb:hover,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-thumb:active {
-  background-color: var(--tm-text-bright) !important;
+  background-color: color-mix(in srgb, var(--tm-accent) 75%, var(--tm-text-bright)) !important;
+  border-color: var(--tm-accent) !important;
+  background-image: linear-gradient(
+    to right,
+    transparent 0 8.5px,
+    var(--tm-canvas) 8.5px 9.5px,
+    transparent 9.5px 11.5px,
+    var(--tm-canvas) 11.5px 12.5px,
+    transparent 12.5px 14.5px,
+    var(--tm-canvas) 14.5px 15.5px,
+    transparent 15.5px 100%
+  ) !important;
 }
 
 :root[data-ui-skin="terminal"] .export-exe-resize-right {

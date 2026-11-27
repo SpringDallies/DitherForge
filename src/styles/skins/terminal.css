@@ -335,6 +335,12 @@
   line-height: 1;
 }
 
+:root[data-ui-skin="terminal"] .dropdown-item-delete-btn:hover,
+:root[data-ui-skin="terminal"] .replica-preset-delete-btn:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 :root[data-ui-skin="terminal"] .dropdown-item-delete-btn:hover::after,
 :root[data-ui-skin="terminal"] .replica-preset-delete-btn:hover::after {
   color: var(--tm-text);
@@ -360,6 +366,11 @@
   padding-left: 8px;
   color: var(--tm-star);
   font-size: 12px;
+}
+
+:root[data-ui-skin="terminal"] .custom-dropdown-item:has(.custom-dropdown-item-right).selected::after {
+  margin-left: 8px;
+  padding-left: 0;
 }
 
 :root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item.selected::after {
@@ -589,16 +600,23 @@
 :root[data-ui-skin="terminal"] .menu-dropdowns {
   margin-left: 0;
   flex-shrink: 0;
+  border-radius: 5px !important;
+  overflow: hidden;
 }
 
 :root[data-ui-skin="terminal"] [data-df-region="topbar"] .segmented-switch {
   height: 26px;
-  border-radius: 0 !important;
+  border-radius: 5px !important;
+  overflow: hidden;
   padding: 0;
   gap: 0;
   background: var(--tm-surface) !important;
   border: 1px solid var(--tm-border) !important;
   box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] [data-df-region="topbar"] .top-right-controls button {
+  border-radius: 5px !important;
 }
 
 :root[data-ui-skin="terminal"] [data-df-region="topbar"] .switch-btn {
@@ -2803,7 +2821,7 @@
 }
 
 :root[data-ui-skin="terminal"] .df-speed-popover {
-  z-index: 60 !important;
+  z-index: 200 !important;
 }
 
 :root[data-ui-skin="terminal"] .df-speed-popover,
@@ -2814,7 +2832,8 @@
   box-shadow: 0 6px 16px var(--tm-shadow) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  padding: 4px 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
   gap: 0 !important;
 }
 

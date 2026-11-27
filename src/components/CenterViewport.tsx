@@ -2734,43 +2734,57 @@ export const CenterViewport: React.FC = () => {
           }}
           defaultSize={{ w: 340, h: 190 }}
           minSize={{ w: 280, h: 168 }}
-          className="df-tw-scroll"
+          className="df-tw-scroll df-settings-exe"
           dataModal="create-animation"
         >
-          <div className="df-create-anim-body" style={{ padding: 0 }}>
-            <div className="df-create-anim-top-row">
-              <div className="df-create-anim-field">
-                <span className="df-create-anim-label">FPS</span>
-                <input
-                  type="text"
-                  className="df-create-anim-pill-input"
-                  value={popupFpsInput}
-                  onChange={(e) => setPopupFpsInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleConfirmCreateAnimation();
-                  }}
-                />
-              </div>
-              <div className="df-create-anim-field">
-                <span className="df-create-anim-label">Duration</span>
-                <input
-                  type="text"
-                  className="df-create-anim-pill-input"
-                  value={popupDurationInput}
-                  onChange={(e) => setPopupDurationInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleConfirmCreateAnimation();
-                  }}
-                />
-              </div>
+          <div className="batch-exe-wrap" style={{ paddingTop: '6px' }}>
+            <div className="settings-exe-row" style={{ marginBottom: '4px' }}>
+              <span className="settings-exe-label">FPS</span>
+              <span className="settings-exe-dots" />
+              <input
+                type="text"
+                className="settings-exe-num"
+                style={{ width: '64px' }}
+                value={popupFpsInput}
+                onChange={(e) => setPopupFpsInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmCreateAnimation();
+                }}
+                aria-label="FPS"
+              />
             </div>
-            <button
-              type="button"
-              className="df-create-anim-submit-btn"
+            <div className="settings-exe-row" style={{ marginBottom: '4px' }}>
+              <span className="settings-exe-label">Duration</span>
+              <span className="settings-exe-dots" />
+              <input
+                type="text"
+                className="settings-exe-num"
+                style={{ width: '64px' }}
+                value={popupDurationInput}
+                onChange={(e) => setPopupDurationInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmCreateAnimation();
+                }}
+                aria-label="Duration"
+              />
+            </div>
+            <div
+              className="export-exe-action-bar"
+              style={{ marginTop: 'auto' }}
+              role="button"
+              tabIndex={0}
               onClick={handleConfirmCreateAnimation}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleConfirmCreateAnimation();
+                }
+              }}
             >
-              {hasConfiguredAnimation ? 'Apply' : 'Create'}
-            </button>
+              <span className="export-exe-btn">
+                {hasConfiguredAnimation ? 'Apply' : 'Create'}
+              </span>
+            </div>
           </div>
         </TerminalWindow>
       )}

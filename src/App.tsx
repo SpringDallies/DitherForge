@@ -94,10 +94,24 @@ export const App: React.FC = () => {
     } catch {}
   }, []);
   const peekTimerRef = useRef<number | null>(null);
+  const prevThemeRef = useRef<string | null>(null);
+  const themeSwitchTimerRef = useRef<number | null>(null);
 
   // Sync theme with document root & body
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', activeTheme);
+    const root = document.documentElement;
+    if (prevThemeRef.current !== null && prevThemeRef.current !== activeTheme) {
+      root.classList.add('df-theme-switching');
+      if (themeSwitchTimerRef.current !== null) {
+        window.clearTimeout(themeSwitchTimerRef.current);
+      }
+      themeSwitchTimerRef.current = window.setTimeout(() => {
+        root.classList.remove('df-theme-switching');
+        themeSwitchTimerRef.current = null;
+      }, 600);
+    }
+    prevThemeRef.current = activeTheme;
+    root.setAttribute('data-theme', activeTheme);
     document.body.setAttribute('data-theme', activeTheme);
   }, [activeTheme]);
 

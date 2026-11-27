@@ -5,6 +5,18 @@
    - Dark Base:  [data-theme="dark_pro"] + 7 Dark Child Themes
    ═══════════════════════════════════════════════════════════════ */
 
+:root.df-theme-switching:not([data-animations="false"]) *,
+:root.df-theme-switching:not([data-animations="false"]) *::before,
+:root.df-theme-switching:not([data-animations="false"]) *::after {
+  transition:
+    background-color 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    fill 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    stroke 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 520ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
 :root {
   /* ─── Glass Tokens ─── */
   --glass-blur-radius: 16px;

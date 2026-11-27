@@ -26,6 +26,7 @@ export interface DitherForgeSettings {
   exportFolder?: string;
   recentFilesLimit: number;
   smoothScroll: boolean;
+  scrollFade: boolean;
   scrollTightness: number;
   scrollDuration: number;
   glassBlur: boolean;
@@ -57,6 +58,7 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   defaultExportFormat: 'png',
   recentFilesLimit: 8,
   smoothScroll: true,
+  scrollFade: true,
   scrollTightness: 0.25,
   scrollDuration: 1.2,
   glassBlur: true,
@@ -97,6 +99,7 @@ export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   document.documentElement.setAttribute('data-shadows', settings.shadows !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-animations', settings.animations !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-high-quality-zoom', settings.highQualityZoom !== false ? 'true' : 'false');
+  document.documentElement.setAttribute('data-scroll-fade', settings.scrollFade !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-ui-skin', settings.uiSkin || 'default');
 
   const blurRadius = settings.glassBlurRadius ?? 16;
@@ -927,6 +930,24 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
 
             <div className="settings-row">
+              <div>
+                <div className="settings-label">Scroll fade</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Softly fade overflowing content at the top and bottom of scrollable panels.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.scrollFade !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('scrollFade', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
+            </div>
+
+            <div className="settings-row">
               <span className="settings-label">Default export format</span>
               <Dropdown
                 width={130}
@@ -1158,6 +1179,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
       disabled = false
     ) => {
       const activeLabel = items.find((i) => i.id === value)?.label ?? value;
+      const isBinary = items.length === 2;
       return (
         <div className={`settings-exe-row ${disabled ? 'disabled' : ''}`}>
           <span className="settings-exe-label">{label}</span>
@@ -1166,11 +1188,19 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             <button
               type="button"
               className="settings-exe-link"
-              onClick={() => setOpenSettingMenu((cur) => (cur === id ? null : id))}
+              onClick={() => {
+                if (isBinary) {
+                  const nextOpt = items[0].id === value ? items[1] : items[0];
+                  onSelect(nextOpt.id);
+                  setOpenSettingMenu(null);
+                } else {
+                  setOpenSettingMenu((cur) => (cur === id ? null : id));
+                }
+              }}
             >
               {activeLabel}
             </button>
-            {openSettingMenu === id && (
+            {!isBinary && openSettingMenu === id && (
               <div className="export-exe-opt-menu">
                 {items.map((opt) => (
                   <button
@@ -1238,7 +1268,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
         <div className="settings-exe-slider-row">
           <input
             type="range"
-            className="control-slider"
+            className="control-slider settings-exe-slider"
             min={min}
             max={max}
             step={step}
@@ -1507,6 +1537,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               (v) => updateSetting('scrollDuration', v),
               settings.smoothScroll === false
             )}
+            {renderToggleRow('Scroll Fade', settings.scrollFade !== false, (v) => updateSetting('scrollFade', v))}
 
             {renderSelectRow(
               'defaultExportFormat',
@@ -1603,11 +1634,65 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             onClose={() => setShowDevLogs(false)}
             defaultSize={{ w: 560, h: 460 }}
             minSize={{ w: 360, h: 260 }}
-            className="df-tw-scroll"
+            className="df-tw-scroll df-settings-exe"
             dataModal="dev-logs"
             ariaLabelledBy="dev-logs-title"
           >
-            {devLogsContent}
+            <div className="settings-exe-log-filters">
+              {availableCategories.map((cat) => {
+                const active = logFilter[cat] !== false;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`settings-exe-btn ${active ? 'active' : 'muted'}`}
+                    onClick={() => toggleLogCategory(cat)}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className="settings-exe-btn muted"
+                onClick={() => {
+                  const allOn = Object.values(logFilter).every((v) => v !== false);
+                  setLogFilter(Object.fromEntries(Object.keys(logFilter).map((k) => [k, !allOn])));
+                }}
+              >
+                Toggle All
+              </button>
+            </div>
+            <div className="settings-exe-scroll">
+              {filteredLogs.length === 0 ? (
+                <span className="dev-log-empty">No logs match current filters</span>
+              ) : (
+                filteredLogs.map((entry, i) => (
+                  <div key={i} className={`dev-log-entry dev-log-${entry.level}`} style={{ marginBottom: '4px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <span className="dev-log-time" style={{ flexShrink: 0 }}>{entry.time}</span>
+                    <span className={`dev-log-level dev-log-level-${entry.level}`} style={{ flexShrink: 0, width: '48px' }}>{entry.level.toUpperCase()}</span>
+                    <span style={{ flexShrink: 0, fontSize: '0.72rem', color: 'var(--tm-text-muted)' }}>[{entry.category}]</span>
+                    <span className="dev-log-msg" style={{ flex: 1 }}>{entry.msg}</span>
+                    {entry.durationMs !== undefined && <span style={{ flexShrink: 0, fontSize: '0.72rem', color: 'var(--tm-text-muted)', marginLeft: '6px', whiteSpace: 'nowrap' }}>{entry.durationMs.toFixed(1)}ms</span>}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="settings-exe-footer" style={{ justifyContent: 'space-between' }}>
+              <button
+                type="button"
+                className="settings-exe-btn"
+                onClick={() => {
+                  const text = filteredLogs.map((e) => `[${e.time}] [${e.category}] ${e.level.toUpperCase()}: ${e.msg}`).join('\n');
+                  navigator.clipboard.writeText(text);
+                }}
+              >
+                Copy all
+              </button>
+              <button type="button" className="settings-exe-btn" onClick={clearDevLogs}>
+                Clear
+              </button>
+            </div>
           </TerminalWindow>
         )}
       </>

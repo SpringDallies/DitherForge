@@ -759,6 +759,23 @@
   padding: 16px clamp(12px, 5.5%, 22px) 24px !important;
 }
 
+:root[data-ui-skin="terminal"]:not([data-scroll-fade="false"]) .sidebar-scrollable-content {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 14px,
+    rgba(0, 0, 0, 1) calc(100% - 16px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 14px,
+    rgba(0, 0, 0, 1) calc(100% - 16px),
+    transparent 100%
+  );
+}
+
 :root[data-ui-skin="terminal"] .sidebar-scrollable-content > div {
   gap: 16px !important;
 }
@@ -3152,9 +3169,13 @@
 /* --------------------------------------------------------------------------
    15. Export.exe Floating Window (Terminal Mode)
    -------------------------------------------------------------------------- */
+:root[data-ui-skin="terminal"] .top-menubar {
+  z-index: 200;
+}
+
 :root[data-ui-skin="terminal"] .export-exe-window {
   position: fixed;
-  z-index: 10005;
+  z-index: 110;
   display: flex;
   flex-direction: column;
   border-radius: 6px;
@@ -3312,7 +3333,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-shrink: 0;
   min-width: 0;
+  min-height: 42px;
   padding: 10px 14px;
   border-radius: 0;
   border: 1px solid var(--tm-border-strong);
@@ -3385,10 +3408,12 @@
   right: 0;
   top: calc(100% + 6px);
   z-index: 20;
-  min-width: 72px;
+  width: max-content;
+  min-width: 84px;
   max-height: 220px;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 0;
   border-radius: 4px;
   border: 1px solid var(--tm-border-strong);
   background: var(--tm-panel);
@@ -3397,7 +3422,7 @@
 
 :root[data-ui-skin="terminal"] .export-exe-opt-item {
   width: 100%;
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   border: none;
   background: transparent;
@@ -3405,11 +3430,12 @@
   font-family: var(--font-sans);
   font-size: 12px;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 
 :root[data-ui-skin="terminal"] .export-exe-opt-item:hover {
@@ -3512,7 +3538,24 @@
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  padding: 2px 2px 8px;
+  padding: 6px 4px 20px;
+}
+
+:root[data-ui-skin="terminal"]:not([data-scroll-fade="false"]) .settings-exe-scroll {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 10px,
+    rgba(0, 0, 0, 1) calc(100% - 16px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 10px,
+    rgba(0, 0, 0, 1) calc(100% - 16px),
+    transparent 100%
+  );
 }
 
 :root[data-ui-skin="terminal"] .settings-exe-scroll::-webkit-scrollbar {
@@ -3556,7 +3599,12 @@
 :root[data-ui-skin="terminal"] .settings-exe-dots {
   flex: 1 1 auto;
   min-width: 16px;
-  border-bottom: 1.5px dotted rgba(255, 255, 255, 0.22);
+  height: 3px;
+  border-bottom: none;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.28) 1px, transparent 1.1px);
+  background-size: 7px 3px;
+  background-repeat: repeat-x;
+  background-position: left center;
   transform: translateY(-2px);
 }
 
@@ -3650,12 +3698,12 @@
 }
 
 :root[data-ui-skin="terminal"] .settings-exe-btn {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 4px;
-  border: 1px solid var(--tm-border-strong);
-  background: var(--tm-control);
-  color: var(--tm-text-bright);
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  color: var(--tm-text);
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 400;
@@ -3663,12 +3711,184 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  text-decoration: none;
 }
 
 :root[data-ui-skin="terminal"] .settings-exe-btn:hover {
-  border-color: var(--tm-text-muted);
-  background: var(--tm-control-hover);
+  border: none;
+  background: transparent;
   color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-btn.active {
+  color: var(--tm-text-bright);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-btn.muted {
+  color: var(--tm-text-muted);
+}
+
+:root[data-ui-skin="terminal"] .settings-exe-log-filters {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 2px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--tm-border-subtle);
+}
+
+:root[data-ui-skin="terminal"] .batch-exe-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px 2px;
+}
+
+:root[data-ui-skin="terminal"] .batch-exe-dropzone {
+  border: 1px dashed rgba(255, 255, 255, 0.24);
+  border-radius: 4px;
+  padding: 20px 16px;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--tm-text);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+:root[data-ui-skin="terminal"] .batch-exe-dropzone:hover,
+:root[data-ui-skin="terminal"] .batch-exe-dropzone.drag-over {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tm-text-bright);
+}
+
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .settings-exe-btn,
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .settings-exe-link {
+  transition: color 140ms ease, text-decoration-color 140ms ease;
+}
+
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider.settings-exe-slider::-webkit-slider-runnable-track {
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+:root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider.settings-exe-slider::-webkit-slider-thumb {
+  transition: background-color 140ms ease;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider {
+  height: 16px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:hover,
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:active {
+  box-shadow: none !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:hover::-webkit-slider-runnable-track,
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:active::-webkit-slider-runnable-track {
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  background-color: rgba(255, 255, 255, 0.07) !important;
+  background-image: linear-gradient(
+    to right,
+    #ffffff 0%,
+    #ffffff var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  ) !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:hover::-moz-range-track,
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:active::-moz-range-track {
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  background-color: rgba(255, 255, 255, 0.07) !important;
+  background-image: linear-gradient(
+    to right,
+    #ffffff 0%,
+    #ffffff var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  ) !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-runnable-track {
+  height: 6px !important;
+  border-radius: 1px !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    to right,
+    #e5e5e5 0%,
+    #e5e5e5 var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  ) !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-track {
+  height: 6px !important;
+  border-radius: 1px !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    to right,
+    #e5e5e5 0%,
+    #e5e5e5 var(--slider-fill, 0%),
+    transparent var(--slider-fill, 0%),
+    transparent 100%
+  ) !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 20px !important;
+  height: 14px !important;
+  margin-top: -5px !important;
+  border-radius: 2px !important;
+  border: none !important;
+  background-color: #d4d4d4 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14' viewBox='0 0 20 14'%3E%3Crect x='7' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='9.5' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='12' y='3' width='1' height='8' fill='%23888888'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45) !important;
+  cursor: ew-resize !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-thumb:hover,
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-thumb:active {
+  background-color: #e5e5e5 !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-thumb {
+  width: 20px !important;
+  height: 14px !important;
+  border-radius: 2px !important;
+  border: none !important;
+  background-color: #d4d4d4 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14' viewBox='0 0 20 14'%3E%3Crect x='7' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='9.5' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='12' y='3' width='1' height='8' fill='%23888888'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45) !important;
+  cursor: ew-resize !important;
+}
+
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-thumb:hover,
+:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-thumb:active {
+  background-color: #e5e5e5 !important;
 }
 
 :root[data-ui-skin="terminal"] .export-exe-resize-right {

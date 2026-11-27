@@ -66,6 +66,22 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
   });
   const [error, setError] = useState<string | null>(null);
   const [completedZipBlob, setCompletedZipBlob] = useState<Blob | null>(null);
+  const [openBatchMenu, setOpenBatchMenu] = useState<'scale' | 'format' | null>(null);
+
+  useEffect(() => {
+    if (isOpen) setOpenBatchMenu(null);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!openBatchMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.export-exe-opt-wrap')) {
+        setOpenBatchMenu(null);
+      }
+    };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [openBatchMenu]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const storeState = useAppStore();
@@ -462,6 +478,9 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
   );
 
   if (isTerminal) {
+    const formatLabel = format === 'jpeg' ? 'JPG' : format === 'webp' ? 'WebP' : 'PNG';
+    const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+
     return (
       <TerminalWindow
         title="Batch.exe"
@@ -469,13 +488,209 @@ export const BatchProcessingModal: React.FC<BatchProcessingModalProps> = ({
         onClose={() => {
           if (!isProcessing) onClose();
         }}
-        defaultSize={{ w: 430, h: 360 }}
-        minSize={{ w: 320, h: 240 }}
-        className="df-tw-scroll"
+        defaultSize={{ w: 430, h: 270 }}
+        minSize={{ w: 320, h: 220 }}
+        disableResize={openBatchMenu !== null}
+        className="df-tw-scroll df-settings-exe"
         dataModal="batch"
         ariaLabelledBy="batch-dialog-title"
       >
-        {batchContent}
+        <div className="batch-exe-wrap">
+          <div className="settings-exe-row" style={{ marginBottom: '12px' }}>
+            <span className="settings-exe-label">Active Pipeline</span>
+            <span className="settings-exe-dots" />
+            <span className="settings-exe-readonly">
+              {algoName}{activeEffectsCount > 0 ? ` +${activeEffectsCount} fx` : ''}
+            </span>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              handleFilesSelected(e.target.files);
+              e.target.value = '';
+            }}
+          />
+
+          <div
+            className={`batch-exe-dropzone ${isDragOver ? 'drag-over' : ''}`}
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!isProcessing) setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              if (!isProcessing) handleFilesSelected(e.dataTransfer.files);
+            }}
+          >
+            Drop images or click
+          </div>
+
+          {files.length > 0 && (
+            <div className="settings-exe-scroll" style={{ marginTop: '10px', maxHeight: '140px' }}>
+              {files.map((file, idx) => (
+                <div key={`${file.name}-${idx}`} className="settings-exe-row" style={{ marginBottom: '6px' }}>
+                  <span className="settings-exe-label" style={{ maxWidth: '210px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {file.name}
+                  </span>
+                  <span className="settings-exe-dots" />
+                  <span className="settings-exe-readonly" style={{ fontSize: '12px', marginRight: '8px' }}>
+                    {(file.size / 1024).toFixed(0)}KB
+                  </span>
+                  {!isProcessing && (
+                    <button
+                      type="button"
+                      className="settings-exe-btn"
+                      style={{ height: 'auto', padding: 0, fontSize: '12px' }}
+                      onClick={() => handleRemoveFile(idx)}
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      x
+                    </button>
+                  )}
+                </div>
+              ))}
+              {!isProcessing && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                  <button type="button" className="settings-exe-btn muted" onClick={handleClearAll}>
+                    Clear All
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div style={{ fontSize: '12px', color: '#f87171', marginTop: '8px' }}>
+              {error}
+            </div>
+          )}
+
+          {completedZipBlob && !isProcessing && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '12px', color: 'var(--tm-text-muted)' }}>
+              <span>Batch complete</span>
+              <button
+                type="button"
+                className="settings-exe-link"
+                style={{ fontSize: '12px' }}
+                onClick={() => {
+                  const url = URL.createObjectURL(completedZipBlob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `ditherforge_batch_${storeState.algorithmId}_${Date.now()}.zip`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Download Again
+              </button>
+            </div>
+          )}
+
+          <div
+            className={`export-exe-action-bar ${files.length === 0 && !isProcessing ? 'disabled' : ''}`}
+            style={{ marginTop: 'auto' }}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              if (isProcessing) {
+                handleCancel();
+              } else if (files.length > 0) {
+                void handleStartBatch();
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (isProcessing) handleCancel();
+                else if (files.length > 0) void handleStartBatch();
+              }
+            }}
+          >
+            <span className="export-exe-btn">
+              {isProcessing ? `Cancel (${pct}%)` : `Export ZIP (${files.length})`}
+            </span>
+
+            {!isProcessing && (
+              <div className="export-exe-options">
+                <div className="export-exe-opt-wrap" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="export-exe-opt-link"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenBatchMenu((cur) => (cur === 'scale' ? null : 'scale'));
+                    }}
+                  >
+                    {scale}x
+                  </button>
+                  {openBatchMenu === 'scale' && (
+                    <div className="export-exe-opt-menu">
+                      {([1, 2, 4] as const).map((sc) => (
+                        <button
+                          key={sc}
+                          type="button"
+                          className={`export-exe-opt-item ${scale === sc ? 'active' : ''}`}
+                          onClick={() => {
+                            setScale(sc);
+                            setOpenBatchMenu(null);
+                          }}
+                        >
+                          <span>{sc}x</span>
+                          {scale === sc && <span>*</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="export-exe-opt-wrap" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="export-exe-opt-link"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenBatchMenu((cur) => (cur === 'format' ? null : 'format'));
+                    }}
+                  >
+                    {formatLabel}
+                  </button>
+                  {openBatchMenu === 'format' && (
+                    <div className="export-exe-opt-menu">
+                      {([
+                        { id: 'png', label: 'PNG' },
+                        { id: 'jpeg', label: 'JPG' },
+                        { id: 'webp', label: 'WebP' }
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className={`export-exe-opt-item ${format === opt.id ? 'active' : ''}`}
+                          onClick={() => {
+                            setFormat(opt.id);
+                            setOpenBatchMenu(null);
+                          }}
+                        >
+                          <span>{opt.label}</span>
+                          {format === opt.id && <span>*</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </TerminalWindow>
     );
   }

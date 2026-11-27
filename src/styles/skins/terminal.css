@@ -3775,15 +3775,16 @@
   transition: color 140ms ease, text-decoration-color 140ms ease;
 }
 
-:root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider.settings-exe-slider::-webkit-slider-runnable-track {
+:root[data-ui-skin="terminal"]:not([data-animations="false"]):not([data-slider-holder="false"]) .control-slider::-webkit-slider-runnable-track {
   transition: border-color 140ms ease, background-color 140ms ease;
 }
 
-:root[data-ui-skin="terminal"]:not([data-animations="false"]) .control-slider.settings-exe-slider::-webkit-slider-thumb {
+:root[data-ui-skin="terminal"]:not([data-animations="false"]):not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb {
   transition: background-color 140ms ease;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider {
   height: 16px !important;
   border: none !important;
   border-radius: 0 !important;
@@ -3793,13 +3794,17 @@
   overflow: visible !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:hover,
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:active {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active {
   box-shadow: none !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:hover::-webkit-slider-runnable-track,
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:active::-webkit-slider-runnable-track {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover::-webkit-slider-runnable-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active::-webkit-slider-runnable-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-webkit-slider-runnable-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-webkit-slider-runnable-track {
   border-color: rgba(255, 255, 255, 0.55) !important;
   background-color: rgba(255, 255, 255, 0.07) !important;
   background-image: linear-gradient(
@@ -3811,8 +3816,10 @@
   ) !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:hover::-moz-range-track,
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider:active::-moz-range-track {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:hover::-moz-range-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider:active::-moz-range-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-moz-range-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-moz-range-track {
   border-color: rgba(255, 255, 255, 0.55) !important;
   background-color: rgba(255, 255, 255, 0.07) !important;
   background-image: linear-gradient(
@@ -3824,7 +3831,8 @@
   ) !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-runnable-track {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-runnable-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-runnable-track {
   height: 6px !important;
   border-radius: 1px !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
@@ -3838,7 +3846,8 @@
   ) !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-track {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-track,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-track {
   height: 6px !important;
   border-radius: 1px !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
@@ -3852,7 +3861,8 @@
   ) !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-thumb {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb {
   -webkit-appearance: none !important;
   appearance: none !important;
   width: 20px !important;
@@ -3868,12 +3878,15 @@
   cursor: ew-resize !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-thumb:hover,
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-webkit-slider-thumb:active {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb:hover,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb:active,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb:hover,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb:active {
   background-color: #e5e5e5 !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-thumb {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-thumb {
   width: 20px !important;
   height: 14px !important;
   border-radius: 2px !important;
@@ -3886,8 +3899,10 @@
   cursor: ew-resize !important;
 }
 
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-thumb:hover,
-:root[data-ui-skin="terminal"] .control-slider.settings-exe-slider::-moz-range-thumb:active {
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb:hover,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb:active,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-thumb:hover,
+:root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-thumb:active {
   background-color: #e5e5e5 !important;
 }
 

@@ -1792,6 +1792,16 @@ body {
   transform: scaleY(1.04);
   background: var(--accent-hover);
 }
+:root[data-slider-holder="false"] .control-slider::-webkit-slider-thumb {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+:root[data-slider-holder="false"] .control-slider::-moz-range-thumb {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
 .control-num-input {
   height: 31px;
   width: 45px;

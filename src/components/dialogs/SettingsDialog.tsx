@@ -27,6 +27,7 @@ export interface DitherForgeSettings {
   recentFilesLimit: number;
   smoothScroll: boolean;
   scrollFade: boolean;
+  sliderHolder: boolean;
   scrollTightness: number;
   scrollDuration: number;
   glassBlur: boolean;
@@ -59,6 +60,7 @@ export const DEFAULT_SETTINGS: DitherForgeSettings = {
   recentFilesLimit: 8,
   smoothScroll: true,
   scrollFade: true,
+  sliderHolder: true,
   scrollTightness: 0.25,
   scrollDuration: 1.2,
   glassBlur: true,
@@ -100,6 +102,7 @@ export function applyPerformanceSettings(settings: DitherForgeSettings): void {
   document.documentElement.setAttribute('data-animations', settings.animations !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-high-quality-zoom', settings.highQualityZoom !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-scroll-fade', settings.scrollFade !== false ? 'true' : 'false');
+  document.documentElement.setAttribute('data-slider-holder', settings.sliderHolder !== false ? 'true' : 'false');
   document.documentElement.setAttribute('data-ui-skin', settings.uiSkin || 'default');
 
   const blurRadius = settings.glassBlurRadius ?? 16;
@@ -948,6 +951,24 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             </div>
 
             <div className="settings-row">
+              <div>
+                <div className="settings-label">Slider holder</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  Show the draggable grip handle on sliders.
+                </div>
+              </div>
+              <Dropdown
+                width={130}
+                value={settings.sliderHolder !== false ? 'enabled' : 'disabled'}
+                onChange={(val) => updateSetting('sliderHolder', val === 'enabled')}
+                items={[
+                  { id: 'enabled', label: 'Enabled' },
+                  { id: 'disabled', label: 'Disabled' }
+                ]}
+              />
+            </div>
+
+            <div className="settings-row">
               <span className="settings-label">Default export format</span>
               <Dropdown
                 width={130}
@@ -1538,6 +1559,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               settings.smoothScroll === false
             )}
             {renderToggleRow('Scroll Fade', settings.scrollFade !== false, (v) => updateSetting('scrollFade', v))}
+            {renderToggleRow('Slider Holder', settings.sliderHolder !== false, (v) => updateSetting('sliderHolder', v))}
 
             {renderSelectRow(
               'defaultExportFormat',

@@ -1205,6 +1205,18 @@
   font-weight: 400 !important;
 }
 
+:root[data-ui-skin="terminal"] :is(.dropdown-menu-popover, .dropdown-submenu-popover, .df-portaled-themes-menu) > .dropdown-menu-item:first-child {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding-top: 4px !important;
+}
+
+:root[data-ui-skin="terminal"] :is(.dropdown-menu-popover, .dropdown-submenu-popover, .df-portaled-themes-menu) > .dropdown-menu-item:last-child {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding-bottom: 4px !important;
+}
+
 :root[data-ui-skin="terminal"] .dropdown-menu-popover button:hover,
 :root[data-ui-skin="terminal"] .dropdown-submenu-popover button:hover,
 :root[data-ui-skin="terminal"] .dropdown-menu-item:hover,

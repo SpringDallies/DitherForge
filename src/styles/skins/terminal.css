@@ -3907,15 +3907,15 @@
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .control-slider::-webkit-slider-thumb,
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb {
   background-color: #3E424B !important;
-  border-color: #23262D !important;
+  border-color: #2B2E35 !important;
   background-image: linear-gradient(
     to right,
     transparent 0 8.5px,
-    #16181D 8.5px 9.5px,
+    #8E94A0 8.5px 9.5px,
     transparent 9.5px 11.5px,
-    #16181D 11.5px 12.5px,
+    #8E94A0 11.5px 12.5px,
     transparent 12.5px 14.5px,
-    #16181D 14.5px 15.5px,
+    #8E94A0 14.5px 15.5px,
     transparent 15.5px 100%
   ) !important;
 }
@@ -3923,15 +3923,15 @@
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb,
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-thumb {
   background-color: #3E424B !important;
-  border-color: #23262D !important;
+  border-color: #2B2E35 !important;
   background-image: linear-gradient(
     to right,
     transparent 0 8.5px,
-    #16181D 8.5px 9.5px,
+    #8E94A0 8.5px 9.5px,
     transparent 9.5px 11.5px,
-    #16181D 11.5px 12.5px,
+    #8E94A0 11.5px 12.5px,
     transparent 12.5px 14.5px,
-    #16181D 14.5px 15.5px,
+    #8E94A0 14.5px 15.5px,
     transparent 15.5px 100%
   ) !important;
 }
@@ -3941,15 +3941,15 @@
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-webkit-slider-thumb,
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-webkit-slider-thumb {
   background-color: #343841 !important;
-  border-color: #181A20 !important;
+  border-color: #23262D !important;
   background-image: linear-gradient(
     to right,
     transparent 0 8.5px,
-    #111317 8.5px 9.5px,
+    #A2A8B5 8.5px 9.5px,
     transparent 9.5px 11.5px,
-    #111317 11.5px 12.5px,
+    #A2A8B5 11.5px 12.5px,
     transparent 12.5px 14.5px,
-    #111317 14.5px 15.5px,
+    #A2A8B5 14.5px 15.5px,
     transparent 15.5px 100%
   ) !important;
 }
@@ -3959,15 +3959,15 @@
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .replica-depth-slider:hover::-moz-range-thumb,
 :root[data-ui-skin="terminal"][data-theme="light_pro"]:not([data-slider-holder="false"]) .replica-depth-slider:active::-moz-range-thumb {
   background-color: #343841 !important;
-  border-color: #181A20 !important;
+  border-color: #23262D !important;
   background-image: linear-gradient(
     to right,
     transparent 0 8.5px,
-    #111317 8.5px 9.5px,
+    #A2A8B5 8.5px 9.5px,
     transparent 9.5px 11.5px,
-    #111317 11.5px 12.5px,
+    #A2A8B5 11.5px 12.5px,
     transparent 12.5px 14.5px,
-    #111317 14.5px 15.5px,
+    #A2A8B5 14.5px 15.5px,
     transparent 15.5px 100%
   ) !important;
 }

@@ -1162,12 +1162,13 @@
   box-shadow: 0 6px 16px var(--tm-shadow) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  padding: 4px 0 !important;
+  padding: 0 !important;
   gap: 0 !important;
   overflow: hidden !important;
 }
 
 :root[data-ui-skin="terminal"] .df-portaled-themes-menu {
+  height: auto !important;
   max-height: 360px !important;
   min-width: 196px !important;
   padding: 0 !important;
@@ -1181,18 +1182,6 @@
   display: none !important;
   width: 0 !important;
   height: 0 !important;
-}
-
-:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item:first-child {
-  height: 32px !important;
-  min-height: 32px !important;
-  padding-top: 4px !important;
-}
-
-:root[data-ui-skin="terminal"] .df-portaled-themes-menu .dropdown-menu-item:last-child {
-  height: 32px !important;
-  min-height: 32px !important;
-  padding-bottom: 4px !important;
 }
 
 :root[data-ui-skin="terminal"] .dropdown-divider {

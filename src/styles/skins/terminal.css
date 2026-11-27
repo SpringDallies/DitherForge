@@ -3789,13 +3789,13 @@
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-webkit-slider-thumb {
   -webkit-appearance: none !important;
   appearance: none !important;
-  width: 20px !important;
-  height: 14px !important;
-  margin-top: -2px !important;
+  width: 22px !important;
+  height: 16px !important;
+  margin-top: -3px !important;
   border-radius: 2px !important;
   border: none !important;
   background-color: #d4d4d4 !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14' viewBox='0 0 20 14'%3E%3Crect x='7' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='9.5' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='12' y='3' width='1' height='8' fill='%23888888'/%3E%3C/svg%3E") !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='16' viewBox='0 0 22 16'%3E%3Crect x='8' y='3.5' width='1' height='9' fill='%23888888'/%3E%3Crect x='10.5' y='3.5' width='1' height='9' fill='%23888888'/%3E%3Crect x='13' y='3.5' width='1' height='9' fill='%23888888'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45) !important;
@@ -3811,12 +3811,12 @@
 
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .control-slider::-moz-range-thumb,
 :root[data-ui-skin="terminal"]:not([data-slider-holder="false"]) .replica-depth-slider::-moz-range-thumb {
-  width: 20px !important;
-  height: 14px !important;
+  width: 22px !important;
+  height: 16px !important;
   border-radius: 2px !important;
   border: none !important;
   background-color: #d4d4d4 !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14' viewBox='0 0 20 14'%3E%3Crect x='7' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='9.5' y='3' width='1' height='8' fill='%23888888'/%3E%3Crect x='12' y='3' width='1' height='8' fill='%23888888'/%3E%3C/svg%3E") !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='16' viewBox='0 0 22 16'%3E%3Crect x='8' y='3.5' width='1' height='9' fill='%23888888'/%3E%3Crect x='10.5' y='3.5' width='1' height='9' fill='%23888888'/%3E%3Crect x='13' y='3.5' width='1' height='9' fill='%23888888'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45) !important;
